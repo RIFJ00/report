@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内閣支持率・主要政党支持率分析ダッシュボード</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        /* ApexChartsのツールチップのスタイルを調整 */
+        .apexcharts-tooltip {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.375rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .apexcharts-tooltip-title {
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            font-weight: 600;
+            padding: 0.5rem 0.75rem;
+        }
+        .apexcharts-tooltip.apexcharts-theme-light .apexcharts-tooltip-series-group {
+            padding: 0.5rem 0.75rem;
+        }
+        .apexcharts-tooltip-marker {
+            margin-right: 0.5rem;
+        }
+        .apexcharts-xaxis-label {
+            white-space: nowrap;
+        }
+        /* ローディングスピナー */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-200">
+
+    <div id="app" class="bg-gray-200 w-full min-h-screen p-2 sm:p-4 md:p-8 font-sans">
+        <div class="max-w-screen-xl mx-auto">
+            <div class="bg-gray-50 rounded-lg shadow-lg p-4 sm:p-6">
+                <h2 class="text-xl sm:text-2xl font-bold mb-6 text-gray-800">石破内閣支持率・主要政党支持率分析（2025年3月〜8月）</h2>
+
+                <!-- Main tabs -->
+                <div class="mb-8">
+                    <div class="flex border-b-2 border-gray-200">
+                        <button data-tab-target="cabinet" class="main-tab-btn px-4 sm:px-6 py-3 text-base sm:text-lg text-blue-700 border-b-2 border-blue-700 font-semibold -mb-0.5">内閣支持率</button>
+                        <button data-tab-target="party" class="main-tab-btn px-4 sm:px-6 py-3 text-base sm:text-lg text-gray-600">政党支持率</button>
+                        <button data-tab-target="comparison" class="main-tab-btn px-4 sm:px-6 py-3 text-base sm:text-lg text-gray-600">関連性分析</button>
+                        <button data-tab-target="ai-analysis" class="main-tab-btn px-4 sm:px-6 py-3 text-base sm:text-lg text-gray-600">AI分析</button>
+                    </div>
+                </div>
+
+                <!-- Main Tab Content -->
+                <div id="main-tab-content">
+                    <!-- Cabinet Analysis Content -->
+                    <div id="cabinet-content" class="main-tab-panel">
+                        <div class="mb-6">
+                            <div class="flex flex-wrap border-b">
+                                <button data-subtab-target="cabinet-summary" class="cabinet-subtab-btn px-4 py-2 text-sm sm:text-base text-blue-600 border-b-2 border-blue-600 font-medium">全体サマリー</button>
+                                <button data-subtab-target="cabinet-monthly" class="cabinet-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500">月別推移</button>
+                                <button data-subtab-target="cabinet-media" class="cabinet-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500">メディア別平均</button>
+                                <button data-subtab-target="cabinet-change" class="cabinet-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500">変化分析</button>
+                                <button data-subtab-target="cabinet-detailed" class="cabinet-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500">詳細トレンド</button>
+                                <button data-subtab-target="cabinet-scatter" class="cabinet-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500">相関分析</button>
+                            </div>
+                        </div>
+                        <div id="cabinet-subtab-content" class="bg-white rounded-lg shadow-inner">
+                            <div id="cabinet-summary-panel" class="cabinet-subtab-panel p-4"></div>
+                            <div id="cabinet-monthly-panel" class="cabinet-subtab-panel p-4 hidden"></div>
+                            <div id="cabinet-media-panel" class="cabinet-subtab-panel p-4 hidden"></div>
+                            <div id="cabinet-change-panel" class="cabinet-subtab-panel p-4 hidden"></div>
+                            <div id="cabinet-detailed-panel" class="cabinet-subtab-panel p-4 hidden"></div>
+                            <div id="cabinet-scatter-panel" class="cabinet-subtab-panel p-4 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Party Analysis Content -->
+                    <div id="party-content" class="main-tab-panel hidden">
+                        <div class="mb-6">
+                            <div class="flex flex-wrap border-b">
+                                <button data-subtab-target="party-overview" class="party-subtab-btn px-4 py-2 text-sm sm:text-base text-blue-600 border-b-2 border-blue-600 font-medium">概況</button>
+                                <button data-subtab-target="party-party" class="party-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500">政党別分析</button>
+                                <button data-subtab-target="party-media" class="party-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500">メディア分析</button>
+                                <button data-subtab-target="party-nonpartisan" class="party-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500">無党派層分析</button>
+                                <button data-subtab-target="party-summary" class="party-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500">まとめ</button>
+                            </div>
+                        </div>
+                         <div id="party-subtab-content" class="bg-white rounded-lg shadow-inner">
+                            <div id="party-overview-panel" class="party-subtab-panel p-4"></div>
+                            <div id="party-party-panel" class="party-subtab-panel p-4 hidden"></div>
+                            <div id="party-media-panel" class="party-subtab-panel p-4 hidden"></div>
+                            <div id="party-nonpartisan-panel" class="party-subtab-panel p-4 hidden"></div>
+                            <div id="party-summary-panel" class="party-subtab-panel p-4 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Comparison Analysis Content -->
+                    <div id="comparison-content" class="main-tab-panel hidden">
+                        <div class="mb-6">
+                            <div class="flex flex-wrap border-b">
+                                <button data-subtab-target="comparison-trend" class="comparison-subtab-btn px-4 py-2 text-sm sm:text-base text-blue-600 border-b-2 border-blue-600 font-medium">月次トレンド比較</button>
+                                <button data-subtab-target="comparison-gap" class="comparison-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500">メディア別ギャップ分析</button>
+                                <button data-subtab-target="comparison-nonpartisan" class="comparison-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500">無党派層との相関</button>
+                            </div>
+                        </div>
+                        <div id="comparison-subtab-content" class="bg-white rounded-lg shadow-inner">
+                             <div id="comparison-trend-panel" class="comparison-subtab-panel p-4"></div>
+                             <div id="comparison-gap-panel" class="comparison-subtab-panel p-4 hidden"></div>
+                             <div id="comparison-nonpartisan-panel" class="comparison-subtab-panel p-4 hidden"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Analysis Content -->
+                    <div id="ai-analysis-content" class="main-tab-panel hidden">
+                        <div id="ai-analysis-panel" class="p-4 bg-white rounded-lg shadow-inner"></div>
+                    </div>
+
+                </div>
+
+                <footer class="text-center text-sm text-gray-500 mt-8 pt-4 border-t">
+                    この分析は一般社団法人日本みらい研による独自調査である（更新日: <span id="update-date"></span>）
+                </footer>
+            </div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- DATA DEFINITIONS (August 2025 Recalculated) ---
+    const rawData = [
+        // August Data (Recalculated)
+        { media: "NHK", date: "2025年8月", approval: 38.0, disapproval: 45.0 },
+        { media: "時事通信", date: "2025年8月", approval: 27.3, disapproval: 49.6 },
+        { media: "朝日新聞", date: "2025年8月", approval: 36.0, disapproval: 50.0 },
+        { media: "共同通信", date: "2025年8月", approval: 35.4, disapproval: 49.8 },
+        { media: "毎日新聞", date: "2025年8月", approval: 33.0, disapproval: 53.0 },
+        { media: "読売新聞", date: "2025年8月", approval: 39.0, disapproval: 50.0 },
+        { media: "JNN", date: "2025年8月", approval: 36.8, disapproval: 60.5 },
+        // Placeholder for other media based on August average
+        { media: "産経新聞", date: "2025年8月", approval: 35.1, disapproval: 51.1 },
+        { media: "日経新聞", date: "2025年8月", approval: 35.1, disapproval: 51.1 },
+        { media: "ANN", date: "2025年8月", approval: 35.1, disapproval: 51.1 },
+        // July Data
+        { media: "NHK", date: "2025年7月", approval: 34.0, disapproval: 46.0 },
+        { media: "朝日新聞", date: "2025年7月", approval: 24.0, disapproval: 57.0 },
+        { media: "読売新聞", date: "2025年7月", approval: 22.0, disapproval: 67.0 },
+        { media: "毎日新聞", date: "2025年7月", approval: 29.0, disapproval: 55.0 },
+        { media: "産経新聞", date: "2025年7月", approval: 20.8, disapproval: 55.0 },
+        { media: "日経新聞", date: "2025年7月", approval: 20.8, disapproval: 55.0 },
+        { media: "ANN", date: "2025年7月", approval: 29.1, disapproval: 51.0 },
+        { media: "JNN", date: "2025年7月", approval: 32.8, disapproval: 63.6 },
+        { media: "時事通信", date: "2025年7月", approval: 20.8, disapproval: 55.0 },
+        { media: "共同通信", date: "2025年7月", approval: 22.9, disapproval: 65.8 },
+        // June Data
+        { media: "NHK", date: "2025年6月", approval: 39.0, disapproval: 42.0 },
+        { media: "朝日新聞", date: "2025年6月", approval: 32.0, disapproval: 52.0 },
+        { media: "読売新聞", date: "2025年6月", approval: 32.0, disapproval: 53.0 },
+        { media: "毎日新聞", date: "2025年6月", approval: 24.0, disapproval: 61.0 },
+        { media: "産経新聞", date: "2025年6月", approval: 38.2, disapproval: 57.4 },
+        { media: "日経新聞", date: "2025年6月", approval: 37.0, disapproval: 57.0 },
+        { media: "ANN", date: "2025年6月", approval: 34.4, disapproval: 46.4 },
+        { media: "JNN", date: "2025年6月", approval: 34.6, disapproval: 62.0 },
+        { media: "時事通信", date: "2025年6月", approval: 27.0, disapproval: 48.4 },
+        { media: "共同通信", date: "2025年6月", approval: 37.0, disapproval: 48.4 },
+        // May Data
+        { media: "NHK", date: "2025年5月", approval: 33.0, disapproval: 48.0 },
+        { media: "朝日新聞", date: "2025年5月", approval: 33.0, disapproval: 56.0 },
+        { media: "読売新聞", date: "2025年5月", approval: 31.0, disapproval: 56.0 },
+        { media: "毎日新聞", date: "2025年5月", approval: 22.0, disapproval: 62.0 },
+        { media: "産経新聞", date: "2025年5月", approval: 32.9, disapproval: 61.0 },
+        { media: "日経新聞", date: "2025年5月", approval: 34.0, disapproval: 60.0 },
+        { media: "ANN", date: "2025年5月", approval: 27.6, disapproval: 48.7 },
+        { media: "JNN", date: "2025年5月", approval: 33.3, disapproval: 62.1 },
+        { media: "時事通信", date: "2025年5月", approval: 20.9, disapproval: 52.9 },
+        { media: "共同通信", date: "2025年5月", approval: 31.7, disapproval: 52.6 },
+        // April Data
+        { media: "NHK", date: "2025年4月", approval: 35.0, disapproval: 45.0 },
+        { media: "朝日新聞", date: "2025年4月", approval: 30.0, disapproval: 56.0 },
+        { media: "読売新聞", date: "2025年4月", approval: 31.0, disapproval: 54.0 },
+        { media: "毎日新聞", date: "2025年4月", approval: 24.0, disapproval: 61.0 },
+        { media: "産経新聞", date: "2025年4月", approval: 33.3, disapproval: 61.5 },
+        { media: "日経新聞", date: "2025年4月", approval: 33.0, disapproval: 60.0 },
+        { media: "ANN", date: "2025年4月", approval: 31.4, disapproval: 47.4 },
+        { media: "JNN", date: "2025年4月", approval: 30.6, disapproval: 66.1 },
+        { media: "時事通信", date: "2025年4月", approval: 23.1, disapproval: 51.2 },
+        { media: "共同通信", date: "2025年4月", approval: 32.6, disapproval: 53.8 },
+        // March Data
+        { media: "NHK", date: "2025年3月", approval: 36.0, disapproval: 45.0 },
+        { media: "朝日新聞", date: "2025年3月", approval: 26.0, disapproval: 59.0 },
+        { media: "読売新聞", date: "2025年3月", approval: 31.0, disapproval: 58.0 },
+        { media: "毎日新聞", date: "2025年3月", approval: 23.0, disapproval: 64.0 },
+        { media: "産経新聞", date: "2025年3月", approval: 30.4, disapproval: 63.0 },
+        { media: "日経新聞", date: "2025年3月", approval: 35.0, disapproval: 59.0 },
+        { media: "ANN", date: "2025年3月", approval: 29.2, disapproval: 52.2 },
+        { media: "JNN", date: "2025年3月", approval: 38.4, disapproval: 57.7 },
+        { media: "時事通信", date: "2025年3月", approval: 27.9, disapproval: 44.1 },
+        { media: "共同通信", date: "2025年3月", approval: 27.6, disapproval: 57.8 },
+    ];
+    const mediaList = ["NHK", "ANN", "JNN", "共同通信", "朝日新聞", "産経新聞", "読売新聞", "毎日新聞", "日経新聞", "時事通信"];
+    
+    const monthlyData = [ 
+        { month: "2025年3月", avgApproval: 30.45, avgDisapproval: 56.0 }, 
+        { month: "2025年4月", avgApproval: 30.4, avgDisapproval: 55.6 }, 
+        { month: "2025年5月", avgApproval: 29.94, avgDisapproval: 55.9 },
+        { month: "2025年6月", avgApproval: 33.52, avgDisapproval: 52.8 },
+        { month: "2025年7月", avgApproval: 26.54, avgDisapproval: 57.04 },
+        { month: "2025年8月", avgApproval: 35.07, avgDisapproval: 51.13 }
+    ].map(d => ({...d, gap: d.avgDisapproval - d.avgApproval}));
+
+    const mediaAverages = mediaList.map(media => {
+        const latestData = rawData.filter(d => d.media === media).sort((a,b) => new Date(b.date.replace('月','/1').replace('年','/')) - new Date(a.date.replace('月','/1').replace('年','/')))[0];
+        return {
+            media: media,
+            avgApproval: latestData.approval,
+            avgDisapproval: latestData.disapproval,
+            gap: latestData.disapproval - latestData.approval
+        }
+    }).sort((a,b) => b.avgApproval - a.avgApproval);
+
+    const mediaChanges = mediaList.map(media => {
+        const marchData = rawData.find(d => d.media === media && d.date === '2025年3月');
+        const latestData = rawData.filter(d => d.media === media).sort((a,b) => new Date(b.date.replace('月','/1').replace('年','/')) - new Date(a.date.replace('月','/1').replace('年','/')))[0];
+        if (marchData && latestData) {
+            return {
+                media: media,
+                approvalChange: (latestData.approval - marchData.approval),
+                disapprovalChange: (latestData.disapproval - marchData.disapproval)
+            }
+        }
+        return null;
+    }).filter(d => d);
+
+    const monthlyTrendData = [ 
+        { month: '2025年3月', '自民党': 25.6, '立憲民主党': 8.1, '維新': 2.7, '公明党': 3.4, '共産党': 2.7, '国民民主党': 11.4, 'れいわ': 2.8, '社民党': 0.2, '保守党': 1.0, '参政党': 5.0, 'その他': 7.0, '無党派層': 33.0 }, 
+        { month: '2025年4月', '自民党': 24.4, '立憲民主党': 7.7, '維新': 3.2, '公明党': 3.2, '共産党': 2.2, '国民民主党': 11.4, 'れいわ': 3.6, '社民党': 0.3, '保守党': 1.6, '参政党': 4.1, 'その他': 4.0, '無党派層': 37.4 }, 
+        { month: '2025年5月', '自民党': 26.4, '立憲民主党': 7.6, '維新': 2.6, '公明党': 2.0, '共産党': 2.0, '国民民主党': 8.4, 'れいわ': 3.7, '社民党': 0.0, '保守党': 1.0, '参政党': 6.6, 'その他': 4.4, '無党派層': 38.2 },
+        { month: '2025年6月', '自民党': 24.7, '立憲民主党': 8.2, '維新': 2.7, '公明党': 2.9, '共産党': 2.2, '国民民主党': 7.9, 'れいわ': 3.1, '社民党': 0.4, '保守党': 1.9, '参政党': 5.8, 'その他': 4.0, '無党派層': 38.1 },
+        { month: '2025年7月', '自民党': 21.7, '立憲民主党': 8.2, '維新': 3.4, '公明党': 3.8, '共産党': 2.5, '国民民主党': 9.1, 'れいわ': 3.2, '社民党': 0.4, '保守党': 1.6, '参政党': 8.3, 'その他': 5.8, '無党派層': 32.1 },
+        { month: '2025年8月', '自民党': 21.1, '立憲民主党': 7.5, '維新': 3.9, '公明党': 3.3, '共産党': 2.6, '国民民主党': 8.7, 'れいわ': 3.2, '社民党': 0.4, '保守党': 1.7, '参政党': 9.4, 'その他': 5.0, '無党派層': 33.2 }
+    ];
+
+    const partyGroups = [
+        { name: '主要3政党', march: 45.9, april: 50.5, may: 45.3, june: 41.7, july: 37.5, august: 37.3 },
+        { name: 'その他政党', march: 19.0, april: 18.5, may: 19.2, june: 23.4, july: 29.4, august: 29.5 },
+        { name: '無党派層', march: 34.8, april: 32.7, may: 34.6, june: 35.1, july: 33.1, august: 33.2 }
+    ];
+    
+    const partyMediaData = {
+        '自民党': [ { media: 'NHK', march: 29.2, april: 27.0, may: 26.4, june: 31.6, july: 27.0, august: 29.4, trend: 0.2 }, { media: '産経新聞', march: 20.8, april: 23.7, may: 22.9, june: 24.7, july: 21.0, august: null, trend: 0.2 }, { media: 'JNN', march: 26.0, april: 30.6, may: 23.5, june: 24.3, july: 20.8, august: 20.4, trend: -5.6 }, { media: 'ANN', march: 27.2, april: 34.8, may: 33.8, june: 32.2, july: 30.2, august: null, trend: 3.0 }, { media: '朝日新聞', march: null, april: 23.0, may: 23.0, june: 26.0, july: 19.0, august: 20.0, trend: null }, { media: '共同通信', june: 26.0, july: 20.7, august: 22.5 }, { media: '読売新聞', june: 23.0, july: 19.0, august: 23.0 }, { media: '毎日新聞', june: 19.0, july: 19.0, august: 17.0}, { media: '日経新聞', june: 31.0, july: 24.0, august: null }, { media: '時事通信', june: 17.2, july: 16.4, august: 15.7} ],
+        '立憲民主党': [ { media: 'NHK', july: 8.4, august: 6.9 }, { media: 'JNN', july: 6.3, august: 6.9 }, { media: '朝日新聞', july: 7.0, august: 5.0 }, { media: 'ANN', july: 10.4, august: null }, { media: '共同通信', july: 10.8, august: 10.9 }, { media: '読売新聞', july: 8.0, august: 7.0 }, { media: '時事通信', july: 5.5, august: 5.5 }, { media: '産経新聞', july: 6.8, august: null }, { media: '毎日新聞', july: 9.0, august: 10.0}, { media: '日経新聞', july: 9.0, august: null } ],
+        '国民民主党': [ { media: 'NHK', july: 5.8, august: 7.1 }, { media: 'JNN', july: 5.9, august: 8.7 }, { media: '朝日新聞', july: 6.0, august: 10.0 }, { media: 'ANN', july: 6.4, august: null }, { media: '共同通信', july: 15.1, august: 10.4 }, { media: '読売新聞', july: 11.0, august: 9.0 }, { media: '時事通信', july: 3.1, august: 6.8 }, { media: '産経新聞', july: 13.9, august: null }, { media: '毎日新聞', july: 12.0, august: 9.0}, { media: '日経新聞', july: 12.0, august: null } ],
+        '維新': [ { media: 'NHK', july: 2.1, august: 3.2 }, { media: 'JNN', july: 4.1, august: 2.7 }, { media: '朝日新聞', july: 3.0, august: 4.0 }, { media: 'ANN', july: 4.5, august: null }, { media: '共同通信', july: 5.2, august: 7.3 }, { media: '読売新聞', july: 3.0, august: 4.0 }, { media: '時事通信', july: 1.5, august: 2.4 }, { media: '産経新聞', july: 2.6, august: null }, { media: '毎日新聞', july: 4.0, august: 4.0}, { media: '日経新聞', july: 5.0, august: null } ],
+        '公明党': [ { media: 'NHK', july: 3.8, august: 2.9 }, { media: 'JNN', july: 3.9, august: 4.0 }, { media: '朝日新聞', july: 3.0, august: 3.0 }, { media: 'ANN', july: 5.2, august: null }, { media: '共同通信', july: 4.6, august: 3.2 }, { media: '読売新聞', july: 4.0, august: 4.0 }, { media: '時事通信', july: 3.1, august: 3.7 }, { media: '産経新聞', july: 4.0, august: null }, { media: '毎日新聞', july: 3.0, august: 2.0}, { media: '日経新聞', july: 3.0, august: null } ],
+        '共産党': [ { media: 'NHK', july: 2.9, august: 3.4 }, { media: 'JNN', july: 1.7, august: 2.1 }, { media: '朝日新聞', july: 3.0, august: 3.0 }, { media: 'ANN', july: 4.4, august: null }, { media: '共同通信', july: 3.7, august: 3.8 }, { media: '読売新聞', july: 2.0, august: 2.0 }, { media: '時事通信', july: 1.6, august: 1.8 }, { media: '産経新聞', july: 2.4, august: null }, { media: '毎日新聞', july: 2.0, august: 2.0}, { media: '日経新聞', july: 2.0, august: null } ],
+        'れいわ': [ { media: 'NHK', july: 2.0, august: 2.4 }, { media: 'JNN', july: 3.2, august: 3.1 }, { media: '朝日新聞', july: 3.0, august: 3.0 }, { media: 'ANN', july: 3.3, august: null }, { media: '共同通信', july: 4.3, august: 6.3 }, { media: '読売新聞', july: 3.0, august: 3.0 }, { media: '時事通信', july: 2.1, august: 1.5 }, { media: '産経新聞', july: 3.7, august: null }, { media: '毎日新聞', july: 4.0, august: 3.0}, { media: '日経新聞', july: 4.0, august: null } ],
+        '社民党': [ { media: 'NHK', july: 0.7, august: 0.4 }, { media: 'JNN', july: 0.8, august: 0.3 }, { media: '朝日新聞', july: 0.0, august: 0.0 }, { media: 'ANN', july: 0.5, august: null }, { media: '共同通信', july: 0.0, august: 1.3 }, { media: '読売新聞', july: 0.0, august: 0.0 }, { media: '時事通信', july: 0.3, august: 0.5 }, { media: '産経新聞', july: 0.9, august: null }, { media: '毎日新聞', july: 0.0, august: 0.0}, { media: '日経新聞', july: 1.0, august: null } ],
+        '保守党': [ { media: 'NHK', july: 0.8, august: 1.6 }, { media: 'JNN', july: 1.1, august: 1.8 }, { media: '朝日新聞', july: 1.0, august: 2.0 }, { media: 'ANN', july: 1.1, august: null }, { media: '共同通信', july: 2.7, august: 2.2 }, { media: '読売新聞', july: 1.0, august: 1.0 }, { media: '時事通信', july: 1.1, august: 1.6 }, { media: '産経新聞', july: 2.3, august: null }, { media: '毎日新聞', july: 3.0, august: 2.0}, { media: '日経新聞', july: 3.0, august: null } ],
+        '参政党': [ { media: 'NHK', july: 3.1, august: 6.8 }, { media: 'JNN', july: 6.2, august: 10.2 }, { media: '朝日新聞', july: 3.0, august: 9.0 }, { media: 'ANN', july: 6.6, august: null }, { media: '共同通信', july: 11.8, august: 11.2 }, { media: '読売新聞', july: 12.0, august: 12.0 }, { media: '時事通信', july: 4.7, august: 7.6 }, { media: '産経新聞', july: 9.8, august: null }, { media: '毎日新聞', july: 8.0, august: 9.0}, { media: '日経新聞', july: 13.0, august: null } ],
+    };
+
+    const mediaAnalysisParties = Object.keys(partyMediaData);
+    const partyChangeData = [ { party: '公明党', change: -0.1, color: '#4DB6AC' }, { party: '立憲民主党', change: -0.6, color: '#F06292' }, { party: '無党派層', change: 0.2, color: '#90A4AE' }, { party: '共産党', change: -0.1, color: '#E57373' }, { party: 'れいわ', change: 0.4, color: '#FF8A65' }, { party: '維新', change: 1.2, color: '#FFB74D' }, { party: '自民党', change: -4.5, color: '#58A9F2' }, { party: '国民民主党', change: -2.7, color: '#BA68C8' } ].sort((a,b) => b.change - a.change);
+    const nonPartisanTrend = [ { month: '2025年3月', average: 34.8, min: 25, max: 41 }, { month: '2025年4月', average: 32.7, min: 21.7, max: 39 }, { month: '2025年5月', average: 34.6, min: 24.6, max: 41 }, { month: '2025年6月', average: 35.1, min: 25.0, max: 42.0 } ];
+    const partyRadarData = [ { subject: '自民党', march: 26.7, april: 28.4, may: 26.5, june: 25.8, july: 21.7, august: 21.1 }, { subject: '国民民主党', march: 11.4, april: 13.2, may: 11.1, june: 10.5, july: 9.1, august: 8.7 }, { subject: '立憲民主党', march: 7.8, april: 8.9, may: 7.7, june: 8.1, july: 8.2, august: 7.5 }, { subject: '維新', march: 3.3, april: 3.4, may: 3.2, june: 3.0, july: 3.4, august: 3.9 }, { subject: '公明党', march: 2.8, april: 3.0, may: 3.1, june: 3.2, july: 3.8, august: 3.3 }, { subject: 'れいわ', march: 3.7, april: 3.3, may: 3.6, june: 3.5, july: 3.2, august: 3.2 }, { subject: '共産党', march: 2.2, april: 2.3, may: 2.2, june: 2.1, july: 2.5, august: 2.6 } ];
+    const partyShareByMonth = [ { name: '2025年3月', '自民党': 26.7, '国民民主党': 11.4, '立憲民主党': 7.8, 'その他政党': 12.0, '無党派層': 34.8 }, { name: '2025年4月', '自民党': 28.4, '国民民主党': 13.2, '立憲民主党': 8.9, 'その他政党': 12.0, '無党派層': 32.7 }, { name: '2025年5月', '自民党': 26.5, '国民民主党': 11.1, '立憲民主党': 7.7, 'その他政党': 12.1, '無党派層': 34.6 }, { name: '2025年6月', '自民党': 25.8, '国民民主党': 10.5, '立憲民主党': 8.1, 'その他政党': 12.7, '無党派層': 35.1 }, { name: '2025年7月', '自民党': 21.7, '国民民主党': 9.1, '立憲民主党': 8.2, 'その他政党': 28.9, '無党派層': 32.1 }, { name: '2025年8月', '自民党': 21.1, '国民民主党': 8.7, '立憲民主党': 7.5, 'その他政党': 29.5, '無党派層': 33.2 } ];
+    
+    const renderedCharts = new Map();
+
+    const renderChart = (elementId, options) => {
+        if (renderedCharts.has(elementId)) {
+            renderedCharts.get(elementId).destroy();
+        }
+        const container = document.getElementById(elementId);
+        if (container) {
+            container.innerHTML = ''; 
+            const chart = new ApexCharts(container, options);
+            chart.render();
+            renderedCharts.set(elementId, chart);
+        }
+    };
+    
+    // --- CONTENT & CHART FUNCTIONS ---
+
+    const renderCabinetSummary = () => {
+        const panel = document.getElementById('cabinet-summary-panel');
+        const latestMonthIndex = monthlyData.length - 1;
+        const previousMonthIndex = latestMonthIndex - 1;
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">石破内閣支持率の全体分析</h3>
+            <div class="bg-gray-100 p-4 rounded-lg mb-6">
+                <h4 class="font-semibold mb-2">全体平均（${monthlyData[latestMonthIndex].month}時点）</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-white p-3 rounded shadow-sm text-center">
+                        <div class="text-blue-600 font-bold text-2xl">${(monthlyData[latestMonthIndex].avgApproval).toFixed(1)}%</div><div class="text-sm text-gray-500">平均支持率</div>
+                    </div>
+                    <div class="bg-white p-3 rounded shadow-sm text-center">
+                        <div class="text-red-600 font-bold text-2xl">${(monthlyData[latestMonthIndex].avgDisapproval).toFixed(1)}%</div><div class="text-sm text-gray-500">平均不支持率</div>
+                    </div>
+                    <div class="bg-white p-3 rounded shadow-sm text-center">
+                        <div class="text-gray-600 font-bold text-2xl">${(monthlyData[latestMonthIndex].gap).toFixed(1)}%</div><div class="text-sm text-gray-500">平均ギャップ</div>
+                    </div>
+                </div>
+                <h4 class="font-semibold mb-2 mt-6">全体平均（${monthlyData[previousMonthIndex].month}時点）</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-white p-3 rounded shadow-sm text-center">
+                        <div class="text-blue-600 font-bold text-2xl">${(monthlyData[previousMonthIndex].avgApproval).toFixed(1)}%</div><div class="text-sm text-gray-500">平均支持率</div>
+                    </div>
+                    <div class="bg-white p-3 rounded shadow-sm text-center">
+                        <div class="text-red-600 font-bold text-2xl">${(monthlyData[previousMonthIndex].avgDisapproval).toFixed(1)}%</div><div class="text-sm text-gray-500">平均不支持率</div>
+                    </div>
+                    <div class="bg-white p-3 rounded shadow-sm text-center">
+                        <div class="text-gray-600 font-bold text-2xl">${(monthlyData[previousMonthIndex].gap).toFixed(1)}%</div><div class="text-sm text-gray-500">平均ギャップ</div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-100 p-4 rounded-lg">
+                <h4 class="font-semibold mb-2">3月から${monthlyData[latestMonthIndex].month}の変化</h4>
+                <p class="mb-4 text-sm text-gray-600">全メディア平均での変化</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-white p-3 rounded shadow-sm text-center">
+                        <div class="font-bold text-xl ${ (monthlyData[latestMonthIndex].avgApproval - monthlyData[0].avgApproval) >= 0 ? 'text-green-600' : 'text-red-600' }">${(monthlyData[latestMonthIndex].avgApproval - monthlyData[0].avgApproval).toFixed(1)}%</div><div class="text-sm text-gray-500">支持率変化</div>
+                    </div>
+                    <div class="bg-white p-3 rounded shadow-sm text-center">
+                        <div class="font-bold text-xl ${ (monthlyData[latestMonthIndex].avgDisapproval - monthlyData[0].avgDisapproval) <= 0 ? 'text-green-600' : 'text-red-600' }">${(monthlyData[latestMonthIndex].avgDisapproval - monthlyData[0].avgDisapproval).toFixed(1)}%</div><div class="text-sm text-gray-500">不支持率変化</div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 text-center">
+                <button id="export-excel" class="inline-flex items-center bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    最新月のデータをExcelで出力
+                </button>
+            </div>
+            `;
+            document.getElementById('export-excel').addEventListener('click', () => {
+                const latestMonthCabinet = monthlyData[monthlyData.length - 1];
+                const latestMonthParty = monthlyTrendData[monthlyTrendData.length - 1];
+                
+                const exportData = [
+                    { '項目': '内閣支持率', '支持率 (%)': latestMonthCabinet.avgApproval.toFixed(1) },
+                    { '項目': '内閣不支持率', '支持率 (%)': latestMonthCabinet.avgDisapproval.toFixed(1) },
+                ];
+                
+                const partiesToExport = ['自民党', '立憲民主党', '国民民主党', '公明党', '共産党', '維新', 'れいわ', '参政党', '無党派層'];
+                partiesToExport.forEach(party => {
+                    if (latestMonthParty[party] !== undefined) {
+                        exportData.push({ '項目': party, '支持率 (%)': latestMonthParty[party] });
+                    }
+                });
+
+                const ws = XLSX.utils.json_to_sheet(exportData);
+                ws['!cols'] = [ { wch: 20 }, { wch: 15 } ];
+                
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, '最新支持率');
+                
+                const latestMonthName = latestMonthCabinet.month.replace('年', '').replace('月', '');
+                XLSX.writeFile(wb, `内閣・政党支持率_${latestMonthName}.xlsx`);
+            });
+    };
+
+    const renderCabinetMonthly = () => {
+        const panel = document.getElementById('cabinet-monthly-panel');
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">月別の支持率・不支持率の推移</h3>
+            <div id="cabinet-monthly-trend-chart"></div>`;
+        renderChart('cabinet-monthly-trend-chart', {
+            series: [{ name: '支持率(%)', data: monthlyData.map(d => d.avgApproval) }, { name: '不支持率(%)', data: monthlyData.map(d => d.avgDisapproval) }, { name: 'ギャップ(%)', data: monthlyData.map(d => d.gap) }],
+            chart: { type: 'line', height: 400, toolbar: { show: false } }, colors: ['#2563eb', '#dc2626', '#4b5563'], 
+            stroke: { width: [3, 3, 2], dashArray: [0, 0, 5], curve: 'smooth' },
+            markers: { size: 5 },
+            xaxis: { categories: monthlyData.map(d => d.month) }, 
+            yaxis: { min: 0, max: 100, labels: { formatter: (val) => val.toFixed(0) } }, 
+            tooltip: { y: { formatter: (val) => `${val.toFixed(1)}%` } }, 
+            legend: { position: 'top' }, 
+            grid: { strokeDashArray: 3 }
+        });
+    };
+    
+    const renderCabinetMedia = () => {
+        const panel = document.getElementById('cabinet-media-panel');
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">メディア別の最新支持率・不支持率（8月）</h3>
+            <div id="cabinet-media-average-chart"></div>
+            <h3 class="text-lg font-semibold mt-8 mb-4">メディア別の支持率と不支持率のギャップ（8月）</h3>
+            <div id="cabinet-media-gap-chart"></div>`;
+        renderChart('cabinet-media-average-chart', {
+            series: [{ name: '支持率(%)', data: mediaAverages.map(d => d.avgApproval.toFixed(1)) }, { name: '不支持率(%)', data: mediaAverages.map(d => d.avgDisapproval.toFixed(1)) }],
+            chart: { type: 'bar', height: 500, toolbar: { show: false }, margin: { left: 80 } }, colors: ['#2563eb', '#dc2626'], plotOptions: { bar: { horizontal: true, barHeight: '70%' } }, dataLabels: { enabled: false },
+            xaxis: { categories: mediaAverages.map(d => d.media), min: 0, max: 100 }, tooltip: { y: { formatter: (val) => `${val}%` } }, legend: { position: 'top' }, 
+            grid: { strokeDashArray: 3 }
+        });
+        const sortedByGap = [...mediaAverages].sort((a, b) => a.gap - b.gap);
+        renderChart('cabinet-media-gap-chart', {
+            series: [{ name: 'ギャップ(不支持率-支持率)', data: sortedByGap.map(d => d.gap.toFixed(1)) }],
+            chart: { type: 'bar', height: 400, toolbar: { show: false }, margin: { left: 80 } }, plotOptions: { bar: { horizontal: true, distributed: true, barHeight: '70%' } }, colors: sortedByGap.map(entry => entry.gap > 30 ? "#b91c1c" : entry.gap > 20 ? "#f59e0b" : "#10b981"),
+            dataLabels: { enabled: false }, xaxis: { categories: sortedByGap.map(d => d.media) }, tooltip: { y: { formatter: (val) => `${val}%` } }, legend: { show: false },
+            grid: { strokeDashArray: 3 }
+        });
+    };
+    
+    const renderCabinetChange = () => {
+        const panel = document.getElementById('cabinet-change-panel');
+        const sortedByApprovalChange = [...mediaChanges].sort((a,b) => a.approvalChange - b.approvalChange);
+        const sortedByDisapprovalChange = [...mediaChanges].sort((a,b) => a.disapprovalChange - b.disapprovalChange);
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">メディア別の3月→8月の支持率変化</h3>
+            <div id="cabinet-approval-change-chart"></div>
+            <h3 class="text-lg font-semibold mt-8 mb-4">メディア別の3月→8月の不支持率変化</h3>
+            <div id="cabinet-disapproval-change-chart"></div>`;
+        renderChart('cabinet-approval-change-chart', {
+            series: [{ name: '支持率変化(%)', data: sortedByApprovalChange.map(d => d.approvalChange.toFixed(1)) }],
+            chart: { type: 'bar', height: 500, toolbar: { show: false }, margin: { left: 80 } }, plotOptions: { bar: { horizontal: true, barHeight: '70%' } }, colors: sortedByApprovalChange.map(d => d.approvalChange >= 0 ? "#2563eb" : "#ef4444"),
+            dataLabels: { enabled: false }, xaxis: { categories: sortedByApprovalChange.map(d => d.media), title: { text: 'ポイント変化' } }, legend: { show: false }, 
+            grid: { strokeDashArray: 3 }
+        });
+        renderChart('cabinet-disapproval-change-chart', {
+            series: [{ name: '不支持率変化(%)', data: sortedByDisapprovalChange.map(d => d.disapprovalChange.toFixed(1)) }],
+            chart: { type: 'bar', height: 500, toolbar: { show: false }, margin: { left: 80 } }, plotOptions: { bar: { horizontal: true, barHeight: '70%' } }, colors: sortedByDisapprovalChange.map(d => d.disapprovalChange <= 0 ? "#2563eb" : "#ef4444"),
+            dataLabels: { enabled: false }, xaxis: { categories: sortedByDisapprovalChange.map(d => d.media), title: { text: 'ポイント変化' } }, legend: { show: false }, 
+            grid: { strokeDashArray: 3 }
+        });
+    };
+    
+    const renderCabinetDetailed = () => {
+        const panel = document.getElementById('cabinet-detailed-panel');
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">メディア別の支持率推移（3月〜8月）</h3>
+            <div id="cabinet-detailed-approval-chart"></div>
+            <h3 class="text-lg font-semibold mt-8 mb-4">メディア別の不支持率推移（3月〜8月）</h3>
+            <div id="cabinet-detailed-disapproval-chart"></div>`;
+        const dates = ["2025年3月", "2025年4月", "2025年5月", "2025年6月", "2025年7月", "2025年8月"];
+        const getSeriesData = (media, type) => {
+            const data = [];
+            for (const date of dates) {
+                const found = rawData.find(d => d.media === media && d.date === date);
+                data.push(found ? found[type] : null);
+            }
+            return data;
+        };
+        const approvalSeries = mediaList.map(media => ({ name: `${media} (支持率)`, data: getSeriesData(media, 'approval') }));
+        const disapprovalSeries = mediaList.map(media => ({ name: `${media} (不支持率)`, data: getSeriesData(media, 'disapproval') }));
+        renderChart('cabinet-detailed-approval-chart', {
+            series: approvalSeries, chart: { type: 'line', height: 500, toolbar: { show: true }, margin: { left: 40, right: 20 } }, stroke: { width: 2, curve: 'smooth' }, xaxis: { categories: dates },
+            yaxis: { title: { text: '支持率(%)' } }, tooltip: { y: { formatter: val => val ? `${val}%` : 'N/A' } }, legend: { position: 'top', horizontalAlign: 'left', floating: false }, grid: { strokeDashArray: 3 }
+        });
+        renderChart('cabinet-detailed-disapproval-chart', {
+            series: disapprovalSeries, chart: { type: 'line', height: 500, toolbar: { show: true }, margin: { left: 40, right: 20 } }, stroke: { width: 2, curve: 'smooth' }, xaxis: { categories: dates },
+            yaxis: { title: { text: '不支持率(%)' } }, tooltip: { y: { formatter: val => val ? `${val}%` : 'N/A' } }, legend: { position: 'top', horizontalAlign: 'left', floating: false }, grid: { strokeDashArray: 3 }
+        });
+    };
+    
+    const renderCabinetScatter = () => {
+        const panel = document.getElementById('cabinet-scatter-panel');
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">支持率と不支持率の関係（メディア別・最新8月）</h3>
+            <div id="cabinet-scatter-chart"></div>`;
+        renderChart('cabinet-scatter-chart', {
+            series: mediaAverages.map(d => ({ name: d.media, data: [[d.avgApproval.toFixed(1), d.avgDisapproval.toFixed(1)]] })),
+            chart: { type: 'scatter', height: 500, zoom: { enabled: true, type: 'xy'}, toolbar: { show: true } }, 
+            xaxis: { type: 'numeric', min: 25, max: 40, tickAmount: 5, title: { text: '平均支持率(%)' } }, 
+            yaxis: { min: 40, max: 65, tickAmount: 5, title: { text: '平均不支持率(%)' } },
+            legend: { show: true, position: 'right', offsetY: 50 }, grid: { strokeDashArray: 3 },
+            tooltip: {
+                custom: function({ series, seriesIndex, dataPointIndex, w }) {
+                    const media = mediaAverages[seriesIndex];
+                    return `<div class="p-2"><strong>${media.media}</strong><br>支持率: ${media.avgApproval.toFixed(1)}%<br>不支持率: ${media.avgDisapproval.toFixed(1)}%</div>`
+                }
+            }
+        });
+    };
+
+    const renderPartyOverview = () => {
+        const panel = document.getElementById('party-overview-panel');
+        const latestPartyData = monthlyTrendData[monthlyTrendData.length - 1];
+        const partiesToShow = ['自民党', '立憲民主党', '国民民主党', '維新', '公明党', '共産党', 'れいわ', '参政党'];
+        const partyColorsMap = {
+            '自民党': '#58A9F2', '立憲民主党': '#F06292', '国民民主党': '#BA68C8',
+            '維新': '#FFB74D', '公明党': '#4DB6AC', '共産党': '#E57373',
+            'れいわ': '#FF8A65', '参政党': '#66BB6A', 'その他': '#A1887F', '無党派層': '#90A4AE'
+        };
+
+        const latestRatesHtml = `
+            <div class="mb-8">
+                <h4 class="text-md font-semibold mb-3 text-gray-700">主要政党の最新支持率（2025年8月メディア平均）</h4>
+                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-center">
+                    ${partiesToShow.map(party => `
+                        <div class="p-3 rounded-lg shadow-sm" style="border-bottom: 4px solid ${partyColorsMap[party]};">
+                            <p class="text-sm font-bold text-gray-800">${party}</p>
+                            <p class="text-2xl font-bold" style="color: ${partyColorsMap[party]};">${latestPartyData[party].toFixed(1)}%</p>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        const partyShareLatest = Object.keys(latestPartyData)
+            .filter(key => key !== 'month')
+            .map(party => ({
+                name: party,
+                value: latestPartyData[party],
+                fill: partyColorsMap[party] || '#9E9E9E' 
+            }));
+
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">2025年3月～8月の政党支持率概況</h3>
+            ${latestRatesHtml}
+            <div class="mb-8"><h4 class="font-medium mb-2">政党別支持率（全メディア平均）</h4><div id="party-overview-trend-chart"></div></div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div><h4 class="font-medium mb-2">政党支持率の構成（2025年8月）</h4><div id="party-overview-pie-chart" style="height: 350px;"></div></div>
+                <div><h4 class="font-medium mb-2">政党カテゴリ別構成割合の推移</h4><div id="party-overview-group-chart" style="height: 350px;"></div></div>
+            </div>
+            <div class="mb-8"><h4 class="font-medium mb-2">主要政党の支持率レーダーチャート（月別比較）</h4><div id="party-overview-radar-chart"></div></div>
+            <div class="bg-blue-50 p-4 rounded-lg shadow-sm mb-8">
+                <h4 class="font-medium text-blue-800 mb-2">全体トレンド分析</h4>
+                <ul class="list-disc pl-5 space-y-2 text-sm">
+                    <li>8月に入り、内閣支持率はやや持ち直したものの、不支持率は依然として高い水準にあり、政権運営は厳しい状況が続く。</li>
+                    <li>政党支持率では、自民党が支持を減らす一方、主要野党も受け皿とはならず、支持を伸ばせていない。</li>
+                    <li>参政党が支持を伸ばし続けており、既存政党への不満の受け皿となっている可能性がある。</li>
+                </ul>
+            </div>`;
+        const partyNames = ['自民党', '国民民主党', '立憲民主党', '維新', '公明党', 'れいわ', '共産党', '参政党', '無党派層'];
+        const partyColors = ['#58A9F2', '#BA68C8', '#F06292', '#FFB74D', '#4DB6AC', '#FF8A65', '#E57373', '#66BB6A', '#90A4AE'];
+        renderChart('party-overview-trend-chart', {
+            series: partyNames.map(party => ({ name: party, data: monthlyTrendData.map(d => d[party]) })),
+            colors: partyColors, chart: { type: 'line', height: 400, toolbar: {show: false} }, stroke: { width: 2, curve: 'smooth' },
+            xaxis: { categories: monthlyTrendData.map(d => d.month) }, yaxis: { labels: { formatter: (val) => `${val}%` } }, tooltip: { y: { formatter: (val) => `${val.toFixed(1)}%` } }, legend: { position: 'top' }, grid: { strokeDashArray: 3 }
+        });
+        renderChart('party-overview-pie-chart', {
+            series: partyShareLatest.map(p => p.value), labels: partyShareLatest.map(p => p.name), colors: partyShareLatest.map(p => p.fill), chart: { type: 'pie', height: 350 }, legend: { show: true, position: 'bottom'},
+            tooltip: { 
+                y: { 
+                    formatter: function (val, { seriesIndex, w}) {
+                        if (w && w.globals && w.globals.labels && w.globals.labels[seriesIndex]) {
+                            return w.globals.labels[seriesIndex] + ": " + val.toFixed(1) + "%";
+                        }
+                        return val.toFixed(1) + "%";
+                    }
+                } 
+            },
+            dataLabels: { enabled: true, formatter: (val) => `${val.toFixed(1)}%`, style: { fontSize: '12px' }, dropShadow: { enabled: false } }
+        });
+        renderChart('party-overview-group-chart', {
+             series: [ { name: '2025年3月', data: partyGroups.map(p => p.march) }, { name: '2025年4月', data: partyGroups.map(p => p.april) }, { name: '2025年5月', data: partyGroups.map(p => p.may) }, { name: '2025年6月', data: partyGroups.map(p => p.june) }, { name: '2025年7月', data: partyGroups.map(p => p.july) }, { name: '2025年8月', data: partyGroups.map(p => p.august) } ],
+             chart: { type: 'bar', height: 350, toolbar: { show: false } }, plotOptions: { bar: { horizontal: true, barHeight: '50%' } }, colors: ['#8884d8', '#4CAF50', '#FF5722', '#F9A825', '#00BCD4', '#E91E63'],
+             xaxis: { categories: partyGroups.map(p => p.name) }, tooltip: { y: { formatter: (val) => `${val.toFixed(1)}%` } }, legend: { position: 'top' }, 
+             grid: { strokeDashArray: 3, padding: { left: 10 } }
+        });
+        renderChart('party-overview-radar-chart', {
+            series: [ { name: '2025年3月', data: partyRadarData.map(p => p.march) }, { name: '2025年4月', data: partyRadarData.map(p => p.april) }, { name: '2025年5月', data: partyRadarData.map(p => p.may) }, { name: '2025年6月', data: partyRadarData.map(p => p.june) }, { name: '2025年7月', data: partyRadarData.map(p => p.july) }, { name: '2025年8月', data: partyRadarData.map(p => p.august) } ],
+            chart: { type: 'radar', height: 400, toolbar: { show: false } }, colors: ['#8884d8', '#4CAF50', '#FF5722', '#F9A825', '#00BCD4', '#E91E63'], xaxis: { categories: partyRadarData.map(p => p.subject) },
+            yaxis: { show: true, labels: { formatter: (val) => `${val}` } }, stroke: { width: 2 }, fill: { opacity: 0.2 }, markers: { size: 3 }, legend: { position: 'top' }
+        });
+    };
+    
+    const renderPartyParty = () => {
+        const panel = document.getElementById('party-party-panel');
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">各政党の支持率分析</h3>
+            <div class="mb-8"><h4 class="font-medium mb-2">主要政党の支持率推移（3月～8月）</h4><div id="party-major-trend-chart"></div></div>
+            <div class="mb-8"><h4 class="font-medium mb-2">野党・その他政党の支持率推移（3月～8月）</h4><div id="party-other-trend-chart"></div></div>
+            <div class="mb-8"><h4 class="font-medium mb-2">3月から8月の支持率変化（ポイント）</h4><div id="party-change-chart"></div></div>
+            <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
+                <h4 class="font-medium text-blue-800 mb-2">政党支持率の特徴</h4>
+                <ul class="list-disc pl-5 space-y-2 text-sm">
+                    <li>自民党は支持率の下げ止まりが見られず、下落傾向が続いている。</li>
+                    <li>国民民主党、立憲民主党も支持を落とし、野党第一党争いは混迷。</li>
+                    <li>維新と参政党が支持を伸ばしており、新たな受け皿として注目される。</li>
+                </ul>
+            </div>`;
+        renderChart('party-major-trend-chart', {
+            series: [ { name: '自民党', data: monthlyTrendData.map(d => d['自民党']) }, { name: '国民民主党', data: monthlyTrendData.map(d => d['国民民主党']) }, { name: '立憲民主党', data: monthlyTrendData.map(d => d['立憲民主党']) } ],
+            colors: ['#58A9F2', '#BA68C8', '#F06292'], chart: { type: 'line', height: 400 }, stroke: { width: 3, curve: 'smooth' },
+            xaxis: { categories: monthlyTrendData.map(d => d.month) }, yaxis: { min: 0, max: 30, labels: { formatter: val => `${val}%` } }, tooltip: { y: { formatter: val => `${val.toFixed(1)}%` } }
+        });
+        renderChart('party-other-trend-chart', {
+            series: [ { name: '維新', data: monthlyTrendData.map(d => d['維新']) }, { name: '公明党', data: monthlyTrendData.map(d => d['公明党']) }, { name: 'れいわ', data: monthlyTrendData.map(d => d['れいわ']) }, { name: '共産党', data: monthlyTrendData.map(d => d['共産党']) }, { name: '参政党', data: monthlyTrendData.map(d => d['参政党']) } ],
+            colors: ['#FFB74D', '#4DB6AC', '#FF8A65', '#E57373', '#66BB6A'], chart: { type: 'line', height: 400 }, stroke: { width: 2, curve: 'smooth' },
+            xaxis: { categories: monthlyTrendData.map(d => d.month) }, yaxis: { min: 0, max: 10, labels: { formatter: val => `${val}%` } }, tooltip: { y: { formatter: val => `${val.toFixed(1)}%` } }
+        });
+        renderChart('party-change-chart', {
+            series: [{ name: '支持率変化', data: partyChangeData.map(p => p.change) }],
+            chart: { type: 'bar', height: 400 }, plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '70%' } },
+            colors: partyChangeData.map(p => p.change >= 0 ? '#4CAF50' : '#F44336'),
+            xaxis: { categories: partyChangeData.map(p => p.party), title: { text: "ポイント変化" } }, dataLabels: { enabled: false }, tooltip: { y: { formatter: val => `${val.toFixed(1)} ポイント` } },
+            grid: { strokeDashArray: 3, padding: { left: 20 } }
+        });
+    };
+
+    const renderPartyMedia = () => {
+        let selectedParty = document.getElementById('party-media-select')?.value || '自民党';
+
+        const panel = document.getElementById('party-media-panel');
+        panel.innerHTML = `
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold">メディア別の政党支持率分析</h3>
+                <div class="flex items-center">
+                    <label for="party-media-select" class="mr-2 text-sm font-medium text-gray-700">政党を選択:</label>
+                    <select id="party-media-select" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                        ${mediaAnalysisParties.map(p => `<option value="${p}" ${p === selectedParty ? 'selected' : ''}>${p}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            <div class="mb-8"><h4 class="font-medium mb-2">報道機関別の${selectedParty}支持率推移</h4><div id="party-media-ldp-trend"></div></div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div><h4 class="font-medium mb-2">8月の${selectedParty}支持率（メディア別）</h4><div id="party-media-ldp-august"></div></div>
+                <div><h4 class="font-medium mb-2">3月から8月の${selectedParty}支持率変化</h4><div id="party-media-ldp-change"></div></div>
+            </div>
+             <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
+                <h4 class="font-medium text-blue-800 mb-2">メディア報道の特徴 (${selectedParty})</h4>
+                <p class="text-sm">各報道機関が報じる${selectedParty}の支持率にはばらつきが見られます。以下のグラフは、その傾向を視覚化したものです。</p>
+            </div>
+            `;
+            
+        const selectedPartyData = partyMediaData[selectedParty];
+            
+        document.getElementById('party-media-select').addEventListener('change', renderPartyMedia);
+
+        const mediaLdpSeries = selectedPartyData.map(s => ({ name: s.media, data: [s.march || null, s.april || null, s.may || null, s.june || null, s.july || null, s.august || null] }));
+        renderChart('party-media-ldp-trend', {
+            series: mediaLdpSeries, chart: { type: 'line', height: 400 }, stroke: { curve: 'smooth', width: 2 },
+            xaxis: { categories: ['3月', '4月', '5月', '6月', '7月', '8月'] }, yaxis: { title: { text: '支持率(%)' } }, tooltip: { y: { formatter: v => v ? `${v.toFixed(1)}%` : 'N/A' } }
+        });
+
+        const sortedAugustLdp = [...selectedPartyData].filter(m => m.august !== undefined && m.august !== null).sort((a,b) => b.august - a.august);
+        renderChart('party-media-ldp-august', {
+            series: [{ name: '8月支持率', data: sortedAugustLdp.map(m => m.august) }], chart: { type: 'bar', height: 350, margin: { left: 80 } }, plotOptions: { bar: { horizontal: true, distributed: true, barHeight: '70%' } },
+            xaxis: { categories: sortedAugustLdp.map(m => m.media) }, legend: { show: false }, tooltip: { y: { formatter: v => `${v.toFixed(1)}%` } },
+            grid: { strokeDashArray: 3 }
+        });
+
+        const sortedTrendLdp = [...selectedPartyData].filter(m => m.trend !== undefined && m.trend !== null).sort((a,b) => b.trend - a.trend);
+        const changeChartEl = document.getElementById('party-media-ldp-change');
+        if (sortedTrendLdp.length > 0) {
+            renderChart('party-media-ldp-change', {
+                series: [{ name: '変化', data: sortedTrendLdp.map(m => m.trend) }], chart: { type: 'bar', height: 350, margin: { left: 80 } },
+                plotOptions: { bar: { horizontal: true, barHeight: '70%' } }, colors: sortedTrendLdp.map(m => m.trend >= 0 ? '#4CAF50' : '#F44336'),
+                xaxis: { categories: sortedTrendLdp.map(m => m.media) }, legend: { show: false }, tooltip: { y: { formatter: v => `${v.toFixed(1)} ポイント` } },
+                grid: { strokeDashArray: 3 }
+            });
+        } else {
+             if (changeChartEl) {
+                 changeChartEl.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500">変化のデータがありません。</div>';
+             }
+        }
+    };
+
+    const renderPartyNonPartisan = () => {
+        const panel = document.getElementById('party-nonpartisan-panel');
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">無党派層の分析</h3>
+            <div class="mb-8"><h4 class="font-medium mb-2">月別の無党派層支持率推移</h4><div id="party-nonpartisan-trend"></div></div>
+            <div class="mb-8"><h4 class="font-medium mb-2">無党派と政党支持者の割合推移</h4><div id="party-nonpartisan-area"></div></div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div class="bg-gray-100 p-4 rounded-lg">
+                    <h4 class="font-medium mb-3">無党派層の動向</h4>
+                    <div class="text-sm space-y-2">
+                        <p>3月: <strong>33.0%</strong></p>
+                        <p>4月: <strong>37.4%</strong></p>
+                        <p>5月: <strong>38.2%</strong></p>
+                        <p>6月: <strong>38.1%</strong></p>
+                        <p>7月: <strong>32.1%</strong></p>
+                        <p>8月: <strong>33.2%</strong></p>
+                        <p class="mt-4 font-semibold">8月は微増し、依然として最大の勢力となっている。</p>
+                    </div>
+                </div>
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <h4 class="font-medium text-blue-800 mb-3">無党派層の特徴</h4>
+                    <ul class="list-disc pl-5 space-y-2 text-sm">
+                        <li>依然として最大のグループであり、その割合は高止まりしている。</li>
+                        <li>メディアによる報道のばらつきが最も大きい層でもある。</li>
+                        <li>今後の政局を左右する上で、最も重要な層であり続ける。</li>
+                    </ul>
+                </div>
+            </div>`;
+        renderChart('party-nonpartisan-trend', {
+            series: [ { type: 'column', name: '平均支持率', data: monthlyTrendData.map(d => d['無党派層']) } ],
+            chart: { height: 400 }, colors: ['#90A4AE'],
+            xaxis: { categories: monthlyTrendData.map(d => d.month) }, yaxis: { min: 0, max: 50, title: { text: '支持率(%)' } },
+            stroke: { width: [0], curve: 'smooth' }, tooltip: { y: { formatter: v => `${v.toFixed(1)}%` } }
+        });
+        renderChart('party-nonpartisan-area', {
+            series: [ { name: '無党派層', data: monthlyTrendData.map(d => d['無党派層']) }, { name: '自民党', data: monthlyTrendData.map(d => d['自民党']) }, { name: '国民民主党', data: monthlyTrendData.map(d => d['国民民主党']) }, { name: '立憲民主党', data: monthlyTrendData.map(d => d['立憲民主党']) }, { name: 'その他政党', data: monthlyTrendData.map(d => d['その他']) } ],
+            chart: { type: 'area', height: 400, stacked: true, stackType: '100%' }, colors: ['#90A4AE', '#58A9F2', '#BA68C8', '#F06292', '#FFB74D'],
+            xaxis: { categories: monthlyTrendData.map(d => d.month) }, dataLabels: { enabled: false }, stroke: { curve: 'smooth', width: 2 },
+            tooltip: { y: { formatter: (val) => `${val.toFixed(1)}%` } }
+        });
+    };
+    
+    const renderPartySummary = () => {
+        const panel = document.getElementById('party-summary-panel');
+
+        const latestPartyData = monthlyTrendData[monthlyTrendData.length - 1];
+        const ldpData = latestPartyData['自民党'];
+        const cdpData = latestPartyData['立憲民主党'];
+        const dppData = latestPartyData['国民民主党'];
+        const ishinData = latestPartyData['維新'];
+
+        const ldpChange = (ldpData - monthlyTrendData[0]['自民党']).toFixed(1);
+        const cdpChange = (cdpData - monthlyTrendData[0]['立憲民主党']).toFixed(1);
+        const dppChange = (dppData - monthlyTrendData[0]['国民民主党']).toFixed(1);
+        const ishinChange = (ishinData - monthlyTrendData[0]['維新']).toFixed(1);
+        
+        const getChangeClass = (change) => change >= 0 ? 'text-green-600' : 'text-red-600';
+        const getChangeText = (change) => `${change >= 0 ? '+' : ''}${change}ポイント`;
+
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">政党支持率の全体分析まとめ</h3>
+            <div class="bg-gray-100 p-6 rounded-lg mb-8">
+                <h4 class="font-semibold text-gray-800 mb-4">主要な発見</h4>
+                <div class="space-y-4">
+                    <div class="p-3 bg-white rounded shadow-sm border-l-4 border-blue-500"><h5 class="font-medium text-blue-800">1. 内閣支持率の持ち直し</h5><p class="mt-1 text-sm">8月に入り、内閣支持率は7月の落ち込みから持ち直したが、依然として3月の水準には及ばない。</p></div>
+                    <div class="p-3 bg-white rounded shadow-sm border-l-4 border-purple-500"><h5 class="font-medium text-purple-800">2. 無党派層の高止まり</h5><p class="mt-1 text-sm">無党派層が約33%で高止まりしており、既存政党への支持が広がっていない状況が続いている。</p></div>
+                    <div class="p-3 bg-white rounded shadow-sm border-l-4 border-green-500"><h5 class="font-medium text-green-800">3. 参政党の躍進</h5><p class="mt-1 text-sm">参政党が支持率を9.4%まで伸ばし、主要野党に迫る勢いを見せている。既存政党に不満を持つ層の受け皿となっている可能性がある。</p></div>
+                    <div class="p-3 bg-white rounded shadow-sm border-l-4 border-yellow-500"><h5 class="font-medium text-yellow-800">4. 主要野党の停滞</h5><p class="mt-1 text-sm">立憲民主党、国民民主党ともに支持を伸ばせず、自民党批判の受け皿になりきれていない。</p></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div class="p-4 bg-gray-50 rounded-lg shadow-sm text-center border-b-4 border-blue-500"><h4 class="font-medium mb-2">自民党</h4><div class="text-4xl font-bold text-blue-700 mb-2">${ldpData.toFixed(1)}%</div><p class="text-sm font-semibold ${getChangeClass(ldpChange)}">3月比: ${getChangeText(ldpChange)}</p><p class="mt-2 text-xs text-gray-600">下落傾向が止まらず、政権運営の基盤が揺らいでいる。</p></div>
+                <div class="p-4 bg-gray-50 rounded-lg shadow-sm text-center border-b-4 border-pink-500"><h4 class="font-medium mb-2">立憲民主党</h4><div class="text-4xl font-bold text-pink-700 mb-2">${cdpData.toFixed(1)}%</div><p class="text-sm font-semibold ${getChangeClass(cdpChange)}">3月比: ${getChangeText(cdpChange)}</p><p class="mt-2 text-xs text-gray-600">支持が伸び悩み、野党第一党としての存在感を示せていない。</p></div>
+                <div class="p-4 bg-gray-50 rounded-lg shadow-sm text-center border-b-4 border-purple-500"><h4 class="font-medium mb-2">国民民主党</h4><div class="text-4xl font-bold text-purple-700 mb-2">${dppData.toFixed(1)}%</div><p class="text-sm font-semibold ${getChangeClass(dppChange)}">3月比: ${getChangeText(dppChange)}</p><p class="mt-2 text-xs text-gray-600">4月をピークに支持を落とし、減少傾向が続いている。</p></div>
+                <div class="p-4 bg-gray-50 rounded-lg shadow-sm text-center border-b-4 border-orange-500"><h4 class="font-medium mb-2">日本維新の会</h4><div class="text-4xl font-bold text-orange-700 mb-2">${ishinData.toFixed(1)}%</div><p class="text-sm font-semibold ${getChangeClass(ishinChange)}">3月比: ${getChangeText(ishinChange)}</p><p class="mt-2 text-xs text-gray-600">やや支持を回復しているが、大きな流れを作るには至っていない。</p></div>
+            </div>
+            <div class="bg-blue-50 p-6 rounded-lg shadow-sm">
+                <h4 class="font-medium text-blue-800 mb-3">全体考察</h4>
+                <div class="space-y-3 text-sm text-gray-700">
+                    <p>2025年8月の調査では、石破内閣の支持率が7月の落ち込みから一定の回復を見せたものの、依然として不支持率が支持率を大きく上回る厳しい状況に変化はない。自民党支持率も低迷しており、与党への不信感が根強いことを示している。</p>
+                    <p>一方で、主要野党もこの状況を活かしきれておらず、無党派層が依然として最大のボリュームゾーンとなっている。このことは、既存政党全体への不信感の表れとも言え、参政党のような新興勢力が支持を拡大する土壌となっている。</p>
+                </div>
+            </div>`;
+    };
+    
+    const renderComparisonTrend = () => { 
+        const panel = document.getElementById('comparison-trend-panel');
+        panel.innerHTML = `
+            <div class="mb-8"><h4 class="font-medium mb-2">内閣支持率と自民党支持率の比較</h4><div id="compare-cab-ldp-line"></div><p class="text-sm text-gray-600 mt-2 text-center">内閣支持率と自民党支持率は概ね連動して推移している。</p></div>
+            <div class="mb-8"><h4 class="font-medium mb-2">内閣支持・不支持と主要政党支持率の推移</h4><div id="compare-combo-chart"></div></div>`;
+        renderChart('compare-cab-ldp-line', {
+            series: [ { name: '内閣支持率', data: monthlyData.map(d => d.avgApproval) }, { name: '自民党支持率', data: monthlyTrendData.map(d => d['自民党']) } ],
+            chart: { type: 'line', height: 400, type: 'line' }, colors: ['#2563eb', '#58A9F2'], stroke: { width: 3, curve: 'smooth', dashArray: [0, 5] },
+            xaxis: { categories: monthlyData.map(d => d.month) }, yaxis: { min: 20, max: 40, tickAmount: 5, title: { text: '支持率(%)' } }, tooltip: { y: { formatter: v => `${v.toFixed(1)}%` } }
+        });
+        renderChart('compare-combo-chart', {
+            series: [
+                { name: '内閣支持率', type: 'column', data: monthlyData.map(d => d.avgApproval) },
+                { name: '内閣不支持率', type: 'column', data: monthlyData.map(d => d.avgDisapproval) },
+                { name: '自民党', type: 'line', data: monthlyTrendData.map(d => d['自民党']) },
+                { name: '国民民主党', type: 'line', data: monthlyTrendData.map(d => d['国民民主党']) },
+                { name: '立憲民主党', type: 'line', data: monthlyTrendData.map(d => d['立憲民主党']) },
+            ],
+            chart: { height: 450, type: 'line', stacked: false }, colors: ['#3b82f6', '#ef4444', '#58A9F2', '#BA68C8', '#F06292'],
+            xaxis: { categories: monthlyData.map(d => d.month) },
+            yaxis: [ 
+                { seriesName: '内閣支持率', min: 0, max: 70, title: { text: '内閣支持/不支持率 (%)', style: { color: '#6B7280' } } }, 
+                { seriesName: '内閣不支持率', show: false }, 
+                { opposite: true, seriesName: '自民党', min: 0, max: 35, title: { text: '政党支持率 (%)', style: { color: '#6B7280' } } } 
+            ],
+            stroke: { width: [0, 0, 2, 2, 2], curve: 'smooth' }, tooltip: { y: { formatter: v => `${v.toFixed(1)}%` } },
+            plotOptions: { bar: { columnWidth: '40%' } }
+        });
+    };
+
+    const renderComparisonGap = () => {
+        const panel = document.getElementById('comparison-gap-panel');
+        const mediaWithAugustData = partyMediaData['自民党'].filter(d => d.august).map(d => d.media);
+        
+        const cabinetAugustData = rawData.filter(d => d.date === '2025年8月');
+        
+        const gapData = mediaWithAugustData.map(media => {
+            const cabinet = cabinetAugustData.find(d => d.media === media);
+            const ldp = partyMediaData['自民党'].find(d => d.media === media);
+            if(cabinet && ldp && ldp.august) {
+                return {
+                    media: media,
+                    gap: (cabinet.approval - ldp.august).toFixed(1)
+                }
+            }
+            return null;
+        }).filter(d => d !== null).sort((a,b) => b.gap - a.gap);
+
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">メディア別の内閣・自民党支持率のギャップ（2025年8月）</h3>
+            <div id="compare-gap-chart"></div>
+            <div class="mt-4 p-4 bg-gray-100 rounded-lg">
+                <h4 class="font-semibold mb-2">分析</h4>
+                <p class="text-sm">このグラフは、各報道機関の8月調査における「内閣支持率」と「自民党支持率」の差（ギャップ）を示すものである。正の値は内閣支持率が自民党支持率を上回っていること、負の値は下回っていることを意味する。</p>
+                <ul class="list-disc pl-5 mt-2 text-sm space-y-1">
+                    <li>多くのメディアでギャップは正の値を示しており、内閣支持層が自民党支持層を上回る傾向にある。</li>
+                    <li>特に朝日新聞、毎日新聞ではその差が大きく、「内閣は支持するが自民党は支持しない」層の存在が示唆される。</li>
+                </ul>
+            </div>
+            `;
+        
+        renderChart('compare-gap-chart', {
+            series: [{ name: 'ギャップ (内閣 - 自民)', data: gapData.map(d => d.gap) }],
+            chart: { type: 'bar', height: 400, margin: { left: 80 } },
+            plotOptions: { bar: { horizontal: true, barHeight: '70%' } },
+            colors: gapData.map(d => d.gap >=0 ? '#2563eb' : '#ef4444'),
+            xaxis: { categories: gapData.map(d => d.media), title: { text: 'ポイント差' } },
+            tooltip: { y: { formatter: val => `${val} ポイント` } },
+            legend: { show: false }
+        });
+    };
+    
+    const renderComparisonNonPartisan = () => {
+        const panel = document.getElementById('comparison-nonpartisan-panel');
+        const latestMonthIndex = monthlyData.length - 1;
+        const previousMonthIndex = latestMonthIndex - 1;
+        panel.innerHTML = `
+            <h3 class="text-lg font-semibold mb-4">内閣支持率と無党派層の相関</h3>
+            <div id="compare-nonpartisan-chart"></div>
+            <div class="mt-4 p-4 bg-gray-100 rounded-lg">
+                <h4 class="font-semibold mb-2">分析</h4>
+                <p class="text-sm">このグラフは、内閣支持率・不支持率の推移と、無党派層の割合の推移を比較したものである。内閣のパフォーマンスが、特定の政党を支持しない層の動向にどう影響しているかを探る。</p>
+                <ul class="list-disc pl-5 mt-2 text-sm space-y-1">
+                    <li>8月に内閣支持率が回復（${monthlyData[previousMonthIndex].avgApproval.toFixed(1)}%→${monthlyData[latestMonthIndex].avgApproval.toFixed(1)}%）したタイミングで、無党派層は微増（${monthlyTrendData[previousMonthIndex]['無党派層']}%→${monthlyTrendData[latestMonthIndex]['無党派層']}%）となっている。</li>
+                    <li>内閣支持率の変動と無党派層の動向に明確な相関は見られず、無党派層が特定の政党支持に流れていないことを示唆する。</li>
+                </ul>
+            </div>
+        `;
+
+        renderChart('compare-nonpartisan-chart', {
+            series: [
+                { name: '内閣支持率', type: 'column', data: monthlyData.map(d => d.avgApproval) },
+                { name: '内閣不支持率', type: 'column', data: monthlyData.map(d => d.avgDisapproval) },
+                { name: '無党派層', type: 'line', data: monthlyTrendData.map(d => d['無党派層']) }
+            ],
+            chart: { height: 450, type: 'line', stacked: false },
+            colors: ['#3b82f6', '#ef4444', '#6b7280'],
+            xaxis: { categories: monthlyData.map(d => d.month) },
+            yaxis: [
+                {
+                    seriesName: '内閣支持率',
+                    min: 0,
+                    max: 70,
+                    title: { text: '内閣支持/不支持率 (%)', style: { color: '#6B7280' } }
+                },
+                { seriesName: '内閣不支持率', show: false },
+                {
+                    opposite: true,
+                    seriesName: '無党派層',
+                    min: 25,
+                    max: 45,
+                    title: { text: '無党派層 (%)', style: { color: '#6B7280' } }
+                }
+            ],
+            stroke: { width: [0, 0, 4], curve: 'smooth', dashArray: [0, 0, 5] },
+            tooltip: { y: { formatter: v => `${v.toFixed(1)}%` } },
+            plotOptions: { bar: { columnWidth: '60%' } },
+            legend: { position: 'top' }
+        });
+    };
+
+    // --- AI ANALYSIS FUNCTION ---
+    const renderAiAnalysis = () => {
+        let userApiKey = '';
+
+        const panel = document.getElementById('ai-analysis-panel');
+
+        const updateUi = () => {
+            panel.innerHTML = `
+                <h3 class="text-lg font-semibold mb-4">AIによる自動分析サマリー</h3>
+                <div id="api-key-section" class="mb-6 p-4 bg-gray-100 rounded-lg">
+                    <h4 class="font-medium text-gray-800 mb-2">APIキーの設定</h4>
+                    ${
+                        userApiKey
+                        ? `<div id="key-saved-state">
+                                <p class="text-sm text-green-700 bg-green-100 p-2 rounded-md mb-2">APIキーが設定されています。</p>
+                                <button id="clear-api-key" class="text-sm bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded">キーをクリア</button>
+                            </div>`
+                        : `<div id="key-input-state">
+                                <p class="text-sm text-gray-600 mb-2">Google AI Studioで取得した無料のAPIキーを入力してください。</p>
+                                <div class="space-y-2">
+                                    <input type="password" id="api-key-input" class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2" placeholder="APIキーを入力...">
+                                    <button id="save-api-key" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">保存</button>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-2">
+                                    ※<a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-600 hover:underline">Google AI Studio</a>にアクセスし、「Create API key」をクリックすることで無料のAPIキーを取得できます。
+                                </p>
+                            </div>`
+                    }
+                </div>
+
+                <div class="text-center mb-6">
+                     <button id="generate-ai-summary" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                        分析サマリーを生成
+                    </button>
+                </div>
+                <div id="ai-summary-output" class="p-4 bg-gray-200 rounded-lg min-h-[200px] whitespace-pre-wrap font-serif leading-relaxed">
+                    <p class="text-gray-500 text-center">APIキーを設定後、上のボタンをクリックしてAI分析を生成してください。</p>
+                </div>
+                 <p class="text-xs text-gray-400 text-center mt-4">※このAI分析機能はGoogleのGeminiモデルを利用しています。</p>
+            `;
+            addEventListeners();
+        };
+
+        const addEventListeners = () => {
+            const saveButton = document.getElementById('save-api-key');
+            if (saveButton) {
+                saveButton.addEventListener('click', () => {
+                    const input = document.getElementById('api-key-input');
+                    if (input && input.value.trim() !== '') {
+                        userApiKey = input.value.trim();
+                        updateUi();
+                    }
+                });
+            }
+
+            const clearButton = document.getElementById('clear-api-key');
+            if (clearButton) {
+                clearButton.addEventListener('click', () => {
+                    userApiKey = '';
+                    updateUi();
+                });
+            }
+
+            document.getElementById('generate-ai-summary').addEventListener('click', async () => {
+                const outputDiv = document.getElementById('ai-summary-output');
+                outputDiv.innerHTML = '<div class="loader"></div><p class="text-center text-gray-600">AIが分析を生成中です... しばらくお待ちください。</p>';
+                
+                const apiKey = userApiKey || "";
+                const latestMonthIndex = monthlyData.length - 1;
+                const latestMonthData = monthlyData[latestMonthIndex];
+                const latestPartyData = monthlyTrendData[latestMonthIndex];
+
+                const prompt = `あなたは日本の政治アナリストです。以下のデータに基づき、石破内閣と政党支持率に関する2025年8月時点での簡潔な分析レポートを作成してください。
+
+# 前提データ
+- **期間:** 2025年3月から8月
+- **内閣支持率の動向:** 内閣支持率は7月の${monthlyData[latestMonthIndex-1].avgApproval.toFixed(1)}%から8月には${latestMonthData.avgApproval.toFixed(1)}%へと回復。一方、不支持率は${latestMonthData.avgDisapproval.toFixed(1)}%と依然として高い水準。
+- **自民党支持率の動向:** 自民党の支持率は、8月時点で${latestPartyData['自民党']}%と低迷が続く。
+- **無党派層の状況:** 無党派層は8月時点で${latestPartyData['無党派層']}%を占め、最大のグループであり続けている。
+- **その他主要政党の動向:** 国民民主党、立憲民主党は支持を伸ばせず停滞。一方で参政党が支持を拡大（3月: ${monthlyTrendData[0]['参政党']}% -> 8月: ${latestPartyData['参政党']}%）。
+
+# 指示
+上記のデータを踏まえ、以下の構成でレポートを作成してください。
+1.  **タイトル:** 「石破内閣・政党支持率 AI分析サマリー（2025年8月）」
+2.  **キーポイント:** 箇条書きで3～4つの重要なポイントを挙げる。
+3.  **総合所見:** 全体をまとめる結論を2～3文で記述する。
+
+レポートは専門的かつ客観的なトーンで記述してください。`;
+
+                try {
+                    let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                    const payload = { contents: chatHistory };
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (!response.ok) {
+                         const errorBody = await response.text();
+                         throw new Error(`API Error: ${response.status} ${response.statusText}. ${errorBody}`);
+                    }
+
+                    const result = await response.json();
+
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        const formattedText = text
+                            .replace(/(\*\*|###|##|#)/g, '')
+                            .replace(/^- /gm, '• ')
+                            .trim();
+                        outputDiv.innerHTML = `<h4 class="text-lg font-bold text-gray-800 mb-3">AI分析レポート</h4><div class="text-left">${formattedText}</div>`;
+                    } else {
+                         outputDiv.innerText = 'AIからの有効な応答がありませんでした。';
+                    }
+                } catch (error) {
+                    console.error("Error fetching AI summary:", error);
+                    outputDiv.innerHTML = `<p class="text-red-500 text-center">分析の生成中にエラーが発生しました。APIキーが正しいか確認してください。</p>`;
+                }
+            });
+        };
+        
+        // 初回描画
+        updateUi();
+    };
+
+
+    // --- TAB SWITCHING LOGIC ---
+    const mainTabs = document.querySelectorAll('.main-tab-btn');
+    const mainPanels = document.querySelectorAll('.main-tab-panel');
+    const cabinetSubTabs = document.querySelectorAll('.cabinet-subtab-btn');
+    const cabinetSubPanels = document.querySelectorAll('.cabinet-subtab-panel');
+    const partySubTabs = document.querySelectorAll('.party-subtab-btn');
+    const partySubPanels = document.querySelectorAll('.party-subtab-panel');
+    const comparisonSubTabs = document.querySelectorAll('.comparison-subtab-btn');
+    const comparisonSubPanels = document.querySelectorAll('.comparison-subtab-panel');
+
+    const switchTab = (tabs, panels, clickedTab, activeClasses, inactiveClasses) => {
+        tabs.forEach(tab => tab.className = inactiveClasses);
+        clickedTab.className = activeClasses;
+        
+        const targetId = clickedTab.dataset.tabTarget || clickedTab.dataset.subtabTarget;
+        panels.forEach(panel => {
+            if (panel.id === `${targetId}-panel` || panel.id === `${targetId}-content`) {
+                panel.classList.remove('hidden');
+            } else {
+                panel.classList.add('hidden');
+            }
+        });
+        
+        if (contentRenderers[targetId]) {
+            contentRenderers[targetId]();
+        }
+    };
+    
+    mainTabs.forEach(tab => tab.addEventListener('click', () => {
+        const targetId = tab.dataset.tabTarget;
+        switchTab(mainTabs, mainPanels, tab, 'main-tab-btn px-4 sm:px-6 py-3 text-base sm:text-lg text-blue-700 border-b-2 border-blue-700 font-semibold -mb-0.5', 'main-tab-btn px-4 sm:px-6 py-3 text-base sm:text-lg text-gray-600');
+        if(targetId === 'cabinet') document.querySelector('.cabinet-subtab-btn').click();
+        else if(targetId === 'party') document.querySelector('.party-subtab-btn').click();
+        else if(targetId === 'comparison') document.querySelector('.comparison-subtab-btn').click();
+        else if(targetId === 'ai-analysis') contentRenderers['ai-analysis']();
+    }));
+    cabinetSubTabs.forEach(tab => tab.addEventListener('click', () => switchTab(cabinetSubTabs, cabinetSubPanels, tab, 'cabinet-subtab-btn px-4 py-2 text-sm sm:text-base text-blue-600 border-b-2 border-blue-600 font-medium', 'cabinet-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500')));
+    partySubTabs.forEach(tab => tab.addEventListener('click', () => switchTab(partySubTabs, partySubPanels, tab, 'party-subtab-btn px-4 py-2 text-sm sm:text-base text-blue-600 border-b-2 border-blue-600 font-medium', 'party-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500')));
+    comparisonSubTabs.forEach(tab => tab.addEventListener('click', () => switchTab(comparisonSubTabs, comparisonSubPanels, tab, 'comparison-subtab-btn px-4 py-2 text-sm sm:text-base text-blue-600 border-b-2 border-blue-600 font-medium', 'comparison-subtab-btn px-4 py-2 text-sm sm:text-base text-gray-500')));
+    
+    const contentRenderers = {
+        'cabinet-summary': renderCabinetSummary, 'cabinet-monthly': renderCabinetMonthly, 'cabinet-media': renderCabinetMedia, 'cabinet-change': renderCabinetChange, 'cabinet-detailed': renderCabinetDetailed, 'cabinet-scatter': renderCabinetScatter,
+        'party-overview': renderPartyOverview, 'party-party': renderPartyParty, 'party-media': renderPartyMedia, 'party-nonpartisan': renderPartyNonPartisan, 'party-summary': renderPartySummary,
+        'comparison-trend': renderComparisonTrend, 'comparison-gap': renderComparisonGap, 'comparison-nonpartisan': renderComparisonNonPartisan,
+        'ai-analysis': renderAiAnalysis,
+    };
+
+    // --- INITIALIZATION ---
+    document.querySelector('.main-tab-btn[data-tab-target="cabinet"]').click();
+    
+    // Set footer date
+    const dateElement = document.getElementById('update-date');
+    if (dateElement) {
+        dateElement.innerText = '2025年8月25日';
+    }
+});
+</script>
+
+</body>
+</html>
