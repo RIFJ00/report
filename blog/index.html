@@ -1,2 +1,172 @@
 <!DOCTYPE html>
-<html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ブログ記事一覧</title><script src="https://cdn.tailwindcss.com"></script><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet"><style>body{font-family:'Inter','Noto Sans JP',sans-serif;}.list-item.active{background-color:#e0f2fe;border-left-color:#0ea5e9;}.panel-height{height:calc(100vh - 10rem);}</style></head><body class="bg-gray-100 text-gray-800"><div class="container mx-auto p-4 md:p-6"><header class="mb-6 text-center"><h1 class="text-3xl md:text-4xl font-bold text-gray-700">ブログ記事一覧</h1><p class="text-gray-500 mt-2">更新日時: 2025/9/14 18:50:17</p></header><main class="grid grid-cols-1 lg:grid-cols-3 gap-6 panel-height"><div class="lg:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col h-full"><div class="flex-shrink-0"><div class="relative mb-3"><input type="search" id="search" placeholder="検索..." class="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-sky-500 focus:border-sky-500"><svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg><button id="clearSearchBtnExport" class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hidden" title="クリア"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div><div class="flex items-center space-x-2 mb-2 text-sm"><select id="sortKeyExport" class="bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5"><option value="date">日付</option><option value="title">タイトル</option><option value="createdAt">登録日</option></select><select id="sortOrderExport" class="bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5"><option value="desc">降順</option><option value="asc">昇順</option></select></div><div id="pagination-controls-top" class="flex justify-center items-center space-x-2 my-2"></div><div id="itemCount" class="text-sm text-right text-gray-600 mb-2"></div></div><div id="list" class="space-y-2 overflow-y-auto flex-grow min-h-0 pr-1"></div><div id="pagination-controls" class="flex-shrink-0 pt-3 border-t flex justify-center items-center space-x-2"></div></div><div class="lg:col-span-2 bg-white p-4 rounded-xl shadow-md flex flex-col h-full"><h2 class="text-xl font-bold mb-3 border-b pb-3">記事プレビュー</h2><iframe id="preview" class="w-full flex-grow border rounded-lg"></iframe></div></main></div><script src="./data.js"></script><script src="./app.js"></script></body></html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブログ記事一覧</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+        .list-item.active { background-color: #e0f2fe; border-left-color: #0ea5e9; }
+        .loader { border-top-color: #3498db; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+        @-webkit-keyframes spinner { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .panel-height { height: calc(100vh - 10rem); }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container mx-auto p-4 md:p-6">
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-700">ブログ記事一覧</h1>
+        </header>
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-6 panel-height">
+            <div class="lg:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col h-full">
+                <div class="flex-shrink-0">
+                    <div class="relative mb-3">
+                        <input type="search" id="search" placeholder="検索..." class="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-sky-500 focus:border-sky-500">
+                        <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <button id="clearSearchBtn" class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hidden" title="クリア"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                    </div>
+                    <div class="flex items-center space-x-2 mb-2 text-sm">
+                        <select id="sortKey" class="bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5"><option value="date">日付</option><option value="title">タイトル</option><option value="createdAt">登録日</option></select>
+                        <select id="sortOrder" class="bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5"><option value="desc">降順</option><option value="asc">昇順</option></select>
+                    </div>
+                    <div id="itemCount" class="text-sm text-right text-gray-600 mb-2"></div>
+                </div>
+                <div id="list" class="space-y-2 overflow-y-auto flex-grow min-h-0 pr-1">
+                    <div class="flex items-center justify-center h-full"><div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div></div>
+                </div>
+                <div id="pagination-controls" class="flex-shrink-0 pt-3 border-t flex justify-center items-center space-x-2"></div>
+            </div>
+            <div class="lg:col-span-2 bg-white p-4 rounded-xl shadow-md flex flex-col h-full">
+                <h2 class="text-xl font-bold mb-3 border-b pb-3">記事プレビュー</h2>
+                <iframe id="preview" class="w-full flex-grow border rounded-lg min-h-0" srcdoc="<div style='display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;'>記事を選択してください</div>"></iframe>
+            </div>
+        </main>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        const firebaseConfig = {"apiKey":"AIzaSyD-2UK3S9QjydIIqcTwyfpZMh-Gy4fXlMA","authDomain":"blog-viewer-f83bc.firebaseapp.com","projectId":"blog-viewer-f83bc","storageBucket":"blog-viewer-f83bc.firebasestorage.app","messagingSenderId":"182374996524","appId":"1:182374996524:web:c6d9f3cfe32957a0bd4f89","measurementId":"G-KNZCSQF6LX"};
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const getEl = id => document.getElementById(id);
+        const listContainer = getEl('list'), preview = getEl('preview'), search = getEl('search'), itemCountEl = getEl('itemCount'), paginationControls = getEl('pagination-controls'), sortKeySelect = getEl('sortKey'), sortOrderSelect = getEl('sortOrder'), clearSearchBtn = getEl('clearSearchBtn');
+        
+        let fileDatabase = [];
+        let currentFilteredFiles = [];
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        let currentSort = { key: 'date', order: 'desc' };
+        const MAX_FIELD_SIZE = 950000;
+
+        const escapeHtml = str => {
+            const p = document.createElement('p');
+            p.textContent = str || '';
+            return p.innerHTML;
+        };
+
+        const injectResponsiveStyles = content => {
+            const style = '<style>html,body{max-width:100%!important;overflow-x:hidden!important}img,iframe,video{max-width:100%!important;height:auto!important}<\/style>';
+            return content.includes('</head>') ? content.replace('</head>', style + '</head>') : style + content;
+        };
+
+        const previewFile = async fileId => {
+            if (!fileId) return;
+            const fileToDisplay = fileDatabase.find(f => f.id === fileId);
+            if (fileToDisplay) {
+                if (fileToDisplay.isChunked && !fileToDisplay.content) {
+                    preview.srcdoc = "<div style='display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;'>コンテンツを読み込み中...</div>";
+                    const chunksQuery = query(collection(db, "contentChunks"), where("postId", "==", fileId));
+                    const chunksSnapshot = await getDocs(chunksQuery);
+                    const chunks = chunksSnapshot.docs.map(d => d.data()).sort((a, b) => a.index - b.index);
+                    fileToDisplay.content = chunks.map(c => c.data).join('');
+                }
+                preview.srcdoc = injectResponsiveStyles(fileToDisplay.content || '');
+                document.querySelectorAll('.list-item').forEach(el => el.classList.remove('active'));
+                const activeItem = document.querySelector(`.list-item[data-id="${fileId}"]`);
+                if (activeItem) activeItem.classList.add('active');
+            }
+        };
+
+        function renderPagination(totalItems, totalPages) {
+            if (totalPages <= 1) {
+                paginationControls.innerHTML = '';
+                itemCountEl.textContent = `ヒット: ${totalItems} 件 / 全体: ${fileDatabase.length} 件`;
+                return;
+            }
+            const startItem = (currentPage - 1) * itemsPerPage + 1;
+            const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+            itemCountEl.textContent = `${startItem}-${endItem} / ${totalItems} 件`;
+            paginationControls.innerHTML = `
+                <button id="prevPage" class="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 ${currentPage === 1 ? 'disabled:opacity-50' : ''}" ${currentPage === 1 ? 'disabled' : ''}>前へ</button>
+                <span class="text-sm font-medium">${currentPage} / ${totalPages}</span>
+                <button id="nextPage" class="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 ${currentPage === totalPages ? 'disabled:opacity-50' : ''}" ${currentPage === totalPages ? 'disabled' : ''}>次へ</button>
+            `;
+            getEl('prevPage').addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderList(); } });
+            getEl('nextPage').addEventListener('click', () => { if (currentPage < totalPages) { currentPage++; renderList(); } });
+        }
+
+        function renderList() {
+            const term = search.value.toLowerCase();
+            currentFilteredFiles = fileDatabase.filter(f => (f.title || '').toLowerCase().includes(term) || (f.content || '').toLowerCase().includes(term));
+
+            currentFilteredFiles.sort((a, b) => {
+                const key = currentSort.key;
+                const order = currentSort.order === 'asc' ? 1 : -1;
+                let valA = a[key], valB = b[key];
+                if (key === 'createdAt' && valA?.toDate) valA = valA.toDate().toISOString();
+                if (key === 'createdAt' && valB?.toDate) valB = valB.toDate().toISOString();
+                valA = valA || ''; valB = valB || '';
+                if (valA < valB) return -1 * order;
+                if (valA > valB) return 1 * order;
+                return 0;
+            });
+
+            const totalItems = currentFilteredFiles.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+
+            const paginatedItems = currentFilteredFiles.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+            listContainer.innerHTML = '';
+
+            if (totalItems > 0) {
+                paginatedItems.forEach(f => {
+                    const div = document.createElement('div');
+                    div.className = 'list-item p-3 flex justify-between items-center cursor-pointer hover:bg-gray-100 rounded-lg border-l-4 border-transparent';
+                    div.dataset.id = f.id;
+                    div.innerHTML = `<div class="pointer-events-none pr-2 overflow-hidden flex-grow"><h3 class="font-semibold truncate" title="${escapeHtml(f.title)}">${escapeHtml(f.title)}</h3><p class="text-sm text-gray-500">${f.date || '日付未設定'}</p></div>`;
+                    listContainer.appendChild(div);
+                });
+            } else {
+                listContainer.innerHTML = '<p class="text-gray-500 p-4 text-center">記事がありません。</p>';
+            }
+            renderPagination(totalItems, totalPages);
+        }
+
+        onSnapshot(query(collection(db, "posts")), snapshot => {
+            fileDatabase = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            renderList();
+            if (fileDatabase.length > 0) {
+                const firstId = currentFilteredFiles[0]?.id;
+                if(firstId) previewFile(firstId);
+            }
+        });
+
+        listContainer.addEventListener('click', e => {
+            const listItem = e.target.closest('.list-item');
+            if (listItem) previewFile(listItem.dataset.id);
+        });
+        search.addEventListener('input', () => { currentPage = 1; renderList(); clearSearchBtn.classList.toggle('hidden', !search.value); });
+        clearSearchBtn.addEventListener('click', () => { search.value = ''; clearSearchBtn.classList.add('hidden'); currentPage = 1; renderList(); search.focus(); });
+        sortKeySelect.addEventListener('change', e => { currentSort.key = e.target.value; currentPage = 1; renderList(); });
+        sortOrderSelect.addEventListener('change', e => { currentSort.order = e.target.value; currentPage = 1; renderList(); });
+
+    </script>
+</body>
+</html>
