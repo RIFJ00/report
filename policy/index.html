@@ -79,7 +79,7 @@
         const firebaseConfig = {"apiKey":"AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04","authDomain":"import-b6097.firebaseapp.com","projectId":"import-b6097","storageBucket":"import-b6097.appspot.com","messagingSenderId":"462510788117","appId":"1:462510788117:web:44ff1fd1af583f67bc081c","measurementId":"G-Z5ZNMKGTTK"};
         const appId = 'default-policy-research-app';
         const COLLECTION_NAME = 'policy_data';
-        const METADATA_DOC_ID = 'last_import_metadata';
+        const METADATA_DOC_ID = 'policy_last_import_metadata';
         const ITEMS_PER_PAGE = 100;
         const SYNONYMS = [["国土交通省","国交省"],["経済産業省","経産省"],["文部科学省","文科省"],["厚生労働省","厚労省"],["農林水産省","農水省"]];
         
@@ -108,7 +108,7 @@
                 await signInAnonymously(auth);
                 setupEventListeners();
                 setupFirestoreListener();
-                setupMetadataListener();
+                setupMetadataListener(METADATA_DOC_ID, document.getElementById('last-import-time'));
             } catch (e) {
                 console.error("Initialization failed", e);
                 loading.textContent = "初期化に失敗しました。";
@@ -117,9 +117,8 @@
 
         function setupFirestoreListener() {
             const dataCollection = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
-            const q = query(dataCollection); // まず全件取得
+            const q = query(dataCollection);
                     onSnapshot(q, (snapshot) => {
-                        // クライアント側でフィルタリングし、「区分」が未入力のデータも正しく扱えるようにする
                         currentData = snapshot.docs
                             .map(doc => ({ id: doc.id, ...doc.data() }))
                             .filter(item => item['区分'] !== '会議');
@@ -127,11 +126,10 @@
                     });
         }
         
-        // --- ALL THE RENDERING FUNCTIONS COPIED HERE ---
-        function setupMetadataListener() {
-            const metadataDocRef = doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, METADATA_DOC_ID);
+        // --- ALL THE RENDERING AND LOGIC FUNCTIONS COPIED HERE ---
+        function setupMetadataListener(docId, displayElement) {
+            const metadataDocRef = doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, docId);
             onSnapshot(metadataDocRef, (docSnap) => {
-                const displayElement = document.getElementById('last-import-time');
                 if (displayElement) {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
@@ -141,10 +139,16 @@
                             displayElement.textContent = `更新: ${formattedDate}`;
                         }
                     } else {
-                        displayElement.textContent = ''; // Clear if no metadata exists
+                        displayElement.textContent = '';
                     }
                 }
             });
+        }
+        function render() {
+             filteredAndSortedData = getFilteredAndSortedData();
+             currentPage = 1;
+             renderTable();
+             renderPagination();
         }
         function getFilteredAndSortedData() {
             const localBookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
@@ -155,12 +159,6 @@
             data = filterData(data, searchInput.value);
             sortData(data);
             return data;
-        }
-        function render() {
-             filteredAndSortedData = getFilteredAndSortedData();
-             currentPage = 1;
-             renderTable();
-             renderPagination();
         }
         function renderTable() {
              const totalItems = filteredAndSortedData.length;
@@ -324,6 +322,18 @@
             localStorage.setItem(`bookmarks_${appId}`, JSON.stringify(Array.from(bookmarks)));
             render();
         }
+        function handleAudioEnded() {
+            const currentIcon = currentlyPlayingIcon;
+            setIconState(currentIcon, 'stopped');
+            updateMainAudioIcon('stopped');
+            currentlyPlayingIcon = null;
+            
+            const allIcons = Array.from(tableBody.querySelectorAll('.audio-icon[data-src]'));
+            const currentIndex = allIcons.findIndex(icon => icon === currentIcon);
+            if (currentIndex > -1 && currentIndex < allIcons.length - 1) {
+                setTimeout(() => toggleAudioPlayback(allIcons[currentIndex + 1]), 3000);
+            }
+        }
         function updateMainAudioIcon(state) {
             mainAudioIconI.classList.remove('fa-volume-up', 'fa-play', 'fa-pause');
             mainAudioControl.classList.remove('playing');
@@ -412,17 +422,7 @@
             });
             audioPlayer.addEventListener('play', () => { setIconState(currentlyPlayingIcon, 'playing'); updateMainAudioIcon('playing'); });
             audioPlayer.addEventListener('pause', () => { if (!audioPlayer.ended) { setIconState(currentlyPlayingIcon, 'paused'); updateMainAudioIcon('paused'); }});
-            audioPlayer.addEventListener('ended', () => {
-                const currentIcon = currentlyPlayingIcon;
-                setIconState(currentIcon, 'stopped');
-                updateMainAudioIcon('stopped');
-                currentlyPlayingIcon = null;
-                const allIcons = Array.from(tableBody.querySelectorAll('.audio-icon[data-src]'));
-                const currentIndex = allIcons.findIndex(icon => icon === currentIcon);
-                if (currentIndex > -1 && currentIndex < allIcons.length - 1) {
-                    setTimeout(() => toggleAudioPlayback(allIcons[currentIndex + 1]), 3000);
-                }
-            });
+            audioPlayer.addEventListener('ended', handleAudioEnded);
             bookmarkFilterCheckbox.addEventListener('change', render);
         }
         
