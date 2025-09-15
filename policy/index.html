@@ -24,13 +24,14 @@
 </head>
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
     <div class="container mx-auto px-4 py-8 flex-grow flex flex-col">
-        <header class="text-center mb-8 flex-shrink-0">
+        <header class="text-center mb-8 flex-shrink-0 relative">
            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 inline-flex items-center">
                政策リサーチ情報一覧（政策レポート）
                <span id="main-audio-control" class="audio-icon text-blue-500 hover:text-blue-700 text-xl ml-3 cursor-pointer" title="音声コントロール">
                    <i id="main-audio-icon-i" class="fas fa-volume-up"></i>
                </span>
            </h1>
+            <div id="last-import-time" class="absolute right-0 top-0 text-gray-500 text-xs"></div>
         </header>
         <main class="bg-white p-6 rounded-lg shadow-md flex-grow flex flex-col">
             <div class="flex-shrink-0 flex flex-col sm:flex-row justify-between items-end mb-4 gap-4">
@@ -71,13 +72,14 @@
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, query, where, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // --- Public Page Logic ---
         const firebaseConfig = {"apiKey":"AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04","authDomain":"import-b6097.firebaseapp.com","projectId":"import-b6097","storageBucket":"import-b6097.appspot.com","messagingSenderId":"462510788117","appId":"1:462510788117:web:44ff1fd1af583f67bc081c","measurementId":"G-Z5ZNMKGTTK"};
         const appId = 'default-policy-research-app';
         const COLLECTION_NAME = 'policy_data';
+        const METADATA_DOC_ID = 'last_import_metadata';
         const ITEMS_PER_PAGE = 100;
         const SYNONYMS = [["国土交通省","国交省"],["経済産業省","経産省"],["文部科学省","文科省"],["厚生労働省","厚労省"],["農林水産省","農水省"]];
         
@@ -106,6 +108,7 @@
                 await signInAnonymously(auth);
                 setupEventListeners();
                 setupFirestoreListener();
+                setupMetadataListener();
             } catch (e) {
                 console.error("Initialization failed", e);
                 loading.textContent = "初期化に失敗しました。";
@@ -125,7 +128,24 @@
         }
         
         // --- ALL THE RENDERING FUNCTIONS COPIED HERE ---
-        // (Identical to admin panel, but without delete/select functionality)
+        function setupMetadataListener() {
+            const metadataDocRef = doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, METADATA_DOC_ID);
+            onSnapshot(metadataDocRef, (docSnap) => {
+                const displayElement = document.getElementById('last-import-time');
+                if (displayElement) {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        const lastImportDate = data.lastImportTimestamp?.toDate();
+                        if (lastImportDate) {
+                            const formattedDate = lastImportDate.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                            displayElement.textContent = `更新: ${formattedDate}`;
+                        }
+                    } else {
+                        displayElement.textContent = ''; // Clear if no metadata exists
+                    }
+                }
+            });
+        }
         function getFilteredAndSortedData() {
             const localBookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
             let data = [...currentData].map(item => ({...item, isBookmarked: localBookmarks.has(item.id)}));
