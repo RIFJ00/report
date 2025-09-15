@@ -3,203 +3,626 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>政策リサーチ政策関連情報一覧</title>
-    <!-- Tailwind CSSを読み込み -->
+    <title>政策リサーチ情報管理</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome (アイコン) を読み込み -->
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <!-- SheetJS (Excel解析ライブラリ) を読み込み -->
+    <!-- SheetJS (Excel解析ライブラリ) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        /* Google FontsからInterとNoto Sans JPを読み込み */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap');
-
-        /* 基本フォント設定 */
-        body {
-            font-family: 'Inter', 'Noto Sans JP', sans-serif;
-        }
-        /* クリック可能なアイコンのカーソルを変更 */
-        .audio-icon {
-            cursor: pointer;
-        }
-        /* 再生中のアイコンのアニメーションと色を定義 */
-        .playing i {
-            color: #3b82f6; /* Tailwindのblue-500の色 */
-            animation: pulse 1.2s infinite;
-        }
-        /* 一時停止中のアイコンの色を定義 */
-        .paused i {
-            color: #3b82f6; /* Tailwindのblue-500の色 */
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.25); }
-            100% { transform: scale(1); }
-        }
-        /* 会議日列を非表示にするためのスタイル */
-        .hide-kaigi-date .kaigi-date-col {
-            display: none;
-        }
-        /* ソート可能なヘッダーのスタイル */
-        .sortable-header {
-            cursor: pointer;
-            user-select: none;
-        }
-        .sortable-header:hover {
-            background-color: #4a5568; /* Tailwindのgray-700 */
-        }
-        .sort-icon {
-            margin-left: 0.5rem;
-            color: #a0aec0; /* Tailwindのgray-500 */
-            width: 1em;
-            display: inline-block;
-        }
-        .sortable-header.asc .sort-icon::after {
-            content: '▲';
-        }
-        .sortable-header.desc .sort-icon::after {
-            content: '▼';
-        }
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+        .modal-overlay { transition: opacity 0.3s ease; }
+        .modal-container { transition: transform 0.3s ease; }
+        .audio-icon { cursor: pointer; }
+        .playing i, #main-audio-control.playing i { color: #3b82f6; animation: pulse 1.2s infinite; }
+        .paused i { color: #3b82f6; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
+        .sortable-header { cursor: pointer; user-select: none; }
+        .sortable-header:hover { background-color: #4a5568; }
+        .sort-icon { margin-left: 0.5rem; color: #a0aec0; width: 1em; display: inline-block; }
+        .sortable-header.asc .sort-icon::after { content: '▲'; }
+        .sortable-header.desc .sort-icon::after { content: '▼'; }
+        .pagination-button { min-width: 2.5rem; }
+        .pagination-button.active { z-index: 10; }
+        .file-drop-zone { border: 2px dashed #cbd5e0; transition: background-color 0.2s ease-in-out; }
+        .file-drop-zone.dragover { background-color: #ebf8ff; border-color: #4299e1; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
 
-    <div class="container mx-auto px-4 py-8 flex-grow flex flex-col">
-        <!-- ファイルアップロード画面 -->
-        <div id="upload-screen" class="flex-grow flex flex-col">
-            <header class="text-center mb-8 flex-shrink-0">
-                <h1 class="text-3xl md:text-4xl font-bold text-gray-900 inline-flex items-center justify-center">
-                    政策リサーチ政策関連情報一覧
-                    <span id="main-audio-control" class="audio-icon text-blue-500 hover:text-blue-700 text-2xl md:text-3xl ml-3" title="音声コントロール">
-                        <i id="main-audio-icon-i" class="fas fa-volume-up"></i>
-                    </span>
-                </h1>
-                <p class="text-base md:text-lg text-gray-600 mt-2">政策リサーチに関する記事や音声解説の一覧です。</p>
-            </header>
-            <main class="flex-grow flex items-center justify-center">
-                <div class="w-full max-w-lg mb-6 bg-white p-6 rounded-lg shadow-md">
-                    <label for="fileInput" class="block text-lg font-medium text-gray-700 mb-3">
-                        1. Excel または CSVファイルを選択
-                    </label>
-                    <input type="file" id="fileInput" accept=".csv, .xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 transition-colors duration-200 cursor-pointer"/>
-                    <div id="upload-error" class="text-red-500 text-sm mt-2"></div>
-                </div>
-            </main>
+    <!-- Firebase設定画面 -->
+    <div id="firebase-config-screen" class="fixed inset-0 bg-gray-200 flex items-center justify-center z-50 p-4">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl">
+            <h2 class="text-2xl font-bold mb-4">Firebase 設定</h2>
+            <p class="mb-4 text-gray-600">
+                Firebaseプロジェクトのウェブアプリ設定（firebaseConfig）を下のテキストエリアに貼り付けてください。設定はブラウザに保存されます。
+            </p>
+            <textarea id="firebase-config-textarea" class="w-full h-64 p-2 border rounded font-mono text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+            <p id="config-error" class="text-red-500 text-sm mt-2 h-4"></p>
+            <button id="save-config-button" class="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-400">
+                保存して開始
+            </button>
         </div>
+    </div>
 
-        <!-- 読み込み結果画面（初期状態では非表示） -->
-        <div id="results-screen" style="display: none;" class="flex-grow flex flex-col">
-            <header class="flex-shrink-0 flex flex-col sm:flex-row justify-between items-end mb-4 gap-4">
-                <!-- 検索入力とボタン群のコンテナ -->
-                <div class="flex flex-col sm:flex-row items-center w-full sm:justify-start gap-2">
-                    <input type="text" id="searchInput" placeholder="検索（省庁名は略称でも可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-80 focus:ring-blue-500 focus:border-blue-500">
-                    <div class="flex items-center gap-2">
-                         <button id="clearSearchButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg inline-flex items-center justify-center transition-colors">
-                            <i class="fas fa-times mr-2"></i>
-                            <span>クリア</span>
-                        </button>
-                        <button id="back-button" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg inline-flex items-center justify-center transition-colors">
-                            <i class="fas fa-arrow-left mr-2"></i>
-                            <span>別ファイル</span>
-                        </button>
-                        <button id="export-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center justify-center transition-colors">
-                            <i class="fas fa-file-export mr-2"></i>
-                            <span>HTML出力</span>
+    <!-- メインコンテンツ (最初は非表示) -->
+    <div id="app-container" class="hidden flex-grow">
+        <div class="container mx-auto px-4 py-8 flex-grow flex flex-col">
+            <!-- メイン画面 -->
+            <div id="main-screen" class="flex-grow flex flex-col">
+                <header class="text-center mb-8 flex-shrink-0">
+                    <h1 class="text-3xl md:text-4xl font-bold text-gray-900">
+                        政策リサーチ情報管理
+                    </h1>
+                    <p class="text-base md:text-lg text-gray-600 mt-2">政策関連情報のインポート、管理、共有を行います。</p>
+                </header>
+                <main class="flex-grow grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- 1. データインポート -->
+                    <div class="bg-white p-6 rounded-lg shadow-md flex flex-col justify-between">
+                        <div>
+                            <i class="fas fa-file-import text-3xl text-blue-500 mb-3"></i>
+                            <h2 class="text-xl font-bold text-gray-800 mb-2">データインポート</h2>
+                            <p class="text-gray-600 text-sm mb-4">Excelファイルから、ポイント・政策レポートの情報をインポートします。</p>
+                        </div>
+                        <button id="show-import-screen-button" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            インポート画面へ
                         </button>
                     </div>
-                </div>
-                <!-- 件数表示 -->
-                <div id="dataCountDisplay" class="text-gray-600 text-sm w-full sm:w-auto text-center sm:text-right flex-shrink-0"></div>
-            </header>
-            <div id="results-table-container" class="bg-white shadow-lg rounded-lg overflow-auto flex-grow">
-                <table class="min-w-full leading-normal table-fixed">
-                    <thead id="table-header" class="bg-gray-800 text-white sticky top-0 z-10">
-                        <tr>
-                            <th class="w-12 sm:w-16 px-2 py-3 border-b-2 border-gray-200 text-center text-xs font-semibold uppercase tracking-wider" title="ブックマーク"><i class="fas fa-bookmark"></i></th>
-                            <th class="w-24 sm:w-28 px-2 py-3 border-b-2 border-gray-200 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-sort-key="日付">日付<span class="sort-icon"></span></th>
-                            <th class="kaigi-date-col w-24 sm:w-28 px-2 py-3 border-b-2 border-gray-200 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-sort-key="開催日">会議日<span class="sort-icon"></span></th>
-                            <th class="px-2 py-3 border-b-2 border-gray-200 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-sort-key="タイトル名">政策関連情報概要<span class="sort-icon"></span></th>
-                            <th class="w-12 sm:w-16 px-2 py-3 border-b-2 border-gray-200 text-center text-xs font-semibold uppercase tracking-wider" title="動画"><i class="fas fa-video"></i></th>
-                            <th class="w-12 sm:w-16 px-2 py-3 border-b-2 border-gray-200 text-center text-xs font-semibold uppercase tracking-wider" title="音声"><i class="fas fa-volume-up"></i></th>
-                        </tr>
-                    </thead>
-                    <tbody id="data-table-body" class="divide-y divide-gray-200"></tbody>
-                </table>
-                <div id="loading" class="text-center p-8 text-gray-500"></div>
+                    <!-- 2. データ管理 -->
+                    <div class="bg-white p-6 rounded-lg shadow-md flex flex-col justify-between">
+                        <div>
+                            <i class="fas fa-database text-3xl text-teal-500 mb-3"></i>
+                            <h2 class="text-xl font-bold text-gray-800 mb-2">データ管理</h2>
+                            <p class="text-gray-600 text-sm mb-4">登録済みの全データを閲覧、検索、編集、削除します。</p>
+                        </div>
+                        <button id="open-data-view-button" class="mt-4 w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            データ一覧を表示
+                        </button>
+                    </div>
+                    <!-- 3. 公開用ページ管理 -->
+                    <div class="bg-white p-6 rounded-lg shadow-md flex flex-col justify-between md:col-span-2 lg:col-span-1">
+                        <div>
+                            <i class="fas fa-globe text-3xl text-purple-500 mb-3"></i>
+                            <h2 class="text-xl font-bold text-gray-800 mb-2">公開用ページ管理</h2>
+                            <p class="text-gray-600 text-sm mb-4">閲覧専用のWebページを生成・プレビューします。</p>
+                        </div>
+                        <div class="space-y-3 mt-4">
+                             <div class="border p-3 rounded-lg">
+                                <h3 class="font-semibold text-sm mb-2 text-gray-700">本日のポイント</h3>
+                                <div class="flex gap-2">
+                                    <button id="preview-point-button" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg text-sm"><i class="fas fa-eye mr-1"></i>プレビュー</button>
+                                    <button id="export-point-button" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-3 rounded-lg text-sm"><i class="fas fa-file-code mr-1"></i>コード出力</button>
+                                </div>
+                            </div>
+                            <div class="border p-3 rounded-lg">
+                                <h3 class="font-semibold text-sm mb-2 text-gray-700">政策レポート</h3>
+                                <div class="flex gap-2">
+                                    <button id="preview-policy-button" class="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-3 rounded-lg text-sm"><i class="fas fa-eye mr-1"></i>プレビュー</button>
+                                    <button id="export-policy-button" class="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-3 rounded-lg text-sm"><i class="fas fa-file-code mr-1"></i>コード出力</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+                <footer class="text-center mt-8 text-gray-500 flex-shrink-0">
+                    <p>&copy; 2024 政策リサーチポータル. All rights reserved.</p>
+                </footer>
+            </div>
+            
+            <!-- インポート画面 -->
+            <div id="import-screen" class="hidden flex-grow flex flex-col">
+                <header class="flex-shrink-0 flex items-center justify-between mb-4">
+                    <h1 class="text-2xl font-bold">データインポート</h1>
+                    <button id="back-to-main-from-import-button" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"><i class="fas fa-arrow-left mr-2"></i>管理トップに戻る</button>
+                </header>
+                <main class="bg-white p-6 rounded-lg shadow-md flex-grow flex flex-col">
+                    <div id="file-drop-zone" class="file-drop-zone rounded-lg p-8 text-center cursor-pointer mb-4">
+                        <i class="fas fa-file-excel text-4xl text-gray-400 mb-3"></i>
+                        <p class="text-gray-600">ここにExcelファイルをドラッグ＆ドロップ</p>
+                        <p class="text-sm text-gray-500 my-2">または</p>
+                        <button onclick="document.getElementById('fileInput').click()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">ファイルを選択</button>
+                        <input type="file" id="fileInput" accept=".csv, .xlsx, .xls" class="hidden"/>
+                    </div>
+                    <div id="import-status" class="text-sm mb-4 h-5"></div>
+                    <div id="import-preview-container" class="hidden flex-grow flex flex-col">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-lg font-bold">インポートプレビュー</h3>
+                            <button id="confirm-import-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-400">
+                                <i class="fas fa-check mr-2"></i><span>データベースに保存</span>
+                            </button>
+                        </div>
+                        <div class="overflow-auto border rounded-lg flex-grow">
+                            <table class="min-w-full text-sm">
+                                <thead class="bg-gray-100 sticky top-0">
+                                    <tr>
+                                        <th class="p-2 text-left">日付</th>
+                                        <th class="p-2 text-left">タイトル名</th>
+                                        <th class="p-2 text-left">区分</th>
+                                        <th class="p-2 text-left">備考</th>
+                                        <th class="p-2 text-left">ステータス</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="import-preview-body" class="divide-y"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </main>
+            </div>
+            
+            <!-- データ一覧画面 -->
+            <div id="data-view-screen" class="hidden flex-grow flex flex-col">
+                <header class="flex-shrink-0 flex items-center justify-between mb-4">
+                       <h1 class="text-2xl font-bold inline-flex items-center">
+                           データ一覧・プレビュー
+                           <span id="main-audio-control" class="audio-icon text-blue-500 hover:text-blue-700 text-xl ml-3 cursor-pointer" title="音声コントロール">
+                               <i id="main-audio-icon-i" class="fas fa-volume-up"></i>
+                           </span>
+                       </h1>
+                       <div class="flex flex-col items-end">
+                           <button id="back-to-main-button" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">
+                               <i class="fas fa-arrow-left mr-2"></i>管理トップに戻る
+                           </button>
+                           <div id="last-import-time" class="text-gray-500 text-xs mt-1"></div>
+                       </div>
+                </header>
+                <main class="bg-white p-6 rounded-lg shadow-md flex-grow flex flex-col">
+                    <div class="flex-shrink-0 flex flex-col sm:flex-row justify-between items-end mb-4 gap-4">
+                        <div class="flex flex-col sm:flex-row items-center w-full sm:justify-start gap-4">
+                            <input type="text" id="searchInput" placeholder="検索（省庁名は略称でも可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-80">
+                            <div class="flex items-center gap-2">
+                                <button id="clearSearchButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg"><i class="fas fa-times mr-2"></i>クリア</button>
+                                <button id="delete-selected-button" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg hidden"><i class="fas fa-trash-alt mr-2"></i><span id="delete-button-text">選択項目を削除</span></button>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="bookmark-filter-checkbox" class="form-checkbox h-5 w-5 text-yellow-500 rounded cursor-pointer">
+                                <label for="bookmark-filter-checkbox" class="text-sm font-medium text-gray-700 cursor-pointer">ブックマークのみ表示</label>
+                            </div>
+                        </div>
+                        <div id="dataCountDisplay" class="text-gray-600 text-sm w-full sm:w-auto text-center sm:text-right flex-shrink-0"></div>
+                    </div>
+                    <div id="results-table-container" class="bg-white border border-gray-200 rounded-lg overflow-auto flex-grow">
+                        <table class="min-w-full leading-normal table-auto">
+                            <thead id="table-header" class="bg-gray-800 text-white sticky top-0 z-10">
+                                <tr>
+                                    <th class="w-12 px-2 py-3"><input type="checkbox" id="select-all-checkbox"></th>
+                                    <th class="w-16 px-2 py-3" title="ブックマーク"><i class="fas fa-bookmark"></i></th>
+                                    <th class="w-32 px-2 py-3 sortable-header" data-sort-key="日付">公開日<span class="sort-icon"></span></th>
+                                    <th class="px-2 py-3 sortable-header" data-sort-key="タイトル名">政策関連情報概要<span class="sort-icon"></span></th>
+                                    <th class="w-16 px-2 py-3" title="動画"><i class="fas fa-video"></i></th>
+                                    <th class="w-16 px-2 py-3" title="音声"><i class="fas fa-volume-up"></i></th>
+                                </tr>
+                            </thead>
+                            <tbody id="data-table-body" class="divide-y divide-gray-200"></tbody>
+                        </table>
+                        <div id="loading" class="text-center p-8 text-gray-500">データを読み込んでいます...</div>
+                    </div>
+                    <div id="pagination-controls" class="flex justify-center items-center mt-4"></div>
+                </main>
             </div>
         </div>
-
-        <footer class="text-center mt-8 text-gray-500 flex-shrink-0">
-            <p>&copy; 2024 政策リサーチポータル. All rights reserved.</p>
-        </footer>
     </div>
     
-    <!-- 音声再生用の非表示要素 -->
-    <audio id="audioPlayer" style="display: none;"></audio>
+    <!-- 生成コード表示用モーダル -->
+    <div id="code-modal" class="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0" aria-hidden="true">
+        <div class="modal-container bg-white w-full max-w-4xl h-full max-h-[90vh] rounded-lg shadow-xl flex flex-col transform -translate-y-full">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 class="text-lg font-bold">生成された公開用コード</h3>
+                <button id="close-modal-button" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            </div>
+            <div class="p-4 flex-grow overflow-y-auto">
+                <textarea id="generated-code" readonly class="w-full h-full p-2 border rounded-md font-mono text-sm bg-gray-50 resize-none"></textarea>
+            </div>
+            <div class="flex justify-end items-center p-4 border-t gap-2">
+                 <span id="copy-feedback" class="text-sm text-green-600 opacity-0 transition-opacity">コピーしました！</span>
+                 <button id="copy-code-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">
+                     <i class="fas fa-copy mr-2"></i>コードをコピー
+                 </button>
+            </div>
+        </div>
+    </div>
+     <audio id="audioPlayer" style="display: none;"></audio>
 
-    <script>
-    // スクリプト全体を即時実行関数 (IIFE) で囲むことで、グローバルスコープの汚染を防ぎます。
-    (function() {
-        // --- アプリケーションの状態 ---
-        let audioContext;
-        let currentData = []; // 解析された元のデータ
-        let lastUploadTimestamp = ''; // 最終アップロード日時
-        let currentlyPlayingIcon = null; // 現在再生中の音声アイコン
-        let sortState = { key: 'default', direction: 'desc' }; // 初期ソート状態
 
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, writeBatch, doc, onSnapshot, updateDoc, query, where, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // --- グローバル変数 ---
+        const appId = 'default-policy-research-app';
+        
+        let db;
+        let firebaseConfig = null;
+        let currentData = [], filteredAndSortedData = [], currentPage = 1, previewData = [];
+        let sortState = { key: 'default', direction: 'desc' };
+        let currentlyPlayingIcon = null;
+        
         // --- DOM要素 ---
+        const firebaseConfigScreen = document.getElementById('firebase-config-screen');
+        const firebaseConfigTextarea = document.getElementById('firebase-config-textarea');
+        const saveConfigButton = document.getElementById('save-config-button');
+        const configError = document.getElementById('config-error');
+        const appContainer = document.getElementById('app-container');
+        const mainScreen = document.getElementById('main-screen');
+        const importScreen = document.getElementById('import-screen');
+        const dataViewScreen = document.getElementById('data-view-screen');
         const fileInput = document.getElementById('fileInput');
-        const uploadScreen = document.getElementById('upload-screen');
-        const resultsScreen = document.getElementById('results-screen');
-        const backButton = document.getElementById('back-button');
-        const exportButton = document.getElementById('export-button');
-        const uploadError = document.getElementById('upload-error');
+        const fileDropZone = document.getElementById('file-drop-zone');
+        const importStatus = document.getElementById('import-status');
+        const importPreviewContainer = document.getElementById('import-preview-container');
+        const importPreviewBody = document.getElementById('import-preview-body');
+        const confirmImportButton = document.getElementById('confirm-import-button');
+        const showImportScreenButton = document.getElementById('show-import-screen-button');
+        const openDataViewButton = document.getElementById('open-data-view-button');
+        const exportPointButton = document.getElementById('export-point-button');
+        const exportPolicyButton = document.getElementById('export-policy-button');
+        const previewPointButton = document.getElementById('preview-point-button');
+        const previewPolicyButton = document.getElementById('preview-policy-button');
+        const backToMainButton = document.getElementById('back-to-main-button');
+        const backToMainFromImportButton = document.getElementById('back-to-main-from-import-button');
         const searchInput = document.getElementById('searchInput');
         const clearSearchButton = document.getElementById('clearSearchButton');
-        const mainAudioControl = document.getElementById('main-audio-control');
-        const mainAudioIconI = document.getElementById('main-audio-icon-i');
+        const deleteSelectedButton = document.getElementById('delete-selected-button');
+        const deleteButtonText = document.getElementById('delete-button-text');
         const tableBody = document.getElementById('data-table-body');
         const tableHeader = document.getElementById('table-header');
-        const loadingIndicator = document.getElementById('loading');
+        const selectAllCheckbox = document.getElementById('select-all-checkbox');
+        const loading = document.getElementById('loading');
         const dataCountDisplay = document.getElementById('dataCountDisplay');
-        const tableElement = document.querySelector('#results-table-container table');
+        const paginationControls = document.getElementById('pagination-controls');
         const audioPlayer = document.getElementById('audioPlayer');
+        const codeModal = document.getElementById('code-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const generatedCodeTextarea = document.getElementById('generated-code');
+        const copyCodeButton = document.getElementById('copy-code-button');
+        const copyFeedback = document.getElementById('copy-feedback');
+        const mainAudioControl = document.getElementById('main-audio-control');
+        const mainAudioIconI = document.getElementById('main-audio-icon-i');
+        const bookmarkFilterCheckbox = document.getElementById('bookmark-filter-checkbox');
 
         // --- 定数 ---
-        const ABBREVIATIONS = {
-            "国土交通省": "国交省", "国交省": "国土交通省",
-            "文部科学省": "文科省", "文科省": "文部科学省",
-            "経済産業省": "経産省", "経産省": "経済産業省",
-            "農林水産省": "農水省", "農水省": "農林水産省",
-            "厚生労働省": "厚労省", "厚労省": "厚生労働省",
-            "資源エネルギー庁": "エネ庁", "エネ庁": "資源エネルギー庁"
+        const COLLECTION_NAME = 'policy_data';
+        const METADATA_DOC_ID = 'last_import_metadata';
+        const POINT_METADATA_DOC_ID = 'point_last_import_metadata';
+        const POLICY_METADATA_DOC_ID = 'policy_last_import_metadata';
+        const ITEMS_PER_PAGE = 100;
+        const SYNONYMS = [
+            ["国土交通省", "国交省"], ["経済産業省", "経産省"], ["文部科学省", "文科省"],
+            ["厚生労働省", "厚労省"], ["農林水産省", "農水省"]
+        ];
+        // デフォルトのFirebase設定 (デモ用)
+        const defaultConfig = {
+            apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04",
+            authDomain: "import-b6097.firebaseapp.com",
+            projectId: "import-b6097",
+            storageBucket: "import-b6097.appspot.com",
+            messagingSenderId: "462510788117",
+            appId: "1:462510788117:web:44ff1fd1af583f67bc081c",
+            measurementId: "G-Z5ZNMKGTTK"
         };
         
-        // --- 関数 ---
+        // --- 初期化 & 設定 ---
+        async function startApp() {
+            firebaseConfigTextarea.value = `const firebaseConfig = ${JSON.stringify(defaultConfig, null, 2)};`;
+            
+            saveConfigButton.addEventListener('click', async () => {
+                saveConfigButton.disabled = true;
+                configError.textContent = '';
+                try {
+                    const configStr = firebaseConfigTextarea.value.substring(firebaseConfigTextarea.value.indexOf('{'), firebaseConfigTextarea.value.lastIndexOf('}') + 1);
+                    firebaseConfig = JSON.parse(configStr);
+                    const success = await initializeFirebase();
+                    if (success) {
+                        localStorage.setItem('firebaseConfig', JSON.stringify(firebaseConfig));
+                        launchMainApp();
+                    }
+                } catch (e) {
+                    configError.textContent = e.message || "無効なJSON形式です。";
+                } finally {
+                    saveConfigButton.disabled = false;
+                }
+            });
 
-        /**
-         * 短いノイズ音を再生します。
-         */
-        function playCrackSound() {
-            if (!audioContext) { try { audioContext = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { console.error('AudioContext is not supported.', e); return; } }
-            if (audioContext.state === 'suspended') { audioContext.resume(); }
-            const bufferSize = audioContext.sampleRate * 0.1; const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
-            const output = buffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) { output[i] = (Math.random() * 2 - 1) * 0.5; }
-            const source = audioContext.createBufferSource(); source.buffer = buffer;
-            const gainNode = audioContext.createGain(); gainNode.gain.setValueAtTime(0.5, audioContext.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.08);
-            source.connect(gainNode); gainNode.connect(audioContext.destination);
-            source.start(0);
+            const savedConfig = localStorage.getItem('firebaseConfig');
+            if (savedConfig) {
+                try {
+                    firebaseConfig = JSON.parse(savedConfig);
+                    if (await initializeFirebase()) {
+                        launchMainApp();
+                        return;
+                    }
+                } catch (e) {
+                    localStorage.removeItem('firebaseConfig');
+                }
+            }
+            firebaseConfigScreen.style.display = 'flex';
         }
 
-        /**
-         * ヘッダーのメイン音声コントロールアイコンの状態を更新します。
-         * @param {'playing' | 'paused' | 'stopped'} state - 現在の音声状態
-         */
+        async function initializeFirebase() {
+            if (!firebaseConfig || !firebaseConfig.apiKey) return false;
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                const auth = getAuth(app);
+                await signInAnonymously(auth);
+                return true;
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+                if (error.code === 'auth/configuration-not-found') {
+                    throw new Error("認証エラー: Firebaseコンソールで匿名認証を有効にしてください。");
+                }
+                throw new Error("Firebaseへの接続に失敗しました。設定情報を確認してください。");
+            }
+        }
+
+        function launchMainApp() {
+            firebaseConfigScreen.style.display = 'none';
+            appContainer.style.display = 'flex';
+            setupEventListeners();
+            setupFirestoreListener();
+            setupMetadataListener(METADATA_DOC_ID, document.getElementById('last-import-time'));
+        }
+
+        // --- 画面切り替え ---
+        function showScreen(screenToShow) {
+            [mainScreen, dataViewScreen, importScreen].forEach(screen => {
+                screen.style.display = screen === screenToShow ? 'flex' : 'none';
+            });
+        }
+
+        // --- Firestore & レンダリング (データ一覧) ---
+        function setupFirestoreListener() {
+            const dataCollection = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
+            onSnapshot(dataCollection, (snapshot) => {
+                currentData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                render();
+            }, (error) => console.error("Error fetching data:", error));
+        }
+
+        function setupMetadataListener(docId, displayElement) {
+            const metadataDocRef = doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, docId);
+            onSnapshot(metadataDocRef, (docSnap) => {
+                if (displayElement) {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        const lastImportDate = data.lastImportTimestamp?.toDate();
+                        if (lastImportDate) {
+                            const formattedDate = lastImportDate.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                            displayElement.textContent = `更新: ${formattedDate}`;
+                        }
+                    } else {
+                        displayElement.textContent = '';
+                    }
+                }
+            });
+        }
+        
+        function render() {
+             filteredAndSortedData = getFilteredAndSortedData();
+             currentPage = 1;
+             renderTable();
+             renderPagination();
+        }
+
+        function getFilteredAndSortedData() {
+            const localBookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
+            let data = [...currentData].map(item => ({...item, isBookmarked: localBookmarks.has(item.id)}));
+            if (bookmarkFilterCheckbox.checked) {
+                data = data.filter(item => item.isBookmarked);
+            }
+            data = filterData(data, searchInput.value);
+            sortData(data);
+            return data;
+        }
+
+        function renderTable() {
+             const totalItems = filteredAndSortedData.length;
+             const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+             const endIndex = startIndex + ITEMS_PER_PAGE;
+             const paginatedData = filteredAndSortedData.slice(startIndex, endIndex);
+
+             tableBody.innerHTML = '';
+             loading.style.display = 'none';
+
+             if (totalItems === 0) {
+                 loading.textContent = searchInput.value || bookmarkFilterCheckbox.checked ? '条件に一致するデータがありません。' : 'データがありません。';
+                 loading.style.display = 'block';
+                 dataCountDisplay.textContent = '0件';
+             } else {
+                 const fragment = document.createDocumentFragment();
+                 paginatedData.forEach(item => fragment.appendChild(createTableRow(item)));
+                 tableBody.appendChild(fragment);
+                 dataCountDisplay.textContent = `${startIndex + 1} - ${Math.min(endIndex, totalItems)} / 全${totalItems}件`;
+             }
+             updateDeleteButtonState();
+        }
+
+        function renderPagination() {
+            const totalItems = filteredAndSortedData.length;
+            const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+            paginationControls.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            const createButton = (html, page, isDisabled = false, isActive = false) => {
+                const button = document.createElement('button');
+                button.innerHTML = html;
+                button.disabled = isDisabled;
+                button.className = `pagination-button mx-1 px-3 py-1 border rounded-md text-sm font-medium transition-colors ${isDisabled ? 'text-gray-400 bg-gray-100' : 'text-gray-700 bg-white hover:bg-gray-50'} ${isActive ? 'active border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-300'}`;
+                if (!isDisabled) button.onclick = () => { currentPage = page; renderTable(); renderPagination(); };
+                return button;
+            };
+
+            paginationControls.appendChild(createButton('<i class="fas fa-chevron-left"></i>', currentPage - 1, currentPage === 1));
+            
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, currentPage + 2);
+
+            if (startPage > 1) {
+                paginationControls.appendChild(createButton('1', 1));
+                if (startPage > 2) paginationControls.insertAdjacentHTML('beforeend', `<span class="px-2 py-1">...</span>`);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                paginationControls.appendChild(createButton(i, i, false, i === currentPage));
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) paginationControls.insertAdjacentHTML('beforeend', `<span class="px-2 py-1">...</span>`);
+                paginationControls.appendChild(createButton(totalPages, totalPages));
+            }
+
+            paginationControls.appendChild(createButton('<i class="fas fa-chevron-right"></i>', currentPage + 1, currentPage === totalPages));
+        }
+        
+        function createTableRow(item) {
+             const row = document.createElement('tr');
+             row.className = 'hover:bg-gray-50 transition-colors duration-150';
+             const date = item['日付'] || '';
+             let displayTitle = (item['タイトル名'] || 'タイトルなし')
+                 .replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>')
+                 .replace(/(\[会議日: [^\]]+\])/g, '<span class="text-gray-500 font-normal ml-2">$1</span>');
+
+             let bikou = (item['備考'] || '').replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>');
+             const today = new Date().toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
+             let dateClass = (date === today) ? 'text-red-500 font-bold' : 'text-gray-900';
+             let titlePrefixHtml = '';
+             const url2 = String(item['URL2'] || '');
+             if (String(item['区分'] || '').trim() === '会議') {
+                 titlePrefixHtml = '<span class="inline-block bg-purple-100 text-purple-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">会議</span>';
+             } else if (url2) {
+                 titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>';
+             }
+             const audioIconHtml = item['URL1'] ? `<span data-src="${item['URL1']}" title="音声を再生" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : '';
+             const videoIconHtml = item['YouTube'] ? `<a href="${item['YouTube']}" target="_blank" rel="noopener noreferrer" title="動画を再生" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : '';
+
+             row.innerHTML = `
+                 <td class="px-2 py-3 text-center"><input type="checkbox" class="select-row-checkbox" data-id="${item.id}"></td>
+                 <td class="px-2 py-3 text-center"><input type="checkbox" class="bookmark-checkbox" data-id="${item.id}" ${item.isBookmarked ? 'checked' : ''}></td>
+                 <td class="px-2 py-3 text-sm"><p class="${dateClass}">${date}</p></td>
+                 <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-start">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" class="text-blue-600 hover:underline">${displayTitle}</a></div><p class="text-xs text-gray-500 mt-1">${bikou}</p></div></td>
+                 <td class="text-center">${videoIconHtml}</td>
+                 <td class="text-center">${audioIconHtml}</td>
+             `;
+             return row;
+        }
+
+        function filterData(data, query) {
+            if (!query) return data;
+            const lowerCaseQuery = query.toLowerCase().trim();
+            const searchTerms = new Set([lowerCaseQuery]);
+            SYNONYMS.forEach(group => {
+                const lowerCaseGroup = group.map(term => term.toLowerCase());
+                if (lowerCaseGroup.includes(lowerCaseQuery)) {
+                    lowerCaseGroup.forEach(term => searchTerms.add(term));
+                }
+            });
+
+             return data.filter(item => {
+                 let labelText = '';
+                 const url2 = String(item['URL2'] || '');
+                 if (String(item['区分'] || '').trim() === '会議') {
+                     labelText = '会議';
+                 } else if (url2) {
+                     labelText = url2.toLowerCase().includes('.pdf') ? 'PDF' : 'WEB';
+                 }
+                 const content = `${item['タイトル名'] || ''} ${item['備考'] || ''} ${labelText}`.toLowerCase();
+                 return Array.from(searchTerms).some(term => content.includes(term));
+             });
+        }
+        function sortData(data) {
+            const getKaigiDate = (title) => {
+                const match = (title || '').match(/\[会議日: (.*?)\]/);
+                return match && match[1] ? new Date(match[1]) : new Date(0); // Use epoch for non-dates
+            };
+
+            data.sort((a, b) => {
+                const { key, direction } = sortState;
+                if (key === 'default') {
+                    // 1. 公開日 (desc)
+                    const dateA = new Date(a['日付'] || 0);
+                    const dateB = new Date(b['日付'] || 0);
+                    if (dateB.getTime() !== dateA.getTime()) return dateB - dateA;
+
+                    // 2. 区分 (asc)
+                    const kubunA = a['区分'] || '';
+                    const kubunB = b['区分'] || '';
+                    const kubunCompare = kubunA.localeCompare(kubunB, 'ja');
+                    if (kubunCompare !== 0) return kubunCompare;
+
+                    // 3. 会議日 (desc)
+                    const kaigiDateA = getKaigiDate(a['タイトル名']);
+                    const kaigiDateB = getKaigiDate(b['タイトル名']);
+                    if (kaigiDateB.getTime() !== kaigiDateA.getTime()) return kaigiDateB - kaigiDateA;
+
+                    // 4. タイトル名 (asc)
+                    const titleA = (a['タイトル名'] || '').replace(/\[会議日: [^\]]+\]/g, '').trim();
+                    const titleB = (b['タイトル名'] || '').replace(/\[会議日: [^\]]+\]/g, '').trim();
+                    return titleA.localeCompare(titleB, 'ja');
+                }
+                
+                const valA = a[key] || ''; 
+                const valB = b[key] || '';
+                const modifier = direction === 'asc' ? 1 : -1;
+                if (key === '日付') {
+                    return (new Date(valA) - new Date(valB)) * modifier;
+                }
+                return valA.localeCompare(valB, 'ja') * modifier;
+            });
+        }
+        function toggleBookmark(id, checked) { 
+            const bookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
+            if(checked) {
+                bookmarks.add(id);
+            } else {
+                bookmarks.delete(id);
+            }
+            localStorage.setItem(`bookmarks_${appId}`, JSON.stringify(Array.from(bookmarks)));
+            render();
+        }
+        function updateDeleteButtonState() {
+             const selected = document.querySelectorAll('#data-table-body .select-row-checkbox:checked');
+             deleteSelectedButton.classList.toggle('hidden', selected.length === 0);
+             deleteButtonText.textContent = `${selected.length}件を選択中`;
+             const allCheckboxes = document.querySelectorAll('#data-table-body .select-row-checkbox');
+             selectAllCheckbox.checked = allCheckboxes.length > 0 && selected.length === allCheckboxes.length;
+        }
+        function toggleSelectAll() {
+            document.querySelectorAll('#data-table-body .select-row-checkbox').forEach(cb => cb.checked = selectAllCheckbox.checked);
+            updateDeleteButtonState();
+        }
+        async function deleteSelectedItems() {
+            const selectedIds = Array.from(document.querySelectorAll('#data-table-body .select-row-checkbox:checked')).map(cb => cb.dataset.id);
+            if (selectedIds.length === 0) return;
+            
+            deleteSelectedButton.disabled = true;
+            const batch = writeBatch(db);
+            selectedIds.forEach(id => batch.delete(doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, id)));
+            await batch.commit();
+            deleteSelectedButton.disabled = false;
+        }
+        
+        // --- 音声再生関連 ---
+        function handleAudioEnded() {
+            const currentIcon = currentlyPlayingIcon;
+            setIconState(currentIcon, 'stopped');
+            updateMainAudioIcon('stopped');
+            currentlyPlayingIcon = null;
+            
+            const allIcons = Array.from(tableBody.querySelectorAll('.audio-icon[data-src]'));
+            const currentIndex = allIcons.findIndex(icon => icon === currentIcon);
+            if (currentIndex > -1 && currentIndex < allIcons.length - 1) {
+                setTimeout(() => toggleAudioPlayback(allIcons[currentIndex + 1]), 3000);
+            }
+        }
+
         function updateMainAudioIcon(state) {
             mainAudioIconI.classList.remove('fa-volume-up', 'fa-play', 'fa-pause');
             mainAudioControl.classList.remove('playing');
-
-            switch (state) {
+            switch(state) {
                 case 'playing':
                     mainAudioIconI.classList.add('fa-pause');
                     mainAudioControl.classList.add('playing');
@@ -216,306 +639,338 @@
                     break;
             }
         }
-        
-        /**
-         * 指定されたアイコンの音声再生を開始します。
-         * @param {HTMLElement} icon - 再生を開始するアイコン要素
-         */
-        function startPlaybackForIcon(icon) {
+
+        function setIconState(icon, state) {
             if (!icon) return;
-            const audioSrc = icon.dataset.src;
-            if (!audioSrc) return;
-
-            if (currentlyPlayingIcon) {
-                currentlyPlayingIcon.classList.remove('playing', 'paused');
+            const i = icon.querySelector('i');
+            icon.classList.remove('playing', 'paused');
+            i.classList.remove('fa-volume-up', 'fa-play', 'fa-pause');
+            switch (state) {
+                case 'playing':
+                    icon.classList.add('playing');
+                    i.classList.add('fa-pause');
+                    icon.title = "一時停止";
+                    break;
+                case 'paused':
+                    icon.classList.add('paused');
+                    i.classList.add('fa-play');
+                    icon.title = "再生";
+                    break;
+                case 'stopped':
+                default:
+                    i.classList.add('fa-volume-up');
+                    icon.title = "音声を再生";
+                    break;
             }
-            audioPlayer.src = audioSrc;
-            audioPlayer.play().catch(e => console.error("Audio play failed:", e));
-            currentlyPlayingIcon = icon;
         }
 
-        /**
-         * 音声の再生/停止をトグルします。
-         */
         function toggleAudioPlayback(clickedIcon) {
-            playCrackSound();
             if (currentlyPlayingIcon === clickedIcon) {
-                if (audioPlayer.paused) {
-                    audioPlayer.play();
-                } else {
-                    audioPlayer.pause();
-                }
+                if (audioPlayer.paused) audioPlayer.play(); else audioPlayer.pause();
             } else {
-                startPlaybackForIcon(clickedIcon);
+                if (currentlyPlayingIcon) setIconState(currentlyPlayingIcon, 'stopped');
+                audioPlayer.src = clickedIcon.dataset.src;
+                audioPlayer.play().catch(e => console.error("Audio play failed:", e));
+                currentlyPlayingIcon = clickedIcon;
             }
         }
         
-        /**
-         * 検索、ソート、描画の一連のプロセスを実行します。
-         */
-        function renderTable() {
-            const searchQuery = searchInput.value;
-            let dataToRender = [...currentData];
-
-            dataToRender = filterData(dataToRender, searchQuery);
-            sortData(dataToRender);
-            updateSortIcons();
-
-            tableBody.innerHTML = '';
-            loadingIndicator.style.display = 'none';
+        // --- データインポート関連 ---
+        async function handleFileSelect(file) {
+            if (!file) { importStatus.textContent = 'ファイルが選択されていません。'; return; }
+            importStatus.textContent = 'ファイルを解析中...';
+            importPreviewContainer.classList.add('hidden');
             
-            const updateText = lastUploadTimestamp ? `（${lastUploadTimestamp} 更新）` : '';
-            dataCountDisplay.innerHTML = `${dataToRender.length}件 ${updateText}`;
-
-            if (dataToRender.length === 0) {
-                loadingIndicator.textContent = searchQuery ? '検索条件に一致するデータがありません。' : '表示するデータがありません。';
-                loadingIndicator.style.display = 'block';
-            } else {
-                const fragment = document.createDocumentFragment();
-                dataToRender.forEach(item => fragment.appendChild(createTableRow(item)));
-                tableBody.appendChild(fragment);
-            }
-        }
-        
-        /**
-         * 検索クエリに基づいてデータをフィルタリングします。
-         */
-        function filterData(data, searchQuery) {
-            if (!searchQuery) return data;
-            const lowerCaseSearchQuery = searchQuery.toLowerCase().trim();
-            const searchTerms = new Set([lowerCaseSearchQuery]);
-            const abbreviation = ABBREVIATIONS[searchQuery.trim()];
-            if (abbreviation) { searchTerms.add(abbreviation.toLowerCase()); }
-            for (const [full, abbr] of Object.entries(ABBREVIATIONS)) {
-                if (abbr.toLowerCase() === lowerCaseSearchQuery) { searchTerms.add(full.toLowerCase()); }
-            }
-            return data.filter(item => {
-                const title = item['タイトル名'] || '';
-                const bikou = item['備考'] || '';
-                const date = item['日付'] || '';
-                const kaigiDate = item['開催日'] || '';
-                
-                // ラベルテキストを検索対象に追加
-                let labelText = '';
-                const url2 = String(item['URL2'] || '');
-                if (String(item['区分'] || '').trim() === '会議') {
-                    labelText = '会議';
-                } else if (url2) {
-                    if (url2.toLowerCase().includes('.pdf')) {
-                        labelText = 'PDF';
-                    } else {
-                        labelText = 'WEB';
-                    }
-                }
-
-                const contentToSearch = `${title} ${bikou} ${date} ${kaigiDate} ${labelText}`.toLowerCase();
-                return Array.from(searchTerms).some(term => contentToSearch.includes(term));
-            });
-        }
-        
-        /**
-         * `sortState`に基づいてデータをソートします。
-         */
-        function sortData(data) {
-            const { key, direction } = sortState;
-
-            data.sort((a, b) => {
-                // ブックマークを最優先
-                if (a.isBookmarked !== b.isBookmarked) return b.isBookmarked - a.isBookmarked;
-
-                if (key === 'default') {
-                    // デフォルトの複数レベルソート
-                    const dateA = a['日付'] ? new Date(a['日付']) : null;
-                    const dateB = b['日付'] ? new Date(b['日付']) : null;
-                    if (dateA && dateB && dateA.getTime() !== dateB.getTime()) return dateB - dateA;
-                    const meetingDateA = a['開催日'] ? new Date(a['開催日']) : null;
-                    const meetingDateB = b['開催日'] ? new Date(b['開催日']) : null;
-                    if (meetingDateA && meetingDateB && meetingDateA.getTime() !== meetingDateB.getTime()) return meetingDateB - meetingDateA;
-                    return (a['タイトル名'] || '').localeCompare(b['タイトル名'] || '', 'ja');
-                } else {
-                    // ヘッダークリックによる単一レベルソート
-                    const modifier = direction === 'asc' ? 1 : -1;
-                    const isDateKey = key === '日付' || key === '開催日';
-                    const valA = a[key] || '';
-                    const valB = b[key] || '';
-                    if (isDateKey) {
-                        const dateA = valA ? new Date(valA) : null;
-                        const dateB = valB ? new Date(valB) : null;
-                        if (!dateA && !dateB) return 0; if (!dateA) return 1; if (!dateB) return -1;
-                        return (dateA - dateB) * modifier;
-                    } else {
-                        return valA.localeCompare(valB, 'ja') * modifier;
-                    }
-                }
-            });
-        }
-
-        /**
-         * ヘッダーのソートアイコンを更新します。
-         */
-        function updateSortIcons() {
-            document.querySelectorAll('.sortable-header').forEach(header => {
-                header.classList.remove('asc', 'desc');
-                if (header.dataset.sortKey === sortState.key) {
-                    header.classList.add(sortState.direction);
-                }
-            });
-        }
-        
-        /**
-         * データアイテムから単一のテーブル行を生成します。
-         */
-        function createTableRow(item) {
-            const date = item['日付'] || '';
-            const kaigiDate = item['開催日'] || '';
-            const originalTitle = item['タイトル名'] || 'タイトルなし';
-            let displayTitle = originalTitle;
-            const url2 = String(item['URL2'] || '');
-            let bikou = item['備考'] || '';
-            
-            if (bikou.includes('（更新）')) { bikou = bikou.replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>'); }
-            if (displayTitle.includes('（更新）')) { displayTitle = displayTitle.replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>'); }
-
-            const today = new Date().toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
-            const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
-            
-            let dateClass = 'text-gray-900';
-            if (date === today) dateClass = 'text-red-500 font-bold';
-            else if (date === yesterday) dateClass = 'text-red-500';
-
-            let titlePrefixHtml = '';
-            if (String(item['区分'] || '').trim() === '会議') { titlePrefixHtml = '<span class="inline-block bg-purple-100 text-purple-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">会議</span>'; }
-            else if (url2) { titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>'; }
-
-            const audioIconHtml = item['URL1'] ? `<span data-src="${item['URL1']}" title="音声を再生" aria-label="音声を再生" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : '';
-            const videoUrl = item['YouTube'] || ''; // ★変更点
-            const videoIconHtml = videoUrl ? `<a href="${videoUrl}" target="_blank" rel="noopener noreferrer" title="動画を再生" aria-label="動画を再生" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : '';
-
-            const row = document.createElement('tr');
-            row.className = 'hover:bg-gray-50 transition-colors duration-200';
-            row.innerHTML = `
-                <td class="w-12 sm:w-16 px-2 py-3 text-sm text-center"><input type="checkbox" class="bookmark-checkbox form-checkbox h-4 w-4 text-blue-600 rounded cursor-pointer" data-index="${item._originalIndex}" ${item.isBookmarked ? 'checked' : ''} aria-label="ブックマーク"></td>
-                <td class="w-24 sm:w-28 px-2 py-3 text-sm"><p class="whitespace-nowrap ${dateClass}">${date}</p></td>
-                <td class="kaigi-date-col w-24 sm:w-28 px-2 py-3 text-sm"><p class="whitespace-nowrap text-gray-900">${kaigiDate}</p></td>
-                <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-center">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" rel="noopener noreferrer" class="text-blue-600 font-bold hover:underline" title="${originalTitle}">${displayTitle}</a></div><p class="text-xs text-gray-500 mt-1">${bikou}</p></div></td>
-                <td class="w-12 sm:w-16 px-2 py-3 text-sm text-center">${videoIconHtml}</td>
-                <td class="w-12 sm:w-16 px-2 py-3 text-sm text-center">${audioIconHtml}</td>
-            `;
-            return row;
-        }
-
-        /**
-         * ファイル選択時の処理です。
-         */
-        function handleFileSelect(event) {
-            const file = event.target.files[0]; if (!file) return;
-            uploadError.textContent = ''; loadingIndicator.textContent = '読み込み中...'; loadingIndicator.style.display = 'block';
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
-                    const data = e.target.result; const workbook = XLSX.read(data, { type: 'array' });
-                    const firstSheetName = workbook.SheetNames[0]; const worksheet = workbook.Sheets[firstSheetName];
-                    const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || [];
-                    const hasKaigiDateColumn = headers.includes('開催日');
-                    tableElement.classList.toggle('hide-kaigi-date', !hasKaigiDateColumn);
-
-                    let parsedData = XLSX.utils.sheet_to_json(worksheet);
-                    const formatDate = (serial) => { if (serial && typeof serial === 'number' && serial > 1) { const date = new Date(Math.round((serial - 25569) * 86400 * 1000)); return date.toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'}); } return serial; }
-                    parsedData.forEach((row, index) => {
-                        row['日付'] = formatDate(row['日付']);
-                        if (hasKaigiDateColumn) { row['開催日'] = formatDate(row['開催日']); }
-                        row.isBookmarked = false; row._originalIndex = index;
+                    const workbook = XLSX.read(e.target.result, { type: 'array' });
+                    const ws = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(ws);
+                    
+                    const existingDocs = await getDocs(collection(db, "artifacts", appId, "public/data", COLLECTION_NAME));
+                    const existing = new Set(existingDocs.docs.map(d => `${d.data()['日付']}_${d.data()['タイトル名']}`));
+                    
+                    previewData = jsonData.map(row => {
+                        let title = row['タイトル名'] || '';
+                        const kaigiDate = formatDate(row['開催日']);
+                        if(kaigiDate){
+                            title += ` [会議日: ${kaigiDate}]`;
+                        }
+                        const date = formatDate(row['日付']);
+                        const isDuplicate = existing.has(`${date}_${title}`);
+                        
+                        return { ...row, '日付': date, 'タイトル名': title, isDuplicate };
                     });
                     
-                    currentData = parsedData;
-                    lastUploadTimestamp = new Date().toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' });
-                    sortState = { key: 'default', direction: 'desc' }; // ソート状態をリセット
-                    
-                    renderTable();
-                    uploadScreen.style.display = 'none'; resultsScreen.style.display = 'flex';
-                    searchInput.value = '';
-                } catch (error) {
-                    console.error('File processing error:', error);
-                    uploadError.textContent = 'ファイルの処理中にエラーが発生しました。ファイル形式を確認してください。';
-                    loadingIndicator.style.display = 'none';
+                    previewData.sort((a, b) => new Date(b['日付'] || 0) - new Date(a['日付'] || 0));
+
+                    renderImportPreview(previewData);
+                    importPreviewContainer.classList.remove('hidden');
+                    const newItemsCount = previewData.filter(d => !d.isDuplicate).length;
+                    importStatus.textContent = `プレビュー: ${jsonData.length}件中 ${newItemsCount}件の新規データをインポートできます。`;
+                    confirmImportButton.disabled = newItemsCount === 0;
+
+                } catch (err) {
+                    importStatus.textContent = 'エラー: ファイルの解析に失敗しました。';
+                    console.error(err);
                 }
             };
-            reader.onerror = () => { uploadError.textContent = 'ファイルの読み込みに失敗しました。'; loadingIndicator.style.display = 'none'; };
             reader.readAsArrayBuffer(file);
         }
 
-        /**
-         * HTMLファイルを出力します。
-         */
-        function exportHTML() {
-            const hasKaigiDateColumn = !tableElement.classList.contains('hide-kaigi-date');
-            
-            const exportedAppLogic = function(APP_DATA) {
-                let audioContext, currentlyPlayingIcon = null, currentData = [...APP_DATA.tableData], sortState = { ...APP_DATA.initialSortState };
-                const audioPlayer = document.getElementById('audioPlayer'), tableBody = document.getElementById('data-table-body'), loadingIndicator = document.getElementById('loading'), dataCountDisplay = document.getElementById('dataCountDisplay'), searchInput = document.getElementById('searchInput'), clearSearchButton = document.getElementById('clearSearchButton'), tableHeader = document.getElementById('table-header'), mainAudioControl = document.getElementById('main-audio-control'), mainAudioIconI = document.getElementById('main-audio-icon-i');
-                const ABBREVIATIONS = APP_DATA.abbreviations;
-
-                function playCrackSound() { if (!audioContext) { try { audioContext = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { console.error('AudioContext not supported', e); return; } } if (audioContext.state === 'suspended') { audioContext.resume(); } const bufferSize = audioContext.sampleRate * 0.1; const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate); const output = buffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) { output[i] = (Math.random() * 2 - 1) * 0.5; } const source = audioContext.createBufferSource(); source.buffer = buffer; const gainNode = audioContext.createGain(); gainNode.gain.setValueAtTime(0.5, audioContext.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.08); source.connect(gainNode); gainNode.connect(audioContext.destination); source.start(0); }
-                function updateMainAudioIcon(state) { mainAudioIconI.classList.remove('fa-volume-up', 'fa-play', 'fa-pause'); mainAudioControl.classList.remove('playing'); switch (state) { case 'playing': mainAudioIconI.classList.add('fa-pause'); mainAudioControl.classList.add('playing'); mainAudioControl.title = "一時停止"; break; case 'paused': mainAudioIconI.classList.add('fa-play'); mainAudioControl.title = "再生"; break; case 'stopped': default: mainAudioIconI.classList.add('fa-volume-up'); mainAudioControl.title = "音声コントロール"; break; } }
-                function startPlaybackForIcon(icon) { if (!icon) return; const audioSrc = icon.dataset.src; if (!audioSrc) return; if (currentlyPlayingIcon) { currentlyPlayingIcon.classList.remove('playing', 'paused'); } audioPlayer.src = audioSrc; audioPlayer.play().catch(e => console.error("Audio play failed:", e)); currentlyPlayingIcon = icon; }
-                function toggleAudioPlayback(clickedIcon) { playCrackSound(); if (currentlyPlayingIcon === clickedIcon) { if (audioPlayer.paused) { audioPlayer.play(); } else { audioPlayer.pause(); } } else { startPlaybackForIcon(clickedIcon); } }
-                function filterData(data, searchQuery) { if (!searchQuery) return data; const lowerCaseSearchQuery = searchQuery.toLowerCase().trim(); const searchTerms = new Set([lowerCaseSearchQuery]); const abbreviation = ABBREVIATIONS[searchQuery.trim()]; if (abbreviation) { searchTerms.add(abbreviation.toLowerCase()); } for (const [full, abbr] of Object.entries(ABBREVIATIONS)) { if (abbr.toLowerCase() === lowerCaseSearchQuery) { searchTerms.add(full.toLowerCase()); } } return data.filter(item => { const title = item['タイトル名'] || ''; const bikou = item['備考'] || ''; const date = item['日付'] || ''; const kaigiDate = item['開催日'] || ''; const labelText = String(item['区分'] || '').trim() === '会議' ? '会議' : (String(item['URL2'] || '').toLowerCase().includes('.pdf') ? 'PDF' : (item['URL2'] ? 'WEB' : '')); const contentToSearch = `${title} ${bikou} ${date} ${kaigiDate} ${labelText}`.toLowerCase(); return Array.from(searchTerms).some(term => contentToSearch.includes(term)); }); }
-                function sortData(data) { const { key, direction } = sortState; data.sort((a, b) => { if (a.isBookmarked !== b.isBookmarked) return b.isBookmarked - a.isBookmarked; if (key === 'default') { const dateA = a['日付'] ? new Date(a['日付']) : null; const dateB = b['日付'] ? new Date(b['日付']) : null; if (dateA && dateB && dateA.getTime() !== dateB.getTime()) { return dateB - dateA; } const meetingDateA = a['開催日'] ? new Date(a['開催日']) : null; const meetingDateB = b['開催日'] ? new Date(b['開催日']) : null; if (meetingDateA && meetingDateB && meetingDateA.getTime() !== meetingDateB.getTime()) { return meetingDateB - meetingDateA; } return (a['タイトル名'] || '').localeCompare(b['タイトル名'] || '', 'ja'); } else { const modifier = direction === 'asc' ? 1 : -1; const isDateKey = key === '日付' || key === '開催日'; const valA = a[key] || ''; const valB = b[key] || ''; if (isDateKey) { const dateA = valA ? new Date(valA) : null; const dateB = valB ? new Date(valB) : null; if (!dateA && !dateB) return 0; if (!dateA) return 1; if (!dateB) return -1; return (dateA - dateB) * modifier; } else { return valA.localeCompare(valB, 'ja') * modifier; } } }); }
-                function updateSortIcons() { document.querySelectorAll('.sortable-header').forEach(header => { header.classList.remove('asc', 'desc'); if (header.dataset.sortKey === sortState.key) { header.classList.add(sortState.direction); } }); }
-                function createTableRow(item) { const date = item['日付'] || ''; const kaigiDate = item['開催日'] || ''; const originalTitle = item['タイトル名'] || 'タイトルなし'; let displayTitle = originalTitle; const url2 = String(item['URL2'] || ''); let bikou = item['備考'] || ''; if (bikou.includes('（更新）')) { bikou = bikou.replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>'); } if (displayTitle.includes('（更新）')) { displayTitle = displayTitle.replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>'); } const today = new Date().toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'}); const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'}); let dateClass = 'text-gray-900'; if (date === today) dateClass = 'text-red-500 font-bold'; else if (date === yesterday) dateClass = 'text-red-500'; let titlePrefixHtml = ''; if (String(item['区分'] || '').trim() === '会議') { titlePrefixHtml = '<span class="inline-block bg-purple-100 text-purple-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">会議</span>'; } else if (url2) { titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>'; } const audioIconHtml = item['URL1'] ? `<span data-src="${item['URL1']}" title="音声を再生" aria-label="音声を再生" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : ''; const videoUrl = item['YouTube'] || ''; const videoIconHtml = videoUrl ? `<a href="${videoUrl}" target="_blank" rel="noopener noreferrer" title="動画を再生" aria-label="動画を再生" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : ''; const row = document.createElement('tr'); row.className = 'hover:bg-gray-50 transition-colors duration-200'; row.innerHTML = `<td class="w-12 sm:w-16 px-2 py-3 text-sm text-center"><input type="checkbox" class="bookmark-checkbox form-checkbox h-4 w-4 text-blue-600 rounded cursor-pointer" data-index="${item._originalIndex}" ${item.isBookmarked ? 'checked' : ''} aria-label="ブックマーク"></td><td class="w-24 sm:w-28 px-2 py-3 text-sm"><p class="whitespace-nowrap ${dateClass}">${date}</p></td><td class="kaigi-date-col w-24 sm:w-28 px-2 py-3 text-sm"><p class="whitespace-nowrap text-gray-900">${kaigiDate}</p></td><td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-center">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" rel="noopener noreferrer" class="text-blue-600 font-bold hover:underline" title="${originalTitle}">${displayTitle}</a></div><p class="text-xs text-gray-500 mt-1">${bikou}</p></div></td><td class="w-12 sm:w-16 px-2 py-3 text-sm text-center">${videoIconHtml}</td><td class="w-12 sm:w-16 px-2 py-3 text-sm text-center">${audioIconHtml}</td>`; return row; } // ★変更点
-                function renderTable() { const searchQuery = searchInput.value; let dataToRender = [...currentData]; dataToRender = filterData(dataToRender, searchQuery); sortData(dataToRender); updateSortIcons(); tableBody.innerHTML = ''; loadingIndicator.style.display = 'none'; dataCountDisplay.innerHTML = `${dataToRender.length}件 (${APP_DATA.lastUpdate} 更新)`; if (dataToRender.length === 0) { loadingIndicator.textContent = '該当データがありません。'; loadingIndicator.style.display = 'block'; } else { const fragment = document.createDocumentFragment(); dataToRender.forEach(item => fragment.appendChild(createTableRow(item))); tableBody.appendChild(fragment); } }
-                document.addEventListener('DOMContentLoaded', () => {
-                    renderTable();
-                    let searchTimeout;
-                    searchInput.addEventListener('keyup', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => renderTable(), 300); });
-                    clearSearchButton.addEventListener('click', () => { searchInput.value = ''; renderTable(); });
-                    mainAudioControl.addEventListener('click', () => { playCrackSound(); if (!audioPlayer.src || audioPlayer.ended) return; if (audioPlayer.paused) { audioPlayer.play(); } else { audioPlayer.pause(); } });
-                    tableHeader.addEventListener('click', e => { const header = e.target.closest('.sortable-header'); if (!header) return; const key = header.dataset.sortKey; if (sortState.key === key) { sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc'; } else { sortState.key = key; sortState.direction = (key === '日付' || key === '開催日') ? 'desc' : 'asc'; } renderTable(); });
-                    tableBody.addEventListener('click', e => { const target = e.target; if (target.classList.contains('bookmark-checkbox')) { const originalIndex = parseInt(target.dataset.index, 10); const item = currentData.find(d => d._originalIndex === originalIndex); if (item) { item.isBookmarked = target.checked; renderTable(); } } const audioIcon = target.closest('.audio-icon'); if (audioIcon) { toggleAudioPlayback(audioIcon); } });
-                    audioPlayer.addEventListener('play', () => { if (currentlyPlayingIcon) { currentlyPlayingIcon.classList.remove('paused'); currentlyPlayingIcon.classList.add('playing'); } updateMainAudioIcon('playing'); });
-                    audioPlayer.addEventListener('pause', () => { if (currentlyPlayingIcon) { currentlyPlayingIcon.classList.remove('playing'); currentlyPlayingIcon.classList.add('paused'); } updateMainAudioIcon('paused'); });
-                    audioPlayer.addEventListener('ended', () => { if (!currentlyPlayingIcon) return; const currentRow = currentlyPlayingIcon.closest('tr'); currentlyPlayingIcon.classList.remove('playing', 'paused'); if (!currentRow) { currentlyPlayingIcon = null; updateMainAudioIcon('stopped'); return; } let nextRow = currentRow.nextElementSibling; let nextAudioIcon = null; while(nextRow) { const icon = nextRow.querySelector('.audio-icon[data-src]'); if (icon) { nextAudioIcon = icon; break; } nextRow = nextRow.nextElementSibling; } if (nextAudioIcon) { setTimeout(() => { startPlaybackForIcon(nextAudioIcon); }, 3000); } else { currentlyPlayingIcon = null; updateMainAudioIcon('stopped'); } });
-                });
-            };
-            
-            const dataForExport = { tableData: currentData, abbreviations: ABBREVIATIONS, lastUpdate: lastUploadTimestamp, initialSortState: sortState };
-            const exportedScript = `(${exportedAppLogic.toString()})(${JSON.stringify(dataForExport)});`;
-
-            const htmlContent = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>政策リサーチ政策関連情報一覧 - 出力結果</title><script src="https://cdn.tailwindcss.com"><\/script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap');body { font-family: 'Inter', 'Noto Sans JP', sans-serif; } .audio-icon { cursor: pointer; } .playing i { color: #3b82f6; animation: pulse 1.2s infinite; } .paused i { color: #3b82f6; } @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } } .hide-kaigi-date .kaigi-date-col { display: none; } .sortable-header { cursor: pointer; user-select: none; } .sortable-header:hover { background-color: #4a5568; } .sort-icon { margin-left: 0.5rem; color: #a0aec0; width: 1em; display: inline-block; } .sortable-header.asc .sort-icon::after { content: '▲'; } .sortable-header.desc .sort-icon::after { content: '▼'; }</style></head><body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen"><div class="container mx-auto px-4 py-8 flex-grow flex flex-col"><header class="text-center mb-8 flex-shrink-0"><h1 class="text-3xl md:text-4xl font-bold text-gray-900 inline-flex items-center justify-center">政策リサーチ政策関連情報一覧<span id="main-audio-control" class="audio-icon text-blue-500 hover:text-blue-700 text-2xl md:text-3xl ml-3" title="音声コントロール"><i id="main-audio-icon-i" class="fas fa-volume-up"></i></span></h1></header><main class="flex-grow flex flex-col"><header class="flex-shrink-0 flex flex-col sm:flex-row justify-between items-end mb-4 gap-4"><div class="flex flex-col sm:flex-row items-center w-full sm:justify-start gap-2"><input type="text" id="searchInput" placeholder="検索（省庁名は略称でも可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-80 focus:ring-blue-500 focus:border-blue-500"><button id="clearSearchButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg inline-flex items-center justify-center transition-colors"><i class="fas fa-times mr-2"></i><span>クリア</span></button></div><div id="dataCountDisplay" class="text-gray-600 text-sm w-full sm:w-auto text-center sm:text-right flex-shrink-0"></div></header><div id="results-table-container" class="bg-white shadow-lg rounded-lg overflow-auto flex-grow"><table class="min-w-full leading-normal table-fixed ${!hasKaigiDateColumn ? 'hide-kaigi-date' : ''}"><thead id="table-header" class="bg-gray-800 text-white sticky top-0 z-10"><tr><th class="w-12 sm:w-16 px-2 py-3 border-b-2 border-gray-200 text-center text-xs font-semibold uppercase tracking-wider" title="ブックマーク"><i class="fas fa-bookmark"></i></th><th class="w-24 sm:w-28 px-2 py-3 border-b-2 border-gray-200 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-sort-key="日付">日付<span class="sort-icon"></span></th><th class="kaigi-date-col w-24 sm:w-28 px-2 py-3 border-b-2 border-gray-200 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-sort-key="開催日">会議日<span class="sort-icon"></span></th><th class="px-2 py-3 border-b-2 border-gray-200 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-sort-key="タイトル名">政策関連情報概要<span class="sort-icon"></span></th><th class="w-12 sm:w-16 px-2 py-3 border-b-2 border-gray-200 text-center text-xs font-semibold uppercase tracking-wider" title="動画"><i class="fas fa-video"></i></th><th class="w-12 sm:w-16 px-2 py-3 border-b-2 border-gray-200 text-center text-xs font-semibold uppercase tracking-wider" title="音声"><i class="fas fa-volume-up"></i></th></tr></thead><tbody id="data-table-body" class="divide-y divide-gray-200"></tbody></table><div id="loading" class="text-center p-8 text-gray-500"></div></div></main><footer class="text-center mt-8 text-gray-500 flex-shrink-0"><p>&copy; ${new Date().getFullYear()} 政策リサーチポータル. All rights reserved.</p></footer></div><audio id="audioPlayer" style="display: none;"></audio><script>${exportedScript.replace(/<\/script>/g, '<\\/script>')}<\/script></body></html>`;
-
-            const blob = new Blob([htmlContent.trim()], { type: 'text/html;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = 'index.html';
-            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        function renderImportPreview(data) {
+            importPreviewBody.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.className = item.isDuplicate ? 'bg-gray-100 text-gray-500' : 'bg-white';
+                row.innerHTML = `
+                    <td class="p-2">${item['日付'] || ''}</td>
+                    <td class="p-2">${item['タイトル名'] || ''}</td>
+                    <td class="p-2">${item['区分'] || ''}</td>
+                    <td class="p-2">${item['備考'] || ''}</td>
+                    <td class="p-2 font-semibold ${item.isDuplicate ? 'text-yellow-600' : 'text-green-600'}">
+                        ${item.isDuplicate ? '登録済み' : '新規'}
+                    </td>
+                `;
+                fragment.appendChild(row);
+            });
+            importPreviewBody.appendChild(fragment);
         }
 
-        /**
-         * アプリケーションの全てのイベントリスナーを設定します。
-         */
-        function setupEventListeners() {
-            fileInput.addEventListener('change', handleFileSelect);
-            backButton.addEventListener('click', () => {
-                resultsScreen.style.display = 'none'; uploadScreen.style.display = 'flex';
-                fileInput.value = ''; searchInput.value = ''; currentData = []; lastUploadTimestamp = '';
-                tableElement.classList.add('hide-kaigi-date');
-                sortState = { key: 'default', direction: 'desc' };
-                renderTable(); window.scrollTo(0, 0);
-            });
-            exportButton.addEventListener('click', exportHTML);
-            let searchTimeout;
-            searchInput.addEventListener('keyup', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => renderTable(), 300); });
-            clearSearchButton.addEventListener('click', () => { searchInput.value = ''; renderTable(); });
-            
-            mainAudioControl.addEventListener('click', () => {
-                playCrackSound();
-                if (!audioPlayer.src || audioPlayer.ended) return;
-                if (audioPlayer.paused) {
-                    audioPlayer.play();
-                } else {
-                    audioPlayer.pause();
+        async function saveImportedData() {
+            const dataToSave = previewData.filter(d => !d.isDuplicate);
+            if (dataToSave.length === 0) {
+                importStatus.textContent = "保存する新規データがありません。";
+                return;
+            }
+
+            confirmImportButton.disabled = true;
+            const buttonText = confirmImportButton.querySelector('span');
+            buttonText.textContent = '保存中...';
+
+            try {
+                const collRef = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
+                let batch = writeBatch(db);
+                let count = 0;
+                let importedPointData = false;
+                let importedPolicyData = false;
+
+                for (const row of dataToSave) {
+                    if (row['区分'] === '会議') {
+                        importedPointData = true;
+                    } else {
+                        importedPolicyData = true;
+                    }
+                    const { isDuplicate, ...finalData } = row;
+                    delete finalData['開催日']; // 元の開催日フィールドは不要
+                    batch.set(doc(collRef), finalData);
+                    count++;
+                    if (count % 499 === 0) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                    }
                 }
-            });
-            
+                if (count > 0 && count % 499 !== 0) {
+                    await batch.commit();
+                }
+
+                const now = new Date();
+                if (dataToSave.length > 0) {
+                    const metadataDocRef = doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, METADATA_DOC_ID);
+                    await setDoc(metadataDocRef, { lastImportTimestamp: now });
+                }
+                if (importedPointData) {
+                    const pointMetadataDocRef = doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, POINT_METADATA_DOC_ID);
+                    await setDoc(pointMetadataDocRef, { lastImportTimestamp: now });
+                }
+                if (importedPolicyData) {
+                    const policyMetadataDocRef = doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, POLICY_METADATA_DOC_ID);
+                    await setDoc(policyMetadataDocRef, { lastImportTimestamp: now });
+                }
+
+                importStatus.textContent = `完了: ${count}件の新規データを登録しました。`;
+                setTimeout(() => showScreen(mainScreen), 2000);
+            } catch (err) {
+                importStatus.textContent = 'エラー: データベースへの保存に失敗しました。';
+                console.error(err);
+                confirmImportButton.disabled = false;
+                buttonText.textContent = 'データベースに保存';
+            }
+        }
+        
+        function formatDate(serial) {
+            if (typeof serial === 'number' && serial > 1) return new Date(Math.round((serial - 25569) * 86400 * 1000)).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            return serial || '';
+        }
+        
+        // --- 公開用コード生成 ---
+        function generatePublicCode(filterType) {
+            const configString = JSON.stringify(firebaseConfig);
+            const publicPageTitle = filterType === 'point' ? '政策リサーチ情報一覧（本日のポイント）' : '政策リサーチ情報一覧（政策レポート）';
+            const metadataDocId = filterType === 'point' ? POINT_METADATA_DOC_ID : POLICY_METADATA_DOC_ID;
+
+            const firestoreListenerScript = filterType === 'point'
+                ? `
+                    const q = query(dataCollection, where("区分", "==", "会議"));
+                    onSnapshot(q, (snapshot) => {
+                        currentData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        render();
+                    });
+                `
+                : `
+                    const q = query(dataCollection);
+                    onSnapshot(q, (snapshot) => {
+                        currentData = snapshot.docs
+                            .map(doc => ({ id: doc.id, ...doc.data() }))
+                            .filter(item => item['区分'] !== '会議');
+                        render();
+                    });
+                `;
+
+            return `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${publicPageTitle}</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap');
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+        .audio-icon { cursor: pointer; }
+        .playing i, #main-audio-control.playing i { color: #3b82f6; animation: pulse 1.2s infinite; }
+        .paused i { color: #3b82f6; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
+        .sortable-header { cursor: pointer; user-select: none; }
+        .sortable-header:hover { background-color: #f3f4f6; }
+        .sort-icon { margin-left: 0.5rem; color: #9ca3af; width: 1em; display: inline-block; }
+        .sortable-header.asc .sort-icon::after { content: '▲'; }
+        .sortable-header.desc .sort-icon::after { content: '▼'; }
+        .pagination-button { min-width: 2.5rem; }
+        .pagination-button.active { z-index: 10; }
+    <\/style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
+    <div class="container mx-auto px-4 py-8 flex-grow flex flex-col">
+        <header class="text-center mb-8 flex-shrink-0 relative">
+           <h1 class="text-3xl md:text-4xl font-bold text-gray-900 inline-flex items-center">
+               ${publicPageTitle}
+               <span id="main-audio-control" class="audio-icon text-blue-500 hover:text-blue-700 text-xl ml-3 cursor-pointer" title="音声コントロール">
+                   <i id="main-audio-icon-i" class="fas fa-volume-up"></i>
+               </span>
+           </h1>
+            <div id="last-import-time" class="absolute right-0 top-0 text-gray-500 text-xs"></div>
+        </header>
+        <main class="bg-white p-6 rounded-lg shadow-md flex-grow flex flex-col">
+            <div class="flex-shrink-0 flex flex-col sm:flex-row justify-between items-end mb-4 gap-4">
+                <div class="flex flex-col sm:flex-row items-center w-full sm:justify-start gap-4">
+                    <input type="text" id="searchInput" placeholder="検索（省庁名は略称でも可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-80">
+                    <div class="flex items-center gap-2">
+                        <button id="clearSearchButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg"><i class="fas fa-times mr-2"></i>クリア</button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="bookmark-filter-checkbox" class="form-checkbox h-5 w-5 text-yellow-500 rounded cursor-pointer">
+                        <label for="bookmark-filter-checkbox" class="text-sm font-medium text-gray-700 cursor-pointer">ブックマークのみ表示</label>
+                    </div>
+                </div>
+                <div id="dataCountDisplay" class="text-gray-600 text-sm w-full sm:w-auto text-center sm:text-right flex-shrink-0"></div>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-lg overflow-auto flex-grow">
+                <table class="min-w-full leading-normal table-auto">
+                    <thead id="table-header" class="bg-gray-200 text-gray-600 sticky top-0 z-10">
+                        <tr>
+                            <th class="w-16 px-2 py-3" title="ブックマーク"><i class="fas fa-bookmark"></i></th>
+                            <th class="w-32 px-2 py-3 sortable-header" data-sort-key="日付">公開日<span class="sort-icon"></span></th>
+                            <th class="px-2 py-3 sortable-header" data-sort-key="タイトル名">政策関連情報概要<span class="sort-icon"></span></th>
+                            <th class="w-16 px-2 py-3" title="動画"><i class="fas fa-video"></i></th>
+                            <th class="w-16 px-2 py-3" title="音声"><i class="fas fa-volume-up"></i></th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table-body" class="divide-y divide-gray-200"></tbody>
+                </table>
+                <div id="loading" class="text-center p-8 text-gray-500">データを読み込んでいます...</div>
+            </div>
+            <div id="pagination-controls" class="flex justify-center items-center mt-4"></div>
+        </main>
+        <footer class="text-center mt-8 text-gray-500 flex-shrink-0">
+             <p>&copy; 2024 政策リサーチポータル.</p>
+        </footer>
+    </div>
+    <audio id="audioPlayer" style="display: none;"><\/audio>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, query, where, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // --- Public Page Logic ---
+        const firebaseConfig = ${configString};
+        const appId = '${appId}';
+        const COLLECTION_NAME = '${COLLECTION_NAME}';
+        const METADATA_DOC_ID = '${metadataDocId}';
+        const ITEMS_PER_PAGE = 100;
+        const SYNONYMS = ${JSON.stringify(SYNONYMS)};
+        
+        let db;
+        let currentData = [], filteredAndSortedData = [], currentPage = 1;
+        let sortState = { key: 'default', direction: 'desc' };
+        let currentlyPlayingIcon = null;
+
+        const searchInput = document.getElementById('searchInput');
+        const clearSearchButton = document.getElementById('clearSearchButton');
+        const tableBody = document.getElementById('data-table-body');
+        const tableHeader = document.getElementById('table-header');
+        const loading = document.getElementById('loading');
+        const dataCountDisplay = document.getElementById('dataCountDisplay');
+        const paginationControls = document.getElementById('pagination-controls');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const mainAudioControl = document.getElementById('main-audio-control');
+        const mainAudioIconI = document.getElementById('main-audio-icon-i');
+        const bookmarkFilterCheckbox = document.getElementById('bookmark-filter-checkbox');
+
+        async function startApp() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                const auth = getAuth(app);
+                await signInAnonymously(auth);
+                setupEventListeners();
+                setupFirestoreListener();
+                setupMetadataListener(METADATA_DOC_ID, document.getElementById('last-import-time'));
+            } catch (e) {
+                console.error("Initialization failed", e);
+                loading.textContent = "初期化に失敗しました。";
+            }
+        }
+
+        function setupFirestoreListener() {
+            const dataCollection = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
+            ${firestoreListenerScript.trim()}
+        }
+        
+        // --- ALL THE RENDERING AND LOGIC FUNCTIONS COPIED HERE ---
+        ${setupMetadataListener.toString()}
+        ${render.toString()}
+        ${getFilteredAndSortedData.toString()}
+        ${renderTable.toString().replace('updateDeleteButtonState();', '')}
+        ${renderPagination.toString()}
+        ${createTableRow.toString().replace(/<td class="px-2 py-3 text-center"><input type="checkbox" class="select-row-checkbox".*?<\/td>/s, '')}
+        ${filterData.toString()}
+        ${sortData.toString()}
+        ${toggleBookmark.toString()}
+        ${handleAudioEnded.toString()}
+        ${updateMainAudioIcon.toString()}
+        ${setIconState.toString()}
+        ${toggleAudioPlayback.toString()}
+
+        function setupEventListeners() {
+            clearSearchButton.addEventListener('click', () => { searchInput.value = ''; render(); });
+            let timeout;
+            searchInput.addEventListener('keyup', () => { clearTimeout(timeout); timeout = setTimeout(render, 200); });
             tableHeader.addEventListener('click', e => {
                 const header = e.target.closest('.sortable-header');
                 if (!header) return;
@@ -524,77 +979,128 @@
                     sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
                 } else {
                     sortState.key = key;
-                    sortState.direction = (key === '日付' || key === '開催日') ? 'desc' : 'asc';
+                    sortState.direction = 'desc';
                 }
-                renderTable();
+                document.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('asc', 'desc'));
+                header.classList.add(sortState.direction);
+                render();
             });
-
             tableBody.addEventListener('click', e => {
                 const target = e.target;
-                if (target.classList.contains('bookmark-checkbox')) {
-                    const originalIndex = parseInt(target.dataset.index);
-                    const item = currentData.find(d => d._originalIndex === originalIndex);
-                    if (item) { item.isBookmarked = target.checked; renderTable(); }
-                }
                 const audioIcon = target.closest('.audio-icon');
-                if (audioIcon) { toggleAudioPlayback(audioIcon); }
-            });
-            audioPlayer.addEventListener('play', () => {
-                if (currentlyPlayingIcon) {
-                    currentlyPlayingIcon.classList.remove('paused');
-                    currentlyPlayingIcon.classList.add('playing');
-                }
-                updateMainAudioIcon('playing');
-            });
-            audioPlayer.addEventListener('pause', () => {
-                if (currentlyPlayingIcon) {
-                    currentlyPlayingIcon.classList.remove('playing');
-                    currentlyPlayingIcon.classList.add('paused');
-                }
-                updateMainAudioIcon('paused');
-            });
-            audioPlayer.addEventListener('ended', () => {
-                if (!currentlyPlayingIcon) return;
-                const currentRow = currentlyPlayingIcon.closest('tr');
-                currentlyPlayingIcon.classList.remove('playing', 'paused');
-
-                if (!currentRow) {
-                    currentlyPlayingIcon = null;
-                    updateMainAudioIcon('stopped');
-                    return;
-                }
-                
-                let nextRow = currentRow.nextElementSibling;
-                let nextAudioIcon = null;
-                while(nextRow) {
-                    const icon = nextRow.querySelector('.audio-icon[data-src]');
-                    if (icon) {
-                        nextAudioIcon = icon;
-                        break;
-                    }
-                    nextRow = nextRow.nextElementSibling;
-                }
-
-                if (nextAudioIcon) {
-                    setTimeout(() => {
-                        startPlaybackForIcon(nextAudioIcon);
-                    }, 3000); // 3秒の空白
-                } else {
-                    currentlyPlayingIcon = null;
-                    updateMainAudioIcon('stopped');
+                if (audioIcon) {
+                    toggleAudioPlayback(audioIcon);
+                } else if (target.classList.contains('bookmark-checkbox')) {
+                    toggleBookmark(target.dataset.id, target.checked);
                 }
             });
-            audioPlayer.addEventListener('error', () => { if (currentlyPlayingIcon) { currentlyPlayingIcon.classList.remove('playing', 'paused'); currentlyPlayingIcon = null; } updateMainAudioIcon('stopped'); alert('音声ファイルの読み込みに失敗しました。'); });
+            mainAudioControl.addEventListener('click', () => {
+                if (!audioPlayer.src || audioPlayer.ended) return;
+                if (audioPlayer.paused) audioPlayer.play();
+                else audioPlayer.pause();
+            });
+            audioPlayer.addEventListener('play', () => { setIconState(currentlyPlayingIcon, 'playing'); updateMainAudioIcon('playing'); });
+            audioPlayer.addEventListener('pause', () => { if (!audioPlayer.ended) { setIconState(currentlyPlayingIcon, 'paused'); updateMainAudioIcon('paused'); }});
+            audioPlayer.addEventListener('ended', handleAudioEnded);
+            bookmarkFilterCheckbox.addEventListener('change', render);
+        }
+        
+        document.addEventListener('DOMContentLoaded', startApp);
+    <\/script>
+</body>
+</html>`;
+        }
+        
+        function previewPublicPage(filterType) { 
+            const code = generatePublicCode(filterType);
+            const blob = new Blob([code], {type: 'text/html'});
+            window.open(URL.createObjectURL(blob), '_blank');
+        }
+        function showCodeModal(filterType) {
+            generatedCodeTextarea.value = generatePublicCode(filterType);
+            codeModal.classList.remove('hidden', 'opacity-0');
+            codeModal.querySelector('.modal-container').classList.remove('-translate-y-full');
+        }
+        function hideCodeModal() {
+            codeModal.querySelector('.modal-container').classList.add('-translate-y-full');
+            codeModal.classList.add('opacity-0');
+            setTimeout(() => codeModal.classList.add('hidden'), 300);
         }
 
-        // --- 初期化 ---
-        document.addEventListener('DOMContentLoaded', () => {
-            setupEventListeners();
-            tableElement.classList.add('hide-kaigi-date');
-            renderTable();
-        });
+        // --- イベントリスナー設定 ---
+        function setupEventListeners() {
+            // Screen Navigation
+            openDataViewButton.addEventListener('click', () => showScreen(dataViewScreen));
+            showImportScreenButton.addEventListener('click', () => showScreen(importScreen));
+            backToMainButton.addEventListener('click', () => showScreen(mainScreen));
+            backToMainFromImportButton.addEventListener('click', () => showScreen(mainScreen));
+            
+            // Import Screen
+            fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+            fileDropZone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); fileDropZone.classList.add('dragover'); });
+            fileDropZone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); fileDropZone.classList.remove('dragover'); });
+            fileDropZone.addEventListener('drop', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                fileDropZone.classList.remove('dragover');
+                handleFileSelect(e.dataTransfer.files[0]);
+            });
+            confirmImportButton.addEventListener('click', saveImportedData);
 
-    })();
+            // Main Screen Public Page Buttons
+            previewPointButton.addEventListener('click', () => previewPublicPage('point'));
+            exportPointButton.addEventListener('click', () => showCodeModal('point'));
+            previewPolicyButton.addEventListener('click', () => previewPublicPage('policy'));
+            exportPolicyButton.addEventListener('click', () => showCodeModal('policy'));
+
+            // Data View Screen
+            clearSearchButton.addEventListener('click', () => { searchInput.value = ''; render(); });
+            let timeout;
+            searchInput.addEventListener('keyup', () => { clearTimeout(timeout); timeout = setTimeout(render, 200); });
+            selectAllCheckbox.addEventListener('change', toggleSelectAll);
+            deleteSelectedButton.addEventListener('click', deleteSelectedItems);
+            tableHeader.addEventListener('click', e => {
+                const header = e.target.closest('.sortable-header');
+                if (!header) return;
+                sortState.key = header.dataset.sortKey;
+                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+                render();
+            });
+            tableBody.addEventListener('click', e => {
+                const target = e.target;
+                const audioIcon = target.closest('.audio-icon');
+                if (audioIcon) {
+                    toggleAudioPlayback(audioIcon);
+                } else if (target.classList.contains('bookmark-checkbox')) {
+                    toggleBookmark(target.dataset.id, target.checked);
+                } else if (target.classList.contains('select-row-checkbox')) {
+                    updateDeleteButtonState();
+                }
+            });
+
+            mainAudioControl.addEventListener('click', () => {
+                if (!audioPlayer.src || audioPlayer.ended) return;
+                if (audioPlayer.paused) audioPlayer.play();
+                else audioPlayer.pause();
+            });
+
+            audioPlayer.addEventListener('play', () => { setIconState(currentlyPlayingIcon, 'playing'); updateMainAudioIcon('playing'); });
+            audioPlayer.addEventListener('pause', () => { if (!audioPlayer.ended) { setIconState(currentlyPlayingIcon, 'paused'); updateMainAudioIcon('paused'); }});
+            audioPlayer.addEventListener('ended', handleAudioEnded);
+            bookmarkFilterCheckbox.addEventListener('change', render);
+            
+            // Modal
+            closeModalButton.addEventListener('click', hideCodeModal);
+            copyCodeButton.addEventListener('click', () => { 
+                generatedCodeTextarea.select();
+                document.execCommand('copy');
+                copyFeedback.classList.remove('opacity-0');
+                setTimeout(() => copyFeedback.classList.add('opacity-0'), 2000);
+             });
+        }
+        
+        document.addEventListener('DOMContentLoaded', startApp);
+
     </script>
 </body>
 </html>
+
