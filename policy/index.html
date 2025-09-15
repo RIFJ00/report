@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>政策リサーチ政策関連情報一覧</title>
+    <title>政策リサーチ情報一覧（政策レポート）</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <style>
@@ -15,8 +15,8 @@
         .paused i { color: #3b82f6; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
         .sortable-header { cursor: pointer; user-select: none; }
-        .sortable-header:hover { background-color: #4a5568; }
-        .sort-icon { margin-left: 0.5rem; color: #a0aec0; width: 1em; display: inline-block; }
+        .sortable-header:hover { background-color: #f3f4f6; }
+        .sort-icon { margin-left: 0.5rem; color: #9ca3af; width: 1em; display: inline-block; }
         .sortable-header.asc .sort-icon::after { content: '▲'; }
         .sortable-header.desc .sort-icon::after { content: '▼'; }
         .pagination-button { min-width: 2.5rem; }
@@ -26,21 +26,385 @@
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
     <div class="container mx-auto px-4 py-8 flex-grow flex flex-col">
         <header class="text-center mb-8 flex-shrink-0">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 inline-flex items-center">
-                政策リサーチ政策関連情報一覧
-                <span id="main-audio-control" class="audio-icon text-blue-500 hover:text-blue-700 text-xl ml-3 cursor-pointer" title="音声コントロール">
-                    <i id="main-audio-icon-i" class="fas fa-volume-up"></i>
-                </span>
-            </h1>
+           <h1 class="text-3xl md:text-4xl font-bold text-gray-900 inline-flex items-center">
+               政策リサーチ情報一覧（政策レポート）
+               <span id="main-audio-control" class="audio-icon text-blue-500 hover:text-blue-700 text-xl ml-3 cursor-pointer" title="音声コントロール">
+                   <i id="main-audio-icon-i" class="fas fa-volume-up"></i>
+               </span>
+           </h1>
         </header>
-        <main class="flex-grow flex flex-col bg-white p-6 rounded-lg shadow-md">
-            <!-- All the controls and table structure from the main data view screen -->
+        <main class="bg-white p-6 rounded-lg shadow-md flex-grow flex flex-col">
+            <div class="flex-shrink-0 flex flex-col sm:flex-row justify-between items-end mb-4 gap-4">
+                <div class="flex flex-col sm:flex-row items-center w-full sm:justify-start gap-4">
+                    <input type="text" id="searchInput" placeholder="検索（省庁名は略称でも可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-80">
+                    <div class="flex items-center gap-2">
+                        <button id="clearSearchButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg"><i class="fas fa-times mr-2"></i>クリア</button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="bookmark-filter-checkbox" class="form-checkbox h-5 w-5 text-yellow-500 rounded cursor-pointer">
+                        <label for="bookmark-filter-checkbox" class="text-sm font-medium text-gray-700 cursor-pointer">ブックマークのみ表示</label>
+                    </div>
+                </div>
+                <div id="dataCountDisplay" class="text-gray-600 text-sm w-full sm:w-auto text-center sm:text-right flex-shrink-0"></div>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-lg overflow-auto flex-grow">
+                <table class="min-w-full leading-normal table-auto">
+                    <thead id="table-header" class="bg-gray-200 text-gray-600 sticky top-0 z-10">
+                        <tr>
+                            <th class="w-16 px-2 py-3" title="ブックマーク"><i class="fas fa-bookmark"></i></th>
+                            <th class="w-32 px-2 py-3 sortable-header" data-sort-key="日付">公開日<span class="sort-icon"></span></th>
+                            <th class="px-2 py-3 sortable-header" data-sort-key="タイトル名">政策関連情報概要<span class="sort-icon"></span></th>
+                            <th class="w-16 px-2 py-3" title="動画"><i class="fas fa-video"></i></th>
+                            <th class="w-16 px-2 py-3" title="音声"><i class="fas fa-volume-up"></i></th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table-body" class="divide-y divide-gray-200"></tbody>
+                </table>
+                <div id="loading" class="text-center p-8 text-gray-500">データを読み込んでいます...</div>
+            </div>
+            <div id="pagination-controls" class="flex justify-center items-center mt-4"></div>
         </main>
+        <footer class="text-center mt-8 text-gray-500 flex-shrink-0">
+             <p>&copy; 2024 政策リサーチポータル.</p>
+        </footer>
     </div>
     <audio id="audioPlayer" style="display: none;"></audio>
+    
     <script type="module">
-        // All the JS logic from the main data view screen, adapted for the public page
-        // with the specific Firestore query and local bookmarks.
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // --- Public Page Logic ---
+        const firebaseConfig = {"apiKey":"AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04","authDomain":"import-b6097.firebaseapp.com","projectId":"import-b6097","storageBucket":"import-b6097.appspot.com","messagingSenderId":"462510788117","appId":"1:462510788117:web:44ff1fd1af583f67bc081c","measurementId":"G-Z5ZNMKGTTK"};
+        const appId = 'default-policy-research-app';
+        const COLLECTION_NAME = 'policy_data';
+        const ITEMS_PER_PAGE = 100;
+        const SYNONYMS = [["国土交通省","国交省"],["経済産業省","経産省"],["文部科学省","文科省"],["厚生労働省","厚労省"],["農林水産省","農水省"]];
+        
+        let db;
+        let currentData = [], filteredAndSortedData = [], currentPage = 1;
+        let sortState = { key: 'default', direction: 'desc' };
+        let currentlyPlayingIcon = null;
+
+        const searchInput = document.getElementById('searchInput');
+        const clearSearchButton = document.getElementById('clearSearchButton');
+        const tableBody = document.getElementById('data-table-body');
+        const tableHeader = document.getElementById('table-header');
+        const loading = document.getElementById('loading');
+        const dataCountDisplay = document.getElementById('dataCountDisplay');
+        const paginationControls = document.getElementById('pagination-controls');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const mainAudioControl = document.getElementById('main-audio-control');
+        const mainAudioIconI = document.getElementById('main-audio-icon-i');
+        const bookmarkFilterCheckbox = document.getElementById('bookmark-filter-checkbox');
+
+        async function startApp() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                const auth = getAuth(app);
+                await signInAnonymously(auth);
+                setupEventListeners();
+                setupFirestoreListener();
+            } catch (e) {
+                console.error("Initialization failed", e);
+                loading.textContent = "初期化に失敗しました。";
+            }
+        }
+
+        function setupFirestoreListener() {
+            const dataCollection = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
+            const q = query(dataCollection, where("区分", "==", ""));
+            onSnapshot(q, (snapshot) => {
+                currentData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                render();
+            });
+        }
+        
+        // --- ALL THE RENDERING FUNCTIONS COPIED HERE ---
+        // (Identical to admin panel, but without delete/select functionality)
+        function getFilteredAndSortedData() {
+            const localBookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
+            let data = [...currentData].map(item => ({...item, isBookmarked: localBookmarks.has(item.id)}));
+            if (bookmarkFilterCheckbox.checked) {
+                data = data.filter(item => item.isBookmarked);
+            }
+            data = filterData(data, searchInput.value);
+            sortData(data);
+            return data;
+        }
+        function render() {
+             filteredAndSortedData = getFilteredAndSortedData();
+             currentPage = 1;
+             renderTable();
+             renderPagination();
+        }
+        function renderTable() {
+             const totalItems = filteredAndSortedData.length;
+             const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+             const endIndex = startIndex + ITEMS_PER_PAGE;
+             const paginatedData = filteredAndSortedData.slice(startIndex, endIndex);
+
+             tableBody.innerHTML = '';
+             loading.style.display = 'none';
+
+             if (totalItems === 0) {
+                 loading.textContent = searchInput.value || bookmarkFilterCheckbox.checked ? '条件に一致するデータがありません。' : 'データがありません。';
+                 loading.style.display = 'block';
+                 dataCountDisplay.textContent = '0件';
+             } else {
+                 const fragment = document.createDocumentFragment();
+                 paginatedData.forEach(item => fragment.appendChild(createTableRow(item)));
+                 tableBody.appendChild(fragment);
+                 dataCountDisplay.textContent = `${startIndex + 1} - ${Math.min(endIndex, totalItems)} / 全${totalItems}件`;
+             }
+             
+        }
+        function renderPagination() {
+            const totalItems = filteredAndSortedData.length;
+            const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+            paginationControls.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            const createButton = (html, page, isDisabled = false, isActive = false) => {
+                const button = document.createElement('button');
+                button.innerHTML = html;
+                button.disabled = isDisabled;
+                button.className = `pagination-button mx-1 px-3 py-1 border rounded-md text-sm font-medium transition-colors ${isDisabled ? 'text-gray-400 bg-gray-100' : 'text-gray-700 bg-white hover:bg-gray-50'} ${isActive ? 'active border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-300'}`;
+                if (!isDisabled) button.onclick = () => { currentPage = page; renderTable(); renderPagination(); };
+                return button;
+            };
+
+            paginationControls.appendChild(createButton('<i class="fas fa-chevron-left"></i>', currentPage - 1, currentPage === 1));
+            
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, currentPage + 2);
+
+            if (startPage > 1) {
+                paginationControls.appendChild(createButton('1', 1));
+                if (startPage > 2) paginationControls.insertAdjacentHTML('beforeend', `<span class="px-2 py-1">...</span>`);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                paginationControls.appendChild(createButton(i, i, false, i === currentPage));
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) paginationControls.insertAdjacentHTML('beforeend', `<span class="px-2 py-1">...</span>`);
+                paginationControls.appendChild(createButton(totalPages, totalPages));
+            }
+
+            paginationControls.appendChild(createButton('<i class="fas fa-chevron-right"></i>', currentPage + 1, currentPage === totalPages));
+        }
+        function createTableRow(item) {
+             const row = document.createElement('tr');
+             row.className = 'hover:bg-gray-50 transition-colors duration-150';
+             const date = item['日付'] || '';
+             let displayTitle = (item['タイトル名'] || 'タイトルなし')
+                 .replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>')
+                 .replace(/(\[会議日: [^\]]+\])/g, '<span class="text-gray-500 font-normal ml-2">$1</span>');
+
+             let bikou = (item['備考'] || '').replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>');
+             const today = new Date().toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
+             let dateClass = (date === today) ? 'text-red-500 font-bold' : 'text-gray-900';
+             let titlePrefixHtml = '';
+             const url2 = String(item['URL2'] || '');
+             if (String(item['区分'] || '').trim() === '会議') {
+                 titlePrefixHtml = '<span class="inline-block bg-purple-100 text-purple-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">会議</span>';
+             } else if (url2) {
+                 titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>';
+             }
+             const audioIconHtml = item['URL1'] ? `<span data-src="${item['URL1']}" title="音声を再生" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : '';
+             const videoIconHtml = item['YouTube'] ? `<a href="${item['YouTube']}" target="_blank" rel="noopener noreferrer" title="動画を再生" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : '';
+
+             row.innerHTML = `
+                 
+                 <td class="px-2 py-3 text-center"><input type="checkbox" class="bookmark-checkbox" data-id="${item.id}" ${item.isBookmarked ? 'checked' : ''}></td>
+                 <td class="px-2 py-3 text-sm"><p class="${dateClass}">${date}</p></td>
+                 <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-start">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" class="text-blue-600 hover:underline">${displayTitle}</a></div><p class="text-xs text-gray-500 mt-1">${bikou}</p></div></td>
+                 <td class="text-center">${videoIconHtml}</td>
+                 <td class="text-center">${audioIconHtml}</td>
+             `;
+             return row;
+        }
+        function filterData(data, query) {
+            if (!query) return data;
+            const lowerCaseQuery = query.toLowerCase().trim();
+            const searchTerms = new Set([lowerCaseQuery]);
+            SYNONYMS.forEach(group => {
+                const lowerCaseGroup = group.map(term => term.toLowerCase());
+                if (lowerCaseGroup.includes(lowerCaseQuery)) {
+                    lowerCaseGroup.forEach(term => searchTerms.add(term));
+                }
+            });
+
+             return data.filter(item => {
+                 let labelText = '';
+                 const url2 = String(item['URL2'] || '');
+                 if (String(item['区分'] || '').trim() === '会議') {
+                     labelText = '会議';
+                 } else if (url2) {
+                     labelText = url2.toLowerCase().includes('.pdf') ? 'PDF' : 'WEB';
+                 }
+                 const content = `${item['タイトル名'] || ''} ${item['備考'] || ''} ${labelText}`.toLowerCase();
+                 return Array.from(searchTerms).some(term => content.includes(term));
+             });
+        }
+        function sortData(data) {
+            const getKaigiDate = (title) => {
+                const match = (title || '').match(/\[会議日: (.*?)\]/);
+                return match && match[1] ? new Date(match[1]) : new Date(0); // Use epoch for non-dates
+            };
+
+            data.sort((a, b) => {
+                const { key, direction } = sortState;
+                if (key === 'default') {
+                    // 1. 公開日 (desc)
+                    const dateA = new Date(a['日付'] || 0);
+                    const dateB = new Date(b['日付'] || 0);
+                    if (dateB.getTime() !== dateA.getTime()) return dateB - dateA;
+
+                    // 2. 会議日 (desc)
+                    const kaigiDateA = getKaigiDate(a['タイトル名']);
+                    const kaigiDateB = getKaigiDate(b['タイトル名']);
+                    if (kaigiDateB.getTime() !== kaigiDateA.getTime()) return kaigiDateB - kaigiDateA;
+
+                    // 3. 区分 (asc)
+                    const kubunA = a['区分'] || '';
+                    const kubunB = b['区分'] || '';
+                    const kubunCompare = kubunA.localeCompare(kubunB, 'ja');
+                    if (kubunCompare !== 0) return kubunCompare;
+
+                    // 4. タイトル名 (asc)
+                    const titleA = (a['タイトル名'] || '').replace(/\[会議日: [^\]]+\]/g, '').trim();
+                    const titleB = (b['タイトル名'] || '').replace(/\[会議日: [^\]]+\]/g, '').trim();
+                    return titleA.localeCompare(titleB, 'ja');
+                }
+                
+                const valA = a[key] || ''; 
+                const valB = b[key] || '';
+                const modifier = direction === 'asc' ? 1 : -1;
+                if (key === '日付') {
+                    return (new Date(valA) - new Date(valB)) * modifier;
+                }
+                return valA.localeCompare(valB, 'ja') * modifier;
+            });
+        }
+        function toggleBookmark(id, checked) { 
+            const bookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
+            if(checked) {
+                bookmarks.add(id);
+            } else {
+                bookmarks.delete(id);
+            }
+            localStorage.setItem(`bookmarks_${appId}`, JSON.stringify(Array.from(bookmarks)));
+            render();
+        }
+        function updateMainAudioIcon(state) {
+            mainAudioIconI.classList.remove('fa-volume-up', 'fa-play', 'fa-pause');
+            mainAudioControl.classList.remove('playing');
+            switch(state) {
+                case 'playing':
+                    mainAudioIconI.classList.add('fa-pause');
+                    mainAudioControl.classList.add('playing');
+                    mainAudioControl.title = "一時停止";
+                    break;
+                case 'paused':
+                    mainAudioIconI.classList.add('fa-play');
+                    mainAudioControl.title = "再生";
+                    break;
+                case 'stopped':
+                default:
+                    mainAudioIconI.classList.add('fa-volume-up');
+                    mainAudioControl.title = "音声コントロール";
+                    break;
+            }
+        }
+        function setIconState(icon, state) {
+            if (!icon) return;
+            const i = icon.querySelector('i');
+            icon.classList.remove('playing', 'paused');
+            i.classList.remove('fa-volume-up', 'fa-play', 'fa-pause');
+            switch (state) {
+                case 'playing':
+                    icon.classList.add('playing');
+                    i.classList.add('fa-pause');
+                    icon.title = "一時停止";
+                    break;
+                case 'paused':
+                    icon.classList.add('paused');
+                    i.classList.add('fa-play');
+                    icon.title = "再生";
+                    break;
+                case 'stopped':
+                default:
+                    i.classList.add('fa-volume-up');
+                    icon.title = "音声を再生";
+                    break;
+            }
+        }
+        function toggleAudioPlayback(clickedIcon) {
+            if (currentlyPlayingIcon === clickedIcon) {
+                if (audioPlayer.paused) audioPlayer.play(); else audioPlayer.pause();
+            } else {
+                if (currentlyPlayingIcon) setIconState(currentlyPlayingIcon, 'stopped');
+                audioPlayer.src = clickedIcon.dataset.src;
+                audioPlayer.play().catch(e => console.error("Audio play failed:", e));
+                currentlyPlayingIcon = clickedIcon;
+            }
+        }
+
+        function setupEventListeners() {
+            clearSearchButton.addEventListener('click', () => { searchInput.value = ''; render(); });
+            let timeout;
+            searchInput.addEventListener('keyup', () => { clearTimeout(timeout); timeout = setTimeout(render, 200); });
+            tableHeader.addEventListener('click', e => {
+                const header = e.target.closest('.sortable-header');
+                if (!header) return;
+                const key = header.dataset.sortKey;
+                if (sortState.key === key) {
+                    sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortState.key = key;
+                    sortState.direction = 'desc';
+                }
+                document.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('asc', 'desc'));
+                header.classList.add(sortState.direction);
+                render();
+            });
+            tableBody.addEventListener('click', e => {
+                const target = e.target;
+                const audioIcon = target.closest('.audio-icon');
+                if (audioIcon) {
+                    toggleAudioPlayback(audioIcon);
+                } else if (target.classList.contains('bookmark-checkbox')) {
+                    toggleBookmark(target.dataset.id, target.checked);
+                }
+            });
+            mainAudioControl.addEventListener('click', () => {
+                if (!audioPlayer.src || audioPlayer.ended) return;
+                if (audioPlayer.paused) audioPlayer.play();
+                else audioPlayer.pause();
+            });
+            audioPlayer.addEventListener('play', () => { setIconState(currentlyPlayingIcon, 'playing'); updateMainAudioIcon('playing'); });
+            audioPlayer.addEventListener('pause', () => { if (!audioPlayer.ended) { setIconState(currentlyPlayingIcon, 'paused'); updateMainAudioIcon('paused'); }});
+            audioPlayer.addEventListener('ended', () => {
+                const currentIcon = currentlyPlayingIcon;
+                setIconState(currentIcon, 'stopped');
+                updateMainAudioIcon('stopped');
+                currentlyPlayingIcon = null;
+                const allIcons = Array.from(tableBody.querySelectorAll('.audio-icon[data-src]'));
+                const currentIndex = allIcons.findIndex(icon => icon === currentIcon);
+                if (currentIndex > -1 && currentIndex < allIcons.length - 1) {
+                    setTimeout(() => toggleAudioPlayback(allIcons[currentIndex + 1]), 3000);
+                }
+            });
+            bookmarkFilterCheckbox.addEventListener('change', render);
+        }
+        
+        document.addEventListener('DOMContentLoaded', startApp);
     </script>
 </body>
 </html>
