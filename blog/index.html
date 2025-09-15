@@ -45,7 +45,7 @@
                         <select id="sortKey" class="bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5"><option value="date">日付</option><option value="title">タイトル</option><option value="createdAt">登録日</option></select>
                         <select id="sortOrder" class="bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5"><option value="desc">降順</option><option value="asc">昇順</option></select>
                     </div>
-                    <div class="flex items-center justify-between mb-2">
+                     <div class="flex items-center justify-between mb-2">
                         <div class="flex items-center">
                             <label for="bookmarkFilter" class="mr-2 text-sm font-medium text-gray-700">ブックマークのみ:</label>
                             <button id="bookmarkFilterBtnPublic" class="p-2 rounded-full bg-gray-200 text-gray-600 hover:bg-yellow-200 transition-colors" title="ブックマークのみ表示">
@@ -291,7 +291,7 @@
             }
         };
 
-        function renderPagination(totalItems, totalPages) {
+        const renderPagination = (totalItems, totalPages) => {
             paginationControls.innerHTML = '';
             const baseTotal = showBookmarkedOnly ? fileDatabase.filter(f => bookmarkedIds.has(f.id)).length : fileDatabase.length;
             itemCountEl.textContent = `ヒット: ${totalItems} 件 / 全体: ${baseTotal} 件`;
@@ -322,14 +322,43 @@
             pageInput.addEventListener('change', () => goToPage(parseInt(pageInput.value, 10)));
         }
 
-        function renderList() {
+        const renderList = async () => {
             let filesToRender = fileDatabase;
             if (showBookmarkedOnly) {
                 filesToRender = fileDatabase.filter(file => bookmarkedIds.has(file.id));
             }
 
-            const term = search.value.toLowerCase();
-            currentFilteredFiles = filesToRender.filter(f => (f.title || '').toLowerCase().includes(term) || (f.content || '').toLowerCase().includes(term));
+            const term = search.value.toLowerCase().trim();
+            
+            let searchResults = [];
+
+            if (!term) {
+                searchResults = filesToRender;
+            } else {
+                 listContainer.innerHTML = `<div class="flex items-center justify-center h-full"><div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div><p class="ml-4 text-gray-600">検索中...</p></div>`;
+                 await new Promise(resolve => setTimeout(resolve, 50)); 
+                 
+                for (const f of filesToRender) {
+                    if ((f.title || '').toLowerCase().includes(term)) {
+                        searchResults.push(f);
+                        continue;
+                    }
+
+                    let contentToSearch = f.content;
+                    if (f.isChunked && !contentToSearch) {
+                        const chunksQuery = query(collection(db, "contentChunks"), where("postId", "==", f.id));
+                        const chunksSnapshot = await getDocs(chunksQuery);
+                        const chunks = chunksSnapshot.docs.map(d => d.data()).sort((a, b) => a.index - b.index);
+                        contentToSearch = chunks.map(c => c.data).join('');
+                        f.content = contentToSearch; // Cache it
+                    }
+                    
+                    if ((contentToSearch || '').toLowerCase().includes(term)) {
+                        searchResults.push(f);
+                    }
+                }
+            }
+            currentFilteredFiles = searchResults;
 
             currentFilteredFiles.sort((a, b) => {
                 const key = currentSort.key;
@@ -425,7 +454,22 @@
             renderList();
         });
 
-        search.addEventListener('input', () => { currentPage = 1; renderList(); clearSearchBtn.classList.toggle('hidden', !search.value); });
+        const debounce = (func, delay) => {
+            let debounceTimer;
+            return function(...args) {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => func.apply(this, args), delay);
+            };
+        };
+
+        const debouncedSearchPublic = debounce(() => {
+            currentPage = 1;
+            renderList();
+            clearSearchBtn.classList.toggle('hidden', !search.value);
+        }, 500);
+
+        search.addEventListener('input', debouncedSearchPublic);
+
         clearSearchBtn.addEventListener('click', () => { search.value = ''; clearSearchBtn.classList.add('hidden'); currentPage = 1; renderList(); search.focus(); });
         sortKeySelect.addEventListener('change', e => { currentSort.key = e.target.value; currentPage = 1; renderList(); });
         sortOrderSelect.addEventListener('change', e => { currentSort.order = e.target.value; currentPage = 1; renderList(); });
