@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -115,11 +114,14 @@
 
         function setupFirestoreListener() {
             const dataCollection = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
-            const q = query(dataCollection, where("区分", "==", ""));
-            onSnapshot(q, (snapshot) => {
-                currentData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                render();
-            });
+            const q = query(dataCollection); // まず全件取得
+                    onSnapshot(q, (snapshot) => {
+                        // クライアント側でフィルタリングし、「区分」が未入力のデータも正しく扱えるようにする
+                        currentData = snapshot.docs
+                            .map(doc => ({ id: doc.id, ...doc.data() }))
+                            .filter(item => item['区分'] !== '会議');
+                        render();
+                    });
         }
         
         // --- ALL THE RENDERING FUNCTIONS COPIED HERE ---
@@ -266,16 +268,16 @@
                     const dateB = new Date(b['日付'] || 0);
                     if (dateB.getTime() !== dateA.getTime()) return dateB - dateA;
 
-                    // 2. 会議日 (desc)
-                    const kaigiDateA = getKaigiDate(a['タイトル名']);
-                    const kaigiDateB = getKaigiDate(b['タイトル名']);
-                    if (kaigiDateB.getTime() !== kaigiDateA.getTime()) return kaigiDateB - kaigiDateA;
-
-                    // 3. 区分 (asc)
+                    // 2. 区分 (asc)
                     const kubunA = a['区分'] || '';
                     const kubunB = b['区分'] || '';
                     const kubunCompare = kubunA.localeCompare(kubunB, 'ja');
                     if (kubunCompare !== 0) return kubunCompare;
+
+                    // 3. 会議日 (desc)
+                    const kaigiDateA = getKaigiDate(a['タイトル名']);
+                    const kaigiDateB = getKaigiDate(b['タイトル名']);
+                    if (kaigiDateB.getTime() !== kaigiDateA.getTime()) return kaigiDateB - kaigiDateA;
 
                     // 4. タイトル名 (asc)
                     const titleA = (a['タイトル名'] || '').replace(/\[会議日: [^\]]+\]/g, '').trim();
