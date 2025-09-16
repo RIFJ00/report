@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブログ記事インポート＆ビューワー (Firebase版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- PDF生成ライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.0/FileSaver.min.js"></script>
+    <style>
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+        .list-item.active { background-color: #e0f2fe; border-left-color: #0ea5e9; }
+        .tab-btn.active { border-color: #0ea5e9; color: #0284c7; background-color: #ffffff; }
+        .modal-backdrop { background-color: rgba(0, 0, 0, 0.5); }
+        .loader { border-top-color: #3498db; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+        @-webkit-keyframes spinner { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #toast { transition: opacity 0.3s, transform 0.3s; }
+        .panel-height { height: calc(100vh - 12rem); max-height: 50rem; }
+         /* Hide number input arrows */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div id="app-container" class="container mx-auto p-4 md:p-6 opacity-0 transition-opacity duration-500">
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-700">ブログ記事インポート＆ビューワー (Firebase版)</h1>
+            <p class="text-gray-500 mt-2">HTMLファイルをインポートし、Firebaseに保存。検索、プレビュー、編集、エクスポートが可能。</p>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="mb-4 bg-white p-2 rounded-xl shadow-md">
+            <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+                <button id="tabImport" class="tab-btn active whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm rounded-t-lg">登録</button>
+                <button id="tabList" class="tab-btn whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 border-transparent rounded-t-lg">一覧・プレビュー</button>
+            </nav>
+        </div>
+        
+        <main>
+            <!-- Import Content -->
+            <div id="contentImport" class="bg-white p-6 rounded-xl shadow-md">
+                <div class="max-w-xl mx-auto">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">HTMLファイルのインポート</h2>
+                    <div class="space-y-5">
+                        <div>
+                            <label for="htmlFileInput" class="block text-sm font-medium text-gray-700 mb-2">1. ファイルを選択 (複数可)</label>
+                            <input type="file" id="htmlFileInput" accept=".html,.htm" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 transition-colors cursor-pointer">
+                        </div>
+                        <div id="fileQueueContainer" class="hidden">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">2. 登録予定のファイル</label>
+                            <div id="selectedFilesList" class="max-h-60 overflow-y-auto space-y-2 rounded-md border border-gray-200 p-3 bg-gray-50"></div>
+                        </div>
+                        <button id="registerBtn" disabled class="w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-sky-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 flex items-center justify-center">
+                            <span id="registerBtnText">ファイルを選択してください</span>
+                            <div id="registerSpinner" class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-6 w-6 ml-3 hidden"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- List & Preview Content -->
+            <div id="contentList" class="hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 panel-height">
+                    <!-- Left Column: List -->
+                    <div class="lg:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col h-full">
+                        <div class="flex-shrink-0">
+                            <div class="flex justify-between items-center border-b pb-3 mb-3">
+                                <h2 class="text-xl font-bold">データ一覧</h2>
+                                <div class="flex space-x-2">
+                                     <button id="generatePublicPageBtn" class="bg-green-600 text-white text-xs font-bold py-1 px-3 rounded-full hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500" title="閲覧専用の公開ページHTMLを生成します">
+                                        公開ページ生成
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="relative mb-3">
+                                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                <input type="search" id="searchInput" placeholder="タイトルや内容で検索..." class="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-sky-500 focus:border-sky-500">
+                                <button id="clearSearchBtn" class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hidden" title="クリア">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>
+                            </div>
+                            <div class="flex items-center space-x-2 mb-2 text-sm">
+                                <select id="sortKey" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5">
+                                    <option value="date">日付</option>
+                                    <option value="title">タイトル</option>
+                                    <option value="createdAt">登録日</option>
+                                </select>
+                                <select id="sortOrder" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5">
+                                    <option value="desc">降順</option>
+                                    <option value="asc">昇順</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center">
+                                    <label for="bookmarkFilter" class="mr-2 text-sm font-medium text-gray-700">ブックマークのみ:</label>
+                                    <button id="bookmarkFilterBtn" class="p-2 rounded-full bg-gray-200 text-gray-600 hover:bg-yellow-200 transition-colors" title="ブックマークのみ表示">
+                                        <svg class="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118L2.98 9.11c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>
+                                    </button>
+                                </div>
+                                <div id="itemCount" class="text-sm text-right text-gray-600"></div>
+                            </div>
+                        </div>
+                        <div id="fileListContainer" class="space-y-2 overflow-y-auto flex-grow min-h-0 pr-1">
+                            <div class="flex items-center justify-center h-full">
+                                <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div>
+                            </div>
+                        </div>
+                        <div id="paginationControls" class="flex-shrink-0 pt-3 border-t flex justify-center items-center space-x-2 text-gray-600"></div>
+                    </div>
+                    <!-- Right Column: Preview -->
+                    <div class="lg:col-span-2 bg-white p-4 rounded-xl shadow-md flex flex-col h-full">
+                        <h2 class="text-xl font-bold mb-3 border-b pb-3 flex-shrink-0">記事プレビュー</h2>
+                        <iframe id="contentPreview" class="w-full flex-grow border border-gray-200 rounded-lg min-h-0" srcdoc="<div style='display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;'>一覧からファイルを選択してプレビュー表示します。</div>">
+                        </iframe>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===== Modals and Toast ===== -->
+    
+    <!-- Firebase Config Modal -->
+    <div id="configModal" class="fixed inset-0 z-50 flex items-center justify-center w-full h-full modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg m-4">
+            <div class="p-6">
+                <h3 class="text-xl font-medium text-gray-900 mb-2">Firebase 設定</h3>
+                <p class="text-sm text-gray-500 mb-4">Firebaseプロジェクトのウェブアプリ設定（firebaseConfig）を下のテキストエリアに貼り付けてください。</p>
+                <div class="space-y-4">
+                    <textarea id="firebaseConfigInput" rows="10" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm font-mono">const firebaseConfig = {
+    apiKey: "AIzaSyD-2UK3S9QjydIIqcTwyfpZMh-Gy4fXlMA",
+    authDomain: "blog-viewer-f83bc.firebaseapp.com",
+    projectId: "blog-viewer-f83bc",
+    storageBucket: "blog-viewer-f83bc.firebasestorage.app",
+    messagingSenderId: "182374996524",
+    appId: "1:182374996524:web:c6d9f3cfe32957a0bd4f89",
+    measurementId: "G-KNZCSQF6LX"
+};</textarea>
+                    <p id="configError" class="text-sm text-red-600 hidden">有効な設定オブジェクトではありません。もう一度確認してください。</p>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="saveConfigBtn" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-sky-600 text-base font-medium text-white hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 sm:ml-3 sm:w-auto sm:text-sm">保存して開始</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Public Page Modal -->
+    <div id="publicPageModal" class="fixed inset-0 z-50 flex items-center justify-center w-full h-full modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl m-4 h-5/6 flex flex-col">
+            <div class="p-6 flex-grow flex flex-col min-h-0">
+                 <h3 class="text-xl font-medium text-gray-900 mb-2">公開用ページのHTMLコード</h3>
+                 <p class="text-sm text-gray-500 mb-4">以下のコード全体をコピーし、<code class="bg-gray-200 text-red-600 px-1 rounded">index.html</code> という名前で保存して、GitHub Pagesなどのサーバーにアップロードしてください。このページはFirebaseのデータを直接読み込むため、管理画面でデータを更新すると自動的に反映されます。</p>
+                 <textarea id="publicPageCode" readonly class="w-full flex-grow px-3 py-2 bg-gray-900 text-green-400 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm font-mono"></textarea>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg flex-shrink-0">
+                <button id="copyPublicPageCodeBtn" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-sky-600 text-base font-medium text-white hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 sm:ml-3 sm:w-auto sm:text-sm">コードをコピー</button>
+                <button id="closePublicPageModalBtn" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm">閉じる</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Export Options Modal -->
+    <div id="exportModal" class="fixed inset-0 z-50 flex items-center justify-center w-full h-full modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md m-4">
+            <div class="p-6">
+                <h3 class="text-lg font-medium text-gray-900">エクスポート形式の選択</h3>
+                <p class="mt-2 text-sm text-gray-500">この記事をどの形式でエクスポートしますか？</p>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="exportPdfBtn" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
+                    <span id="exportPdfBtnText">PDFで保存</span>
+                    <div id="exportPdfSpinner" class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5 ml-2 hidden"></div>
+                </button>
+                <button id="exportHtmlBtn" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-sky-600 text-base font-medium text-white hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 sm:ml-3 sm:w-auto sm:text-sm">HTMLで保存</button>
+                <button id="cancelExportBtn" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deletion Confirmation Modal -->
+    <div id="deleteModal" class="fixed inset-0 z-50 flex items-center justify-center w-full h-full modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md m-4">
+            <div class="p-6">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                        <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-lg font-medium text-gray-900">記事の削除</h3>
+                        <p class="mt-2 text-sm text-gray-500">この記事を本当に削除しますか？この操作は元に戻せません。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="confirmDeleteBtn" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">削除</button>
+                <button id="cancelDeleteBtn" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm">キャンセル</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Modal -->
+    <div id="editModal" class="fixed inset-0 z-50 flex items-center justify-center w-full h-full modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl m-4">
+            <div class="p-6">
+                 <h3 class="text-lg font-medium text-gray-900 mb-4">記事の編集</h3>
+                 <div class="space-y-4">
+                     <div>
+                         <label for="editTitle" class="block text-sm font-medium text-gray-700">タイトル</label>
+                         <input type="text" id="editTitle" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                     </div>
+                     <div>
+                         <label for="editDate" class="block text-sm font-medium text-gray-700">日付</label>
+                         <input type="date" id="editDate" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                     </div>
+                     <div>
+                         <label for="editContent" class="block text-sm font-medium text-gray-700">本文 (HTML)</label>
+                         <textarea id="editContent" rows="15" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm font-mono"></textarea>
+                     </div>
+                 </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="saveEditBtn" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-sky-600 text-base font-medium text-white hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 sm:ml-3 sm:w-auto sm:text-sm">保存</button>
+                <button id="cancelEditBtn" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 right-5 z-[100] bg-gray-800 text-white py-2 px-5 rounded-lg shadow-lg opacity-0 transform translate-y-2">
+        <p id="toastMessage"></p>
+    </div>
+
+    <script type="module">
+        // --- Firebase SDKのインポート ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            onSnapshot, 
+            query, 
+            doc,
+            updateDoc,
+            deleteDoc,
+            serverTimestamp,
+            writeBatch,
+            getDocs,
+            where
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // --- グローバル変数とDOM要素 ---
+        const getEl = (id) => document.getElementById(id);
+        const appContainer = getEl('app-container');
+        const tabImport = getEl('tabImport'), tabList = getEl('tabList');
+        const contentImport = getEl('contentImport'), contentList = getEl('contentList');
+        const fileInput = getEl('htmlFileInput');
+        const registerBtn = getEl('registerBtn'), registerBtnText = getEl('registerBtnText'), registerSpinner = getEl('registerSpinner');
+        const contentPreview = getEl('contentPreview'), fileListContainer = getEl('fileListContainer');
+        const searchInput = getEl('searchInput'), itemCountEl = getEl('itemCount');
+        const generatePublicPageBtn = getEl('generatePublicPageBtn');
+        const clearSearchBtn = getEl('clearSearchBtn');
+        const bookmarkFilterBtn = getEl('bookmarkFilterBtn');
+
+        
+        // Modals & Toast
+        const configModal = getEl('configModal'), firebaseConfigInput = getEl('firebaseConfigInput'), saveConfigBtn = getEl('saveConfigBtn'), configError = getEl('configError');
+        const publicPageModal = getEl('publicPageModal'), publicPageCode = getEl('publicPageCode'), copyPublicPageCodeBtn = getEl('copyPublicPageCodeBtn'), closePublicPageModalBtn = getEl('closePublicPageModalBtn');
+        const exportModal = getEl('exportModal'), exportHtmlBtn = getEl('exportHtmlBtn'), exportPdfBtn = getEl('exportPdfBtn'), cancelExportBtn = getEl('cancelExportBtn'), exportPdfBtnText = getEl('exportPdfBtnText'), exportPdfSpinner = getEl('exportPdfSpinner');
+        const deleteModal = getEl('deleteModal'), confirmDeleteBtn = getEl('confirmDeleteBtn'), cancelDeleteBtn = getEl('cancelDeleteBtn');
+        const editModal = getEl('editModal'), saveEditBtn = getEl('saveEditBtn'), cancelEditBtn = getEl('cancelEditBtn');
+        const editTitle = getEl('editTitle'), editDate = getEl('editDate'), editContent = getEl('editContent');
+        const toast = getEl('toast'), toastMessage = getEl('toastMessage');
+
+        // Sort & Pagination
+        const sortKeySelect = getEl('sortKey'), sortOrderSelect = getEl('sortOrder'), paginationControls = getEl('paginationControls');
+
+        // App State
+        let fileDatabase = []; // DBからの全データ
+        let currentFilteredFiles = []; // 検索・ソート後のデータ
+        let db; // Firestore instance
+        let unsubscribe; // Firestore listener
+        let currentSort = { key: 'date', order: 'desc' };
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        const MAX_FIELD_SIZE = 950000;
+        let showBookmarkedOnly = false;
+
+        // --- Firebase 設定管理 ---
+        const CONFIG_STORAGE_KEY = 'firebaseBlogConfig';
+
+        function setupFirebase(config) {
+            try {
+                const app = initializeApp(config);
+                db = getFirestore(app);
+                localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+                closeModal(configModal);
+                appContainer.classList.remove('opacity-0');
+                return true;
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+                configError.textContent = `初期化エラー: ${error.message}`;
+                configError.classList.remove('hidden');
+                return false;
+            }
+        }
+
+        saveConfigBtn.addEventListener('click', () => {
+            const input = firebaseConfigInput.value.trim();
+            if (!input) {
+                configError.textContent = '設定を入力してください。';
+                configError.classList.remove('hidden');
+                return;
+            }
+            try {
+                const configStr = input.replace(/^const\s+firebaseConfig\s*=\s*/, '').replace(/;$/, '');
+                const config = new Function(`return ${configStr}`)();
+
+                if (setupFirebase(config)) {
+                    initializeAppLogic();
+                }
+            } catch (e) {
+                configError.textContent = '設定の形式が正しくありません。Firebaseコンソールからコピーしたオブジェクト全体を貼り付けてください。';
+                configError.classList.remove('hidden');
+                console.error("Config parsing error", e);
+            }
+        });
+
+        // --- アプリケーションロジック ---
+        
+        async function loadInitialData() {
+            if (unsubscribe) unsubscribe(); 
+
+            const postsCollection = collection(db, "posts");
+            const q = query(postsCollection);
+
+            unsubscribe = onSnapshot(q, async (postsSnapshot) => {
+                fileListContainer.innerHTML = '<div class="flex items-center justify-center h-full"><div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div></div>';
+                
+                let posts = [];
+                postsSnapshot.forEach((doc) => {
+                    posts.push({ ...doc.data(), id: doc.id });
+                });
+
+                fileDatabase = posts;
+                renderFileList();
+                
+                if (currentFilteredFiles.length > 0) {
+                     const firstItemId = currentFilteredFiles[(currentPage-1)*itemsPerPage]?.id;
+                     if (firstItemId) {
+                        await previewFile(firstItemId);
+                     }
+                } else {
+                    contentPreview.srcdoc = "<div style='display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;'>ファイルを追加してください。</div>";
+                }
+            }, (error) => {
+                console.error("Error getting documents: ", error);
+                fileListContainer.innerHTML = '<p class="text-gray-500 p-4">データの読み込みに失敗しました。</p>';
+                showToast("データの読み込みに失敗しました", "error");
+            });
+        }
+
+        const switchTab = (activeTab) => {
+            if (activeTab === 'import') {
+                contentImport.classList.remove('hidden');
+                contentList.classList.add('hidden');
+                tabImport.classList.add('active');
+                tabList.classList.remove('active');
+            } else {
+                contentList.classList.remove('hidden');
+                contentImport.classList.add('hidden');
+                tabList.classList.add('active');
+                tabImport.classList.remove('active');
+            }
+        };
+
+        const handleFileSelect = (event) => {
+            const files = event.target.files;
+            const fileQueueContainer = getEl('fileQueueContainer');
+            const selectedFilesList = getEl('selectedFilesList');
+
+            if (!files || files.length === 0) {
+                fileQueueContainer.classList.add('hidden');
+                registerBtn.disabled = true;
+                registerBtnText.textContent = 'ファイルを選択してください';
+                return;
+            }
+
+            selectedFilesList.innerHTML = '';
+            for (const file of files) {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'text-sm text-gray-700 truncate';
+                fileItem.textContent = file.name;
+                selectedFilesList.appendChild(fileItem);
+            }
+
+            fileQueueContainer.classList.remove('hidden');
+            registerBtn.disabled = false;
+            registerBtnText.textContent = `${files.length}件のファイルを登録`;
+        };
+        
+        const handleRegister = async () => {
+            const filesToRegister = fileInput.files;
+            if (!filesToRegister || filesToRegister.length === 0) return;
+
+            setButtonLoading(registerBtn, registerBtnText, registerSpinner, true, '登録準備中...');
+
+            try {
+                const readFile = (file) => new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const content = e.target.result;
+                        const title = file.name.replace(/\.(html|htm)$/i, '');
+                        const dateRegex = /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})日?/;
+                        const match = content.match(dateRegex);
+                        let dateStr;
+                        if (match) {
+                            const year = match[1]; const month = match[2].padStart(2, '0'); const day = match[3].padStart(2, '0');
+                            dateStr = `${year}-${month}-${day}`;
+                        } else {
+                            dateStr = new Date().toISOString().slice(0, 10);
+                        }
+                        
+                        const postData = { title, date: dateStr, isBookmarked: false, createdAt: serverTimestamp() };
+                        
+                        if (new Blob([content]).size > MAX_FIELD_SIZE) {
+                            postData.isChunked = true;
+                            postData.contentChunks = [];
+                            for (let i = 0; i < content.length; i += MAX_FIELD_SIZE) {
+                                postData.contentChunks.push(content.substring(i, i + MAX_FIELD_SIZE));
+                            }
+                        } else {
+                            postData.isChunked = false;
+                            postData.content = content;
+                        }
+                        resolve(postData);
+                    };
+                    reader.onerror = (e) => reject(reader.error);
+                    reader.readAsText(file, 'UTF-8');
+                });
+                
+                const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+                let registeredCount = 0;
+                let skippedCount = 0;
+                const totalFiles = filesToRegister.length;
+
+                for (let i = 0; i < totalFiles; i++) {
+                    const file = filesToRegister[i];
+                    setButtonLoading(registerBtn, registerBtnText, registerSpinner, true, `処理中... (${i + 1}/${totalFiles})`);
+                    
+                    const postData = await readFile(file);
+
+                    const postsRef = collection(db, "posts");
+                    const q = query(postsRef, where("title", "==", postData.title), where("date", "==", postData.date));
+                    const querySnapshot = await getDocs(q);
+
+                    if (!querySnapshot.empty) {
+                        skippedCount++;
+                        console.log(`Skipped (duplicate): ${postData.title}`);
+                        continue; 
+                    }
+                    
+                    const postMeta = { ...postData };
+                    let chunks = [];
+                    if (postMeta.isChunked) {
+                        chunks = postMeta.contentChunks;
+                        delete postMeta.contentChunks;
+                        delete postMeta.content;
+                    }
+                    
+                    const postRefDoc = await addDoc(collection(db, "posts"), postMeta);
+
+                    if (postMeta.isChunked && chunks.length > 0) {
+                        const chunksCollectionRef = collection(db, "contentChunks");
+                        let batch = writeBatch(db);
+                        let writeCount = 0;
+
+                        for (let j = 0; j < chunks.length; j++) {
+                            setButtonLoading(registerBtn, registerBtnText, registerSpinner, true, `処理中 (${i + 1}/${totalFiles}): チャンク ${j + 1}/${chunks.length}`);
+                            const chunkData = { postId: postRefDoc.id, index: j, data: chunks[j] };
+                            const newChunkRef = doc(chunksCollectionRef);
+                            batch.set(newChunkRef, chunkData);
+                            writeCount++;
+
+                            if (writeCount >= 450 || j === chunks.length - 1) {
+                                await batch.commit();
+                                await delay(1000); 
+                                batch = writeBatch(db);
+                                writeCount = 0;
+                            }
+                        }
+                    }
+                    
+                    registeredCount++;
+                    await delay(500);
+                }
+
+                let summaryMessage = "";
+                let messageType = "info";
+
+                if (registeredCount > 0 && skippedCount > 0) {
+                    summaryMessage = `${registeredCount}件の記事を登録し、${skippedCount}件は重複のためスキップしました。`;
+                    messageType = "success";
+                } else if (registeredCount > 0) {
+                    summaryMessage = `${registeredCount}件の記事を登録しました。`;
+                    messageType = "success";
+                } else if (skippedCount > 0) {
+                    summaryMessage = `${skippedCount}件の記事は既に登録済みのため、すべてスキップしました。`;
+                    messageType = "info";
+                }
+
+                if (summaryMessage) {
+                    showToast(summaryMessage, messageType);
+                }
+
+                resetForm();
+                if(registeredCount > 0) {
+                    switchTab('list');
+                }
+
+            } catch (error) {
+                console.error("Error during batch registration: ", error);
+                showToast(`登録中にエラー: ${error.message}`, "error");
+            } finally {
+                setButtonLoading(registerBtn, registerBtnText, registerSpinner, false, 'ファイルを選択してください');
+                registerBtn.disabled = true;
+            }
+        };
+        
+        const toggleBookmark = async (fileId) => {
+            const file = fileDatabase.find(f => f.id === fileId);
+            if (!file) return;
+
+            const postRef = doc(db, "posts", fileId);
+            const newBookmarkState = !file.isBookmarked;
+
+            try {
+                await updateDoc(postRef, {
+                    isBookmarked: newBookmarkState
+                });
+                showToast(newBookmarkState ? "ブックマークしました" : "ブックマークを解除しました", "success");
+            } catch (error) {
+                console.error("Error updating bookmark:", error);
+                showToast("ブックマークの更新に失敗しました", "error");
+            }
+        };
+
+        const renderFileList = async () => {
+            let filesToRender = fileDatabase;
+            if (showBookmarkedOnly) {
+                filesToRender = fileDatabase.filter(file => file.isBookmarked);
+            }
+
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            
+            let searchResults = [];
+
+            if (!searchTerm) {
+                searchResults = filesToRender;
+            } else {
+                 fileListContainer.innerHTML = `<div class="flex items-center justify-center h-full"><div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div><p class="ml-4 text-gray-600">検索中...</p></div>`;
+                 await new Promise(resolve => setTimeout(resolve, 50)); 
+
+                for (const file of filesToRender) {
+                    if ((file.title || '').toLowerCase().includes(searchTerm)) {
+                        searchResults.push(file);
+                        continue;
+                    }
+
+                    let contentToSearch = file.content;
+                    if (file.isChunked && !contentToSearch) {
+                        const chunksQuery = query(collection(db, "contentChunks"), where("postId", "==", file.id));
+                        const chunksSnapshot = await getDocs(chunksQuery);
+                        const chunks = [];
+                        chunksSnapshot.forEach(doc => chunks.push(doc.data()));
+                        chunks.sort((a, b) => a.index - b.index);
+                        contentToSearch = chunks.map(c => c.data).join('');
+                        file.content = contentToSearch; 
+                    }
+                    
+                    if ((contentToSearch || '').toLowerCase().includes(searchTerm)) {
+                        searchResults.push(file);
+                    }
+                }
+            }
+            
+            currentFilteredFiles = searchResults;
+
+
+            currentFilteredFiles.sort((a, b) => {
+                const key = currentSort.key;
+                const order = currentSort.order === 'asc' ? 1 : -1;
+                let valA = a[key]; let valB = b[key];
+                if (key === 'createdAt' && valA?.toDate) valA = valA.toDate().toISOString();
+                if (key === 'createdAt' && valB?.toDate) valB = valB.toDate().toISOString();
+                valA = valA || ''; valB = valB || '';
+                if (valA < valB) return -1 * order;
+                if (valA > valB) return 1 * order;
+                return 0;
+            });
+
+            const totalItems = currentFilteredFiles.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+            
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const paginatedFiles = currentFilteredFiles.slice(startIndex, startIndex + itemsPerPage);
+
+            fileListContainer.innerHTML = '';
+            
+            if (totalItems === 0) {
+                 const baseTotal = showBookmarkedOnly ? fileDatabase.filter(f => f.isBookmarked).length : fileDatabase.length;
+                 itemCountEl.textContent = `ヒット: 0 件 / 全体: ${baseTotal} 件`;
+                 if (searchTerm || showBookmarkedOnly) {
+                     fileListContainer.innerHTML = `<p class="text-gray-500 p-4 text-center">該当する記事がありません。</p>`;
+                 }
+            } else {
+                const todayString = new Date().toISOString().slice(0, 10);
+                const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayString = yesterday.toISOString().slice(0, 10);
+
+                paginatedFiles.forEach(file => {
+                    const listItem = document.createElement('div');
+                    listItem.className = 'list-item border-l-4 border-transparent p-3 bg-gray-50 rounded-lg flex justify-between items-center transition-colors duration-200 cursor-pointer hover:bg-gray-200';
+                    listItem.dataset.id = file.id;
+                    let dateClass = 'text-sm text-gray-500';
+                    if (file.date === todayString) dateClass = 'text-sm text-red-600 font-bold';
+                    else if (file.date === yesterdayString) dateClass = 'text-sm text-red-600';
+
+                    const bookmarkIconHTML = file.isBookmarked
+                        ? `<svg class="w-5 h-5 text-yellow-500 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>`
+                        : `<svg class="w-5 h-5 text-gray-400 hover:text-yellow-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118L2.98 9.11c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>`;
+
+                    listItem.innerHTML = `
+                        <div class="pointer-events-none pr-2 overflow-hidden flex-grow">
+                            <h3 class="font-semibold text-gray-800 truncate" title="${escapeHtml(file.title)}">${escapeHtml(file.title)}</h3>
+                            <p class="${dateClass}">${file.date || '日付未設定'}</p>
+                        </div>
+                        <div class="flex-shrink-0 flex items-center space-x-1">
+                             <button class="bookmark-btn p-2 rounded-full hover:bg-yellow-100" data-id="${file.id}" title="ブックマーク">
+                                ${bookmarkIconHTML}
+                             </button>
+                             <button class="export-btn p-2 rounded-full hover:bg-gray-300" data-id="${file.id}" title="エクスポート">
+                                <svg class="w-5 h-5 text-gray-500 hover:text-sky-600 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            </button>
+                            <button class="edit-btn p-2 rounded-full hover:bg-gray-300" data-id="${file.id}" title="編集"><svg class="w-5 h-5 text-gray-500 hover:text-green-600 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
+                            <button class="delete-btn p-2 rounded-full hover:bg-gray-300" data-id="${file.id}" title="削除"><svg class="w-5 h-5 text-gray-500 hover:text-red-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                        </div>`;
+                    fileListContainer.appendChild(listItem);
+                });
+            }
+            renderPagination(totalItems, totalPages);
+        };
+        
+        const renderPagination = (totalItems, totalPages) => {
+            paginationControls.innerHTML = '';
+            const baseTotal = showBookmarkedOnly ? fileDatabase.filter(f => f.isBookmarked).length : fileDatabase.length;
+            itemCountEl.textContent = `ヒット: ${totalItems} 件 / 全体: ${baseTotal} 件`;
+
+            if (totalPages <= 1) { return; }
+
+            const startItem = (currentPage - 1) * itemsPerPage + 1;
+            const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+            itemCountEl.textContent = `${startItem}-${endItem} / ${totalItems} 件`;
+
+            const firstPrevDisabled = currentPage === 1 ? 'disabled' : '';
+            const lastNextDisabled = currentPage === totalPages ? 'disabled' : '';
+
+            paginationControls.innerHTML = `
+                <button id="firstPageBtn" class="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed" ${firstPrevDisabled}>&lt;&lt;</button>
+                <button id="prevPageBtn" class="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed" ${firstPrevDisabled}>&lt;</button>
+                <span class="text-sm">Page</span>
+                <input type="number" id="pageInput" min="1" max="${totalPages}" value="${currentPage}" class="w-12 text-center border rounded-md p-1">
+                <span class="text-sm">of ${totalPages}</span>
+                <button id="nextPageBtn" class="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed" ${lastNextDisabled}>&gt;</button>
+                <button id="lastPageBtn" class="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed" ${lastNextDisabled}>&gt;&gt;</button>
+            `;
+
+            const pageInput = getEl('pageInput');
+            
+            const goToPage = (page) => {
+                currentPage = Math.max(1, Math.min(totalPages, page));
+                renderFileList();
+            };
+
+            getEl('firstPageBtn').addEventListener('click', () => goToPage(1));
+            getEl('prevPageBtn').addEventListener('click', () => goToPage(currentPage - 1));
+            getEl('nextPageBtn').addEventListener('click', () => goToPage(currentPage + 1));
+            getEl('lastPageBtn').addEventListener('click', () => goToPage(totalPages));
+            pageInput.addEventListener('change', () => goToPage(parseInt(pageInput.value, 10)));
+        };
+
+        const previewFile = async (fileId) => {
+            if (!fileId) {
+                contentPreview.srcdoc = "<div style='display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;'>プレビューするファイルがありません。</div>"; 
+                return;
+            }
+            const fileToDisplay = fileDatabase.find(f => f.id === fileId);
+
+            if (fileToDisplay) {
+                if (fileToDisplay.isChunked && !fileToDisplay.content) {
+                    contentPreview.srcdoc = "<div style='display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;'>コンテンツを読み込み中...</div>";
+                    const chunksQuery = query(collection(db, "contentChunks"), where("postId", "==", fileId));
+                    const chunksSnapshot = await getDocs(chunksQuery);
+                    const chunks = [];
+                    chunksSnapshot.forEach(doc => chunks.push(doc.data()));
+                    chunks.sort((a, b) => a.index - b.index);
+                    fileToDisplay.content = chunks.map(c => c.data).join('');
+                }
+                
+                contentPreview.srcdoc = injectResponsiveStyles(fileToDisplay.content || '');
+                
+                document.querySelectorAll('.list-item').forEach(item => item.classList.remove('active'));
+                const activeItem = document.querySelector(`.list-item[data-id="${fileId}"]`);
+                if(activeItem) { activeItem.classList.add('active'); }
+            }
+        };
+        
+        const openModal = (modalElement) => modalElement.classList.remove('hidden');
+        const closeModal = (modalElement) => modalElement.classList.add('hidden');
+        
+        const openExportModal = (fileId) => {
+            exportPdfBtn.dataset.id = fileId;
+            exportHtmlBtn.dataset.id = fileId;
+            openModal(exportModal);
+        };
+        
+        const closeExportModal = () => closeModal(exportModal);
+
+        const openDeleteModal = (fileId) => { openModal(deleteModal); confirmDeleteBtn.dataset.fileId = fileId; };
+        const closeDeleteModal = () => closeModal(deleteModal);
+
+        const handleDeleteFile = async () => {
+            const fileId = confirmDeleteBtn.dataset.fileId;
+            if (!fileId) return;
+            try {
+                const batch = writeBatch(db);
+                const chunksQuery = query(collection(db, "contentChunks"), where("postId", "==", fileId));
+                const chunksSnapshot = await getDocs(chunksQuery);
+                chunksSnapshot.forEach(doc => { batch.delete(doc.ref); });
+                const postRef = doc(db, "posts", fileId);
+                batch.delete(postRef);
+                await batch.commit();
+                showToast("記事を削除しました", "success");
+            } catch (error) {
+                console.error("Error removing document: ", error);
+                showToast("ファイルの削除に失敗しました", "error");
+            } finally {
+                closeDeleteModal();
+            }
+        }
+
+        const openEditModal = async (fileId) => {
+            const file = fileDatabase.find(f => f.id === fileId);
+            if (!file) return;
+
+            editContent.value = "コンテンツを読み込み中...";
+            openModal(editModal);
+
+            let fullContent = file.content;
+            if (file.isChunked && !fullContent) {
+                 const chunksQuery = query(collection(db, "contentChunks"), where("postId", "==", fileId));
+                 const chunksSnapshot = await getDocs(chunksQuery);
+                 const chunks = [];
+                 chunksSnapshot.forEach(doc => chunks.push(doc.data()));
+                 chunks.sort((a, b) => a.index - b.index);
+                 fullContent = chunks.map(c => c.data).join('');
+                 file.content = fullContent;
+            }
+            
+            editTitle.value = file.title;
+            editDate.value = file.date;
+            editContent.value = fullContent;
+            saveEditBtn.dataset.fileId = fileId;
+        };
+        const closeEditModal = () => closeModal(editModal);
+
+        const handleSaveEdit = async () => {
+            const fileId = saveEditBtn.dataset.fileId;
+            if (!fileId) return;
+
+            const newContent = editContent.value;
+            const updatedMeta = { title: editTitle.value, date: editDate.value };
+            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+            try {
+                const chunksQuery = query(collection(db, "contentChunks"), where("postId", "==", fileId));
+                const chunksSnapshot = await getDocs(chunksQuery);
+                
+                if (!chunksSnapshot.empty) {
+                    showToast(`古いチャンク(${chunksSnapshot.docs.length}個)を削除中...`, "info");
+                    let deleteBatch = writeBatch(db);
+                    let deleteCount = 0;
+                    for (let i = 0; i < chunksSnapshot.docs.length; i++) {
+                        deleteBatch.delete(chunksSnapshot.docs[i].ref);
+                        deleteCount++;
+                        if (deleteCount >= 450 || i === chunksSnapshot.docs.length - 1) {
+                            await deleteBatch.commit();
+                            await delay(1000);
+                            deleteBatch = writeBatch(db);
+                            deleteCount = 0;
+                        }
+                    }
+                }
+
+                const postRef = doc(db, "posts", fileId);
+
+                if (new Blob([newContent]).size > MAX_FIELD_SIZE) {
+                    updatedMeta.isChunked = true;
+                    updatedMeta.content = null;
+
+                    const chunks = [];
+                    for (let i = 0; i < newContent.length; i += MAX_FIELD_SIZE) {
+                        chunks.push(newContent.substring(i, i + MAX_FIELD_SIZE));
+                    }
+                    
+                    showToast(`新しいチャンク(${chunks.length}個)を書き込み中...`, "info");
+                    const chunksCollectionRef = collection(db, "contentChunks");
+                    let addBatch = writeBatch(db);
+                    let addCount = 0;
+                    for (let i = 0; i < chunks.length; i++) {
+                        const newChunkRef = doc(chunksCollectionRef);
+                        addBatch.set(newChunkRef, { postId: fileId, index: i, data: chunks[i] });
+                        addCount++;
+                        if (addCount >= 450 || i === chunks.length - 1) {
+                            await addBatch.commit();
+                            await delay(1000);
+                            addBatch = writeBatch(db);
+                            addCount = 0;
+                        }
+                    }
+
+                } else {
+                    updatedMeta.isChunked = false;
+                    updatedMeta.content = newContent;
+                }
+
+                await updateDoc(postRef, updatedMeta);
+                
+                showToast("記事を更新しました", "success");
+
+            } catch (error) {
+                console.error("Error updating document: ", error);
+                showToast(`記事の更新に失敗しました: ${error.message}`, "error");
+            } finally {
+                closeEditModal();
+            }
+        };
+
+        const exportAsHtml = async (fileId) => {
+            const fileToExport = fileDatabase.find(f => f.id === fileId);
+            if (!fileToExport) return;
+            
+            let fullContent = fileToExport.content;
+            if (fileToExport.isChunked && !fullContent) {
+                await previewFile(fileId); // ensure content is loaded
+                fullContent = fileDatabase.find(f => f.id === fileId).content;
+            }
+
+            const blob = new Blob([fullContent], { type: 'text/html;charset=utf-8' });
+            saveAs(blob, `${fileToExport.title}.html`);
+            showToast("HTMLファイルをエクスポートしました", "success");
+            closeExportModal();
+        };
+        
+        const exportAsPdf = async (fileId) => {
+            setButtonLoading(exportPdfBtn, exportPdfBtnText, exportPdfSpinner, true, "準備中...");
+            const { jsPDF } = window.jspdf;
+
+            const fileToExport = fileDatabase.find(f => f.id === fileId);
+            if (!fileToExport) {
+                showToast("エクスポート対象のファイルが見つかりません。", "error");
+                setButtonLoading(exportPdfBtn, exportPdfBtnText, exportPdfSpinner, false, "PDFで保存");
+                closeExportModal();
+                return;
+            }
+
+            let fullContent = fileToExport.content;
+            if (fileToExport.isChunked && !fullContent) {
+                showToast("コンテンツを読み込み中...", "info");
+                await previewFile(fileId);
+                fullContent = fileDatabase.find(f => f.id === fileId).content;
+            }
+
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute';
+            iframe.style.left = '-9999px';
+            iframe.style.width = '190mm'; // A4 width (210mm) - 10mm side margins * 2
+            iframe.style.border = 'none';
+            document.body.appendChild(iframe);
+
+            setButtonLoading(exportPdfBtn, exportPdfBtnText, exportPdfSpinner, true, "生成中...");
+
+            try {
+                const iframeLoadPromise = new Promise((resolve, reject) => {
+                    iframe.onload = resolve;
+                    iframe.onerror = reject;
+                });
+                
+                const iframeDoc = iframe.contentWindow.document;
+                iframeDoc.open();
+                
+                const pdfExportStyles = `
+                    <style>
+                        html, body {
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            box-sizing: border-box !important;
+                            overflow-wrap: break-word !important;
+                            width: 190mm !important; /* Match iframe width */
+                        }
+                        img, iframe, video {
+                            max-width: 100% !important;
+                            height: auto !important;
+                        }
+                    </style>
+                `;
+
+                let finalHtml = fullContent;
+                if (finalHtml.includes('</head>')) {
+                    finalHtml = finalHtml.replace('</head>', `${pdfExportStyles}</head>`);
+                } else {
+                    finalHtml = `<html><head>${pdfExportStyles}</head><body>${finalHtml}</body></html>`;
+                }
+                
+                iframeDoc.write(finalHtml);
+                iframeDoc.close();
+                
+                await iframeLoadPromise;
+
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('コンテンツの読み込みがタイムアウトしました。')), 15000);
+                    
+                    const images = Array.from(iframeDoc.body.getElementsByTagName('img'));
+                    if (images.length === 0) {
+                        clearTimeout(timeout);
+                        setTimeout(resolve, 500);
+                        return;
+                    }
+
+                    let loadedCount = 0;
+                    const checkImages = () => {
+                        if (loadedCount === images.length) {
+                            clearTimeout(timeout);
+                            setTimeout(resolve, 500); 
+                        }
+                    };
+
+                    images.forEach(img => {
+                        if (img.complete) {
+                            loadedCount++;
+                        } else {
+                            img.onload = () => { loadedCount++; checkImages(); };
+                            img.onerror = () => { loadedCount++; checkImages(); };
+                        }
+                    });
+                    checkImages();
+                });
+                
+                const canvas = await html2canvas(iframe.contentWindow.document.body, {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+                
+                const marginY = 20;
+                const marginX = 10;
+                const pdfWidth = pdf.internal.pageSize.getWidth() - marginX * 2;
+                const pdfHeight = pdf.internal.pageSize.getHeight() - marginY * 2;
+
+                const canvasWidth = canvas.width;
+                const canvasHeight = canvas.height;
+                const ratio = canvasWidth / pdfWidth;
+                const scaledCanvasHeight = canvasHeight / ratio;
+                
+                let position = 0;
+                pdf.addImage(imgData, 'PNG', marginX, marginY, pdfWidth, scaledCanvasHeight);
+                let heightLeft = scaledCanvasHeight - pdfHeight;
+
+                while (heightLeft > 0) {
+                    position -= pdfHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', marginX, position + marginY, pdfWidth, scaledCanvasHeight);
+                    heightLeft -= pdfHeight;
+                }
+                
+                pdf.save(`${fileToExport.title}.pdf`);
+                showToast("PDFファイルをエクスポートしました", "success");
+
+            } catch (err) {
+                console.error("PDF generation error: ", err);
+                showToast(`PDFの生成に失敗しました: ${err.message}`, "error");
+            } finally {
+                document.body.removeChild(iframe);
+                setButtonLoading(exportPdfBtn, exportPdfBtnText, exportPdfSpinner, false, "PDFで保存");
+                closeExportModal();
+            }
+        };
+
+        const generatePublicPageCode = () => {
+            const savedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
+            if (!savedConfig) {
+                showToast("Firebase設定が見つかりません。", "error");
+                return;
+            }
+            
+            const firebaseConfigString = savedConfig;
+
+            const htmlTemplate = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブログ記事一覧</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.0/FileSaver.min.js"><\/script>
+    <style>
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+        .list-item.active { background-color: #e0f2fe; border-left-color: #0ea5e9; }
+        .loader { border-top-color: #3498db; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+        @-webkit-keyframes spinner { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .panel-height { height: calc(100vh - 10rem); }
+        .modal-backdrop { background-color: rgba(0, 0, 0, 0.5); }
+        #toast { transition: opacity 0.3s, transform 0.3s; }
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    <\/style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container mx-auto p-4 md:p-6">
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-700">ブログ記事一覧</h1>
+        </header>
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-6 panel-height">
+            <div class="lg:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col h-full">
+                <div class="flex-shrink-0">
+                    <div class="relative mb-3">
+                        <input type="search" id="search" placeholder="検索..." class="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-sky-500 focus:border-sky-500">
+                        <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <button id="clearSearchBtn" class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hidden" title="クリア"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                    </div>
+                    <div class="flex items-center space-x-2 mb-2 text-sm">
+                        <select id="sortKey" class="bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5"><option value="date">日付</option><option value="title">タイトル</option><option value="createdAt">登録日</option></select>
+                        <select id="sortOrder" class="bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5"><option value="desc">降順</option><option value="asc">昇順</option></select>
+                    </div>
+                     <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center">
+                            <label for="bookmarkFilter" class="mr-2 text-sm font-medium text-gray-700">ブックマークのみ:</label>
+                            <button id="bookmarkFilterBtnPublic" class="p-2 rounded-full bg-gray-200 text-gray-600 hover:bg-yellow-200 transition-colors" title="ブックマークのみ表示">
+                                <svg class="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118L2.98 9.11c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>
+                            </button>
+                        </div>
+                        <div id="itemCount" class="text-sm text-right text-gray-600"></div>
+                    </div>
+                </div>
+                <div id="list" class="space-y-2 overflow-y-auto flex-grow min-h-0 pr-1">
+                    <div class="flex items-center justify-center h-full"><div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div></div>
+                </div>
+                <div id="pagination-controls" class="flex-shrink-0 pt-3 border-t flex justify-center items-center space-x-2 text-gray-600"></div>
+            </div>
+            <div class="lg:col-span-2 bg-white p-4 rounded-xl shadow-md flex flex-col h-full">
+                <h2 class="text-xl font-bold mb-3 border-b pb-3">記事プレビュー</h2>
+                <iframe id="preview" class="w-full flex-grow border rounded-lg min-h-0" srcdoc="<div style='display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;'>記事を選択してください</div>"></iframe>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Export Modal -->
+    <div id="exportModalPublic" class="fixed inset-0 z-50 flex items-center justify-center w-full h-full modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md m-4">
+            <div class="p-6">
+                <h3 class="text-lg font-medium text-gray-900">エクスポート形式の選択</h3>
+                <p class="mt-2 text-sm text-gray-500">この記事をどの形式でエクスポートしますか？</p>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="exportPdfBtnPublic" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
+                    <span id="exportPdfBtnTextPublic">PDFで保存</span>
+                    <div id="exportPdfSpinnerPublic" class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5 ml-2 hidden"></div>
+                </button>
+                <button id="exportHtmlBtnPublic" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-sky-600 text-base font-medium text-white hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 sm:ml-3 sm:w-auto sm:text-sm">HTMLで保存</button>
+                <button id="cancelExportBtnPublic" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm">キャンセル</button>
+            </div>
+        </div>
+    </div>
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 right-5 z-[100] bg-gray-800 text-white py-2 px-5 rounded-lg shadow-lg opacity-0 transform translate-y-2">
+        <p id="toastMessage"></p>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        const firebaseConfig = ${firebaseConfigString};
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const getEl = id => document.getElementById(id);
+        const listContainer = getEl('list'), preview = getEl('preview'), search = getEl('search'), itemCountEl = getEl('itemCount'), paginationControls = getEl('pagination-controls'), sortKeySelect = getEl('sortKey'), sortOrderSelect = getEl('sortOrder'), clearSearchBtn = getEl('clearSearchBtn');
+        const exportModal = getEl('exportModalPublic'), exportHtmlBtn = getEl('exportHtmlBtnPublic'), exportPdfBtn = getEl('exportPdfBtnPublic'), cancelExportBtn = getEl('cancelExportBtnPublic'), exportPdfBtnText = getEl('exportPdfBtnTextPublic'), exportPdfSpinner = getEl('exportPdfSpinnerPublic');
+        const bookmarkFilterBtn = getEl('bookmarkFilterBtnPublic');
+        const toast = getEl('toast'), toastMessage = getEl('toastMessage');
+
+        let fileDatabase = [];
+        let currentFilteredFiles = [];
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        let currentSort = { key: 'date', order: 'desc' };
+        let showBookmarkedOnly = false;
+        let bookmarkedIds = new Set();
+        const BOOKMARK_STORAGE_KEY_PUBLIC = 'publicBlogBookmarks';
+
+        const loadBookmarks = () => {
+            const stored = localStorage.getItem(BOOKMARK_STORAGE_KEY_PUBLIC);
+            if(stored) {
+                bookmarkedIds = new Set(JSON.parse(stored));
+            }
+        };
+
+        const saveBookmarks = () => {
+            localStorage.setItem(BOOKMARK_STORAGE_KEY_PUBLIC, JSON.stringify(Array.from(bookmarkedIds)));
+        };
+        
+        const showToast = (message, type = 'info') => {
+            toastMessage.textContent = message;
+            toast.className = 'fixed top-5 right-5 z-[100] text-white py-2 px-5 rounded-lg shadow-lg opacity-0 transform translate-y-2';
+            toast.classList.add({success:'bg-green-500',error:'bg-red-500',info:'bg-sky-500'}[type]);
+            toast.classList.remove('opacity-0', 'translate-y-2');
+            setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-2'); }, 3000);
+        };
+
+        const escapeHtml = str => {
+            const p = document.createElement('p');
+            p.textContent = str || '';
+            return p.innerHTML;
+        };
+
+        const injectResponsiveStyles = content => {
+            const style = '<style>html,body{max-width:100%!important;overflow-x:hidden!important}img,iframe,video{max-width:100%!important;height:auto!important}<\\/style>';
+            return content.includes('</head>') ? content.replace('</head>', style + '</head>') : style + content;
+        };
+        
+        const setButtonLoading = (btn, textEl, spinnerEl, isLoading, text) => { 
+            btn.disabled = isLoading; 
+            if (textEl) textEl.textContent = text; 
+            if (spinnerEl) spinnerEl.classList.toggle('hidden', !isLoading); 
+        };
+
+        const previewFile = async fileId => {
+            if (!fileId) return;
+            const fileToDisplay = fileDatabase.find(f => f.id === fileId);
+            if (fileToDisplay) {
+                if (fileToDisplay.isChunked && !fileToDisplay.content) {
+                    preview.srcdoc = \`<div style='display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;'>コンテンツを読み込み中...<\/div>\`;
+                    const chunksQuery = query(collection(db, "contentChunks"), where("postId", "==", fileId));
+                    const chunksSnapshot = await getDocs(chunksQuery);
+                    const chunks = chunksSnapshot.docs.map(d => d.data()).sort((a, b) => a.index - b.index);
+                    fileToDisplay.content = chunks.map(c => c.data).join('');
+                }
+                preview.srcdoc = injectResponsiveStyles(fileToDisplay.content || '');
+                document.querySelectorAll('.list-item').forEach(el => el.classList.remove('active'));
+                const activeItem = document.querySelector(\`.list-item[data-id="\${fileId}"]\`);
+                if (activeItem) activeItem.classList.add('active');
+            }
+        };
+
+        const openExportModal = (fileId) => {
+            exportPdfBtn.dataset.id = fileId;
+            exportHtmlBtn.dataset.id = fileId;
+            exportModal.classList.remove('hidden');
+        };
+        const closeExportModal = () => exportModal.classList.add('hidden');
+        
+        const exportAsHtml = async (fileId) => {
+            const fileToExport = fileDatabase.find(f => f.id === fileId);
+            if (!fileToExport) return;
+            let fullContent = fileToExport.content;
+            if (fileToExport.isChunked && !fullContent) {
+                await previewFile(fileId);
+                fullContent = fileDatabase.find(f => f.id === fileId).content;
+            }
+            const blob = new Blob([fullContent], { type: 'text/html;charset=utf-8' });
+            saveAs(blob, \`\${fileToExport.title}.html\`);
+            showToast("HTMLファイルをエクスポートしました", "success");
+            closeExportModal();
+        };
+
+        const exportAsPdf = async (fileId) => {
+            setButtonLoading(exportPdfBtn, exportPdfBtnText, exportPdfSpinner, true, "準備中...");
+            const { jsPDF } = window.jspdf;
+
+            const fileToExport = fileDatabase.find(f => f.id === fileId);
+            if (!fileToExport) {
+                showToast("エクスポート対象のファイルが見つかりません。", "error");
+                setButtonLoading(exportPdfBtn, exportPdfBtnText, exportPdfSpinner, false, "PDFで保存");
+                closeExportModal();
+                return;
+            }
+
+            let fullContent = fileToExport.content;
+            if (fileToExport.isChunked && !fullContent) {
+                showToast("コンテンツを読み込み中...", "info");
+                await previewFile(fileId);
+                fullContent = fileDatabase.find(f => f.id === fileId).content;
+            }
+
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute';
+            iframe.style.left = '-9999px';
+            iframe.style.width = '190mm'; 
+            iframe.style.border = 'none';
+            document.body.appendChild(iframe);
+
+            setButtonLoading(exportPdfBtn, exportPdfBtnText, exportPdfSpinner, true, "生成中...");
+
+            try {
+                const iframeLoadPromise = new Promise((resolve, reject) => {
+                    iframe.onload = resolve;
+                    iframe.onerror = reject;
+                });
+                
+                const iframeDoc = iframe.contentWindow.document;
+                iframeDoc.open();
+                
+                const pdfExportStyles = \`<style>html, body { margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; overflow-wrap: break-word !important; width: 190mm !important; } img, iframe, video { max-width: 100% !important; height: auto !important; }<\/style>\`;
+
+                let finalHtml = fullContent;
+                if (finalHtml.includes('</head>')) {
+                    finalHtml = finalHtml.replace('</head>', \`\${pdfExportStyles}<\/head>\`);
+                } else {
+                    finalHtml = \`<html><head>\${pdfExportStyles}<\/head><body>\${finalHtml}<\/body><\/html>\`;
+                }
+                
+                iframeDoc.write(finalHtml);
+                iframeDoc.close();
+                
+                await iframeLoadPromise;
+
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('コンテンツの読み込みがタイムアウトしました。')), 15000);
+                    
+                    const images = Array.from(iframeDoc.body.getElementsByTagName('img'));
+                    if (images.length === 0) { clearTimeout(timeout); setTimeout(resolve, 500); return; }
+
+                    let loadedCount = 0;
+                    const checkImages = () => { if (loadedCount === images.length) { clearTimeout(timeout); setTimeout(resolve, 500); } };
+
+                    images.forEach(img => {
+                        if (img.complete) { loadedCount++; } 
+                        else { img.onload = () => { loadedCount++; checkImages(); }; img.onerror = () => { loadedCount++; checkImages(); }; }
+                    });
+                    checkImages();
+                });
+                
+                const canvas = await html2canvas(iframe.contentWindow.document.body, { scale: 2, useCORS: true, logging: false });
+
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+                
+                const marginY = 20; const marginX = 10;
+                const pdfWidth = pdf.internal.pageSize.getWidth() - marginX * 2;
+                const pdfHeight = pdf.internal.pageSize.getHeight() - marginY * 2;
+
+                const ratio = canvas.width / pdfWidth;
+                const scaledCanvasHeight = canvas.height / ratio;
+                
+                let position = 0;
+                pdf.addImage(imgData, 'PNG', marginX, marginY, pdfWidth, scaledCanvasHeight);
+                let heightLeft = scaledCanvasHeight - pdfHeight;
+
+                while (heightLeft > 0) {
+                    position -= pdfHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', marginX, position + marginY, pdfWidth, scaledCanvasHeight);
+                    heightLeft -= pdfHeight;
+                }
+                
+                pdf.save(\`\${fileToExport.title}.pdf\`);
+                showToast("PDFファイルをエクスポートしました", "success");
+
+            } catch (err) {
+                console.error("PDF generation error: ", err);
+                showToast(\`PDFの生成に失敗しました: \${err.message}\`, "error");
+            } finally {
+                document.body.removeChild(iframe);
+                setButtonLoading(exportPdfBtn, exportPdfBtnText, exportPdfSpinner, false, "PDFで保存");
+                closeExportModal();
+            }
+        };
+
+        const renderPagination = (totalItems, totalPages) => {
+            paginationControls.innerHTML = '';
+            const baseTotal = showBookmarkedOnly ? fileDatabase.filter(f => bookmarkedIds.has(f.id)).length : fileDatabase.length;
+            itemCountEl.textContent = \`ヒット: \${totalItems} 件 / 全体: \${baseTotal} 件\`;
+            if (totalPages <= 1) { return; }
+            const startItem = (currentPage - 1) * itemsPerPage + 1;
+            const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+            itemCountEl.textContent = \`\${startItem}-\${endItem} / \${totalItems} 件\`;
+            
+            const firstPrevDisabled = currentPage === 1 ? 'disabled' : '';
+            const lastNextDisabled = currentPage === totalPages ? 'disabled' : '';
+
+            paginationControls.innerHTML = \`
+                <button id="firstPageBtn" class="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed" \${firstPrevDisabled}>&lt;&lt;<\/button>
+                <button id="prevPageBtn" class="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed" \${firstPrevDisabled}>&lt;<\/button>
+                <span class="text-sm">Page<\/span>
+                <input type="number" id="pageInput" min="1" max="\${totalPages}" value="\${currentPage}" class="w-12 text-center border rounded-md p-1">
+                <span class="text-sm">of \${totalPages}<\/span>
+                <button id="nextPageBtn" class="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed" \${lastNextDisabled}>&gt;<\/button>
+                <button id="lastPageBtn" class="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed" \${lastNextDisabled}>&gt;&gt;<\/button>
+            \`;
+            
+            const pageInput = getEl('pageInput');
+            const goToPage = (page) => { currentPage = Math.max(1, Math.min(totalPages, page)); renderList(); };
+            getEl('firstPageBtn').addEventListener('click', () => goToPage(1));
+            getEl('prevPageBtn').addEventListener('click', () => goToPage(currentPage - 1));
+            getEl('nextPageBtn').addEventListener('click', () => goToPage(currentPage + 1));
+            getEl('lastPageBtn').addEventListener('click', () => goToPage(totalPages));
+            pageInput.addEventListener('change', () => goToPage(parseInt(pageInput.value, 10)));
+        }
+
+        const renderList = async () => {
+            let filesToRender = fileDatabase;
+            if (showBookmarkedOnly) {
+                filesToRender = fileDatabase.filter(file => bookmarkedIds.has(file.id));
+            }
+
+            const term = search.value.toLowerCase().trim();
+            
+            let searchResults = [];
+
+            if (!term) {
+                searchResults = filesToRender;
+            } else {
+                 listContainer.innerHTML = \`<div class="flex items-center justify-center h-full"><div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div><p class="ml-4 text-gray-600">検索中...</p></div>\`;
+                 await new Promise(resolve => setTimeout(resolve, 50)); 
+                 
+                for (const f of filesToRender) {
+                    if ((f.title || '').toLowerCase().includes(term)) {
+                        searchResults.push(f);
+                        continue;
+                    }
+
+                    let contentToSearch = f.content;
+                    if (f.isChunked && !contentToSearch) {
+                        const chunksQuery = query(collection(db, "contentChunks"), where("postId", "==", f.id));
+                        const chunksSnapshot = await getDocs(chunksQuery);
+                        const chunks = chunksSnapshot.docs.map(d => d.data()).sort((a, b) => a.index - b.index);
+                        contentToSearch = chunks.map(c => c.data).join('');
+                        f.content = contentToSearch; // Cache it
+                    }
+                    
+                    if ((contentToSearch || '').toLowerCase().includes(term)) {
+                        searchResults.push(f);
+                    }
+                }
+            }
+            currentFilteredFiles = searchResults;
+
+            currentFilteredFiles.sort((a, b) => {
+                const key = currentSort.key;
+                const order = currentSort.order === 'asc' ? 1 : -1;
+                let valA = a[key], valB = b[key];
+                if (key === 'createdAt' && valA?.toDate) valA = valA.toDate().toISOString();
+                if (key === 'createdAt' && valB?.toDate) valB = valB.toDate().toISOString();
+                valA = valA || ''; valB = valB || '';
+                if (valA < valB) return -1 * order;
+                if (valA > valB) return 1 * order;
+                return 0;
+            });
+
+            const totalItems = currentFilteredFiles.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+
+            const paginatedItems = currentFilteredFiles.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+            listContainer.innerHTML = '';
+
+            if (totalItems > 0) {
+                paginatedItems.forEach(f => {
+                    const div = document.createElement('div');
+                    div.className = 'list-item p-3 flex justify-between items-center cursor-pointer hover:bg-gray-100 rounded-lg border-l-4 border-transparent';
+                    div.dataset.id = f.id;
+                    const isBookmarked = bookmarkedIds.has(f.id);
+                    const bookmarkIconHTML = isBookmarked
+                        ? \`<svg class="w-5 h-5 text-yellow-500 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>\`
+                        : \`<svg class="w-5 h-5 text-gray-400 hover:text-yellow-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118L2.98 9.11c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>\`;
+
+                    div.innerHTML = \`<div class="pointer-events-none pr-2 overflow-hidden flex-grow"><h3 class="font-semibold truncate" title="\${escapeHtml(f.title)}">\${escapeHtml(f.title)}</h3><p class="text-sm text-gray-500">\${f.date || '日付未設定'}</p></div>
+                    <div class="flex-shrink-0 flex items-center space-x-1">
+                         <button class="bookmark-btn-public p-2 rounded-full hover:bg-yellow-100" data-id="\${f.id}" title="ブックマーク">\${bookmarkIconHTML}</button>
+                         <button class="export-btn-public p-2 rounded-full hover:bg-gray-300" data-id="\${f.id}" title="エクスポート">
+                            <svg class="w-5 h-5 text-gray-500 hover:text-sky-600 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        </button>
+                    </div>\`;
+                    listContainer.appendChild(div);
+                });
+            } else {
+                listContainer.innerHTML = '<p class="text-gray-500 p-4 text-center">記事がありません。</p>';
+            }
+            renderPagination(totalItems, totalPages);
+        }
+
+        onSnapshot(query(collection(db, "posts")), snapshot => {
+            fileDatabase = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            renderList();
+            if (fileDatabase.length > 0) {
+                const firstId = currentFilteredFiles[0]?.id;
+                if(firstId) previewFile(firstId);
+            }
+        });
+
+        const toggleBookmarkPublic = (fileId) => {
+            if(bookmarkedIds.has(fileId)) {
+                bookmarkedIds.delete(fileId);
+                showToast('ブックマークを解除しました', 'success');
+            } else {
+                bookmarkedIds.add(fileId);
+                showToast('ブックマークしました', 'success');
+            }
+            saveBookmarks();
+            renderList();
+        };
+
+        listContainer.addEventListener('click', e => {
+            const exportBtn = e.target.closest('.export-btn-public');
+            const bookmarkBtn = e.target.closest('.bookmark-btn-public');
+            if(exportBtn){
+                openExportModal(exportBtn.dataset.id);
+                return;
+            }
+            if(bookmarkBtn){
+                toggleBookmarkPublic(bookmarkBtn.dataset.id);
+                return;
+            }
+            const listItem = e.target.closest('.list-item');
+            if (listItem) previewFile(listItem.dataset.id);
+        });
+        
+        cancelExportBtn.addEventListener('click', closeExportModal);
+        exportHtmlBtn.addEventListener('click', (e) => exportAsHtml(e.currentTarget.dataset.id));
+        exportPdfBtn.addEventListener('click', (e) => exportAsPdf(e.currentTarget.dataset.id));
+
+        bookmarkFilterBtn.addEventListener('click', () => {
+            showBookmarkedOnly = !showBookmarkedOnly;
+            bookmarkFilterBtn.classList.toggle('bg-yellow-400', showBookmarkedOnly);
+            bookmarkFilterBtn.classList.toggle('text-white', showBookmarkedOnly);
+            bookmarkFilterBtn.classList.toggle('bg-gray-200', !showBookmarkedOnly);
+            bookmarkFilterBtn.classList.toggle('text-gray-600', !showBookmarkedOnly);
+            currentPage = 1;
+            renderList();
+        });
+
+        const debounce = (func, delay) => {
+            let debounceTimer;
+            return function(...args) {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => func.apply(this, args), delay);
+            };
+        };
+
+        const debouncedSearchPublic = debounce(() => {
+            currentPage = 1;
+            renderList();
+            clearSearchBtn.classList.toggle('hidden', !search.value);
+        }, 500);
+
+        search.addEventListener('input', debouncedSearchPublic);
+
+        clearSearchBtn.addEventListener('click', () => { search.value = ''; clearSearchBtn.classList.add('hidden'); currentPage = 1; renderList(); search.focus(); });
+        sortKeySelect.addEventListener('change', e => { currentSort.key = e.target.value; currentPage = 1; renderList(); });
+        sortOrderSelect.addEventListener('change', e => { currentSort.order = e.target.value; currentPage = 1; renderList(); });
+
+        loadBookmarks();
+    <\/script>
+</body>
+</html>
+`;
+            publicPageCode.value = htmlTemplate.trim();
+            openModal(publicPageModal);
+        };
+
+        const resetForm = () => {
+            fileInput.value = '';
+            getEl('fileQueueContainer').classList.add('hidden');
+            getEl('selectedFilesList').innerHTML = '';
+            registerBtn.disabled = true;
+            registerBtnText.textContent = 'ファイルを選択してください';
+        };
+        const escapeHtml = (str) => { if (!str) return ''; const p = document.createElement('p'); p.textContent = str; return p.innerHTML; };
+        const setButtonLoading = (btn, textEl, spinnerEl, isLoading, text) => { 
+            btn.disabled = isLoading; 
+            if (textEl) textEl.textContent = text; 
+            if (spinnerEl) spinnerEl.classList.toggle('hidden', !isLoading); 
+        };
+        const showToast = (message, type = 'info') => {
+            toastMessage.textContent = message;
+            toast.className = 'fixed top-5 right-5 z-[100] text-white py-2 px-5 rounded-lg shadow-lg opacity-0 transform translate-y-2';
+            toast.classList.add({success:'bg-green-500',error:'bg-red-500',info:'bg-sky-500'}[type]);
+            toast.classList.remove('opacity-0', 'translate-y-2');
+            setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-2'); }, 3000);
+        };
+        const injectResponsiveStyles = (content) => {
+            const style = `<style>html, body { margin: 0; padding: 0; max-width: 100% !important; overflow-x: hidden !important; } img, iframe, video { max-width: 100% !important; height: auto !important; }</style>`;
+            return content.includes('</head>') ? content.replace('</head>', `${style}</head>`) : style + content;
+        };
+        
+        let debounceTimer;
+        const debounce = (func, delay) => {
+            return function(...args) {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => func.apply(this, args), delay);
+            };
+        };
+
+        function setupEventListeners() {
+            tabImport.addEventListener('click', () => switchTab('import'));
+            tabList.addEventListener('click', () => switchTab('list'));
+            fileInput.addEventListener('change', handleFileSelect);
+            registerBtn.addEventListener('click', handleRegister);
+            
+            fileListContainer.addEventListener('click', (event) => {
+                const target = event.target;
+                const exportButton = target.closest('.export-btn');
+                const deleteButton = target.closest('.delete-btn');
+                const editButton = target.closest('.edit-btn');
+                const bookmarkButton = target.closest('.bookmark-btn');
+                const listItem = target.closest('.list-item');
+
+                if (bookmarkButton) { toggleBookmark(bookmarkButton.dataset.id); }
+                else if (exportButton) { openExportModal(exportButton.dataset.id); }
+                else if (deleteButton) { openDeleteModal(deleteButton.dataset.id); }
+                else if (editButton) { openEditModal(editButton.dataset.id); }
+                else if (listItem) { previewFile(listItem.dataset.id); }
+            });
+
+            bookmarkFilterBtn.addEventListener('click', () => {
+                showBookmarkedOnly = !showBookmarkedOnly;
+                bookmarkFilterBtn.classList.toggle('bg-yellow-400', showBookmarkedOnly);
+                bookmarkFilterBtn.classList.toggle('text-white', showBookmarkedOnly);
+                bookmarkFilterBtn.classList.toggle('bg-gray-200', !showBookmarkedOnly);
+                bookmarkFilterBtn.classList.toggle('text-gray-600', !showBookmarkedOnly);
+                currentPage = 1;
+                renderFileList();
+            });
+            
+            generatePublicPageBtn.addEventListener('click', generatePublicPageCode);
+            closePublicPageModalBtn.addEventListener('click', () => closeModal(publicPageModal));
+            copyPublicPageCodeBtn.addEventListener('click', () => {
+                publicPageCode.select();
+                document.execCommand('copy');
+                showToast("コードをクリップボードにコピーしました", "success");
+            });
+
+            cancelExportBtn.addEventListener('click', closeExportModal);
+            exportHtmlBtn.addEventListener('click', (e) => exportAsHtml(e.currentTarget.dataset.id));
+            exportPdfBtn.addEventListener('click', (e) => exportAsPdf(e.currentTarget.dataset.id));
+            
+            const debouncedSearch = debounce(() => {
+                currentPage = 1; 
+                renderFileList();
+            }, 500);
+
+            searchInput.addEventListener('input', () => { 
+                debouncedSearch();
+                clearSearchBtn.classList.toggle('hidden', !searchInput.value);
+            });
+
+            clearSearchBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                clearSearchBtn.classList.add('hidden');
+                currentPage = 1;
+                renderFileList();
+                searchInput.focus();
+            });
+
+            sortKeySelect.addEventListener('change', (e) => { currentSort.key = e.target.value; currentPage = 1; renderFileList(); });
+            sortOrderSelect.addEventListener('change', (e) => { currentSort.order = e.target.value; currentPage = 1; renderFileList(); });
+
+            cancelDeleteBtn.addEventListener('click', closeDeleteModal);
+            confirmDeleteBtn.addEventListener('click', handleDeleteFile);
+            cancelEditBtn.addEventListener('click', closeEditModal);
+            saveEditBtn.addEventListener('click', handleSaveEdit);
+        }
+        
+        function initializeAppLogic() {
+            setupEventListeners();
+            loadInitialData();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
+            if (savedConfig) {
+                try {
+                    const config = JSON.parse(savedConfig);
+                    if (setupFirebase(config)) {
+                        initializeAppLogic();
+                    } else {
+                        localStorage.removeItem(CONFIG_STORAGE_KEY);
+                        openModal(configModal);
+                    }
+                } catch(e) {
+                    localStorage.removeItem(CONFIG_STORAGE_KEY);
+                    openModal(configModal);
+                }
+            } else {
+                openModal(configModal);
+            }
+        });
+    </script>
+</body>
+</html>
+

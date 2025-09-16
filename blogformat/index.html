@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブログ記事整形・イラスト自動生成ツール</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        .container {
+            max-width: 1024px; /* Max width for content */
+        }
+        textarea {
+            resize: vertical; /* Allow vertical resizing of textarea */
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Blinking animation for buttons during loading */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .is-loading {
+            animation: blink 1.2s linear infinite;
+        }
+        /* Make output preview content editable */
+        #outputPreview {
+            min-height: 300px;
+            padding: 1.5rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            background-color: #f9fafb;
+            overflow-y: auto; /* Enable scrolling for overflow content */
+            outline: none; /* Remove default outline on focus */
+        }
+        #outputPreview:focus {
+            border-color: #3b82f6; /* Blue border on focus */
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.45); /* Blue glow on focus */
+        }
+        /* Styling for strong tags (auto-highlighted words) */
+        #outputPreview strong, strong { /* Apply to preview and exported HTML */
+            font-weight: 700; /* Ensure strong is bold */
+            color: #1d4ed8; /* Darker blue for highlighted words */
+        }
+        /* Styling for headings inside editable div and exported HTML */
+        #outputPreview h1, h1 {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 0.5em;
+        }
+        #outputPreview h2, h2 {
+            font-size: 1.5em;
+            font-weight: 500;
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 1.5em;
+        }
+        @media (min-width: 640px) { /* sm */
+            #outputPreview h2, h2 { font-size: 1.8em; }
+        }
+
+        #outputPreview h3, h3 {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #4a5568;
+            margin-top: 1.5em;
+            margin-bottom: 0.8em;
+        }
+        #outputPreview p, p {
+            margin-bottom: 1em;
+            line-height: 1.6;
+            color: #374151; /* Darker gray for paragraph text */
+        }
+        #outputPreview img {
+            max-width: 80%; /* Default image size */
+            height: auto;
+            border-radius: 8px;
+            display: block; /* Ensure image is block level */
+            margin: 20px auto; /* Center image */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            transition: max-width 0.2s ease-in-out;
+        }
+        #outputPreview .image-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .style-button {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .style-button:not([disabled]):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .style-button[disabled] {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        /* Styling for links */
+        #outputPreview a, a {
+            color: #2563eb; /* Blue for links */
+            text-decoration: underline;
+        }
+
+        /* Modal styles for URL input */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 400px;
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .modal-input {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.25rem;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6 md:p-8 flex items-center justify-center min-h-screen">
+    <div class="container bg-white p-6 sm:p-8 rounded-lg shadow-xl w-full">
+        <h1 class="text-2xl sm:text-3xl font-bold text-center mb-6 text-gray-800">ブログ記事整形・イラスト自動生成ツール</h1>
+        
+        <!-- Main Content Area -->
+        <div id="createDocContent">
+            <!-- API Error Warning -->
+            <div id="apiErrorWarning" class="hidden text-center text-sm mb-4 p-3 rounded-md bg-yellow-100 text-yellow-800 border border-yellow-300"></div>
+
+            <!-- Input Area -->
+            <div class="mb-6">
+                <label for="textInput" class="block text-gray-700 text-sm font-semibold mb-2">
+                    文書をここに貼り付けてください:
+                </label>
+                <textarea id="textInput" rows="12"
+                          class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+                          placeholder="ブログの文章などを貼り付けます。 Markdown形式の見出し（#、##、###）も認識します。"></textarea>
+            </div>
+
+            <!-- Image Prompt Input -->
+            <div class="mb-4">
+                <label for="imagePromptInput" class="block text-gray-700 text-sm font-semibold mb-2">
+                    イラスト生成プロンプト (任意 - 空欄だとAIが生成):
+                </label>
+                <textarea id="imagePromptInput" rows="2"
+                          class="w-full p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-200"
+                          placeholder="例: 日本の春の桜と富士山、未来都市の風景"></textarea>
+            </div>
+
+            <!-- Main Action Buttons -->
+            <div class="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4 mb-6">
+                <button id="importButton"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-md shadow-md transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    レイアウト
+                </button>
+                <button id="exportHtmlButton"
+                        class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-md shadow-md transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                    HTMLとして出力/保存
+                </button>
+                <button id="clearButton"
+                        class="bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-md shadow-md transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                    クリア
+                </button>
+            </div>
+
+            <!-- Styling Controls -->
+            <div class="mb-6 bg-gray-100 p-4 rounded-md shadow-inner">
+                <p class="text-gray-700 text-sm font-semibold mb-3 text-center">選択したテキストのスタイルを変更:</p>
+                <div class="flex flex-wrap justify-center items-center gap-2">
+                    <!-- Text Color -->
+                    <button data-command="foreColor" data-value="red" class="style-button text-red-600 border border-red-300 hover:bg-red-100 px-3 py-1 rounded-md text-xs">赤色</button>
+                    <button data-command="foreColor" data-value="blue" class="style-button text-blue-600 border border-blue-300 hover:bg-blue-100 px-3 py-1 rounded-md text-xs">青色</button>
+                    <button data-command="foreColor" data-value="green" class="style-button text-green-600 border border-green-300 hover:bg-green-100 px-3 py-1 rounded-md text-xs">緑色</button>
+                    <button data-command="backColor" data-value="yellow" class="style-button bg-yellow-300 hover:bg-yellow-400 text-gray-800 px-3 py-1 rounded-md text-xs">ハイライト</button>
+                    <button data-command="bold" class="style-button font-bold bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded-md text-xs">太字</button>
+                    <button data-command="createLink" class="style-button bg-blue-400 hover:bg-blue-500 text-white px-3 py-1 rounded-md text-xs">リンク挿入</button>
+                    <button data-command="fontSize" data-value="3" class="style-button px-3 py-1 rounded-md text-xs">小</button>
+                    <button data-command="fontSize" data-value="4" class="style-button px-3 py-1 rounded-md text-sm">中</button>
+                    <button data-command="fontSize" data-value="5" class="style-button px-3 py-1 rounded-md text-base">大</button>
+                    <button data-command="fontName" data-value="Inter, sans-serif" class="style-button px-3 py-1 rounded-md text-xs" style="font-family: 'Inter', sans-serif;">Inter</button>
+                    <button data-command="fontName" data-value="serif" class="style-button px-3 py-1 rounded-md text-xs" style="font-family: serif;">Serif</button>
+                    <button data-command="fontName" data-value="monospace" class="style-button px-3 py-1 rounded-md text-xs" style="font-family: monospace;">Monospace</button>
+                </div>
+            </div>
+
+            <!-- Loading Indicator and Messages -->
+            <div id="loadingIndicator" class="flex justify-center items-center my-4 hidden">
+                <div class="loading-spinner mr-3"></div>
+                <span class="text-gray-600">処理中... しばらくお待ちください。</span>
+            </div>
+            <div id="messageBox" class="text-center text-sm mb-4"></div>
+
+            <!-- Output Preview Area -->
+            <div class="bg-gray-50 p-4 sm:p-6 border border-gray-200 rounded-md min-h-[300px] overflow-auto" id="outputPreview" contenteditable="true">
+                <p class="text-gray-500 text-center">整形された文書と生成されたイラストがここに表示されます。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- URL Input Modal -->
+    <div id="urlInputModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 class="text-lg font-bold mb-4 text-gray-800">リンクのURLを入力してください</h3>
+            <input type="url" id="urlInputField" class="modal-input" placeholder="例: https://www.example.com">
+            <div class="modal-buttons">
+                <button id="urlInsertButton" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-md text-sm">挿入</button>
+                <button id="urlCancelButton" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-md text-sm">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // DOM elements
+        const textInput = document.getElementById('textInput');
+        const imagePromptInput = document.getElementById('imagePromptInput');
+        const importButton = document.getElementById('importButton');
+        const exportHtmlButton = document.getElementById('exportHtmlButton');
+        const clearButton = document.getElementById('clearButton');
+        const outputPreview = document.getElementById('outputPreview');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const messageBox = document.getElementById('messageBox');
+        const apiErrorWarning = document.getElementById('apiErrorWarning');
+
+        // URL Input Modal Elements
+        const urlInputModal = document.getElementById('urlInputModal');
+        const urlInputField = document.getElementById('urlInputField');
+        const urlInsertButton = document.getElementById('urlInsertButton');
+        const urlCancelButton = document.getElementById('urlCancelButton');
+
+        let savedRange; // To store the text selection range for link insertion
+
+        // Global state variables
+        let globalMainTitle = '';
+        let globalSubTitle = '';
+        let globalFormattedBodyText = '';
+        let currentImagePrompt = '';
+        let imageHistory = [];
+        let currentImageIndex = -1;
+        let currentImageUrl = ''; 
+        let apiIsUnavailable = false; // **NEW**: Flag to track API availability
+
+        // --- Utility Functions ---
+        function displayMessage(message, type = 'info') {
+            messageBox.innerHTML = message;
+            messageBox.className = 'text-center text-sm mb-4'; // Reset classes
+            switch (type) {
+                case 'error':   messageBox.classList.add('text-red-600'); break;
+                case 'success': messageBox.classList.add('text-green-600'); break;
+                case 'warning': messageBox.classList.add('text-yellow-600'); break;
+                default:        messageBox.classList.add('text-blue-600'); break;
+            }
+        }
+
+        // **NEW**: Function to show a persistent API warning
+        function showApiWarning() {
+            apiErrorWarning.innerHTML = 'APIキーの問題により、AI機能（イラスト生成・文章解析）が利用できません。プレースホルダー画像を使用し、キーワード強調なしで処理します。';
+            apiErrorWarning.classList.remove('hidden');
+        }
+
+        function getCleanedHtmlContentForExport() {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = outputPreview.innerHTML;
+
+            const imageContainer = tempDiv.querySelector('#imageContainer');
+            if (imageContainer) {
+                 const controlsToRemove = [
+                    ...imageContainer.querySelectorAll('.image-controls-wrapper')
+                 ];
+                 controlsToRemove.forEach(el => el.remove());
+            }
+
+            const citationText = `<p style="text-align: center; margin-top: 2em; font-size: 0.9em; color: #555;">このブログは「政策リサーチ開発者のブログ」を引用したものとなります。</p>`;
+            tempDiv.innerHTML += citationText;
+            
+            const previewImage = outputPreview.querySelector('#previewImage');
+            const finalImageStyle = previewImage ? previewImage.style.cssText : "max-width: 80%;";
+
+
+            return `
+            <style>
+                body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f8f8f8; }
+                .document-container { max-width: 800px; margin: 20px auto; background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+                h1 { font-size: 2.5em; font-weight: 700; color: #2c3e50; text-align: center; margin-bottom: 0.5em; }
+                h2 { font-size: 1.8em; font-weight: 500; color: #667eea; text-align: center; margin-bottom: 1.5em; }
+                h3 { font-size: 1.2em; font-weight: 600; color: #4a5568; margin-top: 1.5em; margin-bottom: 0.8em; }
+                p { margin-bottom: 1em; }
+                img { ${finalImageStyle} height: auto; border-radius: 8px; display: block; margin: 20px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+                strong { font-weight: 700; color: #1d4ed8; }
+                a { color: #2563eb; text-decoration: underline; }
+                font[color="red"] { color: red; }
+                font[color="blue"] { color: blue; }
+                font[color="green"] { color: green; }
+                span[style*="background-color: yellow"] { background-color: yellow; }
+                font[size="3"] { font-size: small; }
+                font[size="4"] { font-size: medium; }
+                font[size="5"] { font-size: large; }
+                font[face="Inter, sans-serif"] { font-family: 'Inter', sans-serif; }
+                font[face="serif"] { font-family: serif; }
+                font[face="monospace"] { font-family: monospace; }
+            </style>
+            <div class="document-container">
+                ${tempDiv.innerHTML}
+            </div>
+            `;
+        }
+
+        async function renderOutputPreview(regenerateImage = false, navigateImage = 0, specificPrompt = null) {
+            loadingIndicator.classList.remove('hidden');
+            displayMessage(regenerateImage ? 'イラストを再生成中です...' : '文書を整形し、イラストを生成中です...', 'info');
+
+            let imageUrl = currentImageUrl;
+
+            if (regenerateImage) {
+                imageHistory = imageHistory.slice(0, currentImageIndex + 1);
+            } else if (navigateImage !== 0) {
+                currentImageIndex += navigateImage;
+                imageUrl = imageHistory[currentImageIndex];
+                currentImageUrl = imageUrl;
+            } else if (imageHistory.length > 0 && currentImageIndex !== -1) {
+                imageUrl = imageHistory[currentImageIndex];
+            }
+
+            let promptForThisGeneration = specificPrompt || currentImagePrompt;
+
+            if ((regenerateImage || imageHistory.length === 0) && promptForThisGeneration) {
+                // **FIX**: Graceful degradation for image generation
+                if (apiIsUnavailable) {
+                    imageUrl = `https://placehold.co/600x400/E2E8F0/4A5568?text=${encodeURIComponent(promptForThisGeneration)}`;
+                    imageHistory.push(imageUrl);
+                    currentImageIndex = imageHistory.length - 1;
+                    currentImageUrl = imageUrl;
+                    displayMessage('APIキーの問題のため、プレースホルダー画像を表示します。', 'warning');
+                } else {
+                    try {
+                        const imagenPayload = { instances: { prompt: promptForThisGeneration }, parameters: { "sampleCount": 1 } };
+                        const apiKey = "";
+                        const imagenApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+                        
+                        const imagenResponse = await fetch(imagenApiUrl, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(imagenPayload)
+                        });
+
+                        if (!imagenResponse.ok) {
+                            if (imagenResponse.status === 401 || imagenResponse.status === 403) {
+                                apiIsUnavailable = true;
+                                showApiWarning();
+                                // Fallback to placeholder on first auth failure
+                                imageUrl = `https://placehold.co/600x400/E2E8F0/4A5568?text=${encodeURIComponent(promptForThisGeneration)}`;
+                                imageHistory.push(imageUrl);
+                                currentImageIndex = imageHistory.length - 1;
+                                currentImageUrl = imageUrl;
+                                displayMessage('APIキーの問題のため、プレースホルダー画像を表示します。', 'warning');
+                            } else {
+                                const errorText = await imagenResponse.text();
+                                console.error("Imagen API Error:", errorText);
+                                throw new Error(`イラスト生成APIリクエスト失敗 (ステータス: ${imagenResponse.status})`);
+                            }
+                        } else {
+                             const imagenResult = await imagenResponse.json();
+                             if (imagenResult.predictions && imagenResult.predictions[0]?.bytesBase64Encoded) {
+                                imageUrl = `data:image/png;base64,${imagenResult.predictions[0].bytesBase64Encoded}`;
+                                imageHistory.push(imageUrl);
+                                currentImageIndex = imageHistory.length - 1;
+                                currentImageUrl = imageUrl;
+                            } else {
+                                throw new Error('APIからの応答が予期せぬ形式です。');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error during image generation:', error);
+                        if (!apiIsUnavailable) { // Only show generic error if it's not the known API key issue
+                           displayMessage(error.message || 'イラストの生成中にエラーが発生しました。', 'error');
+                        }
+                        imageUrl = '';
+                        currentImageUrl = '';
+                    }
+                }
+            }
+            
+            let outputHtml = '';
+            if (globalMainTitle) outputHtml += `<h1>${globalMainTitle}</h1>`;
+            if (globalSubTitle) outputHtml += `<h2>${globalSubTitle}</h2>`;
+            outputHtml += `<div class="prose max-w-none leading-relaxed">${globalFormattedBodyText}</div>`;
+
+            if (imageUrl) {
+                 const currentSize = outputPreview.querySelector('#previewImage')?.style.maxWidth || '80%';
+                outputHtml += `
+                <div id="imageContainer" class="flex flex-col items-center justify-center mt-8 mb-4">
+                    <img src="${imageUrl}" id="previewImage" alt="${currentImagePrompt}" class="rounded-lg shadow-xl" style="max-width: ${currentSize};">
+                    <div class="image-controls-wrapper w-full max-w-lg mt-4 flex flex-col items-center gap-4">
+                         <div class="flex items-center justify-center w-full gap-2">
+                           <span class="text-sm text-gray-600">サイズ</span>
+                           <input type="range" id="imageSizeSlider" min="20" max="100" value="${parseInt(currentSize)}" class="w-full">
+                        </div>
+                        <div class="flex flex-wrap justify-center items-center gap-2">
+                            <input type="file" id="replaceImageInput" accept="image/*" class="hidden">
+                            <label for="replaceImageInput" class="style-button bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-3 rounded-md text-xs cursor-pointer">ファイルと入れ替え</label>
+                            <textarea id="repromptInput" rows="1" class="w-48 p-2 border border-gray-300 rounded-md text-sm" placeholder="新しいプロンプト"></textarea>
+                            <button id="repromptButton" class="style-button bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-3 rounded-md text-xs">再生成</button>
+                            <button id="deleteImageButton" class="style-button bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-3 rounded-md text-xs">イラスト削除</button>
+                        </div>
+                        <div class="image-controls">
+                            <button id="prevImageButton" class="style-button bg-gray-500 hover:bg-gray-600 text-white py-2 px-3 rounded-md text-xs" ${currentImageIndex <= 0 ? 'disabled' : ''}>← 前のイラスト</button>
+                            <button id="nextImageButton" class="style-button bg-gray-500 hover:bg-gray-600 text-white py-2 px-3 rounded-md text-xs" ${currentImageIndex >= imageHistory.length - 1 ? 'disabled' : ''}>次のイラスト →</button>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            outputPreview.innerHTML = outputHtml;
+            attachPreviewListeners();
+            
+            loadingIndicator.classList.add('hidden');
+            if (!apiIsUnavailable) {
+                if (regenerateImage || navigateImage !== 0) {
+                     displayMessage('イラストを更新しました。', 'success');
+                } else {
+                     displayMessage('文書が整形され、イラストが生成されました！', 'success');
+                }
+            }
+        }
+
+        function attachPreviewListeners() {
+            const repromptButton = document.getElementById('repromptButton');
+            const repromptInput = document.getElementById('repromptInput');
+            if (repromptButton && repromptInput) {
+                repromptInput.value = currentImagePrompt.replace(' ポップアップなイメージでデザインする', '').replace('文書のテーマに合わせた関連イラスト', '');
+                repromptButton.addEventListener('click', async () => {
+                    const newPrompt = repromptInput.value.trim();
+                    if (newPrompt) {
+                        currentImagePrompt = newPrompt;
+                        repromptButton.classList.add('is-loading'); // Add blinking effect
+                        repromptButton.disabled = true;
+                        await renderOutputPreview(true, 0, newPrompt);
+                    } else {
+                        displayMessage('再生成用のプロンプトを入力してください。', 'warning');
+                    }
+                });
+            }
+
+            const prevImageButton = document.getElementById('prevImageButton');
+            if (prevImageButton) prevImageButton.addEventListener('click', () => renderOutputPreview(false, -1));
+            
+            const nextImageButton = document.getElementById('nextImageButton');
+            if (nextImageButton) nextImageButton.addEventListener('click', () => renderOutputPreview(false, 1));
+
+            const replaceImageInput = document.getElementById('replaceImageInput');
+            if (replaceImageInput) {
+                replaceImageInput.addEventListener('change', (event) => {
+                    const file = event.target.files[0];
+                    if (file?.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            currentImageUrl = e.target.result;
+                            imageHistory = imageHistory.slice(0, currentImageIndex + 1);
+                            imageHistory.push(currentImageUrl);
+                            currentImageIndex = imageHistory.length - 1;
+                            renderOutputPreview(false);
+                            displayMessage('イラストを外部ファイルと入れ替えました！', 'success');
+                        };
+                        reader.onerror = () => displayMessage('画像の読み込みに失敗しました。', 'error');
+                        reader.readAsDataURL(file);
+                    } else if (file) {
+                        displayMessage('有効な画像ファイルを選択してください。', 'warning');
+                    }
+                });
+            }
+            
+            const imageSizeSlider = document.getElementById('imageSizeSlider');
+            const previewImage = document.getElementById('previewImage');
+            if (imageSizeSlider && previewImage) {
+                imageSizeSlider.addEventListener('input', (e) => {
+                    previewImage.style.maxWidth = `${e.target.value}%`;
+                });
+            }
+            
+            const deleteImageButton = document.getElementById('deleteImageButton');
+            if (deleteImageButton) {
+                deleteImageButton.addEventListener('click', () => {
+                    const imageContainer = document.getElementById('imageContainer');
+                    if(imageContainer) {
+                        imageContainer.remove();
+                    }
+                    currentImageUrl = '';
+                    imageHistory = [];
+                    currentImageIndex = -1;
+                    currentImagePrompt = '';
+                    displayMessage('イラストを削除しました。', 'success');
+                });
+            }
+        }
+
+        importButton.addEventListener('click', async () => {
+            const inputText = textInput.value.trim();
+            if (!inputText) {
+                displayMessage('テキスト入力欄に文書を貼り付けてください。', 'error');
+                return;
+            }
+
+            outputPreview.innerHTML = '';
+            loadingIndicator.classList.remove('hidden');
+            displayMessage('文書を解析し、イラスト生成用のプロンプトを作成中...', 'info');
+
+            let lines = inputText.split('\n');
+            globalMainTitle = '';
+            globalSubTitle = '';
+            let contentLines = [];
+            
+            let mainTitleFound = false, subTitleFound = false;
+            for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (trimmedLine.startsWith('# ') && !mainTitleFound) {
+                    globalMainTitle = trimmedLine.substring(2).trim();
+                    mainTitleFound = true;
+                } else if (trimmedLine.startsWith('## ') && !subTitleFound) {
+                    globalSubTitle = trimmedLine.substring(3).trim();
+                    subTitleFound = true;
+                } else {
+                    contentLines.push(line);
+                }
+            }
+            if (!globalMainTitle && contentLines.length > 0) {
+                const firstMeaningfulLineIndex = contentLines.findIndex(l => l.trim() !== '');
+                if (firstMeaningfulLineIndex !== -1) {
+                    globalMainTitle = contentLines[firstMeaningfulLineIndex].trim();
+                    contentLines.splice(firstMeaningfulLineIndex, 1);
+                }
+            }
+            const rawBodyText = contentLines.join('\n');
+
+            try {
+                let aiGeneratedImagePromptBase = "文書のテーマに合わせた関連イラスト";
+                let highlightWords = [];
+
+                // **FIX**: Graceful degradation for text analysis
+                if (!apiIsUnavailable) {
+                    try {
+                        const summaryAndHighlightPrompt = `以下のテキストの主なテーマを、イラスト生成に適した3〜5のキーワードまたは短いフレーズで要約してください。また、テキストの中から特に重要と思われるキーワードや短いフレーズを5〜10個抽出し、JSON形式で出力してください。JSONのキーは"image_prompt"と"highlight_words"としてください。\n例: {"image_prompt": "日本の風景、春の桜、富士山", "highlight_words": ["桜", "富士山", "日本の美しさ"]}\nテキスト:\n\n${inputText}`;
+                        const geminiPayload = {
+                            contents: [{ role: "user", parts: [{ text: summaryAndHighlightPrompt }] }],
+                            generationConfig: {
+                                responseMimeType: "application/json",
+                                responseSchema: {
+                                    type: "OBJECT",
+                                    properties: { "image_prompt": { "type": "STRING" }, "highlight_words": { "type": "ARRAY", "items": { "type": "STRING" } } },
+                                    "propertyOrdering": ["image_prompt", "highlight_words"]
+                                }
+                            }
+                        };
+                        const apiKey = "";
+                        const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                        const geminiResponse = await fetch(geminiApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(geminiPayload) });
+
+                        if (!geminiResponse.ok) {
+                             if (geminiResponse.status === 401 || geminiResponse.status === 403) {
+                                apiIsUnavailable = true;
+                                showApiWarning();
+                            } else {
+                                throw new Error(`AI分析APIリクエスト失敗 (ステータス: ${geminiResponse.status})`);
+                            }
+                        } else {
+                            const geminiResult = await geminiResponse.json();
+                            if (geminiResult.candidates?.[0]?.content?.parts?.[0]) {
+                                const parsedJson = JSON.parse(geminiResult.candidates[0].content.parts[0].text);
+                                aiGeneratedImagePromptBase = parsedJson.image_prompt || aiGeneratedImagePromptBase;
+                                highlightWords = parsedJson.highlight_words || [];
+                                displayMessage(`AI提案プロンプト: "${aiGeneratedImagePromptBase}"`, 'info');
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Error during Gemini API call:", e);
+                        if (!apiIsUnavailable) { // Only show warning if it's not a known auth issue
+                           displayMessage('AI応答の解析に失敗。キーワード強調なしで処理します。', 'warning');
+                        }
+                    }
+                }
+
+                const userInputMainPrompt = imagePromptInput.value.trim();
+                currentImagePrompt = userInputMainPrompt || `${aiGeneratedImagePromptBase} ポップアップなイメージでデザインする`;
+                
+                globalFormattedBodyText = rawBodyText
+                    .split(/\n\s*\n/)
+                    .map(paragraph => {
+                        let trimmedParagraph = paragraph.trim();
+                        if (trimmedParagraph.startsWith('### ')) {
+                            return `<h3>${trimmedParagraph.substring(4)}</h3>`;
+                        } else if (trimmedParagraph.length > 0) {
+                            highlightWords.forEach(word => {
+                                const regex = new RegExp(`\\b(${word})\\b`, 'gi');
+                                trimmedParagraph = trimmedParagraph.replace(regex, '<strong>$1</strong>');
+                            });
+                            return `<p>${trimmedParagraph.replace(/\n/g, '<br>')}</p>`;
+                        }
+                        return '';
+                    }).join('');
+
+                imageHistory = [];
+                currentImageIndex = -1;
+                await renderOutputPreview(true);
+
+            } catch (error) {
+                console.error('Error during import process:', error);
+                displayMessage('エラーが発生しました: ' + error.message, 'error');
+                loadingIndicator.classList.add('hidden');
+            }
+        });
+        
+        exportHtmlButton.addEventListener('click', () => {
+            if (outputPreview.innerText.includes('整形された文書と生成されたイラストがここに表示されます。')) {
+                displayMessage('まず「レイアウト」ボタンで文書を作成してください。', 'error');
+                return;
+            }
+            const contentForExport = getCleanedHtmlContentForExport();
+            const htmlContent = `<!DOCTYPE html>\n<html lang="ja">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>${globalMainTitle || '整形された文書'}</title>\n    ${contentForExport}\n</head>\n<body>\n</body>\n</html>`;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${(globalMainTitle || 'formatted_document').replace(/[\s/\\?%*:|"<>]/g, '_')}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            displayMessage('HTMLファイルが保存されました！', 'success');
+        });
+
+        clearButton.addEventListener('click', () => {
+            textInput.value = '';
+            imagePromptInput.value = '';
+            outputPreview.innerHTML = '<p class="text-gray-500 text-center">整形された文書と生成されたイラストがここに表示されます。</p>';
+            messageBox.innerHTML = '';
+            apiErrorWarning.classList.add('hidden'); // Hide warning on clear
+            
+            globalMainTitle = '';
+            globalSubTitle = '';
+            globalFormattedBodyText = '';
+            currentImagePrompt = '';
+            imageHistory = [];
+            currentImageIndex = -1;
+            currentImageUrl = '';
+            apiIsUnavailable = false; // Reset API status
+            
+            displayMessage('入力と出力をクリアしました。', 'success');
+        });
+
+        document.querySelectorAll('.style-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const command = button.dataset.command;
+                const value = button.dataset.value;
+
+                if (!outputPreview.isContentEditable || outputPreview.innerText.includes('整形された文書')) {
+                     displayMessage('まず「レイアウト」ボタンを押して文書を編集可能な状態にしてください。', 'error');
+                     return;
+                }
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    savedRange = selection.getRangeAt(0);
+                } else {
+                    savedRange = null;
+                }
+                outputPreview.focus();
+                if (command === 'createLink') {
+                    if (savedRange && savedRange.toString().trim() !== "") {
+                        urlInputModal.classList.remove('hidden');
+                        urlInputField.value = 'https://';
+                        urlInputField.focus();
+                    } else {
+                        displayMessage('リンクを挿入するテキストを選択してください。', 'warning');
+                    }
+                } else {
+                    document.execCommand(command, false, value);
+                    outputPreview.focus();
+                }
+            });
+        });
+
+        urlInsertButton.addEventListener('click', () => {
+            const url = urlInputField.value.trim();
+            urlInputModal.classList.add('hidden');
+            if (url && savedRange) {
+                outputPreview.focus();
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(savedRange);
+                document.execCommand('createLink', false, url);
+                displayMessage(`リンクが挿入されました: ${url}`, 'success');
+            }
+            savedRange = null;
+        });
+
+        urlCancelButton.addEventListener('click', () => {
+            urlInputModal.classList.add('hidden');
+            displayMessage('リンク挿入をキャンセルしました。', 'info');
+            savedRange = null;
+        });
+    </script>
+</body>
+</html>
