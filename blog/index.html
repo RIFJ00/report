@@ -41,6 +41,13 @@
                         <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                         <button id="clearSearchBtn" class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hidden" title="クリア"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
                     </div>
+                     <div class="flex items-center space-x-2 mb-2 text-sm">
+                        <label for="searchScopePublic" class="text-gray-700 flex-shrink-0">検索範囲:</label>
+                        <select id="searchScopePublic" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5">
+                            <option value="all">タイトルと本文</option>
+                            <option value="title">タイトルのみ</option>
+                        </select>
+                    </div>
                     <div class="flex items-center space-x-2 mb-2 text-sm">
                         <select id="sortKey" class="bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5"><option value="date">日付</option><option value="title">タイトル</option><option value="createdAt">登録日</option></select>
                         <select id="sortOrder" class="bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5"><option value="desc">降順</option><option value="asc">昇順</option></select>
@@ -102,6 +109,7 @@
         const listContainer = getEl('list'), preview = getEl('preview'), search = getEl('search'), itemCountEl = getEl('itemCount'), paginationControls = getEl('pagination-controls'), sortKeySelect = getEl('sortKey'), sortOrderSelect = getEl('sortOrder'), clearSearchBtn = getEl('clearSearchBtn');
         const exportModal = getEl('exportModalPublic'), exportHtmlBtn = getEl('exportHtmlBtnPublic'), exportPdfBtn = getEl('exportPdfBtnPublic'), cancelExportBtn = getEl('cancelExportBtnPublic'), exportPdfBtnText = getEl('exportPdfBtnTextPublic'), exportPdfSpinner = getEl('exportPdfSpinnerPublic');
         const bookmarkFilterBtn = getEl('bookmarkFilterBtnPublic');
+        const searchScopeSelectPublic = getEl('searchScopePublic');
         const toast = getEl('toast'), toastMessage = getEl('toastMessage');
 
         let fileDatabase = [];
@@ -291,7 +299,7 @@
             }
         };
 
-        const renderPagination = (totalItems, totalPages) => {
+        function renderPagination(totalItems, totalPages) {
             paginationControls.innerHTML = '';
             const baseTotal = showBookmarkedOnly ? fileDatabase.filter(f => bookmarkedIds.has(f.id)).length : fileDatabase.length;
             itemCountEl.textContent = `ヒット: ${totalItems} 件 / 全体: ${baseTotal} 件`;
@@ -329,6 +337,7 @@
             }
 
             const term = search.value.toLowerCase().trim();
+            const searchScope = searchScopeSelectPublic.value;
             
             let searchResults = [];
 
@@ -339,7 +348,14 @@
                  await new Promise(resolve => setTimeout(resolve, 50)); 
                  
                 for (const f of filesToRender) {
-                    if ((f.title || '').toLowerCase().includes(term)) {
+                    const titleMatch = (f.title || '').toLowerCase().includes(term);
+
+                    if (searchScope === 'title') {
+                        if (titleMatch) searchResults.push(f);
+                        continue;
+                    }
+                    
+                    if (titleMatch) {
                         searchResults.push(f);
                         continue;
                     }
@@ -453,7 +469,7 @@
             currentPage = 1;
             renderList();
         });
-
+        
         const debounce = (func, delay) => {
             let debounceTimer;
             return function(...args) {
@@ -465,7 +481,6 @@
         const debouncedSearchPublic = debounce(() => {
             currentPage = 1;
             renderList();
-            clearSearchBtn.classList.toggle('hidden', !search.value);
         }, 500);
 
         search.addEventListener('input', debouncedSearchPublic);
@@ -473,6 +488,7 @@
         clearSearchBtn.addEventListener('click', () => { search.value = ''; clearSearchBtn.classList.add('hidden'); currentPage = 1; renderList(); search.focus(); });
         sortKeySelect.addEventListener('change', e => { currentSort.key = e.target.value; currentPage = 1; renderList(); });
         sortOrderSelect.addEventListener('change', e => { currentSort.order = e.target.value; currentPage = 1; renderList(); });
+        searchScopeSelectPublic.addEventListener('change', () => { currentPage = 1; renderList(); });
 
         loadBookmarks();
     </script>
