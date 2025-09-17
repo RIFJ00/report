@@ -92,7 +92,7 @@
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                 </button>
                             </div>
-                            <div class="flex items-center space-x-2 mb-2 text-sm">
+                             <div class="flex items-center space-x-2 mb-2 text-sm">
                                 <label for="searchScope" class="text-gray-700 flex-shrink-0">検索範囲:</label>
                                 <select id="searchScope" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5">
                                     <option value="all">タイトルと本文</option>
@@ -120,7 +120,7 @@
                                 <div id="itemCount" class="text-sm text-right text-gray-600"></div>
                             </div>
                         </div>
-                        <div id="fileListContainer" class="space-y-2 overflow-y-auto flex-grow min-h-0 pr-1">
+                        <div id="fileListContainer" class="space-y-1 overflow-y-auto flex-grow min-h-0 pr-1">
                             <div class="flex items-center justify-center h-full">
                                 <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div>
                             </div>
@@ -647,17 +647,27 @@
                      fileListContainer.innerHTML = `<p class="text-gray-500 p-4 text-center">該当する記事がありません。</p>`;
                  }
             } else {
-                const todayString = new Date().toISOString().slice(0, 10);
-                const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+                const today = new Date();
+                const todayString = today.toISOString().slice(0, 10);
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
                 const yesterdayString = yesterday.toISOString().slice(0, 10);
+                const dayBeforeYesterday = new Date(today);
+                dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2);
+                const dayBeforeYesterdayString = dayBeforeYesterday.toISOString().slice(0, 10);
 
                 paginatedFiles.forEach(file => {
                     const listItem = document.createElement('div');
-                    listItem.className = 'list-item border-l-4 border-transparent p-3 bg-gray-50 rounded-lg flex justify-between items-center transition-colors duration-200 cursor-pointer hover:bg-gray-200';
+                    listItem.className = 'list-item border-l-4 border-transparent p-2 bg-gray-50 rounded-lg flex justify-between items-center transition-colors duration-200 cursor-pointer hover:bg-gray-200';
                     listItem.dataset.id = file.id;
                     let dateClass = 'text-sm text-gray-500';
-                    if (file.date === todayString) dateClass = 'text-sm text-red-600 font-bold';
-                    else if (file.date === yesterdayString) dateClass = 'text-sm text-red-600';
+                    if (file.date === todayString) {
+                        dateClass = 'text-sm text-red-600 font-bold';
+                    } else if (file.date === yesterdayString) {
+                        dateClass = 'text-sm text-red-500';
+                    } else if (file.date === dayBeforeYesterdayString) {
+                        dateClass = 'text-sm text-red-400';
+                    }
 
                     const bookmarkIconHTML = file.isBookmarked
                         ? `<svg class="w-5 h-5 text-yellow-500 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>`
@@ -917,7 +927,7 @@
             const iframe = document.createElement('iframe');
             iframe.style.position = 'absolute';
             iframe.style.left = '-9999px';
-            iframe.style.width = '190mm'; 
+            iframe.style.width = '190mm'; // A4 width (210mm) - 10mm side margins * 2
             iframe.style.border = 'none';
             document.body.appendChild(iframe);
 
@@ -1106,7 +1116,7 @@
                         <div id="itemCount" class="text-sm text-right text-gray-600"></div>
                     </div>
                 </div>
-                <div id="list" class="space-y-2 overflow-y-auto flex-grow min-h-0 pr-1">
+                <div id="list" class="space-y-1 overflow-y-auto flex-grow min-h-0 pr-1">
                     <div class="flex items-center justify-center h-full"><div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div></div>
                 </div>
                 <div id="pagination-controls" class="flex-shrink-0 pt-3 border-t flex justify-center items-center space-x-2 text-gray-600"></div>
@@ -1440,16 +1450,34 @@
             listContainer.innerHTML = '';
 
             if (totalItems > 0) {
+                 const today = new Date();
+                const todayString = today.toISOString().slice(0, 10);
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayString = yesterday.toISOString().slice(0, 10);
+                const dayBeforeYesterday = new Date(today);
+                dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2);
+                const dayBeforeYesterdayString = dayBeforeYesterday.toISOString().slice(0, 10);
+
                 paginatedItems.forEach(f => {
                     const div = document.createElement('div');
-                    div.className = 'list-item p-3 flex justify-between items-center cursor-pointer hover:bg-gray-100 rounded-lg border-l-4 border-transparent';
+                    div.className = 'list-item p-2 flex justify-between items-center cursor-pointer hover:bg-gray-100 rounded-lg border-l-4 border-transparent';
                     div.dataset.id = f.id;
                     const isBookmarked = bookmarkedIds.has(f.id);
                     const bookmarkIconHTML = isBookmarked
                         ? \`<svg class="w-5 h-5 text-yellow-500 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>\`
                         : \`<svg class="w-5 h-5 text-gray-400 hover:text-yellow-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118L2.98 9.11c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>\`;
+                    
+                    let dateClass = 'text-sm text-gray-500';
+                    if (f.date === todayString) {
+                        dateClass = 'text-sm text-red-600 font-bold';
+                    } else if (f.date === yesterdayString) {
+                        dateClass = 'text-sm text-red-500';
+                    } else if (f.date === dayBeforeYesterdayString) {
+                        dateClass = 'text-sm text-red-400';
+                    }
 
-                    div.innerHTML = \`<div class="pointer-events-none pr-2 overflow-hidden flex-grow"><h3 class="font-semibold truncate" title="\${escapeHtml(f.title)}">\${escapeHtml(f.title)}</h3><p class="text-sm text-gray-500">\${f.date || '日付未設定'}</p></div>
+                    div.innerHTML = \`<div class="pointer-events-none pr-2 overflow-hidden flex-grow"><h3 class="font-semibold truncate" title="\${escapeHtml(f.title)}">\${escapeHtml(f.title)}</h3><p class="\${dateClass}">\${f.date || '日付未設定'}</p></div>
                     <div class="flex-shrink-0 flex items-center space-x-1">
                          <button class="bookmark-btn-public p-2 rounded-full hover:bg-yellow-100" data-id="\${f.id}" title="ブックマーク">\${bookmarkIconHTML}</button>
                          <button class="export-btn-public p-2 rounded-full hover:bg-gray-300" data-id="\${f.id}" title="エクスポート">

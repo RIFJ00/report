@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -219,35 +220,56 @@
             paginationControls.appendChild(createButton('<i class="fas fa-chevron-right"></i>', currentPage + 1, currentPage === totalPages));
         }
         function createTableRow(item) {
-             const row = document.createElement('tr');
-             row.className = 'hover:bg-gray-50 transition-colors duration-150';
-             const date = item['日付'] || '';
-             let displayTitle = (item['タイトル名'] || 'タイトルなし')
-                 .replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>')
-                 .replace(/(\[会議日: [^\]]+\])/g, '<span class="text-gray-500 font-normal ml-2">$1</span>');
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-gray-50 transition-colors duration-150';
+            const date = item['日付'] || '';
+            let displayTitle = (item['タイトル名'] || 'タイトルなし')
+                .replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>')
+                .replace(/(\[会議日: [^\]]+\])/g, '<span class="text-gray-500 font-normal ml-2">$1</span>');
 
-             let bikou = (item['備考'] || '').replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>');
-             const today = new Date().toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
-             let dateClass = (date === today) ? 'text-red-500 font-bold' : 'text-gray-900';
-             let titlePrefixHtml = '';
-             const url2 = String(item['URL2'] || '');
-             if (String(item['区分'] || '').trim() === '会議') {
-                 titlePrefixHtml = '<span class="inline-block bg-purple-100 text-purple-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">会議</span>';
-             } else if (url2) {
-                 titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>';
-             }
-             const audioIconHtml = item['URL1'] ? `<span data-src="${item['URL1']}" title="音声を再生" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : '';
-             const videoIconHtml = item['YouTube'] ? `<a href="${item['YouTube']}" target="_blank" rel="noopener noreferrer" title="動画を再生" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : '';
+            let bikou = (item['備考'] || '').replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>');
+            
+            // --- Date Color Logic ---
+            const getFormattedDate = (d) => d.toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
+            const today = new Date();
+            const todayStr = getFormattedDate(today);
+            
+            const yesterday = new Date();
+            yesterday.setDate(today.getDate() - 1);
+            const yesterdayStr = getFormattedDate(yesterday);
+            
+            const dayBefore = new Date();
+            dayBefore.setDate(today.getDate() - 2);
+            const dayBeforeStr = getFormattedDate(dayBefore);
 
-             row.innerHTML = `
-                 
-                 <td class="px-2 py-3 text-center"><input type="checkbox" class="bookmark-checkbox" data-id="${item.id}" ${item.isBookmarked ? 'checked' : ''}></td>
-                 <td class="px-2 py-3 text-sm"><p class="${dateClass}">${date}</p></td>
-                 <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-start">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" class="text-blue-600 hover:underline">${displayTitle}</a></div><p class="text-xs text-gray-500 mt-1">${bikou}</p></div></td>
-                 <td class="text-center">${videoIconHtml}</td>
-                 <td class="text-center">${audioIconHtml}</td>
-             `;
-             return row;
+            let dateClass = 'text-gray-900';
+            if (date === todayStr) {
+                dateClass = 'text-red-500 font-bold';
+            } else if (date === yesterdayStr) {
+                dateClass = 'text-red-500';
+            } else if (date === dayBeforeStr) {
+                dateClass = 'text-red-400';
+            }
+
+            let titlePrefixHtml = '';
+            const url2 = String(item['URL2'] || '');
+            if (String(item['区分'] || '').trim() === '会議') {
+                titlePrefixHtml = '<span class="inline-block bg-purple-100 text-purple-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">会議</span>';
+            } else if (url2) {
+                titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>';
+            }
+            const audioIconHtml = item['URL1'] ? `<span data-src="${item['URL1']}" title="音声を再生" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : '';
+            const videoIconHtml = item['YouTube'] ? `<a href="${item['YouTube']}" target="_blank" rel="noopener noreferrer" title="動画を再生" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : '';
+
+            row.innerHTML = `
+                
+                <td class="px-2 py-3 text-center"><input type="checkbox" class="bookmark-checkbox" data-id="${item.id}" ${item.isBookmarked ? 'checked' : ''}></td>
+                <td class="px-2 py-3 text-sm"><p class="${dateClass}">${date}</p></td>
+                <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-start">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" class="text-blue-600 hover:underline">${displayTitle}</a></div><p class="text-xs text-gray-500 mt-1">${bikou}</p></div></td>
+                <td class="text-center">${videoIconHtml}</td>
+                <td class="text-center">${audioIconHtml}</td>
+            `;
+            return row;
         }
         function filterData(data, query) {
             if (!query) return data;
