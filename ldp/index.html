@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自民党総裁選2025 統合分析ダッシュボード</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom scrollbar for better aesthetics */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+        /* Dynamic styles for active tabs and buttons */
+        .active-main-tab {
+            background-color: #334155; /* slate-800 */
+            color: white;
+        }
+        .policy-tab-btn.active-policy-tab {
+            background-color: #e2e8f0; /* slate-200 */
+            color: #1e293b; /* slate-800 */
+        }
+        .sns-tab-btn.active-sns-tab {
+            background-color: #e2e8f0; /* slate-200 */
+            color: #1e293b; /* slate-800 */
+        }
+        .candidate-select-btn.active-candidate, .sns-candidate-btn.active-candidate {
+            background-color: var(--candidate-color);
+            color: white;
+            border-color: var(--candidate-color);
+        }
+         .policy-select-btn.active-policy {
+            background-color: var(--policy-color);
+            color: white;
+            border-color: var(--policy-color);
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+    <div class="container mx-auto p-4 md:p-6 lg:p-8">
+        <!-- Header Section -->
+        <header class="text-center mb-8 bg-white p-6 rounded-2xl shadow-lg">
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
+                自民党総裁選2025 統合分析ダッシュボード
+            </h1>
+            <p class="text-slate-600">
+                候補者の政策とSNS上の動向を多角的に分析
+            </p>
+             <p class="text-xs text-slate-500 mt-2">分析期間: 2025年9月10日〜29日</p>
+        </header>
+
+        <!-- Main Tab Navigation -->
+        <div class="mb-6 bg-white p-2 rounded-xl shadow-md">
+            <nav id="main-tabs" class="flex justify-center space-x-2">
+                <button data-tab="policy" class="main-tab-btn active-main-tab flex-1 text-center px-4 py-3 font-semibold rounded-lg transition-all duration-300">
+                    政策比較分析
+                </button>
+                <button data-tab="sns" class="main-tab-btn flex-1 text-center px-4 py-3 font-semibold rounded-lg transition-all duration-300">
+                    SNS動向分析
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab Content Area -->
+        <main>
+            <div id="policy-content" class="tab-content">
+                <!-- Policy analysis content will be injected here -->
+            </div>
+            <div id="sns-content" class="tab-content hidden">
+                <!-- SNS analysis content will be injected here -->
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="text-center mt-8 text-sm text-slate-500">
+            <p>&copy; 2025 一般社団法人日本みらい研</p>
+        </footer>
+    </div>
+
+    <script>
+        // --- DATA STORE ---
+        // All data from the provided files is consolidated here.
+        const APP_DATA = {
+            // Data from ldp-leadership-analysis.tsx
+            policy: {
+                candidates: [
+                    { id: 'kobayashi', name: '小林鷹之', color: '#3b82f6' },
+                    { id: 'motegi', name: '茂木敏充', color: '#10b981' },
+                    { id: 'hayashi', name: '林芳正', color: '#8b5cf6' },
+                    { id: 'takaichi', name: '高市早苗', color: '#ef4444' },
+                    { id: 'koizumi', name: '小泉進次郎', color: '#f97316' }
+                ],
+                events: [
+                    {
+                        id: 'press-conf', date: '9月中旬', title: '出馬記者会見', type: '個別会見', summary: '各候補者が個別に出馬表明し、基本政策とビジョンを提示。',
+                        statements: {
+                            kobayashi: '「世界をリードする日本」の実現と世代交代を訴え、科学技術への大胆な国家投資を表明。',
+                            motegi: '「党は結党以来最大の危機」との認識を示し、実務経験を武器に党と経済の再生を約束。',
+                            hayashi: '「林プラン」を掲げ、経済成長と持続可能な社会保障の両立を目指す姿勢を明確化。',
+                            takaichi: '「強い国づくり」をビジョンとし、危機管理投資の拡大と経済安全保障の確立を主張。',
+                            koizumi: '「国民の声に寄り添う」ことを強調し、物価高対策を最優先課題として取り組むと宣言。'
+                        },
+                        candidateLinks: {
+                            kobayashi: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250923政策情報・RIFJ（自民党総裁候補所見・小林鷹之）.pdf',
+                            motegi: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250923政策情報・RIFJ（自民党総裁候補所見・茂木敏充）.pdf',
+                            hayashi: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250923政策情報・RIFJ（自民党総裁候補所見・林芳正.）pdf.pdf',
+                            takaichi: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250923政策情報・RIFJ（自民党総裁候補所見・高市早苗）.pdf',
+                            koizumi: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250923政策情報・RIFJ（自民党総裁候補所見・小泉進次郎）.pdf'
+                        }
+                    },
+                    {
+                        id: 'speech-0922', date: '2025/09/22', title: '所見発表演説会', type: '公式イベント', summary: '候補者5名が所見を発表。党再生、若者・中間層への配慮、防衛・経済安全保障が共通テーマ。',
+                        link: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250924政策情報・RIFJ（20250922自民党総裁選候補者所見発表演説会）.pdf',
+                        statements: {
+                            kobayashi: '古い自民党からの脱却と、実力主義に基づく党運営への改革を改めて訴えた。',
+                            motegi: '「結果を出すベストチーム」を組織するとし、具体的な数値目標（3年で年収1割増）を提示。',
+                            hayashi: '「秩序の中での進歩」を掲げ、リベラルから保守まで幅広い層への配慮をアピール。',
+                            takaichi: '日本の伝統と公平公正な社会を守るという保守色を鮮明にし、支持基盤に訴えかけた。',
+                            koizumi: '融和と挙党体制の重要性を説き、党内の違いより一致点を重視する姿勢を強調。'
+                        }
+                    },
+                    {
+                        id: 'joint-press-0923', date: '2025/09/23', title: '共同記者会見', type: '公式イベント', summary: '党再生、経済政策、外交安保、少子化対策を議論。ガソリン税廃止では全員一致。',
+                        link: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250924政策情報・RIFJ（20250923自民党総裁選候補者共同記者会見）.pdf',
+                        statements: {
+                            kobayashi: '中間層向けの定率減税を提案し、現役世代への支援を具体的に示した。',
+                            motegi: '数兆円規模の地方交付金創設を提案し、即効性のある経済対策をアピール。',
+                            hayashi: '日本版ユニバーサルクレジット導入に言及し、低中所得の子育て世帯支援を具体化。',
+                            takaichi: 'ガソリン暫定税率廃止を強く主張し、生活に直結する物価高対策を前面に出した。',
+                            koizumi: '基礎控除の見直しと物価連動を提案し、インフレに対応した経済運営への転換を主張。'
+                        }
+                    },
+                    {
+                        id: 'youth-women-0923', date: '2025/09/23', title: '青年局・女性局主催討論会', type: '公式イベント', summary: '若手・女性登用、世代交代、実力主義人事について活発な議論。',
+                        link: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250924政策情報・RIFJ（20250923自民党総裁選青年局女性局主催討論会）.pdf',
+                        statements: {
+                            kobayashi: '若手主導の党運営と実力主義人事の徹底を主張し、世代交代の旗手であることを強調。',
+                            motegi: '党役員の平均年齢10歳若返りや女性3割登用など、具体的な数値目標を掲げた。',
+                            hayashi: 'SNSを活用したデジタル国民対話の強化を訴え、若者との接点拡大を提案。',
+                            takaichi: '「政治は国民のもの」とし、全世代の力を結集する必要性を説いた。',
+                            koizumi: 'かつての「生の声プロジェクト」の再開を提案し、国民の声を聴く力の回復を訴えた。'
+                        }
+                    },
+                    {
+                        id: 'press-club-0924', date: '2025/09/24', title: '記者クラブ主催討論会', type: '公式イベント', summary: '物価高対策、エネルギー政策、連立政権のあり方など多角的に討論。',
+                        link: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250924政策情報・RIFJ（20250924自民党総裁選記者クラブ主催討論会）.pdf',
+                        statements: {
+                            kobayashi: 'エネルギー政策について、原発の新設・増設の必要性を改めて強調。',
+                            motegi: '連立政権について、他党との連携拡大も視野に入れる柔軟な姿勢を示した。',
+                            hayashi: '物価高対策として、中小企業支援とフリーランス保護の重要性を訴えた。',
+                            takaichi: 'エネルギー安全保障の確立を訴え、太陽光政策の見直しを提案。',
+                            koizumi: '連立については野党との幅広い対話を重視するべきだと慎重な姿勢を示した。'
+                        }
+                    },
+                    {
+                        id: 'akihabara-0924', date: '2025/09/24', title: '秋葉原街頭演説', type: '街頭演説', summary: '街頭演説で経済成長、安全保障、党改革を訴え。秋葉原で支援者に直接アピール。',
+                        link: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250924政策情報・RIFJ（20250924自民党総裁選秋葉原街頭演説）.pdf',
+                        statements: {
+                            kobayashi: '科学技術立国を掲げ、秋葉原の若者や技術者に支持を訴えた。',
+                            motegi: '経済再生の実績をアピールし、即戦力としてのリーダーシップを強調。',
+                            hayashi: 'コンテンツ産業の推進に言及し、日本のソフトパワー強化を訴えた。',
+                            takaichi: 'サイバーセキュリティや経済安保の重要性を説き、強い日本をアピール。',
+                            koizumi: '国民との対話を重視する姿勢を見せ、現場の声を聞く政治を約束。'
+                        }
+                    },
+                    {
+                        id: 'aichi-0926', date: '2025/09/26', title: '愛知演説会', type: '地方演説', summary: '愛知県で地方重視の姿勢を強調。ものづくり産業支援や地方創生を訴え。',
+                        link: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250926政策情報・RIFJ（20250926自民党総裁選愛知演説会）.pdf',
+                        statements: {
+                            kobayashi: '「令和の殖産興業」を掲げ、愛知のものづくり産業への支援を約束した。',
+                            motegi: '地方への大規模な財政支援策を説明し、地方経済の活性化を訴えた。',
+                            hayashi: 'サプライチェーンの強靭化と中小企業支援について、具体的な政策を語った。',
+                            takaichi: '日本の技術を守る経済安全保障の観点から、地方の重要性を強調した。',
+                            koizumi: '地方創生の必要性を訴え、防災庁設立の構想についても言及した。'
+                        }
+                    },
+                    {
+                        id: 'change-ldp-0927', date: '2025/09/27', title: '#変われ自民党（ひろゆき氏討論）', type: '特別討論', summary: 'ひろゆki氏との討論。ステマ問題、政治とカネ、移民政策など率直な議論。',
+                        link: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250927政策情報・RIFJ（20250927自民党総裁選%23変われ自民党）.pdf',
+                        statements: {
+                            kobayashi: '外国勢力による情報干渉への法整備の必要性を訴え、厳しい姿勢を示した。',
+                            motegi: '移民には反対の立場を明確にし、不法外国人ゼロを目指すと発言。',
+                            hayashi: 'SNS発信力の強化を改めて主張する一方、移民政策では規模や地域の分散が重要と述べた。',
+                            takaichi: 'ネット工作疑惑に対し反論。移民受け入れ政策はゼロベースで見直すべきと主張。',
+                            koizumi: 'SNS戦略の失敗を認めつつ、ルール遵守を前提とした外国人材受け入れの必要性に言及。'
+                        }
+                    },
+                    {
+                        id: 'students-0928', date: '2025/09/28', title: '中高生との討論会', type: '特別討論', summary: '中高生との対話。若者の関心に応え、財政教育、情報リテラシー、外交について議論。',
+                        link: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250928政策情報・RIFJ（20250928自民党総裁候補vs中高生日本の未来討論会）.pdf',
+                        statements: {
+                            kobayashi: '教育の重要性を説き、未来への投資として若者支援を強化すると述べた。',
+                            motegi: '自身の経験を交えながら、外交の重要性と交渉力について語った。',
+                            hayashi: '多様なキャリアパスの重要性を説き、若者が挑戦できる社会作りを約束。',
+                            takaichi: '情報リテラシー教育の必要性を強調し、正しい情報を見抜く力を養うべきと主張。',
+                            koizumi: '若者が「好きを追求できる国」を目指すと語り、未来への希望を訴えた。'
+                        }
+                    }
+                ],
+                policyAreas: [
+                    { id: 'party-reform', name: '党再生・信頼回復', icon: '🔄' },
+                    { id: 'economy', name: '経済政策・物価高対策', icon: '💰' },
+                    { id: 'foreign-security', name: '外交・安全保障', icon: '🛡️' },
+                    { id: 'demographics', name: '少子化・子育て支援', icon: '👶' },
+                    { id: 'energy', name: 'エネルギー政策', icon: '⚡' },
+                    { id: 'constitution', name: '憲法改正', icon: '📜' },
+                    { id: 'immigration', name: '外国人政策', icon: '🌏' },
+                    { id: 'education', name: '教育・若者支援', icon: '📚' }
+                ],
+                candidateData: {
+                    kobayashi: { pressConf: { vision: '「世界をリードする日本」実現、世代交代による党の刷新', keyPolicies: ['AI・宇宙・量子分野への大胆な国家投資', '中間層対象の期限付き定率減税', '防衛費増額、国家安全保障戦略の早期改定'], stance: '「穏健な保守」、古い自民党からの脱却' }, policies: { 'party-reform': '原点回帰・世代交代・若手主導の党運営、実力主義人事', 'economy': '中間層・現役世代への所得税改革、科学技術立国', 'foreign-security': '防衛費GDP比2%以上、インテリジェンス機関創設', 'demographics': '経済成長による所得向上、社会保険料負担軽減', 'energy': '原発新設・増設必須、再エネ重視政策見直し', 'constitution': '自衛隊明記・緊急事態条項創設を優先', 'immigration': '外国人政策厳格化、不法滞在厳格対処', 'education': '人づくり＝教育が日本再生の鍵、公教育充実' } },
+                    motegi: { pressConf: { vision: '自民党は結党以来最大の危機、党再生と経済再建', keyPolicies: ['数兆円規模の生活支援特別地方交付金創設', '企業の設備投資促進（即時一括償却）', '3年で国民年収1割増'], stance: '実務重視、結果を出すベストチーム' }, policies: { 'party-reform': '挙党体制、当選回数でなく実力主義、平均年齢10歳若返り', 'economy': '投資拡大による好循環、地方交付金、3年で年収50万円増', 'foreign-security': '交渉力と経験活かす、日米同盟基軸、防衛力強化', 'demographics': '日本版ヘックス拡大、結婚への経済的配慮', 'energy': '原発と再エネの組み合わせによるGX推進', 'constitution': '（具体的言及少ない）', 'immigration': '移民反対、不法外国人ゼロ、資格管理強化', 'education': '「エデュカティオ」（能力引き出す）が原点' } },
+                    hayashi: { pressConf: { vision: '「林プラン」：経済成長・持続可能な社会保障・党改革', keyPolicies: ['実質賃金1%上昇の定着', '日本版ユニバーサルクレジット導入', '中選挙区制度再検討'], stance: '秩序の中での進歩、守るべきは守り変えるべきは変える' }, policies: { 'party-reform': '組織・プロセス透明化、デジタル国民対話', 'economy': '実質賃金年1%アップ、中小企業支援', 'foreign-security': '日米同盟基軸、民主主義国連携、低重心な外交', 'demographics': 'ユニバーサルクレジット（低中所得子育て世帯支援）', 'energy': '（具体的言及は少ないが柔軟対応）', 'constitution': '（慎重姿勢）', 'immigration': '移民反対、改正入管法運用強化、スピード・規模重視', 'education': '公教育充実、分断防止、多様なキャリア支援' } },
+                    takaichi: { pressConf: { vision: '暮らしや未来への不安を夢と希望に変える、強い国づくり', keyPolicies: ['危機管理投資と成長投資の拡大', 'ガソリン暫定税率廃止', '経済・食料・エネルギー安全保障確立'], stance: '日本の伝統・公平公正な社会を守る' }, policies: { 'party-reform': '政治は国民のもの、若手・女性大胆登用', 'economy': '戦略的危機管理投資、官民連携成長投資', 'foreign-security': '日米同盟軸、防衛力強化、サイバー・経済安保重視', 'demographics': '給付付き税額控除、家事代行・シッター税控除', 'energy': '歪んだ太陽光政策転換、エネルギー安全保障確立', 'constitution': '憲法9条改正（自衛隊明記）最優先', 'immigration': '受け入れ政策ゼロベース見直し、不法滞在厳格対応', 'education': '情報リテラシー・比較検証教育充実' } },
+                    koizumi: { pressConf: { vision: '国民の中に再建の道がある、国民の声に寄り添う', keyPolicies: ['ガソリン暫定税率廃止など物価高対策最優先', '賃金100万円増目標（2030年）', '野党との幅広い対話重視'], stance: '融和・挙党体制、違いより一致点重視' }, policies: { 'party-reform': '国民の声を聴く力回復、生の声プロジェクト再開', 'economy': 'インフレ対応型経済運営転換、中小企業生産性向上', 'foreign-security': '強い日本・日米同盟・自由で開かれたインド太平洋が軸', 'demographics': '抜本的児童手当拡充、多様なライフプラン対応', 'energy': '（具体的言及少ない）', 'constitution': '（野党との合意形成重視）', 'immigration': 'ルール遵守、不法滞在・就労是正、司令塔（首相）主導', 'education': '自分の関心深められる環境、好きを追求できる国' } }
+                }
+            },
+            // Data from ldp_leadership_analysis.tsx
+            sns: {
+                 candidatesData: {
+                    koizumi: { name: '小泉進次郎', tweets: 792443, accounts: 472508, engagement: 1.68, impressions: 3000000000, color: '#f97316', keywords: [{ word: 'ステマ', count: 24472 }, { word: '問題', count: 14043 }, { word: '議員', count: 13525 }], analysis: { pattern: '遅発型・終盤集中（9/26-27急増）', stance: '完全な炎上状態', stealth: '圧倒的1位（24,472件）- 批判の中心', strategy: '失敗：最大リーチが全てネガティブに転化した' } },
+                    takaichi: { name: '高市早苗', tweets: 784320, accounts: 433392, engagement: 1.81, impressions: 2600000000, color: '#ef4444', keywords: [{ word: '大臣', count: 8683 }, { word: '小泉進次郎', count: 8521 }, { word: '自民党', count: 7344 }], analysis: { pattern: '二峰型（9/20, 9/23）', stance: '対抗勢力・政策重視', stealth: '13位（4,719件）- 小泉の1/5規模', strategy: '部分的成功：政策論維持、小泉との対比を活用' } },
+                    hayashi: { name: '林芳正', tweets: 106459, accounts: 88110, engagement: 1.21, impressions: 730000000, color: '#8b5cf6', keywords: [{ word: '政治', count: 14889 }, { word: '資金', count: 14202 }, { word: '週刊文春', count: 6195 }], analysis: { pattern: '終盤爆発型（9/28-29突然800%増）', stance: 'スキャンダル一色', stealth: 'Top25圏外 - 別軸の炎上', strategy: '完全失敗：政策発信ゼロ、週刊文春砲' } },
+                    motegi: { name: '茂木敏充', tweets: 98221, accounts: 85793, engagement: 1.14, impressions: 600000000, color: '#10b981', keywords: [{ word: '高市早苗', count: 2640 }, { word: '小泉進次郎', count: 1495 }, { word: '英語', count: 1303 }], analysis: { pattern: '低調継続', stance: '完全埋没', stealth: 'Top20圏外 - 議論の蚊帳の外', strategy: '不在：独自メッセージがなかった' } },
+                    kobayashi: { name: '小林鷹之', tweets: 48603, accounts: 45741, engagement: 1.06, impressions: 410000000, color: '#3b82f6', keywords: [{ word: '高市早苗', count: 1365 }, { word: '茂木敏充', count: 1345 }, { word: 'フォロワー', count: 1143 }], analysis: { pattern: '最低水準継続', stance: '完全埋没', stealth: 'Top20圏外 - 存在感ゼロ', strategy: '不在：全指標で最下位' } }
+                },
+                stealthComparisonData: [
+                    { name: '小泉進次郎', count: 24472 },
+                    { name: '高市早苗', count: 4719 },
+                    { name: '林芳正', count: 0 },
+                    { name: '茂木敏充', count: 0 },
+                    { name: '小林鷹之', count: 0 }
+                ],
+                metricsComparisonData: [
+                    { name: '小泉', tweets: 792, accounts: 473, engagement: 1.68, impressions: 30, color: '#f97316' },
+                    { name: '高市', tweets: 784, accounts: 433, engagement: 1.81, impressions: 26, color: '#ef4444' },
+                    { name: '林', tweets: 106, accounts: 88, engagement: 1.21, impressions: 7.3, color: '#8b5cf6' },
+                    { name: '茂木', tweets: 98, accounts: 86, engagement: 1.14, impressions: 6, color: '#10b981' },
+                    { name: '小林', tweets: 49, accounts: 46, engagement: 1.06, impressions: 4.1, color: '#3b82f6' }
+                ],
+                radarData: [
+                    { metric: 'ツイート数', koizumi: 100, takaichi: 99, hayashi: 13, motegi: 12, kobayashi: 6 },
+                    { metric: 'アカウント数', koizumi: 100, takaichi: 92, hayashi: 19, motegi: 18, kobayashi: 10 },
+                    { metric: 'リーチ', koizumi: 100, takaichi: 87, hayashi: 24, motegi: 20, kobayashi: 14 },
+                    { metric: 'エンゲージ', koizumi: 93, takaichi: 100, hayashi: 67, motegi: 63, kobayashi: 58 },
+                    { metric: '存在感', koizumi: 100, takaichi: 98, hayashi: 25, motegi: 15, kobayashi: 8 }
+                ],
+                 strategyRadarData: [
+                    { metric: 'メッセージ力', koizumi: 40, takaichi: 75, hayashi: 20, motegi: 40, kobayashi: 35 },
+                    { metric: '政策提示力', koizumi: 30, takaichi: 80, hayashi: 10, motegi: 50, kobayashi: 45 },
+                    { metric: 'メディア対応', koizumi: 90, takaichi: 85, hayashi: 30, motegi: 25, kobayashi: 15 },
+                    { metric: '支持基盤動員', koizumi: 85, takaichi: 90, hayashi: 20, motegi: 20, kobayashi: 15 },
+                    { metric: 'クリーン度', koizumi: 10, takaichi: 60, hayashi: 5, motegi: 80, kobayashi: 85 },
+                    { metric: 'SNS戦略', koizumi: 20, takaichi: 70, hayashi: 10, motegi: 15, kobayashi: 10 }
+                ]
+            }
+        };
+
+        // --- CHART RENDERING LOGIC ---
+        let charts = {}; // To hold chart instances
+
+        function destroyChart(chartId) {
+            if (charts[chartId]) {
+                charts[chartId].destroy();
+                delete charts[chartId];
+            }
+        }
+
+        function renderBarChart(canvasId, labels, datasets, options = {}) {
+            destroyChart(canvasId);
+            const ctx = document.getElementById(canvasId)?.getContext('2d');
+            if (!ctx) return;
+            charts[canvasId] = new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: datasets.length > 1 }, tooltip: { mode: 'index', intersect: false } },
+                    scales: { y: { beginAtZero: true } },
+                    ...options
+                }
+            });
+        }
+
+        function renderRadarChart(canvasId, labels, datasets, options = {}) {
+            destroyChart(canvasId);
+            const ctx = document.getElementById(canvasId)?.getContext('2d');
+            if (!ctx) return;
+             charts[canvasId] = new Chart(ctx, {
+                type: 'radar',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    elements: { line: { borderWidth: 3 } },
+                    scales: { r: { angleLines: { display: false }, suggestedMin: 0, suggestedMax: 100 } },
+                    ...options
+                }
+            });
+        }
+        
+        // --- UI RENDERING LOGIC ---
+
+        // Render Policy Analysis View
+        function renderPolicyView() {
+            const { candidates, events, policyAreas, candidateData } = APP_DATA.policy;
+            const container = document.getElementById('policy-content');
+            
+            // HTML structure for the policy view
+            container.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-lg">
+                    <div id="policy-tabs" class="flex border-b p-2 space-x-2">
+                        <button data-subtab="timeline" class="policy-tab-btn active-policy-tab flex-1 text-center px-4 py-2 font-semibold rounded-lg">時系列</button>
+                        <button data-subtab="candidates" class="policy-tab-btn flex-1 text-center px-4 py-2 font-semibold rounded-lg">候補者別</button>
+                        <button data-subtab="policies" class="policy-tab-btn flex-1 text-center px-4 py-2 font-semibold rounded-lg">政策課題別</button>
+                    </div>
+                    <div class="p-4 md:p-6">
+                        <div id="timeline-subcontent" class="policy-subcontent"></div>
+                        <div id="candidates-subcontent" class="policy-subcontent hidden"></div>
+                        <div id="policies-subcontent" class="policy-subcontent hidden"></div>
+                    </div>
+                </div>`;
+            
+            // Render initial sub-tab content
+            renderTimelineSubView();
+            renderCandidatesSubView();
+            renderPoliciesSubView();
+
+            // Add event listeners for sub-tabs
+            container.querySelectorAll('.policy-tab-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    container.querySelectorAll('.policy-tab-btn').forEach(b => b.classList.remove('active-policy-tab'));
+                    e.currentTarget.classList.add('active-policy-tab');
+                    
+                    container.querySelectorAll('.policy-subcontent').forEach(content => content.classList.add('hidden'));
+                    const subtab = e.currentTarget.dataset.subtab;
+                    document.getElementById(`${subtab}-subcontent`).classList.remove('hidden');
+                });
+            });
+        }
+
+        function renderTimelineSubView() {
+            const { events, candidates } = APP_DATA.policy;
+            const content = events.map(event => {
+                let statementsHtml = '';
+                if (event.statements) {
+                    const candidateStatements = Object.entries(event.statements).map(([candidateId, statement]) => {
+                        const candidate = candidates.find(c => c.id === candidateId);
+                        if (!candidate) return '';
+                        
+                        let candidateNameHtml = `<p class="font-bold text-sm text-slate-700">${candidate.name}</p>`;
+                        // Add link for press conference candidate
+                        if (event.candidateLinks && event.candidateLinks[candidateId]) {
+                            candidateNameHtml = `
+                                <a href="${event.candidateLinks[candidateId]}" target="_blank" rel="noopener noreferrer" class="font-bold text-sm text-slate-700 underline hover:text-blue-600 transition-colors">
+                                    ${candidate.name} <span class="text-xs">🔗</span>
+                                </a>`;
+                        }
+
+                        return `
+                            <div class="flex items-start gap-2 mt-2">
+                                <span class="w-4 h-4 rounded-full mt-1 flex-shrink-0" style="background-color: ${candidate.color}"></span>
+                                <div>
+                                    ${candidateNameHtml}
+                                    <p class="text-xs text-slate-600">${statement}</p>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    statementsHtml = `
+                        <details class="mt-3">
+                            <summary class="cursor-pointer text-sm font-semibold text-blue-600 hover:underline">
+                                候補者別の発言要旨を見る
+                            </summary>
+                            <div class="p-3 mt-2 bg-slate-50 rounded-lg border">
+                                ${candidateStatements}
+                            </div>
+                        </details>
+                    `;
+                }
+
+                const titleHtml = event.link 
+                    ? `<a href="${event.link}" target="_blank" rel="noopener noreferrer" class="underline hover:text-blue-600 transition-colors">${event.title} <span class="text-xs">🔗</span></a>`
+                    : event.title;
+
+                return `
+                    <div class="relative pl-8 pb-6 border-l-2 border-slate-200 last:border-0">
+                        <div class="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-blue-500 border-4 border-white"></div>
+                        <span class="text-xs bg-blue-100 text-blue-800 font-semibold px-2 py-1 rounded-full">${event.type}</span>
+                        <h3 class="text-lg font-bold text-slate-800 mt-1">${titleHtml}</h3>
+                        <p class="text-sm text-slate-500 mb-2">${event.date}</p>
+                        <p class="text-sm text-slate-600">${event.summary}</p>
+                        ${statementsHtml}
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('timeline-subcontent').innerHTML = `
+                <h2 class="text-2xl font-bold mb-4">📅 イベント時系列</h2>
+                <div class="max-h-[600px] overflow-y-auto custom-scrollbar pr-4">${content}</div>`;
+        }
+        
+        function renderCandidatesSubView() {
+            const { candidates } = APP_DATA.policy;
+            const buttons = candidates.map(c => `<button data-candidate-id="${c.id}" style="--candidate-color: ${c.color}" class="candidate-select-btn p-3 rounded-lg font-medium transition-all border-2 border-transparent">${c.name}</button>`).join('');
+            document.getElementById('candidates-subcontent').innerHTML = `
+                <h2 class="text-2xl font-bold mb-4">👥 候補者別政策</h2>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">${buttons}</div>
+                <div id="candidate-detail" class="bg-slate-50 rounded-lg p-4 min-h-[300px] flex items-center justify-center">
+                     <p class="text-slate-500">上記から候補者を選択してください</p>
+                </div>`;
+
+            document.querySelectorAll('.candidate-select-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.candidateId;
+                    document.querySelectorAll('.candidate-select-btn').forEach(b => b.classList.remove('active-candidate'));
+                    e.currentTarget.classList.add('active-candidate');
+                    displayCandidateDetail(id);
+                });
+            });
+        }
+
+        function displayCandidateDetail(candidateId) {
+            const { candidateData, policyAreas, candidates } = APP_DATA.policy;
+            const data = candidateData[candidateId];
+            const candidate = candidates.find(c => c.id === candidateId);
+            const detailContainer = document.getElementById('candidate-detail');
+
+            detailContainer.innerHTML = `
+                <div class="w-full max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                    <div class="bg-white p-4 rounded-lg shadow mb-4">
+                        <h3 class="font-bold text-lg mb-2" style="color: ${candidate.color}">🎯 出馬会見での主張</h3>
+                        <p class="text-sm font-semibold text-slate-600">ビジョン:</p>
+                        <p class="text-sm mb-2">${data.pressConf.vision}</p>
+                        <p class="text-sm font-semibold text-slate-600">主要政策:</p>
+                        <ul class="list-disc list-inside text-sm mb-2">${data.pressConf.keyPolicies.map(p => `<li>${p}</li>`).join('')}</ul>
+                        <p class="text-sm font-semibold text-slate-600">政治姿勢:</p>
+                        <p class="text-sm">${data.pressConf.stance}</p>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-lg mb-2" style="color: ${candidate.color}">📋 政策分野別の主張</h3>
+                        <div class="space-y-2">
+                            ${policyAreas.map(area => `
+                                <div class="bg-white p-3 rounded-lg shadow-sm">
+                                    <p class="font-semibold text-sm">${area.icon} ${area.name}</p>
+                                    <p class="text-xs text-slate-600 mt-1">${data.policies[area.id]}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>`;
+        }
+        
+        function renderPoliciesSubView() {
+            const { policyAreas } = APP_DATA.policy;
+            const buttons = policyAreas.map(p => `<button data-policy-id="${p.id}" style="--policy-color: #4f46e5" class="policy-select-btn p-3 rounded-lg font-medium transition-all border-2 border-transparent text-sm">${p.icon} ${p.name}</button>`).join('');
+             document.getElementById('policies-subcontent').innerHTML = `
+                <h2 class="text-2xl font-bold mb-4">📋 政策課題別比較</h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">${buttons}</div>
+                <div id="policy-comparison-detail" class="bg-slate-50 rounded-lg p-4 min-h-[300px] flex items-center justify-center">
+                    <p class="text-slate-500">上記から政策課題を選択してください</p>
+                </div>`;
+            
+             document.querySelectorAll('.policy-select-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.policyId;
+                    document.querySelectorAll('.policy-select-btn').forEach(b => b.classList.remove('active-policy'));
+                    e.currentTarget.classList.add('active-policy');
+                    displayPolicyComparison(id);
+                });
+            });
+        }
+        
+        function displayPolicyComparison(policyId) {
+            const { candidates, candidateData, policyAreas } = APP_DATA.policy;
+            const area = policyAreas.find(p => p.id === policyId);
+            const detailContainer = document.getElementById('policy-comparison-detail');
+
+            const comparisonContent = candidates.map(c => `
+                <div class="bg-white p-3 rounded-lg shadow-sm">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="w-3 h-3 rounded-full" style="background-color: ${c.color}"></span>
+                        <h4 class="font-bold text-sm">${c.name}</h4>
+                    </div>
+                    <p class="text-xs text-slate-600">${candidateData[c.id].policies[policyId]}</p>
+                </div>
+            `).join('');
+
+            detailContainer.innerHTML = `
+                 <div class="w-full max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                    <h3 class="font-bold text-lg mb-2">${area.icon} ${area.name}</h3>
+                    <div class="space-y-2">${comparisonContent}</div>
+                </div>`;
+        }
+
+        // Render SNS Analysis View
+        function renderSnsView() {
+            const container = document.getElementById('sns-content');
+            container.innerHTML = `
+                 <div class="bg-white rounded-2xl shadow-lg">
+                    <div id="sns-tabs" class="flex border-b p-2 space-x-1 md:space-x-2 overflow-x-auto">
+                        <button data-subtab="overview" class="sns-tab-btn active-sns-tab flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">📊 全体概要</button>
+                        <button data-subtab="candidates" class="sns-tab-btn flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">👥 候補者詳細</button>
+                        <button data-subtab="comparison" class="sns-tab-btn flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">⚖️ 比較分析</button>
+                        <button data-subtab="stealth" class="sns-tab-btn flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">🔍 ステマ分析</button>
+                        <button data-subtab="conclusion" class="sns-tab-btn flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">📝 総括</button>
+                    </div>
+                    <div class="p-4 md:p-6">
+                        <div id="overview-sns-subcontent" class="sns-subcontent"></div>
+                        <div id="candidates-sns-subcontent" class="sns-subcontent hidden"></div>
+                        <div id="comparison-sns-subcontent" class="sns-subcontent hidden"></div>
+                        <div id="stealth-sns-subcontent" class="sns-subcontent hidden"></div>
+                        <div id="conclusion-sns-subcontent" class="sns-subcontent hidden"></div>
+                    </div>
+                </div>
+            `;
+            
+            // Render initial sub-tab content and add listeners
+            renderSnsSubViews();
+            container.querySelectorAll('.sns-tab-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    container.querySelectorAll('.sns-tab-btn').forEach(b => b.classList.remove('active-sns-tab'));
+                    e.currentTarget.classList.add('active-sns-tab');
+                    
+                    container.querySelectorAll('.sns-subcontent').forEach(content => content.classList.add('hidden'));
+                    const subtab = e.currentTarget.dataset.subtab;
+                    document.getElementById(`${subtab}-sns-subcontent`).classList.remove('hidden');
+                    // Re-render charts on tab switch as canvas might have been hidden
+                    renderSnsSubViews();
+                });
+            });
+        }
+        
+        function renderSnsSubViews() {
+            // This function renders the content for EACH sns sub-tab.
+            // It's called on initial load and on tab switch to ensure charts are drawn correctly.
+            const { candidatesData, metricsComparisonData, stealthComparisonData, radarData, strategyRadarData } = APP_DATA.sns;
+
+            // Overview
+            document.getElementById('overview-sns-subcontent').innerHTML = `
+                <h2 class="text-2xl font-bold mb-4">📊 総裁選の全体像</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div class="bg-blue-50 p-4 rounded-lg text-center"><div class="text-3xl font-bold text-blue-600">160万</div><div class="text-sm text-slate-600">総ツイート数</div></div>
+                  <div class="bg-green-50 p-4 rounded-lg text-center"><div class="text-3xl font-bold text-green-600">87.7万</div><div class="text-sm text-slate-600">参加アカウント数</div></div>
+                  <div class="bg-purple-50 p-4 rounded-lg text-center"><div class="text-3xl font-bold text-purple-600">49億</div><div class="text-sm text-slate-600">想定最大インプレッション</div></div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-lg">
+                  <h3 class="font-bold text-lg mb-2">候補者別ツイート数（千単位）</h3>
+                  <div class="chart-container"><canvas id="overviewTweetsChart"></canvas></div>
+                </div>`;
+            renderBarChart('overviewTweetsChart', metricsComparisonData.map(d => d.name), [{
+                label: 'ツイート数 (千)',
+                data: metricsComparisonData.map(d => d.tweets),
+                backgroundColor: metricsComparisonData.map(d => d.color)
+            }]);
+
+            // Stealth Analysis
+            document.getElementById('stealth-sns-subcontent').innerHTML = `
+                 <h2 class="text-2xl font-bold text-slate-800 mb-4">🔍「ステマ」言及の詳細分析</h2>
+                 <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded mb-6 text-sm text-red-800">
+                    9月29日時点で、「ステマ」は小泉進次郎氏に関連する議論の中心的テーマとなっており、総ツイート数48,797件の約50%に関連していた可能性があります。
+                 </div>
+                 <div class="bg-slate-50 p-4 rounded-lg">
+                    <h3 class="font-bold text-lg mb-2">候補者別「ステマ」言及数</h3>
+                    <div class="chart-container"><canvas id="stealthChart"></canvas></div>
+                 </div>`;
+            renderBarChart('stealthChart', stealthComparisonData.map(d => d.name), [{
+                label: 'ステマ言及数',
+                data: stealthComparisonData.map(d => d.count),
+                backgroundColor: '#dc2626'
+            }]);
+
+            // Comparison
+            document.getElementById('comparison-sns-subcontent').innerHTML = `
+                <h2 class="text-2xl font-bold text-slate-800 mb-4">⚖️ 候補者比較分析</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-slate-50 p-4 rounded-lg">
+                        <h3 class="font-bold text-lg mb-2">総合力レーダーチャート</h3>
+                        <div class="chart-container h-[350px]"><canvas id="overallRadarChart"></canvas></div>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-lg">
+                        <h3 class="font-bold text-lg mb-2">政治戦略レーダーチャート</h3>
+                        <div class="chart-container h-[350px]"><canvas id="strategyRadarChart"></canvas></div>
+                    </div>
+                </div>`;
+            renderRadarChart('overallRadarChart', radarData.map(d => d.metric), [
+                { label: '小泉', data: radarData.map(d => d.koizumi), borderColor: '#f97316', backgroundColor: 'rgba(249, 115, 22, 0.2)' },
+                { label: '高市', data: radarData.map(d => d.takaichi), borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.2)' }
+            ]);
+            renderRadarChart('strategyRadarChart', strategyRadarData.map(d => d.metric), [
+                { label: '小泉', data: strategyRadarData.map(d => d.koizumi), borderColor: '#f97316', backgroundColor: 'rgba(249, 115, 22, 0.2)' },
+                { label: '高市', data: strategyRadarData.map(d => d.takaichi), borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.2)' },
+                { label: '林', data: strategyRadarData.map(d => d.hayashi), borderColor: '#8b5cf6', backgroundColor: 'rgba(139, 92, 246, 0.2)' }
+            ]);
+            
+            // Candidates detail
+            const candidateButtons = Object.entries(candidatesData).map(([key, data]) => 
+                `<button data-sns-candidate-id="${key}" style="--candidate-color: ${data.color}" class="sns-candidate-btn p-3 rounded-lg font-medium transition-all border-2 border-transparent">${data.name}</button>`
+            ).join('');
+            document.getElementById('candidates-sns-subcontent').innerHTML = `
+                <h2 class="text-2xl font-bold mb-4">👥 候補者詳細分析</h2>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">${candidateButtons}</div>
+                <div id="sns-candidate-detail" class="bg-slate-50 rounded-lg p-4 min-h-[300px] flex items-center justify-center">
+                    <p class="text-slate-500">上記から候補者を選択してください</p>
+                </div>`;
+            document.querySelectorAll('.sns-candidate-btn').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    const id = e.currentTarget.dataset.snsCandidateId;
+                    document.querySelectorAll('.sns-candidate-btn').forEach(b => b.classList.remove('active-candidate'));
+                    e.currentTarget.classList.add('active-candidate');
+                    displaySnsCandidateDetail(id);
+                });
+            });
+
+            // Conclusion
+            document.getElementById('conclusion-sns-subcontent').innerHTML = `
+                 <h2 class="text-2xl font-bold text-slate-800 mb-4">📝 分析総括</h2>
+                 <div class="space-y-4 text-sm md:text-base">
+                    <div class="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-500 p-4 rounded-lg">
+                        <h3 class="font-bold text-lg mb-2 text-red-800">「小泉陣営ステマ実行」による選挙戦の変質</h3>
+                        <p class="text-slate-700">ステマの発覚は小泉進次郎氏にとって破滅的だった可能性が高い。最大のリーチ（30億imp）が全てネガティブ文脈に転化した。</p>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-lg">
+                        <h3 class="font-bold text-lg mb-2">最終結論</h3>
+                        <p class="text-slate-700 leading-relaxed">
+                            2025年自民党総裁選のSNS空間は、<strong>「ステマと醜聞に支配された歪んだ議論空間」</strong>となってしまった。
+                            「民主主義の祭典」であるべき総裁選が「情報戦と炎上の場」に変質し、自民党ブランドへのダメージは避けられず、SNS時代の政治の病理が露呈した総裁選となっている。
+                        </p>
+                    </div>
+                 </div>`;
+        }
+
+        function displaySnsCandidateDetail(candidateId) {
+             const { candidatesData } = APP_DATA.sns;
+             const data = candidatesData[candidateId];
+             document.getElementById('sns-candidate-detail').innerHTML = `
+                <div class="w-full">
+                    <h3 class="text-2xl font-bold mb-4" style="color: ${data.color}">${data.name}</h3>
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4 text-center">
+                        <div><div class="text-2xl font-bold">${(data.tweets / 10000).toFixed(1)}万</div><div class="text-xs text-slate-500">ツイート数</div></div>
+                        <div><div class="text-2xl font-bold">${(data.accounts / 10000).toFixed(1)}万</div><div class="text-xs text-slate-500">アカウント数</div></div>
+                        <div><div class="text-2xl font-bold">${data.engagement}</div><div class="text-xs text-slate-500">エンゲージメント</div></div>
+                        <div><div class="text-2xl font-bold">${(data.impressions / 100000000).toFixed(0)}億</div><div class="text-xs text-slate-500">想定リーチ</div></div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div class="bg-white p-3 rounded-lg"><strong class="font-semibold">時系列パターン:</strong> ${data.analysis.pattern}</div>
+                        <div class="bg-white p-3 rounded-lg"><strong class="font-semibold">議論のスタンス:</strong> ${data.analysis.stance}</div>
+                        <div class="bg-white p-3 rounded-lg"><strong class="font-semibold">ステマ言及:</strong> ${data.analysis.stealth}</div>
+                        <div class="bg-white p-3 rounded-lg"><strong class="font-semibold">戦略評価:</strong> ${data.analysis.strategy}</div>
+                    </div>
+                </div>`;
+        }
+
+
+        // --- INITIALIZATION and EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Setup main tabs
+            const mainTabs = document.getElementById('main-tabs');
+            mainTabs.addEventListener('click', (e) => {
+                if (e.target.classList.contains('main-tab-btn')) {
+                    const tabName = e.target.dataset.tab;
+
+                    // Update button styles
+                    mainTabs.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.remove('active-main-tab'));
+                    e.target.classList.add('active-main-tab');
+
+                    // Show/hide content
+                    document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+                    document.getElementById(`${tabName}-content`).classList.remove('hidden');
+                    
+                    // Re-render views to ensure charts are drawn correctly if their container was hidden
+                    if (tabName === 'policy') renderPolicyView();
+                    if (tabName === 'sns') renderSnsView();
+                }
+            });
+
+            // Initial render
+            renderPolicyView();
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
