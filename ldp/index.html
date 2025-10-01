@@ -6,6 +6,7 @@
     <title>自民党総裁選2025 統合分析ダッシュボード</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <style>
         /* Custom scrollbar for better aesthetics */
         .custom-scrollbar::-webkit-scrollbar {
@@ -31,13 +32,15 @@
             background-color: #334155; /* slate-800 */
             color: white;
         }
-        .policy-tab-btn.active-policy-tab {
-            background-color: #e2e8f0; /* slate-200 */
-            color: #1e293b; /* slate-800 */
-        }
+        .policy-tab-btn.active-policy-tab,
         .sns-tab-btn.active-sns-tab {
             background-color: #e2e8f0; /* slate-200 */
             color: #1e293b; /* slate-800 */
+        }
+        .sim-subtab-btn.active-sim-subtab {
+            border-bottom-color: #4a5568;
+            color: #2d3748;
+            font-weight: 700;
         }
         .candidate-select-btn.active-candidate, .sns-candidate-btn.active-candidate {
             background-color: var(--candidate-color);
@@ -52,45 +55,69 @@
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800">
-    <div class="container mx-auto p-4 md:p-6 lg:p-8">
-        <!-- Header Section -->
-        <header class="text-center mb-8 bg-white p-6 rounded-2xl shadow-lg">
-            <h1 class="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
-                自民党総裁選2025 統合分析ダッシュボード
-            </h1>
-            <p class="text-slate-600">
-                候補者の政策とSNS上の動向を多角的に分析
-            </p>
-             <p class="text-xs text-slate-500 mt-2">分析期間: 2025年9月10日〜9月30日</p>
-        </header>
+    <div id="main-content">
+        <div class="container mx-auto p-4 md:p-6 lg:p-8">
+            <!-- Header Section -->
+            <header class="text-center mb-8 bg-white p-6 rounded-2xl shadow-lg">
+                <h1 class="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
+                    自民党総裁選2025 統合分析ダッシュボード
+                </h1>
+                <p class="text-slate-600">
+                    候補者の政策とSNS上の動向を多角的に分析
+                </p>
+                 <p class="text-xs text-slate-500 mt-2">分析期間: 2025年9月10日〜9月30日</p>
+            </header>
 
-        <!-- Main Tab Navigation -->
-        <div class="mb-6 bg-white p-2 rounded-xl shadow-md">
-            <nav id="main-tabs" class="flex justify-center space-x-2">
-                <button data-tab="policy" class="main-tab-btn active-main-tab flex-1 text-center px-4 py-3 font-semibold rounded-lg transition-all duration-300">
-                    政策比較分析
-                </button>
-                <button data-tab="sns" class="main-tab-btn flex-1 text-center px-4 py-3 font-semibold rounded-lg transition-all duration-300">
-                    SNS動向分析
-                </button>
-            </nav>
+            <!-- Main Tab Navigation -->
+            <div class="mb-6 bg-white p-2 rounded-xl shadow-md">
+                <nav id="main-tabs" class="flex justify-center space-x-2">
+                    <button data-tab="policy" class="main-tab-btn active-main-tab flex-1 text-center px-4 py-3 font-semibold rounded-lg transition-all duration-300">
+                        政策比較分析
+                    </button>
+                    <button data-tab="sns" class="main-tab-btn flex-1 text-center px-4 py-3 font-semibold rounded-lg transition-all duration-300">
+                        SNS動向分析
+                    </button>
+                    <button data-tab="simulation" class="main-tab-btn flex-1 text-center px-4 py-3 font-semibold rounded-lg transition-all duration-300">
+                        総裁選シミュレーション
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Tab Content Area -->
+            <main>
+                <div id="policy-content" class="tab-content">
+                    <!-- Policy analysis content will be injected here -->
+                </div>
+                <div id="sns-content" class="tab-content hidden">
+                    <!-- SNS analysis content will be injected here -->
+                </div>
+                <div id="simulation-content" class="tab-content hidden">
+                    <!-- Simulation content will be injected here -->
+                </div>
+            </main>
+
+            <!-- Footer -->
+            <footer class="text-center mt-8 text-sm text-slate-500">
+                <p>&copy; 2025 一般社団法人日本みらい研</p>
+            </footer>
         </div>
-
-        <!-- Tab Content Area -->
-        <main>
-            <div id="policy-content" class="tab-content">
-                <!-- Policy analysis content will be injected here -->
-            </div>
-            <div id="sns-content" class="tab-content hidden">
-                <!-- SNS analysis content will be injected here -->
-            </div>
-        </main>
-
-        <!-- Footer -->
-        <footer class="text-center mt-8 text-sm text-slate-500">
-            <p>&copy; 2025 一般社団法人日本みらい研</p>
-        </footer>
     </div>
+    
+    <!-- PDF Viewer Modal -->
+    <div id="pdf-viewer" class="fixed inset-0 bg-black bg-opacity-75 z-50 hidden p-4 sm:p-8">
+        <div class="bg-white w-full h-full rounded-lg shadow-2xl flex flex-col">
+            <div class="flex-shrink-0 p-3 border-b flex justify-between items-center">
+                <h2 id="pdf-title" class="text-lg font-bold text-slate-800 truncate pr-4">資料</h2>
+                <button onclick="hidePdf()" class="bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex-shrink-0">
+                    戻る
+                </button>
+            </div>
+            <div class="flex-grow bg-slate-200">
+                <iframe id="pdf-iframe" class="w-full h-full border-0" src=""></iframe>
+            </div>
+        </div>
+    </div>
+
 
     <script>
         // --- DATA STORE ---
@@ -190,7 +217,7 @@
                         }
                     },
                     {
-                        id: 'change-ldp-0927', date: '2025/09/27', title: '#変われ自民党（ひろゆき氏討論）', type: '特別討論', summary: 'ひろゆki氏との討論。ステマ問題、政治とカネ、移民政策など率直な議論。',
+                        id: 'change-ldp-0927', date: '2025/09/27', title: '#変われ自民党（ひろゆき氏討論）', type: '特別討論', summary: 'ひろゆき氏との討論。ステマ問題、政治とカネ、移民政策など率直な議論。',
                         link: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250927政策情報・RIFJ（20250927自民党総裁選%23変われ自民党）.pdf',
                         statements: {
                             kobayashi: '外国勢力による情報干渉への法整備の必要性を訴え、厳しい姿勢を示した。',
@@ -283,11 +310,89 @@
                     { metric: 'クリーン度', koizumi: 10, takaichi: 60, hayashi: 5, motegi: 80, kobayashi: 85 },
                     { metric: 'SNS戦略', koizumi: 20, takaichi: 70, hayashi: 10, motegi: 15, kobayashi: 10 }
                 ]
+            },
+            simulation: {
+                pollDetails: {
+                     sources: [
+                        { name: "ANN", general: {takaichi: 31.0, koizumi: 33.0, motegi: 5.0, hayashi: 14.0, kobayashi: 3.0}, ldp: {takaichi: 34.0, koizumi: 28.0, motegi: 4.0, hayashi: 17.0, kobayashi: 5.0} },
+                        { name: "日経新聞", general: {takaichi: 34.0, koizumi: 25.0, motegi: 5.0, hayashi: 14.0, kobayashi: 4.0}, ldp: {takaichi: 34.4, koizumi: 29.3, motegi: 5.2, hayashi: 19.5, kobayashi: 3.8} },
+                        { name: "日テレ(NNN)", general: {takaichi: 29.0, koizumi: 25.0, motegi: 7.0, hayashi: 6.0, kobayashi: 3.0}, ldp: {takaichi: 34.0, koizumi: 28.0, motegi: 4.0, hayashi: 17.0, kobayashi: 5.0} },
+                        { name: "産経新聞(FNN)", general: {takaichi: 28.3, koizumi: 25.7, motegi: 3.8, hayashi: 11.1, kobayashi: 4.0}, ldp: {takaichi: 24.0, koizumi: 31.0, motegi: 8.0, hayashi: 9.0, kobayashi: 6.0} },
+                        { name: "読売新聞", general: {takaichi: 27.0, koizumi: 22.0, motegi: 6.0, hayashi: 5.0, kobayashi: 3.0}, ldp: {takaichi: 25.0, koizumi: 40.0, motegi: 4.0, hayashi: 16.0, kobayashi: 5.0} },
+                        { name: "朝日新聞", general: {takaichi: 28.0, koizumi: 24.0, motegi: 4.0, hayashi: 9.0, kobayashi: 5.0}, ldp: {takaichi: 20.0, koizumi: 35.0, motegi: 8.0, hayashi: 11.0, kobayashi: 3.0} },
+                        { name: "NHK", general: {takaichi: 26.0, koizumi: 23.0, motegi: 7.0, hayashi: 6.0, kobayashi: 3.0}, ldp: {takaichi: 22.0, koizumi: 33.0, motegi: 9.0, hayashi: 10.0, kobayashi: 4.0} },
+                        { name: "共同通信", general: {takaichi: 26.5, koizumi: 23.5, motegi: 6.5, hayashi: 5.5, kobayashi: 3.5}, ldp: {takaichi: 21.5, koizumi: 33.5, motegi: 5.2, hayashi: 19.5, kobayashi: 3.8} }
+                    ],
+                    averages: {
+                        labels: ['高市早苗', '小泉進次郎', '茂木敏充', '林芳正', '小林鷹之'],
+                        datasets: [
+                           { label: '一般 (平均)', data: [28.7, 25.2, 5.8, 8.8, 3.7], backgroundColor: 'rgba(75, 192, 192, 0.6)' },
+                           { label: '自民支持層 (平均)', data: [26.9, 32.2, 6.3, 13.9, 4.4], backgroundColor: 'rgba(255, 99, 132, 0.6)' }
+                        ]
+                    }
+                },
+                firstRoundSimData: {
+                    sim1: { 
+                        labels: ['高市早苗', '小泉進次郎', '林芳正', '茂木敏充', '小林鷹之'], 
+                        analysis: '各種データと一般社団法人日本みらい研の独自調査による前提条件に基づき、高市氏が党員票で小泉氏を上回り、1位通過する可能性が最も高い。小泉氏も議員票で支持を固め、決選投票は「高市 vs 小泉」の構図が濃厚となる。',
+                        data: {
+                            '議員票': [80, 70, 60, 55, 30],
+                            '党員票': [84, 83, 30, 23, 35]
+                        } 
+                    },
+                    sim2: { 
+                        labels: ['高市早苗', '小泉進次郎', '林芳正', '茂木敏充', '小林鷹之'], 
+                        analysis: '前回総裁選の票を前提に、派閥の再編や支持動向を考慮すると、高市氏が党員票で大きな支持を集め、リードを広げる結果となった。小泉氏も議員票で一定の支持を確保するが、高市氏の優位は揺るがず、決選投票に進む可能性が高い。',
+                        data: {
+                            '議員票': [75, 83, 70, 41, 30],
+                            '党員票': [110, 70, 47, 23, 15]
+                        }
+                    },
+                    sim3: { 
+                        labels: ['高市早苗', '小泉進次郎', '小林鷹之', '林芳正', '茂木敏充'], 
+                        analysis: '党内に保守回帰の強い流れが生まれた場合、高市氏が議員票・党員票ともに大きく支持を伸ばし、1位通過をほぼ確実にする。小泉氏との差は決定的なものとなり、このシナリオでは高市氏が総裁の座に最も近い存在となる。',
+                        data: {
+                            '議員票': [100, 65, 40, 45, 45],
+                            '党員票': [95, 80, 40, 30, 25]
+                        }
+                    }
+                },
+                runoffSimData: {
+                    caseA: { labels: ['小泉進次郎', '高市早苗'], data: [185, 157], analysis: '政策・理念を重視した票移動のケースである。3位以下の林・茂木両陣営の多くが、より政策的に近い中道的な小泉氏を支持すると想定する。この場合、議員票で上回る小泉氏が勝利する確率が高まる。' },
+                    caseB: { labels: ['高市早苗', '小泉進次郎'], data: [222, 120], analysis: '党内力学を重視した票移動のケースである。世代交代への警戒感と、1回目を1位通過した高市氏の「勢い」を重視し、敗退候補の陣営が高市氏支持に回ると想定する。この場合、高市氏が圧勝する結果となる。' },
+                    caseC: { labels: ['高市早苗', '小泉進次郎'], data: [177, 165], analysis: '多数派工作が拮抗するケースである。敗退候補の票が両陣営にほぼ均等に分裂すると想定する。この場合でも、1回目投票で得た党員の支持を背景に地方票で上乗せが見込める高市氏が僅差で逃げ切る可能性が高くなる。' }
+                }
             }
         };
 
+        // --- PDF VIEWER LOGIC ---
+        const pdfViewer = document.getElementById('pdf-viewer');
+        const pdfIframe = document.getElementById('pdf-iframe');
+        const pdfTitle = document.getElementById('pdf-title');
+        const mainContent = document.getElementById('main-content');
+
+        function showPdf(url, title) {
+            const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
+            pdfIframe.src = viewerUrl;
+            pdfTitle.textContent = title || '資料';
+            pdfViewer.classList.remove('hidden');
+            mainContent.classList.add('hidden');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        }
+
+        function hidePdf() {
+            pdfIframe.src = '';
+            pdfViewer.classList.add('hidden');
+            mainContent.classList.remove('hidden');
+            document.body.style.overflow = ''; // Restore scrolling
+        }
+
+
         // --- CHART RENDERING LOGIC ---
         let charts = {}; // To hold chart instances
+        
+        // Register the datalabels plugin
+        Chart.register(ChartDataLabels);
 
         function destroyChart(chartId) {
             if (charts[chartId]) {
@@ -296,7 +401,7 @@
             }
         }
 
-        function renderBarChart(canvasId, labels, datasets, options = {}) {
+        function renderBarChart(canvasId, labels, datasets, options = {}, plugins = []) {
             destroyChart(canvasId);
             const ctx = document.getElementById(canvasId)?.getContext('2d');
             if (!ctx) return;
@@ -306,10 +411,17 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: datasets.length > 1 }, tooltip: { mode: 'index', intersect: false } },
+                    plugins: { 
+                        legend: { display: true }, 
+                        tooltip: { mode: 'index', intersect: false },
+                        datalabels: {
+                           display: false // Default to false, can be overridden in options
+                        }
+                    },
                     scales: { y: { beginAtZero: true } },
                     ...options
-                }
+                },
+                plugins: plugins
             });
         }
 
@@ -334,7 +446,6 @@
 
         // Render Policy Analysis View
         function renderPolicyView() {
-            const { candidates, events, policyAreas, candidateData } = APP_DATA.policy;
             const container = document.getElementById('policy-content');
             
             // HTML structure for the policy view
@@ -383,7 +494,7 @@
                         // Add link for press conference candidate
                         if (event.candidateLinks && event.candidateLinks[candidateId]) {
                             candidateNameHtml = `
-                                <a href="${event.candidateLinks[candidateId]}" target="_blank" rel="noopener noreferrer" class="font-bold text-sm text-slate-700 underline hover:text-blue-600 transition-colors">
+                                <a href="javascript:void(0)" onclick="showPdf('${event.candidateLinks[candidateId]}', '${candidate.name}氏 出馬会見資料')" class="font-bold text-sm text-slate-700 underline hover:text-blue-600 transition-colors">
                                     ${candidate.name} <span class="text-xs">🔗</span>
                                 </a>`;
                         }
@@ -412,7 +523,7 @@
                 }
 
                 const titleHtml = event.link 
-                    ? `<a href="${event.link}" target="_blank" rel="noopener noreferrer" class="underline hover:text-blue-600 transition-colors">${event.title} <span class="text-xs">🔗</span></a>`
+                    ? `<a href="javascript:void(0)" onclick="showPdf('${event.link}', '${event.title}')" class="underline hover:text-blue-600 transition-colors">${event.title} <span class="text-xs">🔗</span></a>`
                     : event.title;
 
                 return `
@@ -442,10 +553,10 @@
                      <p class="text-slate-500">上記から候補者を選択してください</p>
                 </div>`;
 
-            document.querySelectorAll('.candidate-select-btn').forEach(btn => {
+            document.querySelectorAll('#candidates-subcontent .candidate-select-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const id = e.currentTarget.dataset.candidateId;
-                    document.querySelectorAll('.candidate-select-btn').forEach(b => b.classList.remove('active-candidate'));
+                    document.querySelectorAll('#candidates-subcontent .candidate-select-btn').forEach(b => b.classList.remove('active-candidate'));
                     e.currentTarget.classList.add('active-candidate');
                     displayCandidateDetail(id);
                 });
@@ -604,7 +715,7 @@
 
             // Comparison
             document.getElementById('comparison-sns-subcontent').innerHTML = `
-                <h2 class="text-2xl font-bold text-slate-800 mb-4">⚖️ 候補者比較分析</h2>
+                <h2 class="text-2xl font-bold text-slate-800 mb-4">⚖️ 比較分析</h2>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="bg-slate-50 p-4 rounded-lg">
                         <h3 class="font-bold text-lg mb-2">総合力レーダーチャート</h3>
@@ -683,6 +794,275 @@
                 </div>`;
         }
 
+        // --- SIMULATION VIEW LOGIC ---
+        function renderSimulationView() {
+            const container = document.getElementById('simulation-content');
+            container.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-lg">
+                    <nav id="simulation-tabs" class="flex justify-center border-b border-gray-300">
+                        <button class="sim-subtab-btn active-sim-subtab text-gray-600 py-4 px-6 block hover:text-gray-900 focus:outline-none" data-subtab="overview">概観</button>
+                        <button class="sim-subtab-btn text-gray-600 py-4 px-6 block hover:text-gray-900 focus:outline-none" data-subtab="polls">世論調査</button>
+                        <button class="sim-subtab-btn text-gray-600 py-4 px-6 block hover:text-gray-900 focus:outline-none" data-subtab="first-round">第1回投票</button>
+                        <button class="sim-subtab-btn text-gray-600 py-4 px-6 block hover:text-gray-900 focus:outline-none" data-subtab="runoff">決選投票</button>
+                        <button class="sim-subtab-btn text-gray-600 py-4 px-6 block hover:text-gray-900 focus:outline-none" data-subtab="candidates">候補者比較</button>
+                    </nav>
+                    <div class="p-4 md:p-6">
+                        <div id="overview-sim-subcontent" class="sim-subcontent"></div>
+                        <div id="polls-sim-subcontent" class="sim-subcontent hidden"></div>
+                        <div id="first-round-sim-subcontent" class="sim-subcontent hidden"></div>
+                        <div id="runoff-sim-subcontent" class="sim-subcontent hidden"></div>
+                        <div id="candidates-sim-subcontent" class="sim-subcontent hidden"></div>
+                    </div>
+                </div>
+            `;
+
+            renderSimSubViews();
+
+             container.querySelectorAll('.sim-subtab-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    container.querySelectorAll('.sim-subtab-btn').forEach(b => b.classList.remove('active-sim-subtab'));
+                    e.currentTarget.classList.add('active-sim-subtab');
+                    
+                    container.querySelectorAll('.sim-subcontent').forEach(content => content.classList.add('hidden'));
+                    const subtab = e.currentTarget.dataset.subtab;
+                    document.getElementById(`${subtab}-sim-subcontent`).classList.remove('hidden');
+                    
+                    // Render charts for the active tab
+                    if(subtab === 'polls') renderSimPollsChart();
+                    if(subtab === 'first-round') renderSimFirstRoundChart('sim1');
+                    if(subtab === 'runoff') renderSimRunoffChart('caseA');
+                });
+            });
+        }
+        
+        function renderSimSubViews() {
+            // Render Overview
+            document.getElementById('overview-sim-subcontent').innerHTML = `
+                <h3 class="text-2xl font-bold mb-4 text-gray-900 border-l-4 border-gray-800 pl-3">総裁選の基本ルール</h3>
+                <p class="mb-6 text-gray-600">今回の総裁選は、党員票の比重が議員票と同数まで高められたことが最大の特徴。1回目で過半数を得る候補がいない場合、上位2名による決選投票が行われる。</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-gray-50 p-4 rounded-lg border">
+                        <h4 class="font-bold text-xl text-center mb-2">第1回投票</h4>
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <div><p class="text-3xl font-bold">590</p><p class="text-sm">総票数</p></div>
+                            <div><p class="text-3xl font-bold">295</p><p class="text-sm">議員票</p></div>
+                            <div><p class="text-3xl font-bold">295</p><p class="text-sm">党員票</p></div>
+                        </div>
+                         <p class="text-center text-gray-600 mt-2 text-sm">当選には過半数 (296票) が必要</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg border">
+                        <h4 class="font-bold text-xl text-center mb-2">決選投票</h4>
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <div><p class="text-3xl font-bold">342</p><p class="text-sm">総票数</p></div>
+                            <div><p class="text-3xl font-bold">295</p><p class="text-sm">議員票</p></div>
+                            <div><p class="text-3xl font-bold">47</p><p class="text-sm">都道府県票</p></div>
+                        </div>
+                        <p class="text-center text-gray-600 mt-2 text-sm">当選には過半数 (172票) が必要</p>
+                    </div>
+                </div>`;
+
+            // Render Polls
+            const { pollDetails } = APP_DATA.simulation;
+            const pollTableHeaders = pollDetails.averages.labels.map(label => `<th class="py-2 px-3 text-center">${label}</th>`).join('');
+            const pollTableRows = pollDetails.sources.map(source => `
+                <tr class="border-b">
+                    <td class="py-2 px-3 font-semibold">${source.name} (一般)</td>
+                    <td class="py-2 px-3 text-center">${source.general.takaichi.toFixed(1)}%</td>
+                    <td class="py-2 px-3 text-center">${source.general.koizumi.toFixed(1)}%</td>
+                    <td class="py-2 px-3 text-center">${source.general.motegi.toFixed(1)}%</td>
+                    <td class="py-2 px-3 text-center">${source.general.hayashi.toFixed(1)}%</td>
+                    <td class="py-2 px-3 text-center">${source.general.kobayashi.toFixed(1)}%</td>
+                </tr>
+                <tr class="border-b bg-gray-50">
+                    <td class="py-2 px-3 font-semibold">${source.name} (自民)</td>
+                    <td class="py-2 px-3 text-center">${source.ldp.takaichi.toFixed(1)}%</td>
+                    <td class="py-2 px-3 text-center">${source.ldp.koizumi.toFixed(1)}%</td>
+                    <td class="py-2 px-3 text-center">${source.ldp.motegi.toFixed(1)}%</td>
+                    <td class="py-2 px-3 text-center">${source.ldp.hayashi.toFixed(1)}%</td>
+                    <td class="py-2 px-3 text-center">${source.ldp.kobayashi.toFixed(1)}%</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('polls-sim-subcontent').innerHTML = `
+                <h3 class="text-2xl font-bold mb-2 text-gray-900 border-l-4 border-gray-800 pl-3">世論調査分析</h3>
+                <p class="mb-6 text-gray-600">主要メディア各社の直近の世論調査(9月30日時点)を基に、一般と自民党支持層の平均支持率を算出。「一般」での支持と、党員票の動向に影響を与える「自民支持層」での支持の乖離が注目される。</p>
+                <div class="chart-container mb-8"><canvas id="pollsChart"></canvas></div>
+                <h4 class="text-xl font-bold mb-3">各社調査結果一覧</h4>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border rounded-lg text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="py-2 px-3 text-left">調査機関 (対象)</th>
+                                ${pollTableHeaders}
+                            </tr>
+                        </thead>
+                        <tbody>${pollTableRows}</tbody>
+                    </table>
+                    <p class="text-xs text-right mt-1 text-gray-500">＊ 直近の各社調査に基づく</p>
+                </div>`;
+
+            // Render First Round
+            document.getElementById('first-round-sim-subcontent').innerHTML = `
+                <h3 class="text-2xl font-bold mb-2 text-gray-900 border-l-4 border-gray-800 pl-3">第1回投票シミュレーション</h3>
+                <p class="mb-4 text-gray-600">各種データと一般社団法人日本みらい研の独自調査による前提条件に基づき、1回目の投票結果をシミュレート。議員票と党員票の内訳を可視化し、各候補の支持構造を分析する。下のボタンでシナリオを切り替えられる。</p>
+                <div class="flex justify-center space-x-2 mb-6">
+                    <button class="sim-button active bg-gray-800 text-white py-2 px-4 rounded-lg" data-sim="sim1">新前提に基づく予測</button>
+                    <button class="sim-button bg-gray-200 text-gray-700 py-2 px-4 rounded-lg" data-sim="sim2">前回総裁選票を前提</button>
+                    <button class="sim-button bg-gray-200 text-gray-700 py-2 px-4 rounded-lg" data-sim="sim3">保守回帰シナリオ</button>
+                </div>
+                <div class="chart-container" style="height: 450px;"><canvas id="firstRoundChart"></canvas></div>
+                <div id="sim-analysis" class="mt-6 p-4 bg-gray-100 rounded-lg"><h4 class="font-bold text-lg mb-2">分析：</h4><p class="text-gray-700"></p></div>`;
+            document.querySelectorAll('.sim-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    document.querySelectorAll('.sim-button').forEach(b => {
+                        b.classList.remove('active', 'bg-gray-800', 'text-white');
+                        b.classList.add('bg-gray-200', 'text-gray-700');
+                    });
+                    e.currentTarget.classList.add('active', 'bg-gray-800', 'text-white');
+                    e.currentTarget.classList.remove('bg-gray-200', 'text-gray-700');
+                    renderSimFirstRoundChart(e.currentTarget.dataset.sim);
+                });
+            });
+
+            // Render Runoff
+            document.getElementById('runoff-sim-subcontent').innerHTML = `
+                <h3 class="text-2xl font-bold mb-2 text-gray-900 border-l-4 border-gray-800 pl-3">決選投票シミュレーション (高市 vs 小泉)</h3>
+                <p class="mb-4 text-gray-600">シミュレーションの結果、決選投票は「高市 vs 小泉」となる可能性が極めて高い。ここでは、敗退した候補の票がどのように動くかを想定した3つのケースを分析する。総票数342票、過半数は172票である。</p>
+                <div class="flex justify-center space-x-2 mb-6">
+                    <button class="runoff-button active bg-gray-800 text-white py-2 px-4 rounded-lg" data-runoff="caseA">ケースA: 政策重視</button>
+                    <button class="runoff-button bg-gray-200 text-gray-700 py-2 px-4 rounded-lg" data-runoff="caseB">ケースB: 党内力学重視</button>
+                    <button class="runoff-button bg-gray-200 text-gray-700 py-2 px-4 rounded-lg" data-runoff="caseC">ケースC: 拮抗</button>
+                </div>
+                <div class="chart-container"><canvas id="runoffChart"></canvas></div>
+                <div id="runoff-analysis" class="mt-6 p-4 bg-gray-100 rounded-lg"><h4 class="font-bold text-lg mb-2">分析：</h4><p class="text-gray-700"></p></div>`;
+            document.querySelectorAll('.runoff-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    document.querySelectorAll('.runoff-button').forEach(b => {
+                        b.classList.remove('active', 'bg-gray-800', 'text-white');
+                        b.classList.add('bg-gray-200', 'text-gray-700');
+                    });
+                    e.currentTarget.classList.add('active', 'bg-gray-800', 'text-white');
+                    e.currentTarget.classList.remove('bg-gray-200', 'text-gray-700');
+                    renderSimRunoffChart(e.currentTarget.dataset.runoff);
+                });
+            });
+
+            // Render Candidates Comparison
+            const { policyAreas, candidates, candidateData } = APP_DATA.policy;
+            const candidateHeaders = candidates.map(c => `<th class="text-left py-3 px-4 uppercase font-semibold text-sm">${c.name}</th>`).join('');
+            const policyRows = policyAreas.map((area, index) => {
+                const cells = candidates.map(c => `<td class="text-left py-3 px-4 text-sm">${candidateData[c.id].policies[area.id] || 'ー'}</td>`).join('');
+                return `
+                    <tr class="${index % 2 === 0 ? 'bg-gray-50' : ''}">
+                        <td class="text-left py-3 px-4 font-bold text-sm">${area.icon} ${area.name}</td>
+                        ${cells}
+                    </tr>`;
+            }).join('');
+            
+            document.getElementById('candidates-sim-subcontent').innerHTML = `
+                <h3 class="text-2xl font-bold mb-4 text-gray-900 border-l-4 border-gray-800 pl-3">主要政策比較</h3>
+                <p class="mb-6 text-gray-600">各候補者の主要政策を一覧で比較する。経済、安全保障、党改革など、それぞれの考え方の違いが鮮明になっている。</p>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border rounded-lg">
+                        <thead class="bg-gray-800 text-white">
+                            <tr>
+                                <th class="text-left py-3 px-4 uppercase font-semibold text-sm w-1/6">政策分野</th>
+                                ${candidateHeaders}
+                            </tr>
+                        </thead>
+                        <tbody class="text-gray-700">${policyRows}</tbody>
+                    </table>
+                </div>`;
+             renderSimOverviewSubView();
+        }
+
+        function renderSimOverviewSubView() {
+            // This is the default view, content is already in the innerHTML.
+        }
+
+        function renderSimPollsChart() {
+            const { averages } = APP_DATA.simulation.pollDetails;
+            renderBarChart('pollsChart', averages.labels, averages.datasets, {
+                 plugins: { title: { display: true, text: '「次の総裁にふさわしい人物」メディア各社平均', font: { size: 18 } } },
+                 scales: { y: { title: { display: true, text: '支持率 (%)' } } }
+            });
+        }
+        
+        function renderSimFirstRoundChart(simId) {
+            const sim = APP_DATA.simulation.firstRoundSimData[simId];
+
+            const totalLabelsPlugin = {
+                id: 'totalLabels',
+                afterDatasetsDraw(chart) {
+                    const { ctx } = chart;
+                    ctx.save();
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.fillStyle = '#333';
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'middle';
+
+                    const meta = chart.getDatasetMeta(1); // meta of the last dataset
+                    if (!meta) return;
+                    meta.data.forEach((datapoint, index) => {
+                        const total = chart.data.datasets.reduce((sum, dataset) => sum + dataset.data[index], 0);
+                        const { y } = datapoint;
+                        const barEndpoint = datapoint.x;
+                        
+                        ctx.fillText(total, barEndpoint + 5, y);
+                    });
+                    ctx.restore();
+                }
+            };
+            
+            renderBarChart('firstRoundChart', sim.labels, [
+                { label: '議員票', data: sim.data['議員票'], backgroundColor: 'rgba(54, 162, 235, 0.7)'},
+                { label: '党員票', data: sim.data['党員票'], backgroundColor: 'rgba(255, 99, 132, 0.7)'}
+            ], {
+                indexAxis: 'y',
+                plugins: { 
+                    legend: {display: true}, 
+                    title: { display: true, text: '第1回投票 予測結果', font: { size: 18 } },
+                    datalabels: {
+                        display: true,
+                        color: 'white',
+                        align: 'center',
+                        anchor: 'center',
+                        font: { weight: 'bold' },
+                        formatter: (value) => value,
+                    }
+                },
+                scales: { 
+                    x: { stacked: true, title: { display: true, text: '予測得票数 (票)' } },
+                    y: { stacked: true }
+                }
+            }, [totalLabelsPlugin]);
+        
+            document.querySelector('#sim-analysis p').textContent = sim.analysis;
+        }
+
+
+        function renderSimRunoffChart(caseId) {
+            const runoffCase = APP_DATA.simulation.runoffSimData[caseId];
+             renderBarChart('runoffChart', runoffCase.labels, [{
+                label: '予測得票数', data: runoffCase.data,
+                backgroundColor: ['#ef4444', '#f97316']
+            }], {
+                 scales: { x: { barPercentage: 0.5 } },
+                 plugins: { 
+                    legend: {display: false}, 
+                    title: { display: true, text: '決選投票 予測結果 (過半数: 172票)', font: { size: 18 } },
+                    datalabels: {
+                        display: true,
+                        color: 'white',
+                        font: {
+                            weight: 'bold'
+                        }
+                    }
+                }
+             });
+            document.querySelector('#runoff-analysis p').textContent = runoffCase.analysis;
+        }
+
 
         // --- INITIALIZATION and EVENT LISTENERS ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -703,6 +1083,7 @@
                     // Re-render views to ensure charts are drawn correctly if their container was hidden
                     if (tabName === 'policy') renderPolicyView();
                     if (tabName === 'sns') renderSnsView();
+                    if (tabName === 'simulation') renderSimulationView();
                 }
             });
 
@@ -712,3 +1093,5 @@
     </script>
 </body>
 </html>
+
+
