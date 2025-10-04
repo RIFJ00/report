@@ -1,4 +1,4 @@
-<<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
@@ -55,6 +55,15 @@
             color: white;
             border-color: var(--policy-color);
         }
+        .results-tab {
+            color: #dc2626; /* red-600 */
+            font-weight: 700;
+        }
+        .results-tab.active-main-tab {
+            background-color: #dc2626 !important;
+            color: white !important;
+            border: 2px solid #b91c1c; /* red-800 */
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800">
@@ -89,6 +98,9 @@
                     <button data-tab="simulation" class="main-tab-btn flex-shrink-0 text-center px-4 py-3 font-semibold rounded-lg transition-all duration-300">
                         総裁選シミュレーション
                     </button>
+                    <button data-tab="results" class="main-tab-btn results-tab flex-shrink-0 text-center px-4 py-3 font-semibold rounded-lg transition-all duration-300">
+                        総裁選結果
+                    </button>
                 </nav>
             </div>
 
@@ -102,6 +114,9 @@
                 </div>
                 <div id="simulation-content" class="tab-content hidden">
                     <!-- Simulation content will be injected here -->
+                </div>
+                 <div id="results-content" class="tab-content hidden">
+                    <!-- Results content will be injected here -->
                 </div>
             </main>
 
@@ -682,13 +697,15 @@
             const container = document.getElementById('sns-content');
             if (!container) return;
             
+            const currentData = APP_DATA[dataKey];
+            
             container.innerHTML = `
                  <div class="bg-white rounded-2xl shadow-lg">
                     <div id="sns-tabs" class="flex border-b p-2 space-x-1 md:space-x-2 overflow-x-auto">
                         <button data-subtab="overview" class="sns-tab-btn active-sns-tab flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">📊 全体概要</button>
                         <button data-subtab="candidates" class="sns-tab-btn flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">👥 候補者詳細</button>
-                        ${APP_DATA[dataKey].radarData ? `<button data-subtab="comparison" class="sns-tab-btn flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">⚖️ 比較分析</button>` : ''}
-                        ${APP_DATA[dataKey].stealthComparisonData ? `<button data-subtab="stealth" class="sns-tab-btn flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">🔍 ステマ分析</button>` : ''}
+                        ${currentData.radarData ? `<button data-subtab="comparison" class="sns-tab-btn flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">⚖️ 比較分析</button>` : ''}
+                        ${currentData.stealthComparisonData ? `<button data-subtab="stealth" class="sns-tab-btn flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">🔍 ステマ分析</button>` : ''}
                         <button data-subtab="conclusion" class="sns-tab-btn flex-1 text-center px-3 py-2 font-semibold rounded-lg text-xs md:text-base">📝 総括</button>
                     </div>
                     <div class="p-4 md:p-6">
@@ -701,7 +718,7 @@
                 </div>
             `;
             
-            renderSnsSubViews(APP_DATA[dataKey], "");
+            renderSnsSubViews(currentData, "");
             container.querySelectorAll('.sns-tab-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     container.querySelectorAll('.sns-tab-btn').forEach(b => b.classList.remove('active-sns-tab'));
@@ -710,7 +727,7 @@
                     container.querySelectorAll('.sns-subcontent').forEach(content => content.classList.add('hidden'));
                     const subtab = e.currentTarget.dataset.subtab;
                     document.getElementById(`${subtab}-sns-subcontent`).classList.remove('hidden');
-                    renderSnsSubViews(APP_DATA[dataKey], "");
+                    renderSnsSubViews(currentData, "");
                 });
             });
         }
@@ -1145,6 +1162,64 @@
              });
             document.querySelector('#runoff-analysis p').textContent = runoffCase.analysis;
         }
+        
+        function renderResultsView() {
+            const container = document.getElementById('results-content');
+            const electionData = {
+                firstRound: [
+                    { name: '高市早苗', color: '#ef4444',議員票: 64, 党員票: 119 },
+                    { name: '小泉進次郎', color: '#f97316', 議員票: 80, 党員票: 84 },
+                    { name: '林芳正', color: '#8b5cf6', 議員票: 72, 党員票: 62 },
+                    { name: '茂木敏充', color: '#10b981', 議員票: 34, 党員票: 15 },
+                    { name: '小林鷹之', color: '#3b82f6', 議員票: 44, 党員票: 15 },
+                ],
+                runoff: [
+                    { name: '高市早苗', color: '#ef4444', 議員票: 149, 都道府県票: 36 },
+                    { name: '小泉進次郎', color: '#f97316', 議員票: 145, 都道府県票: 11 },
+                ]
+            };
+
+            const firstRoundLabels = electionData.firstRound.map(c => c.name);
+            const firstRound議員票 = electionData.firstRound.map(c => c.議員票);
+            const firstRound党員票 = electionData.firstRound.map(c => c.党員票);
+
+            const runoffLabels = electionData.runoff.map(c => c.name);
+            const runoff議員票 = electionData.runoff.map(c => c.議員票);
+            const runoff党員票 = electionData.runoff.map(c => c.都道府県票);
+            
+            container.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-lg p-6 space-y-8">
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-red-700">2025年自民党総裁選 投開票結果</h2>
+                        <p class="mt-4 text-slate-700 font-bold">2025年の自民党総裁選は、決選投票の結果、高市早苗候補が小泉進次郎候補を破り、第29代自民党総裁に選ばれた。自民党では初の女性総裁となる。</p>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold mb-4 border-l-4 border-slate-700 pl-3">第1回投票</h3>
+                        <div class="chart-container"><canvas id="firstRoundResultChart"></canvas></div>
+                    </div>
+                     <div>
+                        <h3 class="text-xl font-bold mb-4 border-l-4 border-slate-700 pl-3">決選投票</h3>
+                        <div class="chart-container"><canvas id="runoffResultChart"></canvas></div>
+                    </div>
+                </div>
+            `;
+            
+            renderBarChart('firstRoundResultChart', firstRoundLabels, 
+                [
+                    { label: '議員票', data: firstRound議員票, backgroundColor: 'rgba(54, 162, 235, 0.7)'},
+                    { label: '党員票', data: firstRound党員票, backgroundColor: 'rgba(255, 99, 132, 0.7)'}
+                ],
+                { indexAxis: 'y', scales: { x: { stacked: true }, y: { stacked: true } } }
+            );
+
+            renderBarChart('runoffResultChart', runoffLabels,
+                [
+                    { label: '議員票', data: runoff議員票, backgroundColor: 'rgba(54, 162, 235, 0.7)'},
+                    { label: '都道府県票', data: runoff党員票, backgroundColor: 'rgba(255, 99, 132, 0.7)'}
+                ],
+                { indexAxis: 'y', scales: { x: { stacked: true }, y: { stacked: true } } }
+            );
+        }
 
 
         // --- INITIALIZATION and EVENT LISTENERS ---
@@ -1154,14 +1229,9 @@
             
             periodSelector.addEventListener('change', (e) => {
                 const selectedPeriod = e.target.value;
-                const activeTabButton = document.querySelector('.main-tab-btn.active-main-tab');
-                const activeTab = activeTabButton ? activeTabButton.dataset.tab : '';
-                
-                if (activeTab === 'sns') {
-                    const dataKey = selectedPeriod === 'initial' ? 'snsInitial' : 'snsFinal';
-                    document.getElementById('sns-content').innerHTML = ''; // Clear content to force re-render
-                    renderSnsView(dataKey);
-                }
+                const dataKey = selectedPeriod === 'initial' ? 'snsInitial' : 'snsFinal';
+                document.getElementById('sns-content').innerHTML = '';
+                renderSnsView(dataKey);
             });
 
 
@@ -1185,10 +1255,10 @@
                     // Re-render views to ensure charts are drawn correctly if their container was hidden
                     if (tabName === 'policy') renderPolicyView();
                     if (tabName === 'sns') {
-                        document.getElementById('sns-content').innerHTML = ''; // Clear content to force re-render based on period
                         renderSnsView(snsDataKey);
                     }
                     if (tabName === 'simulation') renderSimulationView();
+                    if (tabName === 'results') renderResultsView();
                 }
             });
 
@@ -1198,4 +1268,3 @@
     </script>
 </body>
 </html>
-
