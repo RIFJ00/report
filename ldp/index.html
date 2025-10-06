@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    
     <style>
         /* Custom scrollbar for better aesthetics */
         .custom-scrollbar::-webkit-scrollbar {
@@ -231,7 +232,7 @@
                     },
                     {
                         id: 'aichi-0926', date: '2025/09/26', title: '愛知演説会', type: '地方演説', summary: '愛知県で地方重視の姿勢を強調。ものづくり産業支援や地方創生を訴え。',
-                        link: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250926政策情報・RIFJ（20250926自民党総裁選愛知演説会）.pdf',
+                        link: 'https://miraiken.s3.ap-northeast-1.amazonaws.com/Data/250926政策情報・RIFJ（2民党総裁選愛知演説会）.pdf',
                         statements: {
                             kobayashi: '「令和の殖産興業」を掲げ、愛知のものづくり産業への支援を約束した。',
                             motegi: '地方への大規模な財政支援策を説明し、地方経済の活性化を訴えた。',
@@ -693,11 +694,12 @@
         }
 
         // Render SNS Analysis View
-        function renderSnsView(dataKey = 'snsInitial') {
+        function renderSnsView(dataKey) {
             const container = document.getElementById('sns-content');
             if (!container) return;
             
             const currentData = APP_DATA[dataKey];
+            const suffix = ""; // No suffix needed as we use one container
             
             container.innerHTML = `
                  <div class="bg-white rounded-2xl shadow-lg">
@@ -718,7 +720,8 @@
                 </div>
             `;
             
-            renderSnsSubViews(currentData, "");
+            renderSnsSubViews(currentData, suffix);
+            
             container.querySelectorAll('.sns-tab-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     container.querySelectorAll('.sns-tab-btn').forEach(b => b.classList.remove('active-sns-tab'));
@@ -727,7 +730,7 @@
                     container.querySelectorAll('.sns-subcontent').forEach(content => content.classList.add('hidden'));
                     const subtab = e.currentTarget.dataset.subtab;
                     document.getElementById(`${subtab}-sns-subcontent`).classList.remove('hidden');
-                    renderSnsSubViews(currentData, "");
+                    renderSnsSubViews(currentData, suffix);
                 });
             });
         }
@@ -1030,8 +1033,8 @@
                 <p class="mb-4 text-gray-600">シミュレーションの結果、決選投票は「高市 vs 小泉」となる可能性が極めて高い。ここでは、敗退した候補の票がどのように動くかを想定した3つのケースを分析する。総票数342票、過半数は172票である。</p>
                 <div class="flex justify-center space-x-2 mb-6">
                     <button class="runoff-button active bg-gray-800 text-white py-2 px-4 rounded-lg" data-runoff="caseA">ケースA: 政策重視</button>
-                    <button class="runoff-button bg-gray-200 text-gray-700 py-2 px-4 rounded-lg" data-runoff="caseB">ケースB: 保守回帰重視</button>
-                    <button class="runoff-button bg-gray-200 text-gray-700 py-2 px-4 rounded-lg" data-runoff="caseC">ケースC: 拮抗</button>
+                    <button class="runoff-button bg-gray-200 text-gray-700 py-2 px-4 rounded-lg" data-runoff="caseB">保守回帰重視</button>
+                    <button class="runoff-button bg-gray-200 text-gray-700 py-2 px-4 rounded-lg" data-runoff="caseC">拮抗</button>
                 </div>
                 <div class="chart-container"><canvas id="runoffChart"></canvas></div>
                 <div id="runoff-analysis" class="mt-6 p-4 bg-gray-100 rounded-lg"><h4 class="font-bold text-lg mb-2">分析：</h4><p class="text-gray-700"></p></div>`;
@@ -1165,28 +1168,6 @@
         
         function renderResultsView() {
             const container = document.getElementById('results-content');
-            const electionData = {
-                firstRound: [
-                    { name: '高市早苗', color: '#ef4444',議員票: 64, 党員票: 119 },
-                    { name: '小泉進次郎', color: '#f97316', 議員票: 80, 党員票: 84 },
-                    { name: '林芳正', color: '#8b5cf6', 議員票: 72, 党員票: 62 },
-                    { name: '茂木敏充', color: '#10b981', 議員票: 34, 党員票: 15 },
-                    { name: '小林鷹之', color: '#3b82f6', 議員票: 44, 党員票: 15 },
-                ],
-                runoff: [
-                    { name: '高市早苗', color: '#ef4444', 議員票: 149, 都道府県票: 36 },
-                    { name: '小泉進次郎', color: '#f97316', 議員票: 145, 都道府県票: 11 },
-                ]
-            };
-
-            const firstRoundLabels = electionData.firstRound.map(c => c.name);
-            const firstRound議員票 = electionData.firstRound.map(c => c.議員票);
-            const firstRound党員票 = electionData.firstRound.map(c => c.党員票);
-
-            const runoffLabels = electionData.runoff.map(c => c.name);
-            const runoff議員票 = electionData.runoff.map(c => c.議員票);
-            const runoff党員票 = electionData.runoff.map(c => c.都道府県票);
-            
             container.innerHTML = `
                 <div class="bg-white rounded-2xl shadow-lg p-6 space-y-8">
                     <div class="text-center">
@@ -1201,24 +1182,174 @@
                         <h3 class="text-xl font-bold mb-4 border-l-4 border-slate-700 pl-3">決選投票</h3>
                         <div class="chart-container"><canvas id="runoffResultChart"></canvas></div>
                     </div>
+                    <div id="vote-flow-analysis"></div>
                 </div>
             `;
             
-            renderBarChart('firstRoundResultChart', firstRoundLabels, 
-                [
-                    { label: '議員票', data: firstRound議員票, backgroundColor: 'rgba(54, 162, 235, 0.7)'},
-                    { label: '党員票', data: firstRound党員票, backgroundColor: 'rgba(255, 99, 132, 0.7)'}
+            const totalLabelsPlugin = {
+                id: 'totalLabels',
+                afterDatasetsDraw(chart) {
+                    const { ctx } = chart;
+                    ctx.save();
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.fillStyle = '#333';
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'middle';
+
+                    const meta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+                    if (!meta) return;
+                    meta.data.forEach((datapoint, index) => {
+                        const total = chart.data.datasets.reduce((sum, dataset) => sum + dataset.data[index], 0);
+                        const { y } = datapoint;
+                        const barEndpoint = datapoint.x;
+                        
+                        ctx.fillText(total, barEndpoint + 5, y);
+                    });
+                    ctx.restore();
+                }
+            };
+            
+            const chartOptions = {
+                indexAxis: 'y',
+                scales: { x: { stacked: true }, y: { stacked: true } },
+                plugins: {
+                    datalabels: {
+                        display: true,
+                        color: 'white',
+                        font: { weight: 'bold' }
+                    }
+                }
+            };
+
+            const electionData = {
+                firstRound: [
+                    { name: '高市早苗', 議員票: 64, 党員票: 119 },
+                    { name: '小泉進次郎', 議員票: 80, 党員票: 84 },
+                    { name: '林芳正', 議員票: 72, 党員票: 62 },
+                    { name: '茂木敏充', 議員票: 34, 党員票: 15 },
+                    { name: '小林鷹之', 議員票: 44, 党員票: 15 },
                 ],
-                { indexAxis: 'y', scales: { x: { stacked: true }, y: { stacked: true } } }
+                runoff: [
+                    { name: '高市早苗', 議員票: 149, 都道府県票: 36 },
+                    { name: '小泉進次郎', 議員票: 145, 都道府県票: 11 },
+                ]
+            };
+
+            renderBarChart('firstRoundResultChart', electionData.firstRound.map(c=>c.name), 
+                [
+                    { label: '議員票', data: electionData.firstRound.map(c=>c.議員票), backgroundColor: 'rgba(54, 162, 235, 0.7)'},
+                    { label: '党員票', data: electionData.firstRound.map(c=>c.党員票), backgroundColor: 'rgba(255, 99, 132, 0.7)'}
+                ],
+                chartOptions, [totalLabelsPlugin]
             );
 
-            renderBarChart('runoffResultChart', runoffLabels,
+            renderBarChart('runoffResultChart', electionData.runoff.map(c=>c.name),
                 [
-                    { label: '議員票', data: runoff議員票, backgroundColor: 'rgba(54, 162, 235, 0.7)'},
-                    { label: '都道府県票', data: runoff党員票, backgroundColor: 'rgba(255, 99, 132, 0.7)'}
+                    { label: '議員票', data: electionData.runoff.map(c=>c.議員票), backgroundColor: 'rgba(54, 162, 235, 0.7)'},
+                    { label: '都道府県票', data: electionData.runoff.map(c=>c.都道府県票), backgroundColor: 'rgba(255, 99, 132, 0.7)'}
                 ],
-                { indexAxis: 'y', scales: { x: { stacked: true }, y: { stacked: true } } }
+                chartOptions, [totalLabelsPlugin]
             );
+            
+            // Add vote flow analysis
+            document.getElementById('vote-flow-analysis').innerHTML = `
+                <div class="w-full max-w-6xl mx-auto p-6 bg-gray-50">
+                    <div class="bg-white rounded-xl shadow-xl p-8">
+                        <h1 class="text-3xl font-bold text-center mb-8 text-gray-800">決選投票 票の流れと勝敗ライン</h1>
+                        <div class="grid grid-cols-2 gap-8 mb-8">
+                            <div class="space-y-4">
+                                <div class="h-12 flex items-center justify-center">
+                                    <h2 class="text-xl font-bold text-blue-800 pb-2 border-b-2 border-blue-400">小泉進次郎 陣営</h2>
+                                </div>
+                                <div class="h-48 flex items-center">
+                                    <div class="bg-blue-50 rounded-lg p-4 w-full">
+                                        <div class="text-sm font-semibold text-gray-600 mb-3">第1回投票からの想定値</div>
+                                        <div class="space-y-2">
+                                            <div class="flex justify-between items-center"><span class="text-sm">小泉 議員票</span><span class="font-bold text-blue-700">80票</span></div>
+                                            <div class="flex justify-between items-center"><span class="text-sm">林 議員票</span><span class="font-bold text-green-700">72票</span></div>
+                                            <div class="border-t pt-2 flex justify-between items-center"><span class="font-semibold">想定値 合計</span><span class="font-bold text-xl text-blue-800">152票</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="h-12 flex justify-center items-center">
+                                     <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+                                </div>
+                                <div class="h-48 flex items-center">
+                                    <div class="bg-blue-100 rounded-lg p-4 border-2 border-blue-400 w-full">
+                                        <div class="text-sm font-semibold text-gray-600 mb-3">決選投票の実際</div>
+                                        <div class="space-y-2">
+                                            <div class="flex justify-between items-center"><span class="text-sm">議員票</span><span class="font-bold text-blue-900">145票</span></div>
+                                            <div class="flex justify-between items-center text-xs text-gray-600"><span>（想定値との差）</span><span class="font-semibold text-red-600">-7票</span></div>
+                                            <div class="flex justify-between items-center text-sm text-gray-500"><span>都道府県票</span><span>11票</span></div>
+                                            <div class="border-t-2 border-blue-400 pt-2 flex justify-between items-center"><span class="font-bold">合計</span><span class="font-bold text-2xl text-blue-900">156票</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="h-12 flex items-center justify-center">
+                                    <h2 class="text-xl font-bold text-red-800 pb-2 border-b-2 border-red-400">高市早苗 陣営</h2>
+                                </div>
+                                <div class="h-48 flex items-center">
+                                    <div class="bg-red-50 rounded-lg p-4 w-full">
+                                        <div class="text-sm font-semibold text-gray-600 mb-3">第1回投票からの想定値</div>
+                                        <div class="space-y-2">
+                                            <div class="flex justify-between items-center"><span class="text-sm">高市 議員票</span><span class="font-bold text-red-700">64票</span></div>
+                                            <div class="flex justify-between items-center"><span class="text-sm">茂木 議員票</span><span class="font-bold text-purple-700">34票</span></div>
+                                            <div class="flex justify-between items-center"><span class="text-sm">小林 議員票</span><span class="font-bold text-orange-700">44票</span></div>
+                                            <div class="border-t pt-2 flex justify-between items-center"><span class="font-semibold">想定値 合計</span><span class="font-bold text-xl text-red-800">142票</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="h-12 flex justify-center items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+                                </div>
+                                <div class="h-48 flex items-center">
+                                    <div class="bg-red-100 rounded-lg p-4 border-2 border-red-400 w-full">
+                                        <div class="text-sm font-semibold text-gray-600 mb-3">決選投票の実際</div>
+                                        <div class="space-y-2">
+                                            <div class="flex justify-between items-center"><span class="text-sm">議員票</span><span class="font-bold text-red-900">149票</span></div>
+                                            <div class="flex justify-between items-center text-xs text-gray-600"><span>（想定値との差）</span><span class="font-semibold text-green-600">+7票</span></div>
+                                            <div class="flex justify-between items-center text-sm text-gray-500"><span>都道府県票</span><span>36票</span></div>
+                                            <div class="border-t-2 border-red-400 pt-2 flex justify-between items-center"><span class="font-bold">合計</span><span class="font-bold text-2xl text-red-900">185票</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-r from-yellow-100 to-orange-100 rounded-xl p-6 border-2 border-orange-400 mb-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-orange-600"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+                                <h3 class="text-xl font-bold text-gray-800">小泉陣営の勝敗ライン</h3>
+                            </div>
+                            <div class="bg-white rounded-lg p-5 space-y-3">
+                                <div class="flex items-center justify-between"><span class="text-gray-700">高市の合計票数</span><span class="font-bold text-xl">185票</span></div>
+                                <div class="flex items-center justify-between border-t pt-3"><span class="font-semibold text-gray-800">小泉が勝つために必要な合計票数</span><span class="font-bold text-2xl text-orange-700">186票以上</span></div>
+                                <div class="bg-blue-50 rounded p-3 space-y-2">
+                                    <div class="flex items-center justify-between text-sm"><span class="text-gray-600">小泉の党員票</span><span class="font-semibold">11票</span></div>
+                                    <div class="flex items-center justify-between border-t border-blue-200 pt-2"><span class="font-semibold text-blue-800">必要だった議員票</span><span class="font-bold text-xl text-blue-900">175票以上</span></div>
+                                </div>
+                                <div class="flex items-center justify-between bg-red-50 rounded p-3"><span class="font-semibold text-gray-800">実際の議員票</span><span class="font-bold text-xl">145票</span></div>
+                                <div class="flex items-center justify-between bg-red-100 rounded-lg p-4 border-2 border-red-400">
+                                    <div class="flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                        <span class="font-bold text-lg text-gray-800">不足票数</span>
+                                    </div><span class="font-bold text-3xl text-red-700">30票</span>
+                                </div>
+                                <div class="flex items-center justify-between bg-orange-50 rounded p-3 border border-orange-300"><span class="text-sm text-gray-700">想定値より上乗せが必要だった議員票</span><span class="font-bold text-xl text-orange-700">8票</span></div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-100 rounded-lg p-6">
+                            <h3 class="font-bold text-lg mb-3 text-gray-800 text-center">分析結果</h3>
+                            <div class="space-y-2 text-sm">
+                                <p class="text-gray-700 leading-relaxed"><strong>想定値では</strong>小泉152票 vs 高市142票で<strong class="text-blue-700">小泉が10票リード</strong>の見込みでしたが、実際には<strong class="text-red-600">7票の動き</strong>により形勢が逆転。</p>
+                                <p class="text-gray-700 leading-relaxed">小泉陣営が勝利するには議員票で<strong class="text-orange-700">175票以上</strong>が必要でしたが、実際は<strong>145票</strong>で<strong class="text-red-700">30票不足</strong>。最終的に高市185票 vs 小泉156票で<strong class="text-red-800">高市陣営が29票差で勝利</strong>しました。</p>
+                                <p class="text-gray-700 leading-relaxed bg-yellow-50 p-3 rounded border-l-4 border-yellow-500"><strong>鍵となった7票：</strong>林氏の議員票72票が全て小泉氏に流れる想定でしたが、約10%（7票）が高市陣営に流れたことが、小泉陣営の敗因の一つと考えられます。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
 
@@ -1230,7 +1361,7 @@
             periodSelector.addEventListener('change', (e) => {
                 const selectedPeriod = e.target.value;
                 const dataKey = selectedPeriod === 'initial' ? 'snsInitial' : 'snsFinal';
-                document.getElementById('sns-content').innerHTML = '';
+                document.getElementById('sns-content').innerHTML = ''; // Clear content to force re-render
                 renderSnsView(dataKey);
             });
 
