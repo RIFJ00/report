@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>今後の政権の枠組みをシミュレーション</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        .content-section {
+            @apply bg-white p-6 md:p-8 rounded-xl shadow-lg mb-8;
+        }
+        .slider-label {
+            @apply text-sm font-medium text-gray-700 mb-2;
+        }
+        .slider-value {
+            @apply text-lg font-bold text-indigo-600;
+        }
+        .simulation-result-box {
+            @apply mt-8 p-6 border border-indigo-200 bg-indigo-50 rounded-lg transition-all duration-300;
+        }
+        .tab-btn {
+            @apply px-4 py-2 text-base font-medium rounded-t-lg transition-colors focus:outline-none;
+        }
+        .tab-btn-active {
+            @apply bg-white text-indigo-600 border-b-2 border-indigo-600;
+        }
+        .tab-btn-inactive {
+            @apply bg-gray-100 text-gray-500 hover:bg-gray-200;
+        }
+        .toggle-btn {
+            @apply px-3 py-1 text-sm font-medium rounded-md cursor-pointer transition-colors;
+        }
+        .toggle-btn-active {
+            @apply bg-red-700 text-white shadow;
+        }
+        .toggle-btn-inactive {
+            @apply bg-gray-200 text-gray-500 hover:bg-gray-300;
+        }
+        .party-bar {
+            @apply h-8 flex items-center justify-center text-white text-sm font-bold;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+
+        <header class="text-center mb-10">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">今後の政権の枠組みをシミュレーション</h1>
+            <p class="mt-2 text-lg text-gray-600">データで見る連立の力学と、次の政権の形</p>
+        </header>
+
+        <!-- Tab Controls -->
+        <div class="mb-2 border-b border-gray-200">
+            <nav class="flex -mb-px" id="main-tabs">
+                <button class="tab-btn tab-btn-active" data-tab="analysis">得票数・議席数分析</button>
+                <button class="tab-btn tab-btn-inactive" data-tab="simulation">勢力図と連立シミュレーション</button>
+            </nav>
+        </div>
+
+        <!-- Tab Panel 1: Vote Analysis -->
+        <div id="analysis-panel" class="tab-panel tab-panel-active">
+            <div class="content-section">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-6">
+                    <h2 class="text-2xl font-bold">選挙別 推移データ</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto">
+                        <!-- 表示形式 -->
+                        <div class="flex flex-col">
+                            <label class="text-xs font-medium text-gray-500 mb-1 text-center">表示形式</label>
+                            <div id="display-type-controls" class="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-lg">
+                                <button class="toggle-btn toggle-btn-active w-full" data-display="chart">グラフ</button>
+                                <button class="toggle-btn toggle-btn-inactive w-full" data-display="table">一覧</button>
+                            </div>
+                        </div>
+                        <!-- 対象選挙 -->
+                        <div class="flex flex-col">
+                            <label class="text-xs font-medium text-gray-500 mb-1 text-center">対象選挙</label>
+                            <div id="election-type-controls" class="grid grid-cols-3 gap-1 p-1 bg-gray-100 rounded-lg">
+                                <button class="toggle-btn toggle-btn-active w-full" data-election="shugiin">衆院</button>
+                                <button class="toggle-btn toggle-btn-inactive w-full" data-election="sangiin">参院</button>
+                                <button class="toggle-btn toggle-btn-inactive w-full" data-election="both">統合</button>
+                            </div>
+                        </div>
+                        <!-- 表示データ -->
+                        <div class="flex flex-col">
+                            <label class="text-xs font-medium text-gray-500 mb-1 text-center">表示データ</label>
+                            <div id="data-type-controls" class="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-lg">
+                                <button class="toggle-btn toggle-btn-active w-full" data-data="votes">得票数</button>
+                                <button class="toggle-btn toggle-btn-inactive w-full" data-data="seats">議席数</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="chart-container">
+                    <canvas id="electionChart"></canvas>
+                    <div id="chart-legend-note" class="hidden text-center text-xs text-gray-500 mt-2">
+                        凡例: <span class="inline-flex items-center ml-2">● 衆院選</span>
+                        <span class="inline-flex items-center ml-4">▲ 参院選</span>
+                    </div>
+                </div>
+                <div id="table-container" class="hidden overflow-x-auto">
+                    <table class="w-full text-sm text-left text-gray-500">
+                        <thead id="election-table-head" class="text-xs text-gray-700 uppercase bg-gray-50"></thead>
+                        <tbody id="election-table-body"></tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4 text-center text-xs text-gray-500">
+                    ※データは各選挙の獲得票から抽出
+                </div>
+            </div>
+            
+            <div class="content-section mt-8">
+                <h2 class="text-2xl font-bold mb-4">自公連立解消の影響をシミュレーション</h2>
+                <p class="mb-6 text-sm text-gray-600">
+                    連立解消後の自民党の得票数を多角的に試算。各要素がどのように影響するか、スライダーを動かすことでシミュレートが可能。
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    <div>
+                        <label for="komeitoSlider" class="slider-label">① 失う公明党票の割合（<span id="komeitoSliderValue" class="slider-value">80</span>%）</label>
+                        <input id="komeitoSlider" type="range" min="0" max="100" value="80" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="returnSlider" class="slider-label">② 宗教・保守層の回帰率（<span id="returnSliderValue" class="slider-value">30</span>%）</label>
+                        <input id="returnSlider" type="range" min="0" max="100" value="30" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="unaffiliatedSlider" class="slider-label">③ 無党派層の支持獲得率（<span id="unaffiliatedSliderValue" class="slider-value">5</span>%）</label>
+                        <input id="unaffiliatedSlider" type="range" min="0" max="100" value="5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="expansionSlider" class="slider-label">④ 党勢拡大による上乗せ率（<span id="expansionSliderValue" class="slider-value">0</span>%）</label>
+                        <input id="expansionSlider" type="range" min="0" max="20" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+
+                <div class="text-center mt-8">
+                    <button id="simulateBtn" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">
+                        シミュレーション実行
+                    </button>
+                </div>
+
+                <div id="simulationResult" class="simulation-result-box hidden">
+                    <div id="resultText" class="text-gray-800 text-center"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="simulation-panel" class="tab-panel">
+            <div class="content-section mb-12">
+                 <h2 class="text-2xl font-bold mb-6">衆参両院・各会派の勢力図</h2>
+                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="font-bold text-lg mb-2">衆議院 (定数: 465 / 過半数: 233)</h3>
+                        <div id="shugiin-power-balance" class="space-y-2"></div>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-lg mb-2">参議院 (定数: 248 / 過半数: 125)</h3>
+                        <div id="sangiin-power-balance" class="space-y-2"></div>
+                    </div>
+                 </div>
+            </div>
+
+            <div class="content-section mt-28">
+                <h2 class="text-2xl font-bold mb-6">連立政権シミュレーション</h2>
+                <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4" id="coalition-parties">
+                </div>
+                <div class="mt-8 p-4 rounded-lg bg-gray-100">
+                    <div class="pb-4">
+                        <h3 class="font-bold text-lg">衆議院（首班指名）</h3>
+                        <div class="mt-2 flex justify-between items-center">
+                            <span class="text-gray-600">合計議席数:</span>
+                            <span id="shugiin-total" class="text-2xl font-bold text-indigo-600">0</span>
+                        </div>
+                        <div class="mt-1 flex justify-between items-center">
+                            <span class="text-gray-600">過半数 (233) まで:</span>
+                            <span id="shugiin-remaining" class="text-lg font-bold text-red-600">あと233議席</span>
+                        </div>
+                        <div id="shugiin-status" class="mt-4 text-center font-bold text-xl p-2 rounded-md"></div>
+                    </div>
+                    <div class="pt-4 border-t border-gray-300">
+                        <h3 class="font-bold text-lg">参議院（法案審議）</h3>
+                        <div class="mt-2 flex justify-between items-center">
+                            <span class="text-gray-600">合計議席数:</span>
+                            <span id="sangiin-total" class="text-2xl font-bold text-indigo-600">0</span>
+                        </div>
+                        <div class="mt-1 flex justify-between items-center">
+                            <span class="text-gray-600">過半数 (125) まで:</span>
+                            <span id="sangiin-remaining" class="text-lg font-bold text-red-600">あと125議席</span>
+                        </div>
+                        <div id="sangiin-status" class="mt-4 text-center font-bold text-xl p-2 rounded-md"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DATA DEFINITIONS ---
+            const voteData = {
+                shugiin: { years: [1996, 2000, 2003, 2005, 2009, 2012, 2014, 2017, 2021, 2024], ldp_proportional: [18205955, 16943425, 20660185, 25887798, 18810217, 16624457, 17658916, 18555717, 19914883, 14582690], ldp_constituency: [23804389, 24945806, 26089326, 32518389, 27301982, 25643309, 25461448, 26500776, 27626235, 20867762], komeito: [null, 7762032, 8733444, 8987620, 8054007, 7116474, 7314236, 6977712, 7114282, 5964415] },
+                sangiin: { years: [1998, 2001, 2004, 2007, 2010, 2013, 2016, 2019, 2022, 2025], ldp_proportional: [14128719, 21114727, 16797686, 16544671, 14071671, 18460335, 20114788, 17712373, 18256244, 12808307], ldp_constituency: [17033852, 22299825, 19687954, 18606193, 19496083, 22681192, 22590793, 20030330, 20603298, 14470017], komeito: [7748301, 8187804, 8621265, 7765329, 7639432, 7568082, 7572960, 6536336, 6181431, 5210569] }
+            };
+            const seatsData = {
+                shugiin: { years: [1996, 2000, 2003, 2005, 2009, 2012, 2014, 2017, 2021, 2024], ldp: [239, 233, 237, 296, 119, 294, 291, 284, 261, 196], komeito: [null, 31, 34, 31, 21, 31, 35, 29, 32, 24] },
+                sangiin: { years: [1998, 2001, 2004, 2007, 2010, 2013, 2016, 2019, 2022, 2025], ldp: [103, 110, 115, 83, 84, 115, 121, 113, 119, 100], komeito: [24, 23, 24, 20, 19, 20, 25, 28, 27, 21] }
+            };
+            const electionLegends = { shugiin: { 1996: '橋本内閣', 2000: '森内閣', 2003: '小泉内閣', 2005: '郵政解散', 2009: '政権交代', 2012: '自民政権復帰', 2014: 'アベノミクス解散', 2017: '国難突破解散', 2021: '岸田内閣', 2024: '直近結果' }, sangiin: { 1998: '橋本内閣', 2001: '小泉旋風', 2004: '年金選挙', 2007: 'ねじれ国会', 2010: '菅内閣', 2013: 'ねじれ解消', 2016: '18歳選挙権', 2019: '令和初', 2022: '安倍氏事件後', 2025: '直近結果' } };
+            const partyData = {
+                shugiin: { total: 465, majority: 233, parties: [ { name: '自由民主党・無所属の会', abbr: '自民', seats: 196, color: 'bg-red-500' }, { name: '立憲民主党・無所属', abbr: '立憲', seats: 148, color: 'bg-blue-500' }, { name: '日本維新の会', abbr: '維新', seats: 35, color: 'bg-green-500' }, { name: '国民民主党・無所属クラブ', abbr: '国民', seats: 27, color: 'bg-yellow-500' }, { name: '公明党', abbr: '公明', seats: 24, color: 'bg-sky-500' }, { name: 'れいわ新選組', abbr: 'れ新', seats: 9, color: 'bg-purple-500' }, { name: '日本共産党', abbr: '共産', seats: 8, color: 'bg-pink-500' }, { name: '有志・改革の会', abbr: '有志', seats: 7, color: 'bg-cyan-500' }, { name: '参政党', abbr: '参政', seats: 3, color: 'bg-teal-500' }, { name: '減税保守こども', abbr: 'こども', seats: 2, color: 'bg-indigo-800' }, { name: '無所属', abbr: '無所属', seats: 6, color: 'bg-gray-400' }, ] },
+                sangiin: { total: 248, majority: 125, parties: [ { name: '自由民主党', abbr: '自民', seats: 100, color: 'bg-red-500' }, { name: '立憲民主・社民・無所属', abbr: '立憲', seats: 42, color: 'bg-blue-500' }, { name: '国民民主党・新緑風会', abbr: '国民', seats: 25, color: 'bg-yellow-500' }, { name: '公明党', abbr: '公明', seats: 21, color: 'bg-sky-500' }, { name: '日本維新の会', abbr: '維新', seats: 19, color: 'bg-green-500' }, { name: '参政党', abbr: '参政', seats: 15, color: 'bg-teal-500' }, { name: '日本共産党', abbr: '共産', seats: 7, color: 'bg-pink-500' }, { name: 'れいわ新選組', abbr: 'れ新', seats: 6, color: 'bg-purple-500' }, { name: '日本保守党', abbr: '保守', seats: 2, color: 'bg-indigo-800' }, { name: '沖縄の風', abbr: '沖縄', seats: 2, color: 'bg-lime-500' }, { name: '各派に属しない議員', abbr: '無所属', seats: 9, color: 'bg-gray-400' }, ] }
+            };
+
+            // --- GLOBAL STATE ---
+            let currentDisplay = 'chart';
+            let currentElection = 'shugiin';
+            let currentData = 'votes';
+
+            // --- TABS ---
+            document.getElementById('main-tabs').addEventListener('click', (e) => {
+                if (e.target.tagName !== 'BUTTON') return;
+                document.querySelectorAll('#main-tabs .tab-btn').forEach(btn => {
+                    btn.classList.remove('tab-btn-active'); btn.classList.add('tab-btn-inactive');
+                });
+                e.target.classList.add('tab-btn-active'); e.target.classList.remove('tab-btn-inactive');
+                document.querySelectorAll('.tab-panel').forEach(panel => {
+                    panel.classList.remove('tab-panel-active');
+                    if (panel.id === `${e.target.dataset.tab}-panel`) {
+                        panel.classList.add('tab-panel-active');
+                    }
+                });
+            });
+
+            // --- ANALYSIS TAB SCRIPT ---
+            const ctx = document.getElementById('electionChart').getContext('2d');
+            const chartContainer = document.getElementById('chart-container');
+            const tableContainer = document.getElementById('table-container');
+            const chartLegendNote = document.getElementById('chart-legend-note');
+            let electionChart;
+            
+            function updateView() {
+                if (currentDisplay === 'chart') {
+                    chartContainer.classList.remove('hidden');
+                    tableContainer.classList.add('hidden');
+                    updateChart();
+                } else {
+                    chartContainer.classList.add('hidden');
+                    tableContainer.classList.remove('hidden');
+                    updateTable();
+                }
+            }
+
+            function updateChart() {
+                let chartDataSets;
+                let years;
+                let pointStyles = 'circle';
+
+                const yAxisLabel = currentData === 'votes' ? '得票数' : '議席数';
+                const tooltipUnit = currentData === 'votes' ? '票' : '議席';
+                const tickFormatter = currentData === 'votes' ? (value) => (value / 10000).toLocaleString() + '万票' : (value) => value + '議席';
+                
+                let shugiinDataSrc = currentData === 'votes' ? voteData.shugiin : seatsData.shugiin;
+                let sangiinDataSrc = currentData === 'votes' ? voteData.sangiin : seatsData.sangiin;
+
+                if(currentElection === 'both'){
+                    const allYears = [...new Set([...shugiinDataSrc.years, ...sangiinDataSrc.years])].sort();
+                    years = allYears;
+                    
+                    const ldpProportional = allYears.map(year => shugiinDataSrc.years.includes(year) ? (shugiinDataSrc.ldp_proportional ? shugiinDataSrc.ldp_proportional[shugiinDataSrc.years.indexOf(year)] : shugiinDataSrc.ldp[shugiinDataSrc.years.indexOf(year)]) : (sangiinDataSrc.years.includes(year) ? (sangiinDataSrc.ldp_proportional ? sangiinDataSrc.ldp_proportional[sangiinDataSrc.years.indexOf(year)] : sangiinDataSrc.ldp[sangiinDataSrc.years.indexOf(year)]) : null));
+                    const ldpConstituency = allYears.map(year => shugiinDataSrc.years.includes(year) ? shugiinDataSrc.ldp_constituency[shugiinDataSrc.years.indexOf(year)] : (sangiinDataSrc.years.includes(year) ? sangiinDataSrc.ldp_constituency[sangiinDataSrc.years.indexOf(year)] : null));
+                    const komeitoData = allYears.map(year => shugiinDataSrc.years.includes(year) ? shugiinDataSrc.komeito[shugiinDataSrc.years.indexOf(year)] : (sangiinDataSrc.years.includes(year) ? sangiinDataSrc.komeito[sangiinDataSrc.years.indexOf(year)] : null));
+
+                    chartDataSets = [
+                        { label: '自民党（比例）', data: ldpProportional, pointStyle: allYears.map(y => sangiinDataSrc.years.includes(y) ? 'triangle' : 'circle'), borderColor: 'rgba(220, 38, 38, 0.8)'},
+                        { label: '自民党（選挙区）', data: ldpConstituency, pointStyle: allYears.map(y => sangiinDataSrc.years.includes(y) ? 'triangle' : 'circle'), borderColor: 'rgba(248, 113, 113, 0.8)', borderDash: [5, 5], fill: false, hidden: currentData === 'seats'},
+                        { label: '公明党', data: komeitoData, pointStyle: allYears.map(y => sangiinDataSrc.years.includes(y) ? 'triangle' : 'circle'), borderColor: 'rgba(59, 130, 246, 0.8)'}
+                    ];
+                    chartLegendNote.classList.remove('hidden');
+
+                } else {
+                    const data = currentData === 'votes' ? voteData[currentElection] : seatsData[currentElection];
+                    years = data.years;
+                    chartDataSets = [
+                        { label: '自民党（比例）', data: data.ldp_proportional || data.ldp, borderColor: 'rgba(220, 38, 38, 0.8)'},
+                        { label: '自民党（選挙区）', data: data.ldp_constituency, borderColor: 'rgba(248, 113, 113, 0.8)', borderDash: [5, 5], fill: false, hidden: currentData === 'seats' },
+                        { label: '公明党', data: data.komeito, borderColor: 'rgba(59, 130, 246, 0.8)'},
+                    ];
+                    chartLegendNote.classList.add('hidden');
+                }
+
+                if (electionChart) { electionChart.destroy(); }
+                electionChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: years,
+                        datasets: chartDataSets.map(ds => ({
+                            ...ds,
+                            radius: 5, hoverRadius: 7, backgroundColor: ds.borderColor.replace('0.8', '0.1'),
+                            borderWidth: 3, tension: 0.1, fill: ds.fill !== false, spanGaps: false
+                        }))
+                    },
+                    options: { responsive: true, scales: { y: { title: { display: true, text: yAxisLabel }, ticks: { callback: tickFormatter } }, x: { ticks: { callback: function(value) { const year = this.getLabelForValue(value); const legend = electionLegends.shugiin[year] || electionLegends.sangiin[year] || ''; return [year, legend]; } } } }, plugins: { tooltip: { callbacks: { label: (context) => `${context.dataset.label || ''}: ${context.parsed.y ? context.parsed.y.toLocaleString() : 'N/A'} ${tooltipUnit}` } } } }
+                });
+            }
+            
+            function updateTable() {
+                const unit = currentData === 'votes' ? '票' : '議席';
+                const head = document.getElementById('election-table-head');
+                const body = document.getElementById('election-table-body');
+                body.innerHTML = '';
+                const showConstituency = currentData === 'votes';
+                
+                let headerHTML = `<tr><th scope="col" class="px-6 py-3">選挙年</th>`;
+                if(currentElection === 'both') headerHTML += `<th scope="col" class="px-6 py-3">種類</th>`;
+                if(showConstituency) headerHTML += `<th scope="col" class="px-6 py-3">自民党(選挙区)</th>`;
+                headerHTML += `<th scope="col" class="px-6 py-3">自民党(比例)</th><th scope="col" class="px-6 py-3">公明党</th></tr>`;
+                head.innerHTML = headerHTML;
+                
+                if (currentElection === 'both') {
+                    const shugiinVotes = voteData.shugiin;
+                    const sangiinVotes = voteData.sangiin;
+                    const shugiinSeats = seatsData.shugiin;
+                    const sangiinSeats = seatsData.sangiin;
+
+                    const allEvents = [];
+                    shugiinVotes.years.forEach((year, index) => allEvents.push({ year, type: '衆院選', votes: {ldp_c: shugiinVotes.ldp_constituency[index], ldp_p: shugiinVotes.ldp_proportional[index], komeito: shugiinVotes.komeito[index]}, seats: {ldp: shugiinSeats.ldp[index], komeito: shugiinSeats.komeito[index]} }));
+                    sangiinVotes.years.forEach((year, index) => allEvents.push({ year, type: '参院選', votes: {ldp_c: sangiinVotes.ldp_constituency[index], ldp_p: sangiinVotes.ldp_proportional[index], komeito: sangiinVotes.komeito[index]}, seats: {ldp: sangiinSeats.ldp[index], komeito: sangiinSeats.komeito[index]} }));
+                    allEvents.sort((a,b) => a.year - b.year);
+
+                    allEvents.forEach(event => {
+                        const row = document.createElement('tr'); row.className = 'bg-white border-b';
+                        let data = currentData === 'votes' ? event.votes : event.seats;
+                        let rowHTML = `<th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${event.year}</th><td class="px-6 py-4">${event.type}</td>`;
+                        if(showConstituency) rowHTML += `<td class="px-6 py-4">${data.ldp_c ? data.ldp_c.toLocaleString() : 'N/A'}</td>`;
+                        rowHTML += `<td class="px-6 py-4">${(data.ldp_p || data.ldp) ? (data.ldp_p || data.ldp).toLocaleString() : 'N/A'}</td><td class="px-6 py-4">${data.komeito ? data.komeito.toLocaleString() : 'N/A'}</td>`;
+                        row.innerHTML = rowHTML;
+                        body.appendChild(row);
+                    });
+                } else {
+                    const data = currentData === 'votes' ? voteData[currentElection] : seatsData[currentElection];
+                    data.years.forEach((year, index) => {
+                        const row = document.createElement('tr'); row.className = 'bg-white border-b';
+                        let rowHTML = `<th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${year}</th>`;
+                        if (showConstituency) rowHTML += `<td class="px-6 py-4">${data.ldp_constituency[index] ? data.ldp_constituency[index].toLocaleString() : 'N/A'}</td>`;
+                        rowHTML += `<td class="px-6 py-4">${(data.ldp_proportional || data.ldp)[index] ? (data.ldp_proportional || data.ldp)[index].toLocaleString() : 'N/A'}</td><td class="px-6 py-4">${data.komeito[index] ? data.komeito[index].toLocaleString() : 'N/A'}</td>`;
+                        row.innerHTML = rowHTML;
+                        body.appendChild(row);
+                    });
+                }
+            }
+            
+            ['display-type-controls', 'election-type-controls', 'data-type-controls'].forEach(id => {
+                const container = document.getElementById(id);
+                if (container) {
+                    container.addEventListener('click', (e) => {
+                        const clickedButton = e.target.closest('.toggle-btn');
+                        if (!clickedButton) return;
+
+                        container.querySelectorAll('.toggle-btn').forEach(btn => {
+                            btn.classList.remove('toggle-btn-active');
+                        });
+                        clickedButton.classList.add('toggle-btn-active');
+                        
+                        const key = Object.keys(clickedButton.dataset)[0];
+                        const value = clickedButton.dataset[key];
+                        
+                        if (key === 'display') currentDisplay = value;
+                        else if (key === 'election') currentElection = value;
+                        else if (key === 'data') currentData = value;
+                        
+                        updateView();
+                    });
+                }
+            });
+
+            const sliders = { komeito: document.getElementById('komeitoSlider'), return: document.getElementById('returnSlider'), unaffiliated: document.getElementById('unaffiliatedSlider'), expansion: document.getElementById('expansionSlider') };
+            const sliderValues = { komeito: document.getElementById('komeitoSliderValue'), return: document.getElementById('returnSliderValue'), unaffiliated: document.getElementById('unaffiliatedSliderValue'), expansion: document.getElementById('expansionSliderValue') };
+            for (const key in sliders) { sliders[key].addEventListener('input', (e) => { sliderValues[key].textContent = e.target.value; }); }
+            document.getElementById('simulateBtn').addEventListener('click', () => {
+                const baseLdpVotes = voteData.shugiin.ldp_constituency[voteData.shugiin.ldp_constituency.length - 1]; 
+                const recentLdpVotes = voteData.sangiin.ldp_constituency[voteData.sangiin.ldp_constituency.length - 1];
+                const baseKomeitoVotes = voteData.shugiin.komeito[voteData.shugiin.komeito.length - 1];
+                const maxReturnVotes = 6000000; 
+                const maxUnaffiliatedVotes = 10000000;
+                
+                const lostKomeitoVotes = baseKomeitoVotes * (sliders.komeito.value / 100); 
+                const gainedReturnVotes = maxReturnVotes * (sliders.return.value / 100); 
+                const gainedUnaffiliatedVotes = maxUnaffiliatedVotes * (sliders.unaffiliated.value / 100);
+                
+                let votesAfterChanges = baseLdpVotes - lostKomeitoVotes + gainedReturnVotes + gainedUnaffiliatedVotes; 
+                const expansionBonus = votesAfterChanges * (sliders.expansion.value / 100); 
+                const finalLdpVotes = votesAfterChanges + expansionBonus; 
+                
+                const diffFromOriginal = finalLdpVotes - baseLdpVotes;
+                const increaseOrDecreaseOriginal = diffFromOriginal >= 0 ? '増加' : '減少';
+
+                const diffFromRecent = finalLdpVotes - recentLdpVotes;
+                const increaseOrDecreaseRecent = diffFromRecent >= 0 ? '増加' : '減少';
+
+                const resultText = document.getElementById('resultText'); 
+                resultText.innerHTML = `
+                    <p>シミュレーション結果：自民党の選挙区推定得票数は <strong class="text-xl">${Math.round(finalLdpVotes / 10000).toLocaleString()}万票</strong> となる。</p>
+                    <p class="mt-2">これは2024年衆院選の選挙区得票数(${Math.round(baseLdpVotes / 10000).toLocaleString()}万票)から <strong class="${diffFromOriginal >= 0 ? 'text-green-600' : 'text-red-600'} text-lg">${Math.abs(Math.round(diffFromOriginal / 10000)).toLocaleString()}万票</strong> の${increaseOrDecreaseOriginal}となり、2025年参院選の選挙区得票数(${Math.round(recentLdpVotes / 10000).toLocaleString()}万票)からは <strong class="${diffFromRecent >= 0 ? 'text-green-600' : 'text-red-600'} text-lg">${Math.abs(Math.round(diffFromRecent / 10000)).toLocaleString()}万票</strong> の${increaseOrDecreaseRecent}となる。</p>
+                    <p class="h-4"></p>
+                `;
+                document.getElementById('simulationResult').classList.remove('hidden');
+            });
+
+            // --- SIMULATION TAB SCRIPT ---
+            function renderPowerBalance(house, elementId) {
+                const container = document.getElementById(elementId); container.innerHTML = '';
+                const data = partyData[house];
+                data.parties.forEach(party => {
+                    const percentage = (party.seats / data.total) * 100;
+                    const partyEl = document.createElement('div'); partyEl.className = 'flex items-center text-sm';
+                    partyEl.innerHTML = `<div class="w-1/3">${party.name}</div><div class="w-2/3 flex items-center"><div class="w-full bg-gray-200 rounded-full h-6"><div class="${party.color} party-bar rounded-full" style="width: ${percentage}%">${party.seats}</div></div></div>`;
+                    container.appendChild(partyEl);
+                });
+                const totalSeats = data.parties.reduce((sum, party) => sum + party.seats, 0);
+                const totalEl = document.createElement('div'); totalEl.className = 'flex items-center text-sm font-bold border-t mt-2 pt-2';
+                totalEl.innerHTML = `<div class="w-1/3">合計</div><div class="w-2/3 flex items-center justify-end font-bold text-base pr-4">${totalSeats}</div>`;
+                container.appendChild(totalEl);
+            }
+
+            function renderCoalitionParties() {
+                const container = document.getElementById('coalition-parties'); container.innerHTML = '';
+                const allParties = {};
+                partyData.shugiin.parties.forEach(p => { if(p.abbr !== '無所属') allParties[p.abbr] = { shugiin: p.seats }; });
+                partyData.sangiin.parties.forEach(p => { if (allParties[p.abbr]) { allParties[p.abbr].sangiin = p.seats; } else { if(p.abbr !== '無所属' && p.abbr !== '沖縄') allParties[p.abbr] = { sangiin: p.seats }; } });
+                const shugiinPartyOrder = partyData.shugiin.parties.map(p => p.abbr);
+                shugiinPartyOrder.forEach((abbr) => {
+                    if (!allParties[abbr] || abbr === '無所属') return;
+                    const shugiinSeats = allParties[abbr].shugiin || 0;
+                    const sangiinSeats = allParties[abbr].sangiin || 0;
+                    const partyEl = document.createElement('div');
+                    partyEl.innerHTML = `<label for="party-${abbr}" class="flex items-center p-2 rounded-md border border-gray-300 cursor-pointer hover:bg-gray-100"><input type="checkbox" id="party-${abbr}" data-shugiin-seats="${shugiinSeats}" data-sangiin-seats="${sangiinSeats}" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"><span class="ml-2 text-sm font-medium">${abbr}</span></label>`;
+                    container.appendChild(partyEl);
+                });
+            }
+
+            function updateCoalitionSimulation() {
+                const checkboxes = document.querySelectorAll('#coalition-parties input[type="checkbox"]');
+                let totalShugiinSeats = 0; let totalSangiinSeats = 0;
+                checkboxes.forEach(box => { if (box.checked) { totalShugiinSeats += parseInt(box.dataset.shugiinSeats); totalSangiinSeats += parseInt(box.dataset.sangiinSeats); } });
+                
+                const shugiinMajority = partyData.shugiin.majority; const shugiinRemaining = shugiinMajority - totalShugiinSeats;
+                document.getElementById('shugiin-total').textContent = totalShugiinSeats;
+                const shugiinRemainingEl = document.getElementById('shugiin-remaining'); const shugiinStatusEl = document.getElementById('shugiin-status');
+                if (shugiinRemaining <= 0) { shugiinRemainingEl.textContent = '過半数達成'; shugiinRemainingEl.className = 'text-lg font-bold text-green-600'; shugiinStatusEl.textContent = '🎉 政権樹立可能 🎉'; shugiinStatusEl.className = 'mt-4 text-center font-bold text-xl p-2 rounded-md bg-green-100 text-green-800'; } else { shugiinRemainingEl.textContent = `あと${shugiinRemaining}議席`; shugiinRemainingEl.className = 'text-lg font-bold text-red-600'; shugiinStatusEl.textContent = '過半数に達していません'; shugiinStatusEl.className = 'mt-4 text-center font-bold text-xl p-2 rounded-md bg-red-100 text-red-800'; }
+
+                const sangiinMajority = partyData.sangiin.majority; const sangiinRemaining = sangiinMajority - totalSangiinSeats;
+                document.getElementById('sangiin-total').textContent = totalSangiinSeats;
+                const sangiinRemainingEl = document.getElementById('sangiin-remaining'); const sangiinStatusEl = document.getElementById('sangiin-status');
+                if (sangiinRemaining <= 0) { sangiinRemainingEl.textContent = '過半数達成'; sangiinRemainingEl.className = 'text-lg font-bold text-green-600'; sangiinStatusEl.textContent = '🎉 多数派形成 🎉'; sangiinStatusEl.className = 'mt-4 text-center font-bold text-xl p-2 rounded-md bg-green-100 text-green-800'; } else { sangiinRemainingEl.textContent = `あと${sangiinRemaining}議席`; sangiinRemainingEl.className = 'text-lg font-bold text-red-600'; sangiinStatusEl.textContent = '過半数に達していません'; sangiinStatusEl.className = 'mt-4 text-center font-bold text-xl p-2 rounded-md bg-red-100 text-red-800'; }
+            }
+
+            document.getElementById('coalition-parties').addEventListener('change', updateCoalitionSimulation);
+
+            // --- INITIALIZATION ---
+            updateView();
+            renderPowerBalance('shugiin', 'shugiin-power-balance');
+            renderPowerBalance('sangiin', 'sangiin-power-balance');
+            renderCoalitionParties();
+            updateCoalitionSimulation();
+        });
+    </script>
+</body>
+</html>
+
