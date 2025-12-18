@@ -38,7 +38,7 @@
       </div>
       <div class="flex items-center gap-2">
         <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
-        <span>データ読込日: 2025/12/17</span>
+        <span>データ読込日: 2025/12/18</span>
       </div>
     </div>
   </div>
@@ -347,7 +347,9 @@
             <td class="p-4 align-top text-sm"><div class="font-medium text-slate-700">${item.house}</div><div class="text-slate-500 text-xs mt-1 whitespace-nowrap">${(item.questioner || '').replace('君', '')}</div></td>
             <td class="p-4 align-top"><div class="font-bold text-blue-700 mb-1 cursor-pointer hover:underline" ${getClickAttr(item)}>${item.title}</div><div class="text-sm text-slate-600 line-clamp-2">${item.answer_point_summary || item.question_point || "要約なし"}</div></td>
             <td class="p-4 align-top hidden md:table-cell">${item.category ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">${item.category}</span>` : ''}</td>
-            <td class="p-4 align-top text-center"><button ${getClickAttr(item)} class="text-slate-400 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-100" title="詳細を表示"><i data-lucide="external-link" class="w-5 h-5"></i></button></td>
+            <td class="p-4 align-top text-center">
+              <button ${getClickAttr(item)} class="text-slate-400 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-100" title="詳細を表示"><i data-lucide="external-link" class="w-5 h-5"></i></button>
+            </td>
           </tr>`).join('');
         container.innerHTML = `
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -356,7 +358,7 @@
                 <thead>
                   <tr class="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
                     <th class="p-4 w-20">ID</th>
-                    <th class="p-4 w-24 sort-header group" onclick="handleSort('house_questioner')"><div class="flex items-center gap-1">院 / 提出者 ${getSortIcon('house_questioner')}</div></th>
+                    <th class="p-4 w-32 whitespace-nowrap sort-header group" onclick="handleSort('house_questioner')"><div class="flex items-center gap-1">院 / 提出者 ${getSortIcon('house_questioner')}</div></th>
                     <th class="p-4 sort-header group" onclick="handleSort('title')"><div class="flex items-center gap-1">件名 / 概要 ${getSortIcon('title')}</div></th>
                     <th class="p-4 w-32 hidden md:table-cell sort-header group" onclick="handleSort('category')"><div class="flex items-center gap-1">分野 ${getSortIcon('category')}</div></th>
                     <th class="p-4 w-24 text-center">操作</th>
@@ -381,7 +383,7 @@
     }
 
     function updateUIState(count) {
-      document.getElementById('footer-info').textContent = `${count} 件表示中 (全 ${ALL_DATA.length} 件) | 出力日時: 2025/12/17 16:25:58`;
+      document.getElementById('footer-info').textContent = `${count} 件表示中 (全 ${ALL_DATA.length} 件) | 出力日時: 2025/12/18 9:53:05`;
       const btnTable = document.getElementById('view-table');
       const btnCard = document.getElementById('view-card');
       const activeClass = ['bg-white', 'shadow', 'text-blue-600'];
@@ -400,9 +402,11 @@
       if (state.filterText) searchClearBtn.classList.remove('hidden'); else searchClearBtn.classList.add('hidden');
     }
 
+    // --- モーダル制御 ---
     function openModal(id) {
       const item = ALL_DATA.find(d => String(d.id) === id);
       if (!item) return;
+
       document.getElementById('modal-house-badge').textContent = item.house;
       document.getElementById('modal-house-badge').className = `px-2 py-0.5 rounded text-xs font-bold text-white ${item.house === '参議院' ? 'bg-indigo-500' : 'bg-purple-500'}`;
       document.getElementById('modal-id').textContent = item.id;
@@ -410,24 +414,32 @@
       document.getElementById('modal-questioner').textContent = item.questioner;
       document.getElementById('modal-category').textContent = item.category || 'なし';
       document.getElementById('modal-summary').textContent = item.answer_point_summary || '要約情報は登録されていません。';
+
       const linksContainer = document.getElementById('modal-links');
       linksContainer.innerHTML = '';
+      
       const createLink = (url, text, color, iconClass) => {
         if (!url) return '';
-        return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:border-${color}-400 hover:bg-${color}-50 transition-all group text-sm"><span class="font-medium text-slate-600 group-hover:text-${color}-700">${text}</span><i data-lucide="${iconClass}" class="w-4 h-4 text-slate-400 group-hover:text-${color}-500"></i></a>`;
+        return `
+          <a href="${url}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:border-${color}-400 hover:bg-${color}-50 transition-all group text-sm">
+            <span class="font-medium text-slate-600 group-hover:text-${color}-700">${text}</span>
+            <i data-lucide="${iconClass}" class="w-4 h-4 text-slate-400 group-hover:text-${color}-500"></i>
+          </a>`;
       };
+
       let linksHtml = '';
       linksHtml += createLink(item.q_html_url, '質問本文 (HTML)', 'blue', 'external-link');
       linksHtml += createLink(item.a_html_url, '答弁本文 (HTML)', 'green', 'external-link');
       linksHtml += createLink(item.q_pdf_url, '質問本文 (PDF)', 'red', 'file-text');
       linksHtml += createLink(item.a_pdf_url, '答弁本文 (PDF)', 'red', 'file-text');
       linksContainer.innerHTML = linksHtml;
+
       document.getElementById('modal-overlay').classList.remove('hidden');
       lucide.createIcons();
     }
 
     function closeModal(event) {
-      if (event && event.target.id !== 'modal-overlay') return;
+      if (event && event.target.id !== 'modal-overlay') return; // 背景クリック以外は無視 (閉じるボタンはonclickで直接呼ぶ)
       document.getElementById('modal-overlay').classList.add('hidden');
     }
 
