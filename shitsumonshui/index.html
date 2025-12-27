@@ -12,6 +12,7 @@
   @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
   .sort-header { cursor: pointer; user-select: none; }
   .sort-header:hover { background-color: #f1f5f9; }
+  .cursor-pointer:hover { opacity: 0.8; }
   @media print {
     body { background-color: white; }
     .no-print { display: none; }
@@ -213,7 +214,17 @@
     function filterData() {
       const searchKeywords = state.filterText.replace(/　/g, ' ').trim().split(' ').filter(k => k !== '');
       return ALL_DATA.filter(item => {
-        const targetText = [item.title, item.questioner, item.answer_point_summary, item.question_point, item.id, item.category].join(' ');
+        // 質問者名を空白なしで正規化
+        const questionerFormatted = item.questioner ? item.questioner.replace(/[ 　]/g, '') : '';
+        const targetText = [
+          item.title, 
+          item.questioner, 
+          questionerFormatted, // ヒットしやすくするために追加
+          item.answer_point_summary, 
+          item.question_point, 
+          item.id, 
+          item.category
+        ].join(' ');
         const matchesText = searchKeywords.length === 0 || searchKeywords.every(keyword => targetText.includes(keyword));
         const matchesHouse = state.selectedHouse === "all" || item.house === state.selectedHouse;
         const matchesCategory = state.selectedCategory === "all" || item.category === state.selectedCategory;
@@ -221,6 +232,21 @@
       });
     }
 
+    // クリックフィルタリング用関数
+    window.filterByCategory = function(category) {
+      state.selectedCategory = category;
+      document.getElementById('category-select').value = category;
+      renderDashboard();
+    };
+
+    window.filterByQuestioner = function(name) {
+      // 検索ボックスに名前を入れて絞り込む
+      state.filterText = name;
+      document.getElementById('search-input').value = name;
+      renderDashboard();
+    };
+
+    // ... (rest of sorting logic is same as before) ...
     function sortData(data) {
       if (!state.sortKey) return data;
       return [...data].sort((a, b) => {
@@ -283,13 +309,18 @@
       const container = document.getElementById('stats-container');
       const totalDataCount = ALL_DATA.length;
       const houseBar = (count, color) => `<div class="w-full bg-slate-100 rounded-full h-2"><div class="${color} h-2 rounded-full" style="width: ${(count / totalCount) * 100 || 0}%"></div></div>`;
-      const listHTML = (list, colorClass, bgClass) => list.length > 0 ? list.slice(0,3).map(([k, v]) => `<div class="flex items-center justify-between text-sm mb-2"><span class="truncate text-slate-600 w-2/3" title="${k}">${k || "未分類"}</span><span class="font-semibold ${bgClass} ${colorClass} px-2 py-0.5 rounded-full text-xs">${v}</span></div>`).join('') : '<span class="text-sm text-slate-400">データなし</span>';
+      
+      // クリックイベントを追加
+      const listHTML = (list, colorClass, bgClass, type) => list.length > 0 ? list.slice(0,3).map(([k, v]) => {
+        const clickAction = type === 'category' ? `onclick="filterByCategory('${k}')"` : `onclick="filterByQuestioner('${k}')"`;
+        return `<div class="flex items-center justify-between text-sm mb-2 cursor-pointer hover:bg-slate-50 rounded p-1 transition-colors" ${clickAction} title="クリックして絞り込み"><span class="truncate text-slate-600 w-2/3">${k || "未分類"}</span><span class="font-semibold ${bgClass} ${colorClass} px-2 py-0.5 rounded-full text-xs">${v}</span></div>`;
+      }).join('') : '<span class="text-sm text-slate-400">データなし</span>';
 
       container.innerHTML = `
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between"><div class="flex justify-between items-start mb-2"><h3 class="text-sm font-medium text-slate-500">表示中の質問総数</h3><i data-lucide="file-text" class="w-5 h-5 text-blue-500"></i></div><div class="text-3xl font-bold text-slate-800">${totalCount} <span class="text-sm font-normal text-slate-500">件</span></div><div class="mt-2 text-xs text-slate-400">全 ${totalDataCount} 件中</div></div>
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between items-start mb-4"><h3 class="text-sm font-medium text-slate-500">院別内訳</h3><i data-lucide="pie-chart" class="w-5 h-5 text-purple-500"></i></div><div class="flex gap-4 items-end"><div class="flex-1"><div class="flex justify-between text-sm mb-1"><span>衆議院</span><span class="font-bold">${stats.houseCount['衆議院'] || 0}</span></div>${houseBar(stats.houseCount['衆議院'] || 0, 'bg-purple-500')}</div><div class="flex-1"><div class="flex justify-between text-sm mb-1"><span>参議院</span><span class="font-bold">${stats.houseCount['参議院'] || 0}</span></div>${houseBar(stats.houseCount['参議院'] || 0, 'bg-indigo-500')}</div></div></div>
-        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between items-start mb-2"><h3 class="text-sm font-medium text-slate-500">主要分野 (Top 3)</h3><i data-lucide="bar-chart" class="w-5 h-5 text-green-500"></i></div><div class="mt-2">${listHTML(stats.sortedCategories, 'text-green-700', 'bg-green-50')}</div></div>
-        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between items-start mb-2"><h3 class="text-sm font-medium text-slate-500">主要質問者 (Top 3)</h3><i data-lucide="users" class="w-5 h-5 text-orange-500"></i></div><div class="mt-2">${listHTML(stats.sortedQuestioners, 'text-orange-700', 'bg-orange-50')}</div></div>`;
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between items-start mb-2"><h3 class="text-sm font-medium text-slate-500">主要分野 (Top 3)</h3><i data-lucide="bar-chart" class="w-5 h-5 text-green-500"></i></div><div class="mt-2">${listHTML(stats.sortedCategories, 'text-green-700', 'bg-green-50', 'category')}</div></div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between items-start mb-2"><h3 class="text-sm font-medium text-slate-500">主要質問者 (Top 3)</h3><i data-lucide="users" class="w-5 h-5 text-orange-500"></i></div><div class="mt-2">${listHTML(stats.sortedQuestioners, 'text-orange-700', 'bg-orange-50', 'questioner')}</div></div>`;
     }
 
     function renderAnalysis(data, stats) {
@@ -388,7 +419,7 @@
     }
 
     function updateUIState(count) {
-      document.getElementById('footer-info').textContent = `${count} 件表示中 (全 ${ALL_DATA.length} 件) | 出力日時: 2025/12/27 19:09:06`;
+      document.getElementById('footer-info').textContent = `${count} 件表示中 (全 ${ALL_DATA.length} 件) | 出力日時: 2025/12/27 19:44:37`;
       const btnTable = document.getElementById('view-table');
       const btnCard = document.getElementById('view-card');
       const activeClass = ['bg-white', 'shadow', 'text-blue-600'];
