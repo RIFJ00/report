@@ -215,6 +215,7 @@
             </div>
         );
 
+        // --- APP_START ---
         function App() {
             const [user, setUser] = useState(null);
             const [activeTab, setActiveTab] = useState('form'); 
@@ -320,6 +321,7 @@
                 </div>
             );
         }
+        // --- APP_END ---
 
         function RegistrationForm({ user }) {
             const [formData, setFormData] = useState({
@@ -801,6 +803,78 @@
             );
         }
 
+        // --- Component: HTML Preview Modal ---
+        function HtmlPreviewModal({ isOpen, onClose, htmlContent }) {
+            const [copyStatus, setCopyStatus] = useState('idle');
+            const textAreaRef = useRef(null);
+
+            useEffect(() => {
+                if(isOpen) setCopyStatus('idle');
+            }, [isOpen]);
+
+            if (!isOpen) return null;
+
+            const handleCopy = () => {
+                if (textAreaRef.current) {
+                    textAreaRef.current.select();
+                    try {
+                        const successful = document.execCommand('copy');
+                        if (successful) {
+                            setCopyStatus('success');
+                            setTimeout(() => setCopyStatus('idle'), 3000);
+                        } else {
+                            setCopyStatus('error');
+                        }
+                    } catch (err) {
+                        console.error('Copy failed', err);
+                        setCopyStatus('error');
+                    }
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4 animate-fade-in">
+                    <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full flex flex-col h-[80vh]">
+                        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <FileCode className="text-indigo-600" />
+                                HTMLコード生成
+                            </h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-full transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="p-4 bg-blue-50 border-b border-blue-100 text-sm text-blue-800">
+                            <p>以下のコードをすべてコピーし、テキストエディタに貼り付けて <strong>.html</strong> 形式（例: <code>form.html</code>）で保存してください。</p>
+                        </div>
+                        <div className="flex-grow p-0 relative">
+                            <textarea
+                                ref={textAreaRef}
+                                readOnly
+                                value={htmlContent}
+                                className="w-full h-full p-4 font-mono text-xs text-slate-600 outline-none resize-none"
+                                onClick={(e) => e.target.select()}
+                            />
+                        </div>
+                        <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex justify-between items-center">
+                            <div className="text-sm font-medium">
+                                {copyStatus === 'success' && <span className="text-green-600 flex items-center gap-1 animate-fade-in"><CheckCircle size={18}/> コピーしました！</span>}
+                                {copyStatus === 'error' && <span className="text-red-600 flex items-center gap-1 animate-fade-in"><AlertTriangle size={18}/> コピーに失敗しました。手動でコピーしてください（Ctrl+C）</span>}
+                            </div>
+                            <div className="flex gap-3">
+                                <button onClick={onClose} className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-white font-bold transition-colors">閉じる</button>
+                                <button onClick={handleCopy} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold flex items-center gap-2 shadow-sm transition-colors active:transform active:scale-95">
+                                    <Copy size={18} />
+                                    コードをコピー
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- ADMIN_ONLY_START ---
         // --- Component: Edit Modal ---
         function EditMemberModal({ member, onClose, onUpdate }) {
             const [formData, setFormData] = useState({ ...member });
@@ -870,6 +944,8 @@
             const [loading, setLoading] = useState(true);
             const [editingMember, setEditingMember] = useState(null);
             const [deleteConfirmationId, setDeleteConfirmationId] = useState(null);
+            const [showHtmlModal, setShowHtmlModal] = useState(false);
+            const [generatedHtml, setGeneratedHtml] = useState('');
 
             useEffect(() => {
                 if (!user) return;
@@ -993,41 +1069,103 @@
                 generateCSV(headers, rows, `政策リサーチ登録用リスト_${new Date().toISOString().slice(0, 10)}.csv`);
             };
 
-            const downloadStandaloneHtml = () => {
-                const htmlContent = document.documentElement.outerHTML;
+            const handleOpenHtmlModal = () => {
+                let htmlContent = document.documentElement.outerHTML;
                 
-                // rootの中身を初期状態に戻したHTML文字列を作成
+                // 1. 管理者専用コードの削除
+                htmlContent = htmlContent.replace(/\/\/\s*---\s*ADMIN_ONLY_START\s*---[\s\S]*?\/\/\s*---\s*ADMIN_ONLY_END\s*---/g, '');
+
+                // 2. Appコンポーネントの差し替え（申し込み専用版へ）
+                const simpleAppCode = `
+        function App() {
+            const [user, setUser] = useState(null);
+            const [authError, setAuthError] = useState(null);
+
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        await signInAnonymously(auth);
+                    } catch (error) {
+                        console.error("Auth error:", error);
+                        setAuthError(error.message);
+                    }
+                };
+                initAuth();
+                const unsubscribe = onAuthStateChanged(auth, setUser);
+                return () => unsubscribe();
+            }, []);
+
+            if (authError) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border-l-4 border-red-500">
+                            <div className="flex items-center gap-3 mb-4 text-red-600">
+                                <AlertTriangle size={32} />
+                                <h2 className="text-xl font-bold">システムエラー</h2>
+                            </div>
+                            <p className="text-gray-700 mb-4">データベースへの接続に失敗しました。</p>
+                            <div className="bg-slate-100 p-3 rounded text-xs font-mono text-slate-600 mb-4 overflow-x-auto">{authError}</div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!user) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
+                        <div className="flex flex-col items-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                            <p>システムを読み込み中...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
+                    <header className="bg-indigo-800 text-white shadow-lg print:hidden">
+                        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <Shield className="w-8 h-8 text-indigo-200" />
+                                <h1 className="text-xl font-bold tracking-wide">
+                                    政策リサーチ申込画面
+                                </h1>
+                            </div>
+                        </div>
+                    </header>
+                    <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-grow">
+                        <RegistrationForm user={user} />
+                    </main>
+                    <footer className="bg-slate-100 border-t border-slate-200 print:hidden">
+                        <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-4">
+                            <CorporateFooter />
+                            <div className="text-xs flex items-center justify-center gap-2 text-slate-400">
+                                <span>© 2025 Policy Research Portal. Secure Data System.</span>
+                                <span className="text-slate-300">|</span>
+                                <a
+                                    href="https://www.rifj.jp/privacypolicy/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:text-indigo-800 hover:underline transition-colors flex items-center gap-1"
+                                >
+                                    プライバシーポリシーについて
+                                    <span className="text-xs">↗</span>
+                                </a>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+`;
+                htmlContent = htmlContent.replace(/\/\/\s*---\s*APP_START\s*---[\s\S]*?\/\/\s*---\s*APP_END\s*---/, simpleAppCode);
+
                 const cleanHtml = htmlContent.replace(
                     /(<div id="root">)[\s\S]*?(<\/div>)/,
                     '$1<div class="min-h-screen flex items-center justify-center flex-col"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div><p class="text-slate-500">システムを読み込み中...</p></div>$2'
                 );
-
-                // 互換性の高い document.execCommand('copy') を使用
-                const textArea = document.createElement("textarea");
-                textArea.value = cleanHtml;
-                
-                // 画面外に配置して見えないようにする
-                textArea.style.position = "fixed";
-                textArea.style.left = "-9999px";
-                textArea.style.top = "0";
-                document.body.appendChild(textArea);
-                
-                textArea.focus();
-                textArea.select();
-                
-                try {
-                    const successful = document.execCommand('copy');
-                    if (successful) {
-                        alert("HTMLコードをクリップボードにコピーしました。\n\nメモ帳などのテキストエディタに貼り付け、\n「policy_research.html」等の名前で保存してご利用ください。");
-                    } else {
-                        alert("コピーに失敗しました。手動でコピーしてください。");
-                    }
-                } catch (err) {
-                    console.error('コピーに失敗しました:', err);
-                    alert("コピーに失敗しました。ブラウザのセキュリティ設定を確認してください。");
-                }
-                
-                document.body.removeChild(textArea);
+                setGeneratedHtml(cleanHtml);
+                setShowHtmlModal(true);
             };
 
 
@@ -1055,6 +1193,12 @@
                             onCancel={() => setDeleteConfirmationId(null)}
                         />
                     )}
+                    <HtmlPreviewModal 
+                        isOpen={showHtmlModal} 
+                        onClose={() => setShowHtmlModal(false)} 
+                        htmlContent={generatedHtml} 
+                    />
+                    
                     <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                         <div>
                             <h2 className="text-xl font-bold text-slate-800">申し込み一覧</h2>
@@ -1068,7 +1212,7 @@
                             <button onClick={downloadMemberCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><FileSpreadsheet size={16} /><span>会員リスト出力</span></button>
                             <button onClick={downloadBillingCSV} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><Receipt size={16} /><span>請求先リスト出力</span></button>
                             <button onClick={downloadRegistrationCSV} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><UserPlus size={16} /><span>登録用出力</span></button>
-                            <button onClick={downloadStandaloneHtml} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm border border-slate-600"><Copy size={16} /><span>HTMLをコピー</span></button>
+                            <button onClick={handleOpenHtmlModal} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm border border-slate-600"><FileCode size={16} /><span>HTMLコード生成</span></button>
                         </div>
                     </div>
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -1142,6 +1286,7 @@
                 </div>
             );
         }
+        // --- ADMIN_ONLY_END ---
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
