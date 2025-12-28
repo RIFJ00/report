@@ -63,7 +63,7 @@
             User, FileSpreadsheet, Send, CheckCircle, List, Shield, Download, Mail, 
             Search, FileText, AlertCircle, Building2, Briefcase, CreditCard, Receipt, 
             CheckSquare, Square, UserPlus, FileCode, Edit, Trash2, X, Save, 
-            AlertTriangle, FileDown, LogOut 
+            AlertTriangle, FileDown, LogOut, Copy
         } from 'https://esm.sh/lucide-react@0.292.0';
 
         // Firebase SDKs
@@ -994,7 +994,40 @@
             };
 
             const downloadStandaloneHtml = () => {
-                 alert("この機能を使用するには、ブラウザの「ページを別名で保存」機能を使用して、現在のHTMLファイルをそのまま保存・配布してください。");
+                const htmlContent = document.documentElement.outerHTML;
+                
+                // rootの中身を初期状態に戻したHTML文字列を作成
+                const cleanHtml = htmlContent.replace(
+                    /(<div id="root">)[\s\S]*?(<\/div>)/,
+                    '$1<div class="min-h-screen flex items-center justify-center flex-col"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div><p class="text-slate-500">システムを読み込み中...</p></div>$2'
+                );
+
+                // 互換性の高い document.execCommand('copy') を使用
+                const textArea = document.createElement("textarea");
+                textArea.value = cleanHtml;
+                
+                // 画面外に配置して見えないようにする
+                textArea.style.position = "fixed";
+                textArea.style.left = "-9999px";
+                textArea.style.top = "0";
+                document.body.appendChild(textArea);
+                
+                textArea.focus();
+                textArea.select();
+                
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        alert("HTMLコードをクリップボードにコピーしました。\n\nメモ帳などのテキストエディタに貼り付け、\n「policy_research.html」等の名前で保存してご利用ください。");
+                    } else {
+                        alert("コピーに失敗しました。手動でコピーしてください。");
+                    }
+                } catch (err) {
+                    console.error('コピーに失敗しました:', err);
+                    alert("コピーに失敗しました。ブラウザのセキュリティ設定を確認してください。");
+                }
+                
+                document.body.removeChild(textArea);
             };
 
 
@@ -1035,7 +1068,7 @@
                             <button onClick={downloadMemberCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><FileSpreadsheet size={16} /><span>会員リスト出力</span></button>
                             <button onClick={downloadBillingCSV} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><Receipt size={16} /><span>請求先リスト出力</span></button>
                             <button onClick={downloadRegistrationCSV} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><UserPlus size={16} /><span>登録用出力</span></button>
-                            <button onClick={downloadStandaloneHtml} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm border border-slate-600"><FileCode size={16} /><span>フォームHTML生成</span></button>
+                            <button onClick={downloadStandaloneHtml} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm border border-slate-600"><Copy size={16} /><span>HTMLをコピー</span></button>
                         </div>
                     </div>
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
