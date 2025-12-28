@@ -120,6 +120,57 @@
             return '-';
         };
 
+        // --- Component: Login Screen ---
+        function LoginScreen({ onLogin }) {
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (password === 'miraiken@1') {
+                    onLogin();
+                } else {
+                    setError('パスワードが違います');
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+                    <div className="bg-white p-8 rounded-xl shadow-lg max-w-sm w-full animate-fade-in">
+                        <div className="flex flex-col items-center mb-6">
+                            <div className="bg-indigo-100 p-3 rounded-full mb-4">
+                                <Shield className="w-8 h-8 text-indigo-600" />
+                            </div>
+                            <h2 className="text-xl font-bold text-slate-800">政策リサーチ</h2>
+                            <p className="text-sm text-slate-500">システムログイン</p>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => {
+                                        setPassword(e.target.value);
+                                        setError('');
+                                    }}
+                                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                    placeholder="パスワードを入力"
+                                    autoFocus
+                                />
+                            </div>
+                            {error && <div className="text-red-500 text-sm text-center font-medium bg-red-50 py-2 rounded flex items-center justify-center gap-1"><AlertTriangle size={14} />{error}</div>}
+                            <button
+                                type="submit"
+                                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow transition-colors flex justify-center items-center gap-2"
+                            >
+                                ログイン
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
         // 指定されたフッター情報
         const CorporateFooter = () => (
             <div className="text-center text-sm text-slate-500 font-medium leading-relaxed">
@@ -218,8 +269,9 @@
         // --- APP_START ---
         function App() {
             const [user, setUser] = useState(null);
-            const [activeTab, setActiveTab] = useState('form'); 
+            const [activeTab, setActiveTab] = useState('admin'); 
             const [authError, setAuthError] = useState(null);
+            const [isAuthenticated, setIsAuthenticated] = useState(false); // パスワード認証状態
 
             useEffect(() => {
                 const initAuth = async () => {
@@ -265,6 +317,11 @@
                 );
             }
 
+            // パスワード認証が完了していない場合、ログイン画面を表示
+            if (!isAuthenticated) {
+                return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
+            }
+
             return (
                 <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
                     <header className="bg-indigo-800 text-white shadow-lg print:hidden">
@@ -277,21 +334,21 @@
                             </div>
                             <div className="flex bg-indigo-900/50 rounded-lg p-1">
                                 <button
-                                    onClick={() => setActiveTab('form')}
-                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'form' ? 'bg-white text-indigo-800 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <User size={16} />
-                                        <span>申し込み</span>
-                                    </div>
-                                </button>
-                                <button
                                     onClick={() => setActiveTab('admin')}
                                     className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'admin' ? 'bg-white text-indigo-800 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
                                 >
                                     <div className="flex items-center gap-2">
                                         <List size={16} />
                                         <span>管理者</span>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('form')}
+                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'form' ? 'bg-white text-indigo-800 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <User size={16} />
+                                        <span>申し込み</span>
                                     </div>
                                 </button>
                             </div>
@@ -395,30 +452,37 @@
                     const pdfWidth = pdf.internal.pageSize.getWidth();
                     const pdfHeight = pdf.internal.pageSize.getHeight();
 
+                    // 高画質・高解像度設定 (約5MB程度を目指す)
+                    const scale = 4; 
+                    const imageFormat = 'image/jpeg';
+                    const imageQuality = 0.95;
+
                     // 1ページ目
                     if (pdfRef1.current) {
                         pdfRef1.current.style.display = 'block';
-                        const canvas1 = await window.html2canvas(pdfRef1.current, { scale: 2 });
+                        // scaleを上げて解像度を向上
+                        const canvas1 = await window.html2canvas(pdfRef1.current, { scale: scale, useCORS: true });
                         pdfRef1.current.style.display = 'none';
-                        const imgData1 = canvas1.toDataURL('image/png');
+                        // JPEG高画質で出力
+                        const imgData1 = canvas1.toDataURL(imageFormat, imageQuality);
                         const imgProps1 = pdf.getImageProperties(imgData1);
                         const imgHeight1 = (imgProps1.height * pdfWidth) / imgProps1.width;
-                        pdf.addImage(imgData1, 'PNG', 0, 0, pdfWidth, imgHeight1);
+                        pdf.addImage(imgData1, 'JPEG', 0, 0, pdfWidth, imgHeight1);
                     }
 
                     // 2ページ目
                     if (pdfRef2.current) {
                         pdf.addPage();
                         pdfRef2.current.style.display = 'block';
-                        const canvas2 = await window.html2canvas(pdfRef2.current, { scale: 2 });
+                        const canvas2 = await window.html2canvas(pdfRef2.current, { scale: scale, useCORS: true });
                         pdfRef2.current.style.display = 'none';
-                        const imgData2 = canvas2.toDataURL('image/png');
+                        const imgData2 = canvas2.toDataURL(imageFormat, imageQuality);
                         const imgProps2 = pdf.getImageProperties(imgData2);
                         const imgHeight2 = (imgProps2.height * pdfWidth) / imgProps2.width;
                         if (imgHeight2 > pdfHeight) {
-                            pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                            pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, pdfHeight);
                         } else {
-                            pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, imgHeight2);
+                            pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, imgHeight2);
                         }
                     }
 
@@ -803,77 +867,6 @@
             );
         }
 
-        // --- Component: HTML Preview Modal ---
-        function HtmlPreviewModal({ isOpen, onClose, htmlContent }) {
-            const [copyStatus, setCopyStatus] = useState('idle');
-            const textAreaRef = useRef(null);
-
-            useEffect(() => {
-                if(isOpen) setCopyStatus('idle');
-            }, [isOpen]);
-
-            if (!isOpen) return null;
-
-            const handleCopy = () => {
-                if (textAreaRef.current) {
-                    textAreaRef.current.select();
-                    try {
-                        const successful = document.execCommand('copy');
-                        if (successful) {
-                            setCopyStatus('success');
-                            setTimeout(() => setCopyStatus('idle'), 3000);
-                        } else {
-                            setCopyStatus('error');
-                        }
-                    } catch (err) {
-                        console.error('Copy failed', err);
-                        setCopyStatus('error');
-                    }
-                }
-            };
-
-            return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4 animate-fade-in">
-                    <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full flex flex-col h-[80vh]">
-                        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
-                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                <FileCode className="text-indigo-600" />
-                                HTMLコード生成
-                            </h3>
-                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-full transition-colors">
-                                <X size={24} />
-                            </button>
-                        </div>
-                        <div className="p-4 bg-blue-50 border-b border-blue-100 text-sm text-blue-800">
-                            <p>以下のコードをすべてコピーし、テキストエディタに貼り付けて <strong>.html</strong> 形式（例: <code>form.html</code>）で保存してください。</p>
-                        </div>
-                        <div className="flex-grow p-0 relative">
-                            <textarea
-                                ref={textAreaRef}
-                                readOnly
-                                value={htmlContent}
-                                className="w-full h-full p-4 font-mono text-xs text-slate-600 outline-none resize-none"
-                                onClick={(e) => e.target.select()}
-                            />
-                        </div>
-                        <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex justify-between items-center">
-                            <div className="text-sm font-medium">
-                                {copyStatus === 'success' && <span className="text-green-600 flex items-center gap-1 animate-fade-in"><CheckCircle size={18}/> コピーしました！</span>}
-                                {copyStatus === 'error' && <span className="text-red-600 flex items-center gap-1 animate-fade-in"><AlertTriangle size={18}/> コピーに失敗しました。手動でコピーしてください（Ctrl+C）</span>}
-                            </div>
-                            <div className="flex gap-3">
-                                <button onClick={onClose} className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-white font-bold transition-colors">閉じる</button>
-                                <button onClick={handleCopy} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold flex items-center gap-2 shadow-sm transition-colors active:transform active:scale-95">
-                                    <Copy size={18} />
-                                    コードをコピー
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
         // --- ADMIN_START ---
         // --- Component: Edit Modal ---
         function EditMemberModal({ member, onClose, onUpdate }) {
@@ -944,8 +937,6 @@
             const [loading, setLoading] = useState(true);
             const [editingMember, setEditingMember] = useState(null);
             const [deleteConfirmationId, setDeleteConfirmationId] = useState(null);
-            const [showHtmlModal, setShowHtmlModal] = useState(false);
-            const [generatedHtml, setGeneratedHtml] = useState('');
 
             useEffect(() => {
                 if (!user) return;
@@ -1069,108 +1060,6 @@
                 generateCSV(headers, rows, `政策リサーチ登録用リスト_${new Date().toISOString().slice(0, 10)}.csv`);
             };
 
-            const handleOpenHtmlModal = () => {
-                let htmlContent = document.documentElement.outerHTML;
-                
-                // 1. 管理者専用コードの削除（マーカーをシンプルにして確実にマッチ）
-                // 正規表現で /* ... */ と // ... の両方に対応しつつ、改行を含む範囲をマッチさせる
-                htmlContent = htmlContent.replace(/\/\/\s*---\s*ADMIN_START\s*---[\s\S]*?\/\/\s*---\s*ADMIN_END\s*---/g, '');
-
-                // 2. Appコンポーネントの差し替え（申し込み専用版へ）
-                const simpleAppCode = `
-        function App() {
-            const [user, setUser] = useState(null);
-            const [authError, setAuthError] = useState(null);
-
-            useEffect(() => {
-                const initAuth = async () => {
-                    try {
-                        await signInAnonymously(auth);
-                    } catch (error) {
-                        console.error("Auth error:", error);
-                        setAuthError(error.message);
-                    }
-                };
-                initAuth();
-                const unsubscribe = onAuthStateChanged(auth, setUser);
-                return () => unsubscribe();
-            }, []);
-
-            if (authError) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-                        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border-l-4 border-red-500">
-                            <div className="flex items-center gap-3 mb-4 text-red-600">
-                                <AlertTriangle size={32} />
-                                <h2 className="text-xl font-bold">システムエラー</h2>
-                            </div>
-                            <p className="text-gray-700 mb-4">データベースへの接続に失敗しました。</p>
-                            <div className="bg-slate-100 p-3 rounded text-xs font-mono text-slate-600 mb-4 overflow-x-auto">{authError}</div>
-                        </div>
-                    </div>
-                );
-            }
-
-            if (!user) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
-                        <div className="flex flex-col items-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                            <p>システムを読み込み中...</p>
-                        </div>
-                    </div>
-                );
-            }
-
-            return (
-                <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
-                    <header className="bg-indigo-800 text-white shadow-lg print:hidden">
-                        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-2">
-                                <Shield className="w-8 h-8 text-indigo-200" />
-                                <h1 className="text-xl font-bold tracking-wide">
-                                    政策リサーチ申込画面
-                                </h1>
-                            </div>
-                        </div>
-                    </header>
-                    <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-grow">
-                        <RegistrationForm user={user} />
-                    </main>
-                    <footer className="bg-slate-100 border-t border-slate-200 print:hidden">
-                        <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-4">
-                            <CorporateFooter />
-                            <div className="text-xs flex items-center justify-center gap-2 text-slate-400">
-                                <span>© 2025 Policy Research Portal. Secure Data System.</span>
-                                <span className="text-slate-300">|</span>
-                                <a
-                                    href="https://www.rifj.jp/privacypolicy/"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="hover:text-indigo-800 hover:underline transition-colors flex items-center gap-1"
-                                >
-                                    プライバシーポリシーについて
-                                    <span className="text-xs">↗</span>
-                                </a>
-                            </div>
-                        </div>
-                    </footer>
-                </div>
-            );
-        }
-`;
-                // Appコンポーネントの置換（コメントスタイルを統一）
-                htmlContent = htmlContent.replace(/\/\/\s*---\s*APP_START\s*---[\s\S]*?\/\/\s*---\s*APP_END\s*---/, simpleAppCode);
-
-                const cleanHtml = htmlContent.replace(
-                    /(<div id="root">)[\s\S]*?(<\/div>)/,
-                    '$1<div class="min-h-screen flex items-center justify-center flex-col"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div><p class="text-slate-500">システムを読み込み中...</p></div>$2'
-                );
-                setGeneratedHtml(cleanHtml);
-                setShowHtmlModal(true);
-            };
-
-
             if (loading) {
                 return <div className="text-center py-10 text-slate-500">データを読み込み中...</div>;
             }
@@ -1195,11 +1084,6 @@
                             onCancel={() => setDeleteConfirmationId(null)}
                         />
                     )}
-                    <HtmlPreviewModal 
-                        isOpen={showHtmlModal} 
-                        onClose={() => setShowHtmlModal(false)} 
-                        htmlContent={generatedHtml} 
-                    />
                     
                     <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                         <div>
@@ -1214,7 +1098,6 @@
                             <button onClick={downloadMemberCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><FileSpreadsheet size={16} /><span>会員リスト出力</span></button>
                             <button onClick={downloadBillingCSV} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><Receipt size={16} /><span>請求先リスト出力</span></button>
                             <button onClick={downloadRegistrationCSV} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><UserPlus size={16} /><span>登録用出力</span></button>
-                            <button onClick={handleOpenHtmlModal} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm border border-slate-600"><FileCode size={16} /><span>HTMLコード生成</span></button>
                         </div>
                     </div>
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
