@@ -1,0 +1,1662 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  onAuthStateChanged,
+  signInWithCustomToken
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc,       
+  query, 
+  onSnapshot, 
+  serverTimestamp,
+  orderBy 
+} from 'firebase/firestore';
+import { User, FileSpreadsheet, Send, CheckCircle, List, Shield, Download, Mail, Search, FileText, AlertCircle, Building2, Briefcase, CreditCard, Receipt, CheckSquare, Square, UserPlus, FileCode, Edit, Trash2, X, Save, AlertTriangle, FileDown, LogOut } from 'lucide-react';
+
+// --- Firebase Configuration & Initialization ---
+const firebaseConfig = {
+  apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs",
+  authDomain: "user-9b981.firebaseapp.com",
+  projectId: "user-9b981",
+  storageBucket: "user-9b981.firebasestorage.app",
+  messagingSenderId: "774702274914",
+  appId: "1:774702274914:web:d1cc06c0d191b77878743b",
+  measurementId: "G-X653ZLYV5V"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// 修正: データの保存場所を固定IDに戻します。
+// これにより、環境が変わっても同じデータ（以前登録したデータ）にアクセスできるようになります。
+const appId = "default-app-id";
+
+// --- Helper Functions ---
+const getOfficialPlanName = (plan, cycle) => {
+  if (plan === 'trial') return 'Navi Plus Trial（10日間無料トライアル）';
+  if (plan === 'corporate') return cycle === 'yearly' ? 'Navi Plus5（Fプラン5 年払）' : 'Navi Plus5（Fプラン5）';
+  if (plan === 'personal') return cycle === 'yearly' ? 'Navi Plus1（Fプラン1 年払）' : 'Navi Plus1（Fプラン1）';
+  return plan;
+};
+
+const getPlanPrice = (plan, cycle) => {
+  if (plan === 'trial') return '0';
+  if (plan === 'corporate') return cycle === 'yearly' ? '1,200,000' : '100,000';
+  if (plan === 'personal') return cycle === 'yearly' ? '360,000' : '30,000';
+  return '-';
+};
+
+// 指定されたフッター情報
+const CorporateFooter = () => (
+  <div className="text-center text-sm text-slate-500 font-medium leading-relaxed">
+    <p>一般社団法人日本みらい研 東京都千代田区平河町２−１６−６ jeⅤビル７F</p>
+    <p>TEL : 03-5215-6071 ／FAX : 03-5215-6072</p>
+    <p>
+      WEB: <a href="https://www.rifj.jp" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 hover:underline">www.rifj.jp</a> ／
+      Mail：<a href="mailto:office@rifj.jp" className="hover:text-indigo-600 hover:underline">office@rifj.jp</a>
+    </p>
+  </div>
+);
+
+// 利用規約テキスト
+const TermsOfServiceText = () => (
+  <div className="text-xs leading-relaxed text-slate-700">
+    <h4 className="font-bold text-center mb-4 text-sm">「政策リサーチ」利用規約</h4>
+    <p className="font-bold mt-2">第1条（目的）</p>
+    <p>本規約は、「一般社団法人日本みらい研」（以下「日本みらい研」と称します）及び「株式会社角川アスキー総合研究所」（以下「角川アスキー総研」と称します）が共同開発した「政策リサーチ」（以下「本サービス」）と称します）の利用について定めるものです。</p>
+    <p className="font-bold mt-2">第2条（定義）</p>
+    <p>本規約に同意のうえ、本規約第5条に基づく利用申込を行い、日本みらい研が承認した方をシステム利用者（以下「利用者」と称します）とします。</p>
+    <p className="font-bold mt-2">第3条（本サービスの運営）</p>
+    <p>本サービスは日本みらい研が運営するものとします。なお、本サービスは、カテゴライズされた情報を検索及び分析をし、かつ、閲覧するためのプラットホームを提供するものであって、情報自体を提供するものではなく、日本みらい研が、当該情報の信頼性、正確性を保証するものではありません。</p>
+    <p className="font-bold mt-2">第4条（利用資格）</p>
+    <p>1　本サービスの利用資格は、次のとおりとします。</p>
+    <div className="pl-4">
+      <p>（1）本規約に同意した者であること</p>
+      <p>（2）暴力団、暴力団関係団体、公共の福祉に反する活動を行う団体、その他の反社会的勢力でない者、また、当該団体と関与していない者であること</p>
+      <p>（3）自ら振出しもしくは引き受けた手形、小切手が不渡りになる等、支払停止または支払不能の状態にない者であること</p>
+      <p>（4）破産、民事再生手続開始、もしくは弊社更生手続開始等の申し立てを受け、もしくは自らこれらの申し立てをなした者でないこと</p>
+      <p>（5）仮差押、差押、仮処分、強制執行、担保権実行としての競売等の申し立てを受けた者でないこと</p>
+      <p>（6）その他資産、信用状態に不安がある者でないこと</p>
+    </div>
+    <p>2　利用者は、前項（2）から（6）に反する事実が生じた場合には、直ちに日本みらい研に対して通知するものとします。</p>
+    <p>3　日本みらい研は、利用者から前項の通知があった場合または日本みらい研が当該事実を確認した場合には、何らの通知催告を要せず、直ちに当該利用者の利用資格を抹消することができるものとします。</p>
+    <p>4　日本みらい研は、利用者が本条の規定に違反したことにより損害を被った場合、利用者に対し、前項に基づく利用資格の抹消にかかわらず、当該損害について損害賠償を請求できるものとします。</p>
+    <p className="font-bold mt-2">第5条（登録）</p>
+    <p>1　本サービスの利用者として登録を希望する者は、所定の利用申込書に必要事項を記入の上、日本みらい研又は角川アスキー総研又は指定の代理店へ提出するものとします。</p>
+    <p>2　日本みらい研が承認し、利用者登録がなされたら速やかに本サービスに必要なアカウントIDとパスワードの設定通知を利用者に電子メールにて通知するものとします。</p>
+    <p className="font-bold mt-2">第6条（利用開始）</p>
+    <p>1　利用者は、初期登録料及び月額利用料金を支払い、アカウントIDとパスワードを受領した日から本サービスを利用できるものとします。</p>
+    <p>2　利用者は、日本みらい研又は角川アスキー総研と相互に取り決めをした場合は、初期登録料及び月額利用料金を支払う前であっても本サービスを利用できるものとします。</p>
+    <p className="font-bold mt-2">第7条（利用料金）</p>
+    <p>1　本サービスの利用料金は、初期登録料及び月額利用料金からなり、利用プランによりそれぞれ指定された金額となります。</p>
+    <p>2　利用プランによる利用料金の詳細は、別途定めるものとします。</p>
+    <p>3　前項に基づく利用料金の請求は、日本みらい研又は角川アスキー総研又は指定の代理店が請求書の郵送または電子メールで利用者に通知するものとし、利用者は請求に基づき、指定する口座に現金にて振り込むものとします。なお、振込手数料その他の支払いに要する費用は利用者が負担するものとします。</p>
+    <p>4　いったん受領した利用料金については、理由の如何を問わず返金しないものとします。</p>
+    <p className="font-bold mt-2">第8条（利用期間）</p>
+    <p>本サービスの利用期間は、利用開始日から1年間とし、利用終了日の2か月前までに申し出のない場合は自動的に1年間の延長をするものとします。</p>
+    <p className="font-bold mt-2">第9条（アカウントIDおよびパスワードの管理）</p>
+    <p>1　本サービスに登録したパスワードの管理およびその使用に関しての責任はすべて利用者が負うものとします。</p>
+    <p>2　利用者は、日本みらい研から交付されたアカウントIDとパスワードを冒用、盗用その他の不正利用がなされないように厳重に管理するものとします。</p>
+    <p>3　利用者は、アカウントIDまたはパスワードが第三者に使用されている疑いがある場合には、遅滞なく、日本みらい研に連絡するとともに、日本みらい研の指示がある場合にはそれに従うものとします。</p>
+    <p>4　日本みらい研は、利用者によるパスワードの使用上の過失および第三者の利用に伴う損害の一切の責任を負わないものとします。</p>
+    <p>5　アカウントIDおよびパスワードが第三者に不正に利用されたことによ り日本みらい研に損害が生じた場合には、利用者は日本みらい研に対し その損害を賠償しなければならないものとします。</p>
+    <p className="font-bold mt-2">第10条（利用者の登録情報の取扱い）</p>
+    <p>1　利用者の登録情報は、日本みらい研が所有するものとし、個人が特定できる情報（氏名・住所・電話番号・メールアドレス）については、本サービスの提供に必要な範囲内での利用、委託先への預託の他、個人情報にかかる利用者本人の承諾がある場合を除き、原則として、外部への提供は行わないものとします。</p>
+    <p>2　利用者は、自己が日本みらい研に提供した個人情報が正確であることを保証するものとします。日本みらい研は、当該情報が不正確であることによって利用者または第三者に損害が生じた場合には、一切責任を負わないものとします。</p>
+    <p className="font-bold mt-2">第11条（著作権）</p>
+    <p>本サービスの著作権およびその他一切の権利は日本みらい研及びその一部は角川アスキー総研に帰属するものとします。</p>
+    <p className="font-bold mt-2">第12条（禁止事項）</p>
+    <p>1　利用者は、本サービスを通じて入手したいかなる情報も、私的利用や部内検討以外の目的で複製、加工をしたり、販売、出版、その他の営利活動目的で使用することを禁止します。ただし、日本みらい研が承認した場合（当該情報に関して権利を持つ第三者がいる場合には、日本みらい研を通じ当該第三者の承諾を取得することを含む）は除くものとします。</p>
+    <p>2　利用者は、前項の使用を目的とする場合には、その取扱いについて別途書面による合意をしなければならないものとします。</p>
+    <p>3　利用者は、本サービスを政治活動や宗教活動等に使用してはならないものとします。</p>
+    <p>4　利用者は、第三者にパスワードの譲渡、売買、貸与または自己もしくは第三者のために担保の用に供する等の行為はしてはならないものとします。</p>
+    <p className="font-bold mt-2">第13条（利用者資格の抹消）</p>
+    <p>次の項目に該当する場合、日本みらい研は、利用者への事前通知、承諾なしにアカウントIDとパスワードを無効とすることができるものとします。</p>
+    <div className="pl-4">
+      <p>（1）アカウントIDやパスワードを不正に使用し、または使用させた場合</p>
+      <p>（2）前条に定める禁止事項その他本会則の各条項に違反した場合</p>
+      <p>（3）日本みらい研で認めることができない不正な行為があった場合</p>
+      <p>（4）その他日本みらい研が不適切と判断した行為があった場合</p>
+      <p>（5）利用料金の支払いが2ヶ月間滞納した場合</p>
+      <p>（6）本会則第4条に定める利用資格を満たさなくなった場合</p>
+    </div>
+    <p className="font-bold mt-2">第14条（利用者情報の変更）</p>
+    <p>利用者は、第5条に定める利用申込書に記載した内容に変更があった場合には、速やかに変更手続を行なうものとします。その後に変更があった場合にも同様とします。</p>
+    <p className="font-bold mt-2">第15条（本サービスの内容の変更、中止等）</p>
+    <p>1　本サービスは、バージョンアップや仕様変更等に伴い、利用者への事前通知、承諾なしに仕様や内容を変更する場合があります。</p>
+    <p>2　本サービスの定期保守、更新ならびに緊急事態発生、停電、天災等の不可抗力その他不測の事態によりサービス運営継続が困難になった場合、利用者への事前通知、承諾なしに本サービスの内容を変更または中止する場合があります。</p>
+    <p className="font-bold mt-2">第16条（解約）</p>
+    <p>本サービスは、利用開始日から1年を経過した後はいつでも解約を申し出ることができるものとし、解約を希望する場合は、解約日の2か月前までに日本みらい研に申し出るものとします。</p>
+    <p className="font-bold mt-2">第17条（免責）</p>
+    <p>1　日本みらい研は、理由の如何を問わず、本サービスによるサービス提供が遅延し、又は中断したことに起因して利用者または第三者が被った被害について、一切の責任を負わないものとします。</p>
+    <p>2　日本みらい研は、本サービスの利用を通じて得た情報等の正確性、特定の目的への適合性等について、一切の責任を負わないものとします。</p>
+    <p>3　日本みらい研は、本サービスの利用を通じて得た情報等に起因して損害が生じた場合、一切の責任を負わないものとします。</p>
+    <p>4　日本みらい研は、日本みらい研が推奨する本サービスの利用環境（ウェブサイトに掲示）以外の環境で生じた不具合について、一切責任を負わないものとします。</p>
+    <p className="font-bold mt-2">第18条（利用規約の改定）</p>
+    <p>日本みらい研は、必要に応じて、利用規約を改定することができるものとします。なお、利用規約を改定しようとする場合には、1ヶ月前までに利用者に対して電子メールまたは日本みらい研のウェブサイトへの掲示等により通知することとし、改定後の利用規約の効力は、全利用者に及ぶものとします。</p>
+    <p className="font-bold mt-2">第19条（準拠法）</p>
+    <p>本利用規約は、日本国法に準拠するものとします。</p>
+    <p className="font-bold mt-2">第20条（裁判管轄）</p>
+    <p>日本みらい研および利用者との間で訴訟の必要が生じた場合には、第一審の専属的合意管轄裁判所を東京地方裁判所または東京簡易裁判所とします。</p>
+  </div>
+);
+
+// --- Main Application Component ---
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('form'); 
+  const [authError, setAuthError] = useState(null);
+
+  // PDFライブラリのロード（CDNから）
+  useEffect(() => {
+    const loadScript = (src) => {
+      return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) {
+          resolve();
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.body.appendChild(script);
+      });
+    };
+
+    Promise.all([
+      loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
+      loadScript('https://html2canvas.hertzen.com/dist/html2canvas.min.js')
+    ]).catch(err => console.error('Failed to load PDF libraries', err));
+  }, []);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        await signInAnonymously(auth);
+      } catch (error) {
+        console.error("Auth error:", error);
+        setAuthError(error.message);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  if (authError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border-l-4 border-red-500">
+          <div className="flex items-center gap-3 mb-4 text-red-600">
+            <AlertTriangle size={32} />
+            <h2 className="text-xl font-bold">システムエラー</h2>
+          </div>
+          <p className="text-gray-700 mb-4">データベースへの接続に失敗しました。</p>
+          <div className="bg-slate-100 p-3 rounded text-xs font-mono text-slate-600 mb-4 overflow-x-auto">
+            {authError}
+          </div>
+          <p className="text-sm text-gray-500">
+            管理者の方へ: Firebaseコンソールで <strong>Authentication</strong> の設定を確認してください。
+            <strong>匿名ログイン(Anonymous Auth)</strong> が有効になっている必要があります。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+          <p>システムを読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
+      {/* Header */}
+      <header className="bg-indigo-800 text-white shadow-lg print:hidden">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Shield className="w-8 h-8 text-indigo-200" />
+            <h1 className="text-xl font-bold tracking-wide">
+              {activeTab === 'admin' ? '政策リサーチ管理者画面' : '政策リサーチ申込画面'}
+            </h1>
+          </div>
+          <div className="flex bg-indigo-900/50 rounded-lg p-1">
+            <button
+              onClick={() => setActiveTab('form')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                activeTab === 'form' 
+                  ? 'bg-white text-indigo-800 shadow-sm' 
+                  : 'text-indigo-200 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <User size={16} />
+                <span>申し込み</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('admin')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                activeTab === 'admin' 
+                  ? 'bg-white text-indigo-800 shadow-sm' 
+                  : 'text-indigo-200 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <List size={16} />
+                <span>管理者</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-grow">
+        {activeTab === 'form' ? (
+          <RegistrationForm user={user} />
+        ) : (
+          <AdminDashboard user={user} />
+        )}
+      </main>
+      
+      <footer className="bg-slate-100 border-t border-slate-200 print:hidden">
+        <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-4">
+          <CorporateFooter />
+          <div className="text-xs flex items-center justify-center gap-2 text-slate-400">
+            <span>© 2025 Policy Research Portal. Secure Data System.</span>
+            <span className="text-slate-300">|</span>
+            <a 
+              href="https://www.rifj.jp/privacypolicy/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:text-indigo-800 hover:underline transition-colors flex items-center gap-1"
+            >
+              プライバシーポリシーについて
+              <span className="text-xs">↗</span>
+            </a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+// --- Component: Registration Form ---
+function RegistrationForm({ user }) {
+  const [formData, setFormData] = useState({
+    companyName: '',
+    department: '',
+    lastName: '', 
+    firstName: '', 
+    position: '',
+    email: '',
+    emailConfirm: '',
+    phone: '',
+    postalCode: '',
+    address: '',
+    address2: '',
+    plan: 'trial',
+    paymentCycle: '', 
+    notes: '',
+    isBillingDifferent: false,
+    billingName: '',
+    billingDepartment: '',
+    billingEmail: '',
+    billingEmailConfirm: '',
+    billingPhone: ''
+  });
+  const [finalDataForPdf, setFinalDataForPdf] = useState(null); // PDF出力用データ
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState(null); 
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [validationError, setValidationError] = useState('');
+  
+  // PDF出力用の隠し要素参照
+  const pdfRef1 = useRef(null);
+  const pdfRef2 = useRef(null);
+  // お支払い方法セクションへの参照（スクロール用）
+  const paymentMethodRef = useRef(null);
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => {
+      const newData = { ...prev, [name]: type === 'checkbox' ? checked : value };
+      if (name === 'plan') {
+        if (value === 'trial') {
+          newData.paymentCycle = ''; 
+          newData.isBillingDifferent = false; 
+        } else {
+          newData.paymentCycle = ''; 
+        }
+      }
+      return newData;
+    });
+    if (validationError) setValidationError('');
+  };
+
+  const searchAddress = async () => {
+    if (!formData.postalCode || formData.postalCode.length < 7) {
+      setValidationError("郵便番号は7桁で入力してください（ハイフンなし）");
+      return;
+    }
+    setAddressLoading(true);
+    setValidationError('');
+    try {
+      const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${formData.postalCode}`);
+      const data = await response.json();
+      if (data.results) {
+        const result = data.results[0];
+        const fullAddress = `${result.address1}${result.address2}${result.address3}`;
+        setFormData(prev => ({ ...prev, address: fullAddress }));
+      } else {
+        setValidationError("住所が見つかりませんでした。郵便番号を確認してください。");
+      }
+    } catch (error) {
+      console.error("Address search error:", error);
+      setValidationError("住所検索中にエラーが発生しました。手動で入力してください。");
+    } finally {
+      setAddressLoading(false);
+    }
+  };
+
+  const generatePDF = async () => {
+    if (!window.jspdf || !window.html2canvas) {
+      alert("PDF生成ライブラリを読み込み中です。少々お待ちください。");
+      return;
+    }
+    try {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      // 1ページ目 (登録情報)
+      if (pdfRef1.current) {
+        // 一時的に表示させる
+        pdfRef1.current.style.display = 'block';
+        const canvas1 = await window.html2canvas(pdfRef1.current, { scale: 2 });
+        pdfRef1.current.style.display = 'none';
+        
+        const imgData1 = canvas1.toDataURL('image/png');
+        const imgProps1 = pdf.getImageProperties(imgData1);
+        const imgHeight1 = (imgProps1.height * pdfWidth) / imgProps1.width;
+        pdf.addImage(imgData1, 'PNG', 0, 0, pdfWidth, imgHeight1);
+      }
+
+      // 2ページ目 (利用規約)
+      if (pdfRef2.current) {
+        pdf.addPage();
+        pdfRef2.current.style.display = 'block';
+        const canvas2 = await window.html2canvas(pdfRef2.current, { scale: 2 });
+        pdfRef2.current.style.display = 'none';
+
+        const imgData2 = canvas2.toDataURL('image/png');
+        const imgProps2 = pdf.getImageProperties(imgData2);
+        const imgHeight2 = (imgProps2.height * pdfWidth) / imgProps2.width;
+        // 長い場合は縮小するか複数ページにするが、今回は1ページに収める調整
+        if (imgHeight2 > pdfHeight) {
+             pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        } else {
+             pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, imgHeight2);
+        }
+      }
+
+      pdf.save('登録情報_利用規約.pdf');
+      
+    } catch (error) {
+      console.error("PDF generation failed", error);
+      alert("PDFの生成に失敗しました。");
+    }
+  };
+
+  const handleFinish = () => {
+    setSubmitStatus(null);
+    setFinalDataForPdf(null);
+    setFormData({
+      companyName: '', department: '', lastName: '', firstName: '', position: '',
+      email: '', emailConfirm: '', phone: '', postalCode: '', address: '', address2: '',
+      plan: 'trial', paymentCycle: '', notes: '',
+      isBillingDifferent: false, billingName: '', billingDepartment: '',
+      billingEmail: '', billingEmailConfirm: '', billingPhone: ''
+    });
+    setAgreedToTerms(false);
+    window.scrollTo(0, 0);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+    
+    if (formData.email !== formData.emailConfirm) {
+      setValidationError("メールアドレスが一致しません。");
+      window.scrollTo(0, 0);
+      return;
+    }
+    if (formData.plan !== 'trial' && !formData.paymentCycle) {
+      setValidationError("お支払い方法を選択してください。");
+      // お支払い方法セクションへスクロール
+      paymentMethodRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (formData.isBillingDifferent) {
+      if (formData.billingEmail !== formData.billingEmailConfirm) {
+        setValidationError("請求先のメールアドレスが一致しません。");
+        return;
+      }
+      if (!formData.billingName || !formData.billingEmail || !formData.billingPhone) {
+        setValidationError("請求先情報の必須項目（名、メール、電話番号）を入力してください。");
+        return;
+      }
+    }
+    if (!agreedToTerms) {
+      setValidationError("利用規約への同意が必要です。");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitStatus(null);
+    setValidationError('');
+
+    try {
+      const { emailConfirm, billingEmailConfirm, isBillingDifferent, ...baseData } = formData;
+      const fullName = `${formData.lastName} ${formData.firstName}`;
+      
+      const finalData = {
+        ...baseData,
+        // 変更: 請求先情報が同じ場合、会社名ではなく氏名を入れる
+        billingName: isBillingDifferent ? formData.billingName : fullName,
+        billingDepartment: isBillingDifferent ? formData.billingDepartment : formData.department,
+        billingEmail: isBillingDifferent ? formData.billingEmail : formData.email,
+        billingPhone: isBillingDifferent ? formData.billingPhone : formData.phone,
+        isBillingDifferent,
+        categoryCode: 'C00',
+        userId: user.uid,
+        createdAt: serverTimestamp(),
+        status: 'pending'
+      };
+
+      // PDF出力用に保存 (現在日付を追加)
+      const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      setFinalDataForPdf({ ...finalData, fullName, applicationDate: today });
+
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), finalData);
+      
+      const officialPlanName = getOfficialPlanName(formData.plan, formData.paymentCycle);
+
+      console.group("📧 自動返信メールシミュレーション");
+      console.log(`To: ${formData.email}`);
+      console.log(`Subject: 【政策リサーチ】利用お申し込みありがとうございます`);
+      console.log(`Body:\n${formData.companyName}\n${formData.department}\n${fullName} 様\n...`);
+      console.groupEnd();
+
+      setSubmitStatus('success');
+      // フォームデータのクリアは「終了」ボタンで行うため、ここでは保持したままにする（PDF出力のためにも必要）
+      // setFormData({ ... }); 
+      setAgreedToTerms(false);
+      window.scrollTo(0, 0);
+      
+    } catch (error) {
+      console.error("Error adding document: ", error);
+      setSubmitStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto relative">
+      {/* PDF生成用隠し要素（画面には表示しないがhtml2canvasでキャプチャされる） */}
+      <div className="absolute top-0 left-0 w-[210mm] bg-white p-8 hidden" ref={pdfRef1} style={{ zIndex: -1 }}>
+        {finalDataForPdf && (
+          <div className="space-y-6 text-slate-800">
+            <div className="relative border-b pb-4 mb-6">
+              <h1 className="text-2xl font-bold text-center">政策リサーチ利用申込控え</h1>
+              <div className="absolute right-0 bottom-4 text-sm">
+                申込日: {finalDataForPdf.applicationDate}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                <h3 className="font-bold text-lg mb-2">契約プラン</h3>
+                <p>プラン名: {getOfficialPlanName(finalDataForPdf.plan, finalDataForPdf.paymentCycle)}</p>
+                <p>金額: {getPlanPrice(finalDataForPdf.plan, finalDataForPdf.paymentCycle)} 円</p>
+              </div>
+              <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                <h3 className="font-bold text-lg mb-2">利用者情報</h3>
+                <p>会社名: {finalDataForPdf.companyName}</p>
+                <p>部署名: {finalDataForPdf.department}</p>
+                <p>氏名: {finalDataForPdf.fullName}</p>
+                <p>役職: {finalDataForPdf.position || '-'}</p>
+                <p>住所: 〒{finalDataForPdf.postalCode} {finalDataForPdf.address} {finalDataForPdf.address2}</p>
+                <p>電話番号: {finalDataForPdf.phone}</p>
+                <p>Email: {finalDataForPdf.email}</p>
+              </div>
+              <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                <h3 className="font-bold text-lg mb-2">請求先情報</h3>
+                <p>請求先名（氏名）: {finalDataForPdf.billingName}</p>
+                <p>部署名: {finalDataForPdf.billingDepartment}</p>
+                <p>Email: {finalDataForPdf.billingEmail}</p>
+                <p>電話番号: {finalDataForPdf.billingPhone}</p>
+              </div>
+              {finalDataForPdf.notes && (
+                <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                  <h3 className="font-bold text-lg mb-2">備考</h3>
+                  <p className="whitespace-pre-wrap">{finalDataForPdf.notes}</p>
+                </div>
+              )}
+            </div>
+            <div className="mt-12 pt-8 border-t">
+              <CorporateFooter />
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="absolute top-0 left-0 w-[210mm] bg-white py-8 px-14 hidden" ref={pdfRef2} style={{ zIndex: -1 }}>
+        <h1 className="text-xl font-bold text-center border-b pb-4 mb-4">利用規約</h1>
+        <div className="text-xs">
+          <TermsOfServiceText />
+        </div>
+        <div className="mt-8 pt-4 border-t">
+          <CorporateFooter />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-6 bg-indigo-50 border-b border-indigo-100">
+          <h2 className="text-xl font-bold text-indigo-900">利用申し込み</h2>
+          <p className="text-indigo-700 text-sm mt-1">こちらは政策リサーチのご利用申し込みフォームです。</p>
+        </div>
+
+        {submitStatus === 'success' ? (
+            <div className="p-6 space-y-8 animate-fade-in">
+              <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">申し込みを受け付けました！</p>
+                    <p className="text-sm mt-1">ご入力いただいたメールアドレス宛に、自動確認メールを送信しました。</p>
+                  </div>
+                </div>
+                {/* PDFダウンロードボタンエリア */}
+                {(finalDataForPdf?.plan === 'corporate' || finalDataForPdf?.plan === 'personal') && (
+                  <div className="mt-4 pt-4 border-t border-green-200 space-y-3">
+                    <p className="text-sm text-green-800 font-bold">登録情報の控えをPDFでダウンロードできます。必要のない場合は終了ボタンを押して下さい。</p>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={generatePDF}
+                        className="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm font-bold"
+                      >
+                        <FileDown size={18} />
+                        登録情報をPDFで保存
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleFinish}
+                        className="bg-white border border-green-700 text-green-700 hover:bg-green-50 px-4 py-2 rounded-lg shadow-sm flex items-center gap-2 transition-colors text-sm font-bold"
+                      >
+                        <LogOut size={18} />
+                        終了（トップへ戻る）
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {/* トライアルなどの場合に戻るボタン */}
+                {!(finalDataForPdf?.plan === 'corporate' || finalDataForPdf?.plan === 'personal') && (
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={handleFinish}
+                      className="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm font-bold"
+                    >
+                      <LogOut size={18} />
+                      終了してトップへ戻る
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-6 space-y-8">
+            {submitStatus === 'error' && (
+              <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
+                <p>エラーが発生しました。もう一度お試しください。</p>
+              </div>
+            )}
+
+            {validationError && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex items-center gap-2">
+                <AlertCircle size={20} />
+                <p>{validationError}</p>
+              </div>
+            )}
+
+            {/* Form Fields ... */}
+            {/* ... existing fields ... */}
+            
+            <div className="space-y-6">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 border-b pb-2">
+                <Building2 className="text-indigo-600" size={20} />
+                利用者情報
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">会社名（個人利用の場合は、個人と記入） <span className="text-red-500">*</span></label>
+                  <input required type="text" name="companyName" value={formData.companyName} onChange={handleChange} placeholder="株式会社政策総研" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">部署名 <span className="text-slate-400 font-normal text-xs">（任意）</span></label>
+                  <input type="text" name="department" value={formData.department} onChange={handleChange} placeholder="調査部" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">お名前（姓） <span className="text-red-500">*</span></label>
+                  <input required type="text" name="lastName" value={formData.lastName} onChange={handleChange} placeholder="山田" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">お名前（名） <span className="text-red-500">*</span></label>
+                  <input required type="text" name="firstName" value={formData.firstName} onChange={handleChange} placeholder="太郎" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">役職 <span className="text-slate-400 font-normal text-xs">（任意）</span></label>
+                  <input type="text" name="position" value={formData.position} onChange={handleChange} placeholder="部長" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 border-b pb-2">
+                <Mail className="text-indigo-600" size={20} />
+                連絡先情報
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">メールアドレス <span className="text-red-500">*</span></label>
+                  <input required type="email" name="email" value={formData.email} onChange={handleChange} placeholder="taro@example.com" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">メールアドレス（確認） <span className="text-red-500">*</span></label>
+                  <input required type="email" name="emailConfirm" value={formData.emailConfirm} onChange={handleChange} placeholder="確認のため再入力" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">郵便番号 <span className="text-slate-400 text-xs font-normal">（ハイフンなし7桁）</span></label>
+                  <div className="flex gap-2">
+                    <input type="text" name="postalCode" value={formData.postalCode} onChange={(e) => setFormData(prev => ({...prev, postalCode: e.target.value.replace(/[^0-9]/g, '')}))} maxLength={7} placeholder="1000001" className="w-32 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                    <button type="button" onClick={searchAddress} disabled={addressLoading || !formData.postalCode} className="bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors disabled:bg-slate-300">
+                      {addressLoading ? '...' : <><Search size={14} /> 住所検索</>}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">電話番号（携帯可） <span className="text-red-500">*</span></label>
+                  <input required type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="090-1234-5678" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-semibold text-slate-700">ご住所1</label>
+                  <input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="東京都千代田区..." className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-slate-50 outline-none" />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-semibold text-slate-700">ご住所2（ビル名、マンション名等）</label>
+                  <input type="text" name="address2" value={formData.address2} onChange={handleChange} placeholder="〇〇ビル 5F" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 border-b pb-2">
+                <Briefcase className="text-indigo-600" size={20} />
+                ご利用プラン
+              </h3>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">プラン選択</label>
+                <select name="plan" value={formData.plan} onChange={handleChange} className="w-full px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium">
+                  <option value="trial">トライアル（無料10日間）</option>
+                  <option value="corporate">企業プラン（5ID）</option>
+                  <option value="personal">個人プラン（1ID）</option>
+                </select>
+              </div>
+
+              {formData.plan !== 'trial' && (
+                <div className="space-y-6 animate-fade-in" ref={paymentMethodRef}>
+                  <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                    <label className="text-sm font-semibold text-indigo-900 block mb-3">お支払い方法（必ずどちらかを選択して下さい） <span className="text-red-500">*</span></label>
+                    <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                      <label className={`relative flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all ${formData.paymentCycle === 'monthly' ? 'border-indigo-600 bg-white shadow-md' : 'border-slate-200 bg-white/50'}`}>
+                        <input type="radio" name="paymentCycle" value="monthly" checked={formData.paymentCycle === 'monthly'} onChange={handleChange} className="absolute opacity-0 w-full h-full cursor-pointer top-0 left-0" />
+                        <div className="flex items-center gap-2 mb-1"><span className="font-bold text-slate-800">月払い</span></div>
+                        <div className="text-xs text-slate-500 pl-6">{formData.plan === 'corporate' ? '¥100,000/月' : '¥30,000/月'}</div>
+                      </label>
+                      <label className={`relative flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all ${formData.paymentCycle === 'yearly' ? 'border-indigo-600 bg-white shadow-md' : 'border-slate-200 bg-white/50'}`}>
+                        <input type="radio" name="paymentCycle" value="yearly" checked={formData.paymentCycle === 'yearly'} onChange={handleChange} className="absolute opacity-0 w-full h-full cursor-pointer top-0 left-0" />
+                        <div className="flex items-center gap-2 mb-1"><span className="font-bold text-slate-800">年払い</span></div>
+                        <div className="text-xs text-slate-500 pl-6">{formData.plan === 'corporate' ? '¥1,200,000/年' : '¥360,000/年'}</div>
+                      </label>
+                    </div>
+                    <div className="text-xs text-slate-600 bg-white p-3 rounded border border-indigo-100">請求は、メールでの電子形式で行います。郵送による請求を希望される場合は、備考欄にその旨をご記載下さい。</div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <label className="flex items-center gap-3 cursor-pointer select-none mb-4">
+                      <input type="checkbox" name="isBillingDifferent" checked={formData.isBillingDifferent} onChange={handleChange} className="w-5 h-5 border-2 border-indigo-500 rounded text-indigo-600 cursor-pointer" />
+                      <span className="font-bold text-slate-800">請求先が利用者情報と異なる場合はチェック</span>
+                    </label>
+                    {formData.isBillingDifferent && (
+                      <div className="space-y-4 pt-2 border-t border-slate-200 animate-fade-in">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">請求先名 <span className="text-red-500">*</span></label><input required type="text" name="billingName" value={formData.billingName} onChange={handleChange} placeholder="氏名（例：山田 太郎）" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                          <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">請求先部署 <span className="text-slate-400 font-normal text-xs">（任意）</span></label><input type="text" name="billingDepartment" value={formData.billingDepartment} onChange={handleChange} placeholder="経理部" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                          <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス <span className="text-red-500">*</span></label><input required type="email" name="billingEmail" value={formData.billingEmail} onChange={handleChange} placeholder="keiri@example.com" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                          <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス（確認） <span className="text-red-500">*</span></label><input required type="email" name="billingEmailConfirm" value={formData.billingEmailConfirm} onChange={handleChange} placeholder="確認のため再入力" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                          <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">電話番号 <span className="text-red-500">*</span></label><input required type="tel" name="billingPhone" value={formData.billingPhone} onChange={handleChange} placeholder="03-9876-5432" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">備考</label>
+                <textarea name="notes" value={formData.notes} onChange={handleChange} rows="3" placeholder="その他ご要望等ございましたらご記入ください。" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <div className="flex items-center gap-2 mb-2 text-slate-800 font-semibold">
+                <FileText size={18} />
+                <h3>利用規約</h3>
+              </div>
+              <div className="h-60 overflow-y-auto bg-white border border-slate-200 rounded p-4 text-xs text-slate-600 leading-relaxed mb-3 shadow-inner">
+                  <TermsOfServiceText />
+              </div>
+              
+              <label className="flex items-center gap-3 cursor-pointer select-none hover:bg-slate-100 p-2 rounded transition-colors">
+                <div className="relative flex items-center">
+                  <input 
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="w-5 h-5 border-2 border-indigo-500 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" 
+                  />
+                </div>
+                <span className={`text-sm font-medium ${agreedToTerms ? 'text-indigo-900' : 'text-slate-600'}`}>
+                  利用規約の内容を確認し、同意します
+                </span>
+              </label>
+            </div>
+
+            <div className="pt-2">
+              <div className="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded mb-3 text-sm flex items-start gap-2">
+                 <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+                 <p>こちらの<strong>登録情報</strong>は、政策リサーチの登録にそのまま反映されます。間違いのないよう再度ご確認の上、申し込みボタンを送信して下さい。</p>
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting || !agreedToTerms}
+                className={`w-full py-3 px-4 rounded-lg text-white font-bold text-lg shadow-md flex items-center justify-center gap-2 transition-all ${
+                  isSubmitting || !agreedToTerms
+                    ? 'bg-slate-400 cursor-not-allowed transform-none shadow-none' 
+                    : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg active:transform active:scale-[0.98]'
+                }`}
+              >
+                {isSubmitting ? (
+                  <>処理中...</>
+                ) : (
+                  <>
+                    <Send size={20} />
+                    申し込みを送信
+                  </>
+                )}
+              </button>
+              {!agreedToTerms && (
+                <p className="text-center text-xs text-slate-400 mt-2">
+                  ※送信するには利用規約への同意が必要です
+                </p>
+              )}
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Component: Confirm Modal ---
+function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, confirmText = "OK", cancelText = "キャンセル", isDanger = false }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-fade-in">
+        <h3 className="text-lg font-bold text-slate-800 mb-2">{title}</h3>
+        <p className="text-slate-600 mb-6">{message}</p>
+        <div className="flex justify-end gap-3">
+          <button 
+            onClick={onCancel}
+            className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50 font-medium"
+          >
+            {cancelText}
+          </button>
+          <button 
+            onClick={onConfirm}
+            className={`px-4 py-2 text-white rounded font-bold shadow-sm ${isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Component: Edit Modal ---
+function EditMemberModal({ member, onClose, onUpdate }) {
+  const [formData, setFormData] = useState({ ...member });
+  
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onUpdate(member.id, formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white z-10">
+          <h3 className="text-xl font-bold text-slate-800">会員情報の編集</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={24} />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-bold text-slate-700">区分コード</label>
+              <input type="text" name="categoryCode" value={formData.categoryCode || 'C00'} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-bold text-slate-700">会社名</label>
+              <input type="text" name="companyName" value={formData.companyName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-bold text-slate-700">部署名</label>
+              <input type="text" name="department" value={formData.department || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-bold text-slate-700">役職</label>
+              <input type="text" name="position" value={formData.position || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-bold text-slate-700">姓</label>
+              <input type="text" name="lastName" value={formData.lastName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-bold text-slate-700">名</label>
+              <input type="text" name="firstName" value={formData.firstName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-bold text-slate-700">メールアドレス</label>
+              <input type="email" name="email" value={formData.email || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-bold text-slate-700">電話番号</label>
+              <input type="tel" name="phone" value={formData.phone || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-bold text-slate-700">郵便番号</label>
+              <input type="text" name="postalCode" value={formData.postalCode || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-sm font-bold text-slate-700">住所1</label>
+              <input type="text" name="address" value={formData.address || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-sm font-bold text-slate-700">住所2</label>
+              <input type="text" name="address2" value={formData.address2 || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+            </div>
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <h4 className="font-bold mb-4 text-slate-800">プラン情報</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-sm font-bold text-slate-700">プラン</label>
+                <select name="plan" value={formData.plan} onChange={handleChange} className="w-full px-3 py-2 border rounded">
+                  <option value="trial">トライアル</option>
+                  <option value="corporate">企業プラン</option>
+                  <option value="personal">個人プラン</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-bold text-slate-700">支払いサイクル</label>
+                <select name="paymentCycle" value={formData.paymentCycle || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded">
+                  <option value="">(なし)</option>
+                  <option value="monthly">月払い</option>
+                  <option value="yearly">年払い</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <h4 className="font-bold mb-4 text-slate-800">請求先情報</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-sm font-bold text-slate-700">請求先名</label>
+                <input type="text" name="billingName" value={formData.billingName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-bold text-slate-700">請求先部署</label>
+                <input type="text" name="billingDepartment" value={formData.billingDepartment || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-bold text-slate-700">請求先メール</label>
+                <input type="email" name="billingEmail" value={formData.billingEmail || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-bold text-slate-700">請求先電話</label>
+                <input type="tel" name="billingPhone" value={formData.billingPhone || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <label className="text-sm font-bold text-slate-700 block mb-1">備考</label>
+            <textarea name="notes" value={formData.notes || ''} onChange={handleChange} rows="3" className="w-full px-3 py-2 border rounded"></textarea>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white">
+            <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50">キャンセル</button>
+            <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-2">
+              <Save size={18} /> 保存する
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// --- Component: Admin Dashboard ---
+function AdminDashboard({ user }) {
+  const [registrations, setRegistrations] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [editingMember, setEditingMember] = useState(null); // 編集対象
+  const [deleteConfirmationId, setDeleteConfirmationId] = useState(null); // 削除確認用ID
+
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'registrations')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAtDate: doc.data().createdAt?.toDate() || new Date()
+      }));
+      
+      data.sort((a, b) => b.createdAtDate - a.createdAtDate);
+      
+      setRegistrations(data);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching data:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === registrations.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(registrations.map(r => r.id)));
+    }
+  };
+
+  const toggleSelect = (id) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const getTargetData = () => {
+    if (selectedIds.size > 0) {
+      return registrations.filter(r => selectedIds.has(r.id));
+    }
+    return registrations;
+  };
+
+  // --- Actions ---
+  const handleDeleteClick = (id) => {
+    setDeleteConfirmationId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmationId) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'registrations', deleteConfirmationId));
+      setDeleteConfirmationId(null);
+    } catch (e) {
+      console.error("Delete failed:", e);
+      // Custom error notification could be added here
+      alert("削除に失敗しました: " + e.message); 
+    }
+  };
+
+  const handleUpdate = async (id, newData) => {
+    try {
+      // 表示用のデータを削除
+      const updateData = { ...newData };
+      delete updateData.id;
+      delete updateData.createdAtDate;
+      
+      // 更新対象のフィールドをマージ（氏名の再構築などが必要な場合はここで行うが、今回は個別フィールドを持っているのでそのまま）
+      if (updateData.lastName && updateData.firstName) {
+          updateData.fullName = `${updateData.lastName} ${updateData.firstName}`;
+      }
+
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'registrations', id), updateData);
+      setEditingMember(null);
+    } catch (e) {
+      console.error("Update failed:", e);
+      alert("更新に失敗しました: " + e.message);
+    }
+  };
+
+  // --- CSV Export Logic ---
+  const downloadMemberCSV = () => {
+    const targetData = getTargetData();
+    if (targetData.length === 0) { alert("データがありません。"); return; }
+    const headers = ["区分", "会社名", "部署", "姓", "名", "役職", "プラン", "メールアドレス", "電話番号", "郵便番号", "住所1", "住所2", "請求先名", "請求先部署", "請求先メール", "請求先電話", "備考", "登録日時"];
+    const rows = targetData.map(reg => [
+      `"${reg.categoryCode || 'C00'}"`, `"${reg.companyName || ''}"`, `"${reg.department || ''}"`, `"${reg.lastName || ''}"`, `"${reg.firstName || ''}"`, `"${reg.position || ''}"`,
+      `"${getOfficialPlanName(reg.plan, reg.paymentCycle)}"`, `"${reg.email}"`, `"${reg.phone}"`, `"${reg.postalCode || ''}"`, `"${reg.address}"`, `"${reg.address2 || ''}"`,
+      `"${reg.billingName || ''}"`, `"${reg.billingDepartment || ''}"`, `"${reg.billingEmail || ''}"`, `"${reg.billingPhone || ''}"`, `"${(reg.notes || '').replace(/\n/g, ' ')}"`,
+      reg.createdAtDate.toLocaleString('ja-JP')
+    ]);
+    generateCSV(headers, rows, `政策リサーチ会員リスト_${new Date().toISOString().slice(0,10)}.csv`);
+  };
+
+  const downloadBillingCSV = () => {
+    const targetData = getTargetData();
+    if (targetData.length === 0) { alert("データがありません。"); return; }
+    const headers = ["区分", "請求先名", "請求先部署", "請求先メール", "請求先電話", "プラン", "金額(円)", "登録日時"];
+    const rows = targetData.map(reg => [
+      `"${reg.categoryCode || 'C00'}"`, `"${reg.billingName || ''}"`, `"${reg.billingDepartment || ''}"`, `"${reg.billingEmail || ''}"`, `"${reg.billingPhone || ''}"`,
+      `"${getOfficialPlanName(reg.plan, reg.paymentCycle)}"`, `"${getPlanPrice(reg.plan, reg.paymentCycle)}"`, reg.createdAtDate.toLocaleString('ja-JP')
+    ]);
+    generateCSV(headers, rows, `政策リサーチ請求先リスト_${new Date().toISOString().slice(0,10)}.csv`);
+  };
+
+  const downloadRegistrationCSV = () => {
+    const targetData = getTargetData();
+    if (targetData.length === 0) { alert("データがありません。"); return; }
+    const headers = ["メールアドレス", "姓", "名", "携帯電話番号", "自宅電話番号", "会社名", "会社電話番号", "郵便番号", "国", "都道府県", "市町村", "番地", "ビル名", "区分", "プラン"];
+    const rows = targetData.map(reg => {
+      const address = reg.address || '';
+      let prefecture = ''; let city = '';
+      const prefMatch = address.match(/^(.{2,3}[都道府県])(.*)/);
+      if (prefMatch) { prefecture = prefMatch[1]; city = prefMatch[2]; } else { city = address; }
+      return [
+        `"${reg.email}"`, `"${reg.lastName || ''}"`, `"${reg.firstName || ''}"`, `"${reg.phone}"`, `""`, `"${reg.companyName || ''}"`, `""`, `"${reg.postalCode || ''}"`, `"日本"`, `"${prefecture}"`, `"${city}"`, `""`, `"${reg.address2 || ''}"`, `"${reg.categoryCode || 'C00'}"`, `"${getOfficialPlanName(reg.plan, reg.paymentCycle)}"`
+      ];
+    });
+    generateCSV(headers, rows, `政策リサーチ登録用リスト_${new Date().toISOString().slice(0,10)}.csv`);
+  };
+
+  const generateCSV = (headers, rows, filename) => {
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a'); link.href = url; link.setAttribute('download', filename); document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  };
+
+  // --- Generate Standalone HTML ---
+  const downloadStandaloneHtml = () => {
+    // テンプレートHTMLの生成
+    const htmlContent = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>政策リサーチ 利用申し込み</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <style>
+    @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+    @media print { header, footer, button { display: none !important; } }
+  </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800">
+  <div id="root"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+    const firebaseConfig = ${JSON.stringify(firebaseConfig)};
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const appId = "${appId}";
+
+    const { useState, useEffect, useRef } = React;
+
+    // ... (Helper Functions are omitted for brevity in template, logic below includes them inline if needed) ...
+
+    function RegistrationForm() {
+      // (State and Logic identical to main component)
+      const [user, setUser] = useState(null);
+      const [formData, setFormData] = useState({
+        companyName: '', department: '', lastName: '', firstName: '', position: '',
+        email: '', emailConfirm: '', phone: '', postalCode: '', address: '', address2: '',
+        plan: 'trial', paymentCycle: '', notes: '',
+        isBillingDifferent: false, billingName: '', billingDepartment: '',
+        billingEmail: '', billingEmailConfirm: '', billingPhone: ''
+      });
+      const [finalDataForPdf, setFinalDataForPdf] = useState(null);
+      const [submitStatus, setSubmitStatus] = useState(null);
+      const [validationError, setValidationError] = useState('');
+      const [agreedToTerms, setAgreedToTerms] = useState(false);
+      const [isSubmitting, setIsSubmitting] = useState(false);
+      const pdfRef1 = useRef(null);
+      const pdfRef2 = useRef(null);
+      const paymentMethodRef = useRef(null);
+
+      useEffect(() => {
+        signInAnonymously(auth).then((cred) => setUser(cred.user)).catch(console.error);
+        lucide.createIcons();
+      }, []);
+      useEffect(() => { lucide.createIcons(); });
+
+      const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setFormData(prev => {
+          const newData = { ...prev, [name]: type === 'checkbox' ? checked : value };
+          if (name === 'plan') { if (value === 'trial') { newData.paymentCycle = ''; newData.isBillingDifferent = false; } else { newData.paymentCycle = ''; } }
+          return newData;
+        });
+      };
+
+      const handleFinish = () => {
+        setSubmitStatus(null);
+        setFinalDataForPdf(null);
+        setFormData({ companyName: '', department: '', lastName: '', firstName: '', position: '', email: '', emailConfirm: '', phone: '', postalCode: '', address: '', address2: '', plan: 'trial', paymentCycle: '', notes: '', isBillingDifferent: false, billingName: '', billingDepartment: '', billingEmail: '', billingEmailConfirm: '', billingPhone: '' });
+        setAgreedToTerms(false);
+        window.scrollTo(0, 0);
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        // Validation...
+        if (formData.email !== formData.emailConfirm) { setValidationError("メールアドレスが一致しません。"); window.scrollTo(0, 0); return; }
+        if (formData.plan !== 'trial' && !formData.paymentCycle) { 
+          setValidationError("お支払い方法を選択してください。"); 
+          paymentMethodRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return; 
+        }
+        if (formData.isBillingDifferent) {
+          if (formData.billingEmail !== formData.billingEmailConfirm) { setValidationError("請求先のメールアドレスが一致しません。"); return; }
+          if (!formData.billingName || !formData.billingEmail || !formData.billingPhone) { setValidationError("請求先情報の必須項目を入力してください。"); return; }
+        }
+        if (!agreedToTerms) { setValidationError("利用規約への同意が必要です。"); return; }
+
+        setIsSubmitting(true); setSubmitStatus(null); setValidationError('');
+
+        try {
+           const fullName = \`\${formData.lastName} \${formData.firstName}\`;
+           const finalData = { 
+             ...formData, 
+             billingName: formData.isBillingDifferent ? formData.billingName : fullName,
+             fullName, categoryCode: 'C00', userId: user.uid, createdAt: serverTimestamp(), status: 'pending' 
+           };
+           const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
+           setFinalDataForPdf({...finalData, applicationDate: today});
+           await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), finalData);
+           setSubmitStatus('success');
+           setAgreedToTerms(false);
+           window.scrollTo(0, 0);
+        } catch(e) { console.error(e); setSubmitStatus('error'); } finally { setIsSubmitting(false); }
+      };
+
+      const generatePDF = async () => {
+        try {
+          const { jsPDF } = window.jspdf;
+          const pdf = new jsPDF('p', 'mm', 'a4');
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+
+          if (pdfRef1.current) {
+            pdfRef1.current.style.display = 'block';
+            const canvas1 = await window.html2canvas(pdfRef1.current, { scale: 2 });
+            pdfRef1.current.style.display = 'none';
+            const imgData1 = canvas1.toDataURL('image/png');
+            const imgHeight1 = (canvas1.height * pdfWidth) / canvas1.width;
+            pdf.addImage(imgData1, 'PNG', 0, 0, pdfWidth, imgHeight1);
+          }
+          if (pdfRef2.current) {
+            pdf.addPage();
+            pdfRef2.current.style.display = 'block';
+            const canvas2 = await window.html2canvas(pdfRef2.current, { scale: 2 });
+            pdfRef2.current.style.display = 'none';
+            const imgData2 = canvas2.toDataURL('image/png');
+            const imgHeight2 = (canvas2.height * pdfWidth) / canvas2.width;
+            if (imgHeight2 > pdfHeight) pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            else pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, imgHeight2);
+          }
+          pdf.save('登録情報_利用規約.pdf');
+        } catch(e) { alert('PDF生成エラー'); }
+      };
+
+      if (!user) return <div className="text-center py-10">読み込み中...</div>;
+
+      return (
+        <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
+          <header className="bg-indigo-800 text-white shadow-lg">
+            <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-2">
+              <i data-lucide="shield" className="w-8 h-8 text-indigo-200"></i>
+              <h1 className="text-xl font-bold tracking-wide">政策リサーチ申し込み用画面</h1>
+            </div>
+          </header>
+          {/* Hidden PDF Elements */}
+           <div className="absolute top-0 left-0 w-[210mm] bg-white p-8 hidden" ref={pdfRef1} style={{ zIndex: -1 }}>
+            {finalDataForPdf && (
+              <div className="space-y-6 text-slate-800">
+                <div className="relative border-b pb-4 mb-6">
+                  <h1 className="text-2xl font-bold text-center">政策リサーチ利用申込控え</h1>
+                  <div className="absolute right-0 bottom-4 text-sm">申込日: {finalDataForPdf.applicationDate}</div>
+                </div>
+                {/* ... PDF Content Logic Similar to React Component ... */}
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="p-4 bg-slate-50 rounded border border-slate-200"><h3 className="font-bold text-lg mb-2">契約プラン</h3>
+                  <p>プラン名: {finalDataForPdf.plan === 'trial' ? 'Navi Plus Trial（10日間無料トライアル）' : (finalDataForPdf.plan === 'corporate' ? (finalDataForPdf.paymentCycle === 'yearly' ? 'Navi Plus5（Fプラン5 年払）' : 'Navi Plus5（Fプラン5）') : (finalDataForPdf.paymentCycle === 'yearly' ? 'Navi Plus1（Fプラン1 年払）' : 'Navi Plus1（Fプラン1）'))}</p>
+                  <p>金額: {finalDataForPdf.plan === 'trial' ? '0' : (finalDataForPdf.plan === 'corporate' ? (finalDataForPdf.paymentCycle === 'yearly' ? '1,200,000' : '100,000') : (finalDataForPdf.paymentCycle === 'yearly' ? '360,000' : '30,000'))} 円</p></div>
+                  <div className="p-4 bg-slate-50 rounded border border-slate-200"><h3 className="font-bold text-lg mb-2">利用者情報</h3><p>会社名: {finalDataForPdf.companyName}</p><p>部署名: {finalDataForPdf.department}</p><p>氏名: {finalDataForPdf.fullName}</p><p>役職: {finalDataForPdf.position || '-'}</p><p>住所: 〒{finalDataForPdf.postalCode} {finalDataForPdf.address} {finalDataForPdf.address2}</p><p>電話番号: {finalDataForPdf.phone}</p><p>Email: {finalDataForPdf.email}</p></div>
+                  <div className="p-4 bg-slate-50 rounded border border-slate-200"><h3 className="font-bold text-lg mb-2">請求先情報</h3><p>請求先名（氏名）: {finalDataForPdf.billingName}</p><p>部署名: {finalDataForPdf.billingDepartment}</p><p>Email: {finalDataForPdf.billingEmail}</p><p>電話番号: {finalDataForPdf.billingPhone}</p></div>
+                </div>
+                <div className="mt-12 pt-8 border-t"><div className="text-center text-sm text-slate-500 font-medium leading-relaxed"><p>一般社団法人日本みらい研 東京都千代田区平河町２−１６−６ jeⅤビル７F</p><p>TEL : 03-5215-6071 ／FAX : 03-5215-6072</p><p>WEB: www.rifj.jp ／Mail：office@rifj.jp</p></div></div>
+              </div>
+            )}
+          </div>
+          <div className="absolute top-0 left-0 w-[210mm] bg-white py-8 px-14 hidden" ref={pdfRef2} style={{ zIndex: -1 }}>
+             <h1 className="text-xl font-bold text-center border-b pb-4 mb-4">利用規約</h1>
+             <div className="text-xs">
+                {/* Terms Text */}
+                <h4 className="font-bold text-center mb-4 text-sm">「政策リサーチ」利用規約</h4>
+                <p className="font-bold mt-3">第1条（目的）</p><p>本規約は、「一般社団法人日本みらい研」（以下「日本みらい研」と称します）及び「株式会社角川アスキー総合研究所」（以下「角川アスキー総研」と称します）が共同開発した「政策リサーチ」（以下「本サービス」）と称します）の利用について定めるものです。</p>
+                <p className="text-slate-400 my-4 text-center">-- 中略 --</p>
+                <p className="font-bold mt-3">第20条（裁判管轄）</p><p>　日本みらい研および利用者との間で訴訟の必要が生じた場合には、第一審の専属的合意管轄裁判所を東京地方裁判所または東京簡易裁判所とします。</p>
+             </div>
+             <div className="mt-8 pt-4 border-t"><div className="text-center text-sm text-slate-500 font-medium leading-relaxed"><p>一般社団法人日本みらい研 東京都千代田区平河町２−１６−６ jeⅤビル７F</p><p>TEL : 03-5215-6071 ／FAX : 03-5215-6072</p><p>WEB: www.rifj.jp ／Mail：office@rifj.jp</p></div></div>
+          </div>
+          
+          <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-grow">
+            <div className="max-w-3xl mx-auto">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-6 bg-indigo-50 border-b border-indigo-100">
+                  <h2 className="text-xl font-bold text-indigo-900">利用申し込み</h2>
+                  <p className="text-indigo-700 text-sm mt-1">こちらは政策リサーチのご利用申し込みフォームです。</p>
+                </div>
+                {submitStatus === 'success' ? (
+                   <div className="p-6 space-y-8 animate-fade-in">
+                        <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg">
+                          <div className="flex items-start gap-3">
+                            <i data-lucide="check-circle" className="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+                            <div>
+                              <p className="font-bold">申し込みを受け付けました！</p>
+                              <p className="text-sm mt-1">ご入力いただいたメールアドレス宛に、自動確認メールを送信しました。</p>
+                            </div>
+                          </div>
+                          {/* PDFダウンロードボタンエリア */}
+                          {(finalDataForPdf?.plan === 'corporate' || finalDataForPdf?.plan === 'personal') && (
+                            <div className="mt-4 pt-4 border-t border-green-200 space-y-3">
+                              <p className="text-sm text-green-800 font-bold">登録情報の控えをPDFでダウンロードできます。必要のない場合は終了ボタンを押して下さい。</p>
+                              <div className="flex flex-wrap gap-3">
+                                <button type="button" onClick={generatePDF} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><i data-lucide="file-down" className="w-4 h-4"></i> PDF保存</button>
+                                <button type="button" onClick={handleFinish} className="bg-white border border-green-700 text-green-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><i data-lucide="log-out" className="w-4 h-4"></i> 終了（トップへ戻る）</button>
+                              </div>
+                            </div>
+                          )}
+                          {/* Back button for trial plans */}
+                          {!(finalDataForPdf?.plan === 'corporate' || finalDataForPdf?.plan === 'personal') && (
+                            <div className="mt-4">
+                              <button type="button" onClick={handleFinish} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><i data-lucide="log-out" className="w-4 h-4"></i> 終了してトップへ戻る</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                ) : (
+                  <form onSubmit={handleSubmit} className="p-6 space-y-8">
+                  {submitStatus === 'success' && ( <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg flex items-start gap-3 animate-fade-in"><i data-lucide="check-circle" className="w-5 h-5 flex-shrink-0 mt-0.5"></i><div><p className="font-bold">申し込みを受け付けました！</p><p className="text-sm mt-1">ご入力いただいたメールアドレス宛に、自動確認メールを送信しました。</p></div></div> )}
+                  {submitStatus === 'error' && ( <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg"><p>エラーが発生しました。もう一度お試しください。</p></div> )}
+                  {validationError && ( <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex items-center gap-2"><i data-lucide="alert-circle" className="w-5 h-5"></i><p>{validationError}</p></div> )}
+                  
+                  {/* Form Fields (Simplified for brevity, similar structure to original) */}
+                  <div className="space-y-6">
+                    <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 border-b pb-2"><i data-lucide="building-2" className="text-indigo-600 w-5 h-5"></i>利用者情報</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">会社名（個人利用の場合は、個人と記入） <span className="text-red-500">*</span></label><input required type="text" name="companyName" value={formData.companyName} onChange={handleChange} placeholder="株式会社政策総研" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                      <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">部署名 <span className="text-slate-400 font-normal text-xs">（任意）</span></label><input type="text" name="department" value={formData.department} onChange={handleChange} placeholder="調査部" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                      <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">お名前（姓） <span className="text-red-500">*</span></label><input required type="text" name="lastName" value={formData.lastName} onChange={handleChange} placeholder="山田" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                      <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">お名前（名） <span className="text-red-500">*</span></label><input required type="text" name="firstName" value={formData.firstName} onChange={handleChange} placeholder="太郎" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                      <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">役職 <span className="text-slate-400 font-normal text-xs">（任意）</span></label><input type="text" name="position" value={formData.position} onChange={handleChange} placeholder="部長" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                    </div>
+                  </div>
+            {/* Form Fields ... */}
+            {/* ... existing fields ... */}
+            
+            <div className="space-y-6">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 border-b pb-2">
+                <Building2 className="text-indigo-600" size={20} />
+                利用者情報
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">会社名（個人利用の場合は、個人と記入） <span className="text-red-500">*</span></label>
+                  <input required type="text" name="companyName" value={formData.companyName} onChange={handleChange} placeholder="株式会社政策総研" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">部署名 <span className="text-slate-400 font-normal text-xs">（任意）</span></label>
+                  <input type="text" name="department" value={formData.department} onChange={handleChange} placeholder="調査部" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">お名前（姓） <span className="text-red-500">*</span></label>
+                  <input required type="text" name="lastName" value={formData.lastName} onChange={handleChange} placeholder="山田" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">お名前（名） <span className="text-red-500">*</span></label>
+                  <input required type="text" name="firstName" value={formData.firstName} onChange={handleChange} placeholder="太郎" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">役職 <span className="text-slate-400 font-normal text-xs">（任意）</span></label>
+                  <input type="text" name="position" value={formData.position} onChange={handleChange} placeholder="部長" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+                    <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 border-b pb-2"><i data-lucide="mail" className="text-indigo-600 w-5 h-5"></i>連絡先情報</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス <span className="text-red-500">*</span></label><input required type="email" name="email" value={formData.email} onChange={handleChange} placeholder="taro@example.com" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                      <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス（確認） <span className="text-red-500">*</span></label><input required type="email" name="emailConfirm" value={formData.emailConfirm} onChange={handleChange} placeholder="確認のため再入力" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                      <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">郵便番号 <span className="text-slate-400 text-xs font-normal">（ハイフンなし7桁）</span></label><div className="flex gap-2"><input type="text" name="postalCode" value={formData.postalCode} onChange={(e) => setFormData(prev => ({...prev, postalCode: e.target.value.replace(/[^0-9]/g, '')}))} maxLength={7} placeholder="1000001" className="w-32 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /><button type="button" onClick={searchAddress} disabled={addressLoading || !formData.postalCode} className="bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors disabled:bg-slate-300">{addressLoading ? '...' : <><i data-lucide="search" className="w-3 h-3"></i> 住所検索</>}</button></div></div>
+                      <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">電話番号（携帯可） <span className="text-red-500">*</span></label><input required type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="090-1234-5678" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                      <div className="space-y-2 md:col-span-2"><label className="text-sm font-semibold text-slate-700">ご住所1</label><input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="東京都千代田区..." className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-slate-50 outline-none" /></div>
+                      <div className="space-y-2 md:col-span-2"><label className="text-sm font-semibold text-slate-700">ご住所2（ビル名、マンション名等）</label><input type="text" name="address2" value={formData.address2} onChange={handleChange} placeholder="〇〇ビル 5F" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800 border-b pb-2"><i data-lucide="briefcase" className="text-indigo-600 w-5 h-5"></i>ご利用プラン</h3>
+                    <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">プラン選択</label><select name="plan" value={formData.plan} onChange={handleChange} className="w-full px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium"><option value="trial">トライアル（無料10日間）</option><option value="corporate">企業プラン（5ID）</option><option value="personal">個人プラン（1ID）</option></select></div>
+                    {formData.plan !== 'trial' && (
+                      <div className="space-y-6 animate-fade-in">
+                        <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100"><label className="text-sm font-semibold text-indigo-900 block mb-3">お支払い方法（必ずどちらかを選択して下さい） <span className="text-red-500">*</span></label><div className="flex flex-col sm:flex-row gap-4 mb-4"><label className={\`relative flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all \${formData.paymentCycle === 'monthly' ? 'border-indigo-600 bg-white shadow-md' : 'border-slate-200 bg-white/50'}\`}><input type="radio" name="paymentCycle" value="monthly" checked={formData.paymentCycle === 'monthly'} onChange={handleChange} className="absolute opacity-0 w-full h-full cursor-pointer top-0 left-0" /><div className="flex items-center gap-2 mb-1"><span className="font-bold text-slate-800">月払い</span></div><div className="text-xs text-slate-500 pl-6">{formData.plan === 'corporate' ? '¥100,000/月' : '¥30,000/月'}</div></label><label className={\`relative flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all \${formData.paymentCycle === 'yearly' ? 'border-indigo-600 bg-white shadow-md' : 'border-slate-200 bg-white/50'}\`}><input type="radio" name="paymentCycle" value="yearly" checked={formData.paymentCycle === 'yearly'} onChange={handleChange} className="absolute opacity-0 w-full h-full cursor-pointer top-0 left-0" /><div className="flex items-center gap-2 mb-1"><span className="font-bold text-slate-800">年払い</span></div><div className="text-xs text-slate-500 pl-6">{formData.plan === 'corporate' ? '¥1,200,000/年' : '¥360,000/年'}</div></label></div><div className="text-xs text-slate-600 bg-white p-3 rounded border border-indigo-100">請求は、メールでの電子形式で行います。郵送による請求を希望される場合は、備考欄にその旨をご記載下さい。</div></div>
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200"><label className="flex items-center gap-3 cursor-pointer select-none mb-4"><input type="checkbox" name="isBillingDifferent" checked={formData.isBillingDifferent} onChange={handleChange} className="w-5 h-5 border-2 border-indigo-500 rounded text-indigo-600 cursor-pointer" /><span className="font-bold text-slate-800">請求先が利用者情報と異なる場合はチェック</span></label>
+                          {formData.isBillingDifferent && ( <div className="space-y-4 pt-2 border-t border-slate-200 animate-fade-in"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">請求先名 <span className="text-red-500">*</span></label><input required type="text" name="billingName" value={formData.billingName} onChange={handleChange} placeholder="氏名（例：山田 太郎）" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">請求先部署 <span className="text-slate-400 font-normal text-xs">（任意）</span></label><input type="text" name="billingDepartment" value={formData.billingDepartment} onChange={handleChange} placeholder="経理部" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス <span className="text-red-500">*</span></label><input required type="email" name="billingEmail" value={formData.billingEmail} onChange={handleChange} placeholder="keiri@example.com" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス（確認） <span className="text-red-500">*</span></label><input required type="email" name="billingEmailConfirm" value={formData.billingEmailConfirm} onChange={handleChange} placeholder="確認のため再入力" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">電話番号 <span className="text-red-500">*</span></label><input required type="tel" name="billingPhone" value={formData.billingPhone} onChange={handleChange} placeholder="03-9876-5432" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div></div></div> )}
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">備考</label><textarea name="notes" value={formData.notes} onChange={handleChange} rows="3" placeholder="その他ご要望等ございましたらご記入ください。" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></textarea></div>
+                  </div>
+
+                  <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                    <div className="flex items-center gap-2 mb-2 text-slate-800 font-semibold"><i data-lucide="file-text" className="w-5 h-5"></i><h3>利用規約</h3></div>
+                    <div className="h-60 overflow-y-auto bg-white border border-slate-200 rounded p-4 text-xs text-slate-600 leading-relaxed mb-3 shadow-inner">
+                        <h4 className="font-bold text-center mb-4 text-sm">「政策リサーチ」利用規約</h4>
+                        <p className="font-bold mt-3">第1条（目的）</p><p>本規約は、「一般社団法人日本みらい研」（以下「日本みらい研」と称します）及び「株式会社角川アスキー総合研究所」（以下「角川アスキー総研」と称します）が共同開発した「政策リサーチ」（以下「本サービス」）と称します）の利用について定めるものです。</p>
+                        <p className="text-slate-400 my-4 text-center">-- 中略 --</p>
+                        <p className="font-bold mt-3">第20条（裁判管轄）</p><p>　日本みらい研および利用者との間で訴訟の必要が生じた場合には、第一審の専属的合意管轄裁判所を東京地方裁判所または東京簡易裁判所とします。</p>
+                    </div>
+                    <label className="flex items-center gap-3 cursor-pointer select-none hover:bg-slate-100 p-2 rounded transition-colors">
+                      <input type="checkbox" checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} className="w-5 h-5 border-2 border-indigo-500 rounded text-indigo-600 cursor-pointer" />
+                      <span className="text-sm font-medium text-slate-600">利用規約の内容を確認し、同意します</span>
+                    </label>
+                  </div>
+
+                  <div className="pt-2">
+                     <div className="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded mb-3 text-sm flex items-start gap-2">
+                        <i data-lucide="alert-circle" className="flex-shrink-0 mt-0.5 w-4 h-4"></i>
+                        <p>こちらの<strong>登録情報</strong>は、政策リサーチの登録にそのまま反映されます。間違いのないよう再度ご確認の上、申し込みボタンを送信して下さい。</p>
+                     </div>
+                    <button type="submit" disabled={isSubmitting || !agreedToTerms} className={\`w-full py-3 px-4 rounded-lg text-white font-bold text-lg shadow-md flex items-center justify-center gap-2 transition-all \${isSubmitting || !agreedToTerms ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg'}\`}>
+                      {isSubmitting ? '処理中...' : <><i data-lucide="send" className="w-5 h-5"></i> 申し込みを送信</>}
+                    </button>
+                  </div>
+                </form>
+                )}
+              </div>
+            </div>
+          </main>
+          <footer className="bg-slate-100 border-t border-slate-200">
+            <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-4">
+              <div className="text-center text-sm text-slate-500 font-medium leading-relaxed">
+                <p>一般社団法人日本みらい研 東京都千代田区平河町２−１６−６ jeⅤビル７F</p>
+                <p>TEL : 03-5215-6071 ／FAX : 03-5215-6072</p>
+                <p>WEB: <a href="https://www.rifj.jp" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 hover:underline">www.rifj.jp</a> ／Mail：<a href="mailto:office@rifj.jp" className="hover:text-indigo-600 hover:underline">office@rifj.jp</a></p>
+              </div>
+              <div className="text-xs text-slate-400">© 2025 Policy Research Portal. Secure Data System.</div>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<RegistrationForm />);
+  </script>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `policy_research_form.html`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  if (loading) {
+    return <div className="text-center py-10 text-slate-500">データを読み込み中...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {editingMember && (
+        <EditMemberModal 
+          member={editingMember} 
+          onClose={() => setEditingMember(null)} 
+          onUpdate={handleUpdate} 
+        />
+      )}
+      {deleteConfirmationId && (
+        <ConfirmModal
+          isOpen={true}
+          title="削除の確認"
+          message="本当にこのデータを削除しますか？この操作は取り消せません。"
+          confirmText="削除する"
+          isDanger={true}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirmationId(null)}
+        />
+      )}
+
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">申し込み一覧</h2>
+          <p className="text-slate-500 text-sm">
+            {selectedIds.size > 0 
+              ? <span className="text-indigo-600 font-bold">{selectedIds.size} 件選択中</span> 
+              : `全 ${registrations.length} 件`}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={downloadMemberCSV}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"
+          >
+            <FileSpreadsheet size={16} />
+            <span>会員リスト出力</span>
+          </button>
+          <button
+            onClick={downloadBillingCSV}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"
+          >
+            <Receipt size={16} />
+            <span>請求先リスト出力</span>
+          </button>
+          <button
+            onClick={downloadRegistrationCSV}
+            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"
+          >
+            <UserPlus size={16} />
+            <span>登録用出力</span>
+          </button>
+          <button
+            onClick={downloadStandaloneHtml}
+            className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm border border-slate-600"
+          >
+            <FileCode size={16} />
+            <span>フォームHTML生成</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm uppercase tracking-wider">
+                <th className="p-4 w-10">
+                  <button onClick={toggleSelectAll} className="flex items-center text-slate-400 hover:text-slate-600">
+                    {registrations.length > 0 && selectedIds.size === registrations.length 
+                      ? <CheckSquare size={20} className="text-indigo-600" /> 
+                      : <Square size={20} />}
+                  </button>
+                </th>
+                <th className="p-4 font-semibold">操作</th>
+                <th className="p-4 font-semibold">日時</th>
+                <th className="p-4 font-semibold">区分</th>
+                <th className="p-4 font-semibold">会社・部署</th>
+                <th className="p-4 font-semibold">氏名・役職</th>
+                <th className="p-4 font-semibold">プラン</th>
+                <th className="p-4 font-semibold border-l border-slate-100 bg-slate-50/50">請求先情報</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {registrations.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="p-8 text-center text-slate-400">
+                    まだ登録データがありません。「申し込み」タブから登録してください。
+                  </td>
+                </tr>
+              ) : (
+                registrations.map((reg) => (
+                  <tr key={reg.id} className={`hover:bg-indigo-50/30 transition-colors ${selectedIds.has(reg.id) ? 'bg-indigo-50/50' : ''}`}>
+                    <td className="p-4">
+                      <button onClick={() => toggleSelect(reg.id)} className="flex items-center text-slate-400 hover:text-slate-600">
+                        {selectedIds.has(reg.id) 
+                          ? <CheckSquare size={20} className="text-indigo-600" /> 
+                          : <Square size={20} />}
+                      </button>
+                    </td>
+                    <td className="p-4 flex items-center gap-2">
+                      <button 
+                        onClick={() => setEditingMember(reg)}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 hover:border-indigo-400 transition-colors"
+                        title="編集"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteClick(reg.id)}
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 hover:border-red-400 transition-colors"
+                        title="削除"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                    <td className="p-4 text-slate-500 text-sm">
+                      {reg.createdAtDate.toLocaleDateString('ja-JP')}
+                      <div className="text-xs text-slate-400">
+                        {reg.createdAtDate.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm text-slate-600">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                        {reg.categoryCode || 'C00'}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm text-slate-800">
+                      <div className="font-bold">{reg.companyName}</div>
+                      <div className="text-slate-600 text-xs">{reg.department}</div>
+                    </td>
+                    <td className="p-4 text-sm text-slate-800">
+                      <div className="font-medium">
+                        {reg.lastName && reg.firstName 
+                          ? `${reg.lastName} ${reg.firstName}`
+                          : reg.fullName || ''}
+                      </div>
+                      {reg.position && <div className="text-xs text-slate-500">{reg.position}</div>}
+                    </td>
+                    <td className="p-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border
+                        ${reg.plan === 'corporate' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 
+                          reg.plan === 'personal' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                          'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                        {getOfficialPlanName(reg.plan, reg.paymentCycle)}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm text-slate-600 border-l border-slate-100 bg-slate-50/30">
+                      <div className="font-medium truncate max-w-[150px]" title={reg.billingName}>{reg.billingName}</div>
+                      <div className="text-xs text-slate-400 truncate max-w-[150px]" title={reg.billingDepartment}>{reg.billingDepartment}</div>
+                      <div className="text-xs text-slate-400 mt-1">{reg.billingPhone}</div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
