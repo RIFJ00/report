@@ -55,7 +55,7 @@
 
     <!-- React Application Script (BabelでJSXをコンパイル) -->
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
+        import React, { useState, useEffect, useRef, useMemo } from 'https://esm.sh/react@18.2.0';
         import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
         
         // Lucide Icons
@@ -63,46 +63,49 @@
             User, FileSpreadsheet, Send, CheckCircle, List, Shield, Download, Mail, 
             Search, FileText, AlertCircle, Building2, Briefcase, CreditCard, Receipt, 
             CheckSquare, Square, UserPlus, FileCode, Edit, Trash2, X, Save, 
-            AlertTriangle, FileDown, LogOut, Copy
+            AlertTriangle, FileDown, LogOut, Copy, Settings, Info, History, RefreshCw, MailWarning, Eye
         } from 'https://esm.sh/lucide-react@0.292.0';
 
         // Firebase SDKs
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { 
             getAuth, 
             signInAnonymously, 
             onAuthStateChanged,
             signInWithCustomToken
-        } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
             getFirestore, 
             collection, 
+            collectionGroup, 
             addDoc, 
             updateDoc, 
             deleteDoc, 
             doc, 
+            getDoc,
+            setDoc,
             query, 
             onSnapshot, 
-            serverTimestamp,
+            serverTimestamp, 
             orderBy 
-        } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase Configuration & Initialization ---
         const firebaseConfig = {
-            apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs",
-            authDomain: "user-9b981.firebaseapp.com",
-            projectId: "user-9b981",
-            storageBucket: "user-9b981.firebasestorage.app",
-            messagingSenderId: "774702274914",
-            appId: "1:774702274914:web:d1cc06c0d191b77878743b",
-            measurementId: "G-X653ZLYV5V"
+            apiKey: "AIzaSyAAI4aEAVRFCapIScHIsY7CeldYSA0hXHI",
+            authDomain: "member-214a3.firebaseapp.com",
+            projectId: "member-214a3",
+            storageBucket: "member-214a3.firebasestorage.app",
+            messagingSenderId: "596397889206",
+            appId: "1:596397889206:web:8be83a3964ee3618a2f817",
+            measurementId: "G-35V5LFFHHG"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-
-        // データの保存場所ID
+        
+        // データの保存場所ID（新規登録用）
         const appId = "default-app-id";
 
         // --- Helper Functions ---
@@ -276,6 +279,7 @@
             useEffect(() => {
                 const initAuth = async () => {
                     try {
+                        // 独自のFirebase設定を使用しているため、Canvas環境のトークンは使用せず匿名認証を行います
                         await signInAnonymously(auth);
                     } catch (error) {
                         console.error("Auth error:", error);
@@ -452,7 +456,7 @@
                     const pdfWidth = pdf.internal.pageSize.getWidth();
                     const pdfHeight = pdf.internal.pageSize.getHeight();
 
-                    // 高画質・高解像度設定 (約5MB程度を目指す)
+                    // 高画質・高解像度設定
                     const scale = 4; 
                     const imageFormat = 'image/jpeg';
                     const imageQuality = 0.95;
@@ -460,10 +464,8 @@
                     // 1ページ目
                     if (pdfRef1.current) {
                         pdfRef1.current.style.display = 'block';
-                        // scaleを上げて解像度を向上
                         const canvas1 = await window.html2canvas(pdfRef1.current, { scale: scale, useCORS: true });
                         pdfRef1.current.style.display = 'none';
-                        // JPEG高画質で出力
                         const imgData1 = canvas1.toDataURL(imageFormat, imageQuality);
                         const imgProps1 = pdf.getImageProperties(imgData1);
                         const imgHeight1 = (imgProps1.height * pdfWidth) / imgProps1.width;
@@ -560,11 +562,58 @@
                     const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
                     setFinalDataForPdf({ ...finalData, fullName, applicationDate: today });
 
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), finalData);
+                    // 1. メール本文の生成
+                    let subject = "【政策リサーチ】利用お申し込みありがとうございます";
+                    let body = `${finalData.companyName}\n${finalData.fullName} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(finalData.plan, finalData.paymentCycle)}\n金額: ${getPlanPrice(finalData.plan, finalData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
+
+                    try {
+                        const templateDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration'));
+                        if (templateDoc.exists()) {
+                            const template = templateDoc.data();
+                            subject = template.subject || subject;
+                            let templateBody = template.body || body;
+                            
+                            body = templateBody
+                                .replace(/{{companyName}}/g, finalData.companyName || '')
+                                .replace(/{{department}}/g, finalData.department || '')
+                                .replace(/{{name}}/g, finalData.fullName || '')
+                                .replace(/{{plan}}/g, getOfficialPlanName(finalData.plan, finalData.paymentCycle) || '')
+                                .replace(/{{price}}/g, getPlanPrice(finalData.plan, finalData.paymentCycle) + '円' || '');
+                        }
+                    } catch (e) {
+                        console.warn("Template fetch failed, using default.");
+                    }
+
+                    // 2. データ保存 (registrations)
+                    const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), finalData);
                     
+                    // 3. Trigger Email (mail collection)
+                    try {
+                        await addDoc(collection(db, 'mail'), {
+                            to: [formData.email], // 配列形式に変更
+                            cc: ['seisaku@rifj.jp'], // 配列形式に変更
+                            message: {
+                                subject: subject,
+                                text: body
+                            },
+                            // 紐付け用のメタデータ (Trigger Emailはこれを無視するがFirestoreには残る)
+                            metadata: {
+                                registrationId: docRef.id
+                            }
+                        });
+                        console.log("Trigger Email: Request added to 'mail' collection.");
+                    } catch (mailError) {
+                        console.error("Trigger Email Error:", mailError);
+                        // ユーザーには登録完了は見せるが、裏でメール送信エラーがあったことを知らせる（必要に応じて削除可）
+                        alert("登録は完了しましたが、自動返信メールの送信リクエストに失敗しました。\n管理者にお問い合わせください。\nエラー: " + mailError.message);
+                    }
+
+                    // Console Log for simulation
                     console.group("📧 自動返信メールシミュレーション");
                     console.log(`To: ${formData.email}`);
-                    console.log(`Subject: 【政策リサーチ】利用お申し込みありがとうございます`);
+                    console.log(`Cc: seisaku@rifj.jp`);
+                    console.log(`Subject: ${subject}`);
+                    console.log(`Body:\n${body}`);
                     console.groupEnd();
 
                     setSubmitStatus('success');
@@ -867,7 +916,313 @@
             );
         }
 
+        // --- Component: Mail Status Modal (Debug Info) ---
+        function MailStatusModal({ isOpen, onClose, mailData }) {
+            if (!isOpen || !mailData) return null;
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white z-10">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <Info size={24} className="text-indigo-600" />
+                                メール送信詳細情報
+                            </h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+                        </div>
+                        <div className="p-6 space-y-4 text-sm">
+                            <div className={`p-4 rounded border ${mailData.mailStatus === 'SUCCESS' ? 'bg-green-50 border-green-200 text-green-800' : mailData.mailStatus === 'ERROR' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-slate-50 border-slate-200 text-slate-800'}`}>
+                                <p className="font-bold text-lg mb-1">Status: {mailData.mailStatus}</p>
+                                {mailData.mailError && <p className="font-mono text-xs mt-2 p-2 bg-white rounded border border-red-100">{mailData.mailError}</p>}
+                            </div>
+                            
+                            <div className="grid grid-cols-[100px_1fr] gap-4">
+                                <div className="font-bold text-slate-500">Doc ID</div>
+                                <div className="font-mono">{mailData.mailDocId || 'N/A'}</div>
+                                
+                                <div className="font-bold text-slate-500">Email</div>
+                                <div>{mailData.email}</div>
+
+                                <div className="font-bold text-slate-500">Subject</div>
+                                <div>{mailData.mailSubject || '(不明)'}</div>
+                            </div>
+                            
+                            {/* 原因調査のヒント */}
+                            {mailData.mailStatus === 'ERROR' && (
+                                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-xs">
+                                    <p className="font-bold mb-1">トラブルシューティング:</p>
+                                    <ul className="list-disc pl-4 space-y-1">
+                                        <li><strong>Invalid login</strong>: SMTP設定（Gmailアプリパスワードなど）が間違っている可能性があります。</li>
+                                        <li><strong>Missing "to"</strong>: 宛先が正しく設定されていません。</li>
+                                        <li><strong>Quota exceeded</strong>: 送信制限を超えている可能性があります。</li>
+                                    </ul>
+                                </div>
+                            )}
+                            
+                            {mailData.mailStatus === 'MISSING' && (
+                                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded text-blue-800 text-xs">
+                                    <p>送信記録が見つかりません。以下を確認してください。</p>
+                                    <ul className="list-disc pl-4 space-y-1 mt-1">
+                                        <li>Extensionがインストールされていない可能性があります。</li>
+                                        <li>データベースの書き込み権限がない可能性があります。</li>
+                                        <li>過去のデータで、メール送信機能実装前のものかもしれません。</li>
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-6 border-t border-slate-200 flex justify-end">
+                            <button onClick={onClose} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded text-slate-700">閉じる</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- Component: Send Mail Modal (Manual Send) ---
+        function SendMailModal({ isOpen, onClose, onSend, initialData }) {
+            const [mailData, setMailData] = useState({
+                to: '',
+                cc: '',
+                subject: '',
+                body: ''
+            });
+            const [isSending, setIsSending] = useState(false);
+
+            useEffect(() => {
+                if (initialData) {
+                    setMailData({
+                        to: Array.isArray(initialData.to) ? initialData.to.join(', ') : initialData.to,
+                        cc: Array.isArray(initialData.cc) ? initialData.cc.join(', ') : (initialData.cc || 'seisaku@rifj.jp'),
+                        subject: initialData.subject,
+                        body: initialData.body
+                    });
+                }
+            }, [initialData]);
+
+            const handleSendClick = async () => {
+                setIsSending(true);
+                await onSend(mailData);
+                setIsSending(false);
+            };
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white z-10">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <Mail size={24} className="text-indigo-600" />
+                                メール送信内容の確認
+                            </h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded text-sm mb-4">
+                                <p>以下の内容でメール送信リクエストを作成します。内容を確認・編集して「送信」ボタンを押してください。</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">宛先 (To) <span className="text-xs font-normal text-slate-500">※カンマ区切りで複数可</span></label>
+                                <input 
+                                    type="text" 
+                                    value={mailData.to} 
+                                    onChange={(e) => setMailData({...mailData, to: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded border-slate-300"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Cc <span className="text-xs font-normal text-slate-500">※カンマ区切りで複数可</span></label>
+                                <input 
+                                    type="text" 
+                                    value={mailData.cc} 
+                                    onChange={(e) => setMailData({...mailData, cc: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded border-slate-300"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">件名</label>
+                                <input 
+                                    type="text" 
+                                    value={mailData.subject} 
+                                    onChange={(e) => setMailData({...mailData, subject: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded border-slate-300"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">本文</label>
+                                <textarea 
+                                    value={mailData.body} 
+                                    onChange={(e) => setMailData({...mailData, body: e.target.value})}
+                                    rows="10"
+                                    className="w-full px-3 py-2 border rounded border-slate-300 font-mono text-sm leading-relaxed"
+                                ></textarea>
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-slate-200 flex justify-end gap-3 sticky bottom-0 bg-white">
+                            <button onClick={onClose} disabled={isSending} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50 disabled:bg-slate-100">キャンセル</button>
+                            <button 
+                                onClick={handleSendClick} 
+                                disabled={isSending}
+                                className="px-6 py-2 bg-indigo-600 text-white rounded font-bold hover:bg-indigo-700 shadow-md flex items-center gap-2 disabled:bg-indigo-400"
+                            >
+                                {isSending ? '送信中...' : <><Send size={18} /> 送信を実行</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         // --- ADMIN_START ---
+        
+        // --- Component: Mail Template Editor ---
+        function MailTemplateEditor() {
+            const [template, setTemplate] = useState({
+                subject: '',
+                body: ''
+            });
+            const [isLoading, setIsLoading] = useState(true);
+            const [isSaving, setIsSaving] = useState(false);
+            const [saveMessage, setSaveMessage] = useState(null);
+
+            // デフォルトテンプレート
+            const defaultTemplate = {
+                subject: "【政策リサーチ】利用お申し込みありがとうございます",
+                body: "{{companyName}}\n{{department}}\n{{name}} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: {{plan}}\n金額: {{price}}\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------"
+            };
+
+            useEffect(() => {
+                const fetchTemplate = async () => {
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration');
+                        const docSnap = await getDoc(docRef);
+                        
+                        if (docSnap.exists()) {
+                            setTemplate(docSnap.data());
+                        } else {
+                            setTemplate(defaultTemplate);
+                        }
+                    } catch (error) {
+                        console.error("Error fetching template:", error);
+                        setTemplate(defaultTemplate);
+                    } finally {
+                        setIsLoading(false);
+                    }
+                };
+                fetchTemplate();
+            }, []);
+
+            const handleSave = async () => {
+                setIsSaving(true);
+                setSaveMessage(null);
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration'), template);
+                    setSaveMessage({ type: 'success', text: 'テンプレートを保存しました' });
+                    setTimeout(() => setSaveMessage(null), 3000);
+                } catch (error) {
+                    console.error("Error saving template:", error);
+                    setSaveMessage({ type: 'error', text: '保存に失敗しました' });
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            if (isLoading) {
+                return <div className="text-center py-10 text-slate-500">読み込み中...</div>;
+            }
+
+            return (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="p-6 border-b border-slate-200 bg-slate-50">
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <Mail size={20} className="text-indigo-600" />
+                            自動返信メール設定
+                        </h3>
+                        <p className="text-sm text-slate-500 mt-1">
+                            申込完了時に送信される自動返信メールの内容を設定します。
+                        </p>
+                    </div>
+                    
+                    <div className="p-6 space-y-6">
+                        {saveMessage && (
+                            <div className={`p-4 rounded-lg flex items-center gap-2 ${saveMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                {saveMessage.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
+                                {saveMessage.text}
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-slate-700">件名</label>
+                            <input 
+                                type="text" 
+                                value={template.subject} 
+                                onChange={(e) => setTemplate({...template, subject: e.target.value})}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder="メールの件名を入力"
+                            />
+                            <p className="text-xs text-slate-500 mt-1">
+                                ※送信時には自動的に Cc: seisaku@rifj.jp が追加されます。
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-slate-700">本文</label>
+                            <div className="flex gap-4">
+                                <div className="flex-grow">
+                                    <textarea 
+                                        value={template.body} 
+                                        onChange={(e) => setTemplate({...template, body: e.target.value})}
+                                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none h-96 font-mono text-sm leading-relaxed"
+                                        placeholder="メールの本文を入力"
+                                    ></textarea>
+                                </div>
+                                <div className="w-64 flex-shrink-0 space-y-4">
+                                    <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100 text-sm">
+                                        <div className="flex items-center gap-2 font-bold text-indigo-900 mb-2">
+                                            <Info size={16} />
+                                            利用可能な差し込み変数
+                                        </div>
+                                        <ul className="space-y-2 text-indigo-800">
+                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
+                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{companyName}}`}</code>
+                                                <span className="text-xs mt-0.5">会社名</span>
+                                            </li>
+                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
+                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{department}}`}</code>
+                                                <span className="text-xs mt-0.5">部署名</span>
+                                            </li>
+                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
+                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{name}}`}</code>
+                                                <span className="text-xs mt-0.5">申込者氏名</span>
+                                            </li>
+                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
+                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{plan}}`}</code>
+                                                <span className="text-xs mt-0.5">選択プラン名</span>
+                                            </li>
+                                            <li className="flex flex-col">
+                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{price}}`}</code>
+                                                <span className="text-xs mt-0.5">金額（円表記）</span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-200 flex justify-end">
+                            <button 
+                                onClick={handleSave} 
+                                disabled={isSaving}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow font-bold flex items-center gap-2 transition-colors disabled:bg-indigo-400"
+                            >
+                                {isSaving ? '保存中...' : <><Save size={18} /> 設定を保存</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         // --- Component: Edit Modal ---
         function EditMemberModal({ member, onClose, onUpdate }) {
             const [formData, setFormData] = useState({ ...member });
@@ -933,35 +1288,80 @@
         // --- Component: Admin Dashboard ---
         function AdminDashboard({ user }) {
             const [registrations, setRegistrations] = useState([]);
+            const [mails, setMails] = useState([]);
             const [selectedIds, setSelectedIds] = useState(new Set());
             const [loading, setLoading] = useState(true);
             const [editingMember, setEditingMember] = useState(null);
-            const [deleteConfirmationId, setDeleteConfirmationId] = useState(null);
+            const [deleteConfirmationItem, setDeleteConfirmationItem] = useState(null);
+            const [currentView, setCurrentView] = useState('list'); // 'list' or 'mail'
+            
+            // Mail Resend Modal State
+            const [sendingMailData, setSendingMailData] = useState(null); // { registrationData, mailContent }
+            const [resendTargetReg, setResendTargetReg] = useState(null);
+            
+            // Mail Status Detail Modal State
+            const [statusDetailMail, setStatusDetailMail] = useState(null);
 
             useEffect(() => {
                 if (!user) return;
-                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'));
-                const unsubscribe = onSnapshot(q, (snapshot) => {
+                
+                const qReg = query(collectionGroup(db, 'registrations'));
+                const unsubReg = onSnapshot(qReg, (snapshot) => {
                     const data = snapshot.docs.map(doc => ({
                         id: doc.id,
                         ...doc.data(),
-                        createdAtDate: doc.data().createdAt?.toDate() || new Date()
+                        createdAtDate: doc.data().createdAt?.toDate() || new Date(),
+                        refPath: doc.ref.path 
                     }));
                     data.sort((a, b) => b.createdAtDate - a.createdAtDate);
                     setRegistrations(data);
                     setLoading(false);
                 }, (error) => {
-                    console.error("Error fetching data:", error);
+                    console.error("Error fetching registrations:", error);
                     setLoading(false);
                 });
-                return () => unsubscribe();
+
+                const qMail = query(collection(db, 'mail'), orderBy('delivery.startTime', 'desc')); 
+                const unsubMail = onSnapshot(collection(db, 'mail'), (snapshot) => {
+                    const data = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    setMails(data);
+                }, (error) => {
+                    console.warn("Error fetching mails (permission might be denied):", error);
+                });
+
+                return () => {
+                    unsubReg();
+                    unsubMail();
+                };
             }, [user]);
 
+            const registrationsWithMailStatus = useMemo(() => {
+                return registrations.map(reg => {
+                    let mailLog = mails.find(m => m.metadata?.registrationId === reg.id);
+                    if (!mailLog) {
+                        mailLog = mails.find(m => {
+                            const toAddress = Array.isArray(m.to) ? m.to[0] : m.to;
+                            return toAddress === reg.email;
+                        });
+                    }
+                    return {
+                        ...reg,
+                        mailStatus: mailLog?.delivery?.state || 'MISSING', 
+                        mailError: mailLog?.delivery?.error || null,
+                        mailDocId: mailLog?.id,
+                        mailSubject: mailLog?.message?.subject
+                    };
+                });
+            }, [registrations, mails]);
+
             const toggleSelectAll = () => {
-                if (selectedIds.size === registrations.length) {
+                if (selectedIds.size === registrationsWithMailStatus.length) {
                     setSelectedIds(new Set());
                 } else {
-                    setSelectedIds(new Set(registrations.map(r => r.id)));
+                    setSelectedIds(new Set(registrationsWithMailStatus.map(r => r.id)));
                 }
             };
 
@@ -977,20 +1377,20 @@
 
             const getTargetData = () => {
                 if (selectedIds.size > 0) {
-                    return registrations.filter(r => selectedIds.has(r.id));
+                    return registrationsWithMailStatus.filter(r => selectedIds.has(r.id));
                 }
-                return registrations;
+                return registrationsWithMailStatus;
             };
 
-            const handleDeleteClick = (id) => {
-                setDeleteConfirmationId(id);
+            const handleDeleteClick = (item) => {
+                setDeleteConfirmationItem(item);
             };
 
             const confirmDelete = async () => {
-                if (!deleteConfirmationId) return;
+                if (!deleteConfirmationItem) return;
                 try {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'registrations', deleteConfirmationId));
-                    setDeleteConfirmationId(null);
+                    await deleteDoc(doc(db, deleteConfirmationItem.refPath)); 
+                    setDeleteConfirmationItem(null);
                 } catch (e) {
                     console.error("Delete failed:", e);
                     alert("削除に失敗しました: " + e.message);
@@ -998,18 +1398,95 @@
             };
 
             const handleUpdate = async (id, newData) => {
+                const targetItem = registrations.find(r => r.id === id);
+                if (!targetItem) return;
+
                 try {
                     const updateData = { ...newData };
                     delete updateData.id;
                     delete updateData.createdAtDate;
+                    delete updateData.refPath;
+                    delete updateData.mailStatus;
+                    delete updateData.mailError;
+                    delete updateData.mailDocId;
+                    delete updateData.mailSubject;
+
                     if (updateData.lastName && updateData.firstName) {
                         updateData.fullName = `${updateData.lastName} ${updateData.firstName}`;
                     }
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'registrations', id), updateData);
+                    await updateDoc(doc(db, targetItem.refPath), updateData);
                     setEditingMember(null);
                 } catch (e) {
                     console.error("Update failed:", e);
                     alert("更新に失敗しました: " + e.message);
+                }
+            };
+
+            // メール再送信処理（準備）
+            const handlePrepareResendEmail = async (regData) => {
+                try {
+                    let subject = "【政策リサーチ】利用お申し込みありがとうございます";
+                    let body = ""; 
+
+                    const templateDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration'));
+                    if (templateDoc.exists()) {
+                        const template = templateDoc.data();
+                        subject = template.subject || subject;
+                        body = template.body;
+                    } else {
+                        body = `${regData.companyName}\n${regData.department || ''}\n${regData.fullName} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(regData.plan, regData.paymentCycle)}\n金額: ${getPlanPrice(regData.plan, regData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
+                    }
+
+                    const finalBody = body
+                        .replace(/{{companyName}}/g, regData.companyName || '')
+                        .replace(/{{department}}/g, regData.department || '')
+                        .replace(/{{name}}/g, regData.fullName || '')
+                        .replace(/{{plan}}/g, getOfficialPlanName(regData.plan, regData.paymentCycle) || '')
+                        .replace(/{{price}}/g, getPlanPrice(regData.plan, regData.paymentCycle) + '円' || '');
+
+                    setResendTargetReg(regData);
+                    setSendingMailData({
+                        to: [regData.email],
+                        cc: ['seisaku@rifj.jp'],
+                        subject: subject,
+                        body: finalBody
+                    });
+
+                } catch (e) {
+                    console.error("Template fetch failed:", e);
+                    alert("メールテンプレートの読み込みに失敗しました。: " + e.message);
+                }
+            };
+
+            // メール再送信実行（確定）
+            const handleConfirmResendEmail = async (mailData) => {
+                if (!resendTargetReg) return;
+
+                try {
+                    // split string by comma if needed, or keep as array if already
+                    const toList = typeof mailData.to === 'string' ? mailData.to.split(',').map(s=>s.trim()) : mailData.to;
+                    const ccList = typeof mailData.cc === 'string' ? mailData.cc.split(',').map(s=>s.trim()) : mailData.cc;
+
+                    await addDoc(collection(db, 'mail'), {
+                        to: toList,
+                        cc: ccList,
+                        message: {
+                            subject: mailData.subject,
+                            text: mailData.body
+                        },
+                        metadata: {
+                            registrationId: resendTargetReg.id,
+                            resend: true 
+                        }
+                    });
+
+                    // alert("再送信リクエストを登録しました。");
+                    setSendingMailData(null);
+                    setResendTargetReg(null);
+
+                } catch (e) {
+                    console.error("Resend failed:", e);
+                    alert("再送信に失敗しました: " + e.message);
                 }
             };
 
@@ -1073,7 +1550,7 @@
                             onUpdate={handleUpdate}
                         />
                     )}
-                    {deleteConfirmationId && (
+                    {deleteConfirmationItem && (
                         <ConfirmModal
                             isOpen={true}
                             title="削除の確認"
@@ -1081,93 +1558,155 @@
                             confirmText="削除する"
                             isDanger={true}
                             onConfirm={confirmDelete}
-                            onCancel={() => setDeleteConfirmationId(null)}
+                            onCancel={() => setDeleteConfirmationItem(null)}
+                        />
+                    )}
+                    {sendingMailData && (
+                        <SendMailModal
+                            isOpen={true}
+                            initialData={sendingMailData}
+                            onClose={() => { setSendingMailData(null); setResendTargetReg(null); }}
+                            onSend={handleConfirmResendEmail}
+                        />
+                    )}
+                    {statusDetailMail && (
+                        <MailStatusModal
+                            isOpen={true}
+                            mailData={statusDetailMail}
+                            onClose={() => setStatusDetailMail(null)}
                         />
                     )}
                     
-                    <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-                        <div>
-                            <h2 className="text-xl font-bold text-slate-800">申し込み一覧</h2>
-                            <p className="text-slate-500 text-sm">
-                                {selectedIds.size > 0 ?
-                                    <span className="text-indigo-600 font-bold">{selectedIds.size} 件選択中</span> :
-                                    `全 ${registrations.length} 件`}
-                            </p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            <button onClick={downloadMemberCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><FileSpreadsheet size={16} /><span>会員リスト出力</span></button>
-                            <button onClick={downloadBillingCSV} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><Receipt size={16} /><span>請求先リスト出力</span></button>
-                            <button onClick={downloadRegistrationCSV} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><UserPlus size={16} /><span>システム登録用出力</span></button>
-                        </div>
+                    {/* Admin Nav */}
+                    <div className="bg-white p-2 rounded-lg shadow-sm border border-slate-200 inline-flex gap-1 mb-2">
+                        <button 
+                            onClick={() => setCurrentView('list')}
+                            className={`px-4 py-2 rounded-md text-sm font-bold transition-colors flex items-center gap-2 ${currentView === 'list' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                        >
+                            <List size={18} />
+                            申し込み一覧
+                        </button>
+                        <button 
+                            onClick={() => setCurrentView('mail')}
+                            className={`px-4 py-2 rounded-md text-sm font-bold transition-colors flex items-center gap-2 ${currentView === 'mail' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                        >
+                            <Settings size={18} />
+                            メール設定
+                        </button>
                     </div>
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse whitespace-nowrap">
-                                <thead>
-                                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm uppercase tracking-wider">
-                                        <th className="p-4 w-10">
-                                            <button onClick={toggleSelectAll} className="flex items-center text-slate-400 hover:text-slate-600">
-                                                {registrations.length > 0 && selectedIds.size === registrations.length ? <CheckSquare size={20} className="text-indigo-600" /> : <Square size={20} />}
-                                            </button>
-                                        </th>
-                                        <th className="p-4 font-semibold">操作</th>
-                                        <th className="p-4 font-semibold">日時</th>
-                                        <th className="p-4 font-semibold">区分</th>
-                                        <th className="p-4 font-semibold">会社・部署</th>
-                                        <th className="p-4 font-semibold">氏名・役職</th>
-                                        <th className="p-4 font-semibold">プラン</th>
-                                        <th className="p-4 font-semibold border-l border-slate-100 bg-slate-50/50">請求先情報</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {registrations.length === 0 ? (
-                                        <tr>
-                                            <td colSpan="8" className="p-8 text-center text-slate-400">まだ登録データがありません。「申し込み」タブから登録してください。</td>
-                                        </tr>
-                                    ) : (
-                                        registrations.map((reg) => (
-                                            <tr key={reg.id} className={`hover:bg-indigo-50/30 transition-colors ${selectedIds.has(reg.id) ? 'bg-indigo-50/50' : ''}`}>
-                                                <td className="p-4">
-                                                    <button onClick={() => toggleSelect(reg.id)} className="flex items-center text-slate-400 hover:text-slate-600">
-                                                        {selectedIds.has(reg.id) ? <CheckSquare size={20} className="text-indigo-600" /> : <Square size={20} />}
+
+                    {currentView === 'list' && (
+                        <>
+                            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-800">申し込み一覧</h2>
+                                    <p className="text-slate-500 text-sm">
+                                        {selectedIds.size > 0 ?
+                                            <span className="text-indigo-600 font-bold">{selectedIds.size} 件選択中</span> :
+                                            `全 ${registrationsWithMailStatus.length} 件`}
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <button onClick={downloadMemberCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><FileSpreadsheet size={16} /><span>会員リスト出力</span></button>
+                                    <button onClick={downloadBillingCSV} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><Receipt size={16} /><span>請求先リスト出力</span></button>
+                                    <button onClick={downloadRegistrationCSV} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><UserPlus size={16} /><span>システム登録用出力</span></button>
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse whitespace-nowrap">
+                                        <thead>
+                                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm uppercase tracking-wider">
+                                                <th className="p-4 w-10">
+                                                    <button onClick={toggleSelectAll} className="flex items-center text-slate-400 hover:text-slate-600">
+                                                        {registrationsWithMailStatus.length > 0 && selectedIds.size === registrationsWithMailStatus.length ? <CheckSquare size={20} className="text-indigo-600" /> : <Square size={20} />}
                                                     </button>
-                                                </td>
-                                                <td className="p-4 flex items-center gap-2">
-                                                    <button onClick={() => setEditingMember(reg)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 hover:border-indigo-400 transition-colors" title="編集"><Edit size={16} /></button>
-                                                    <button onClick={() => handleDeleteClick(reg.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 hover:border-red-400 transition-colors" title="削除"><Trash2 size={16} /></button>
-                                                </td>
-                                                <td className="p-4 text-slate-500 text-sm">
-                                                    {reg.createdAtDate.toLocaleDateString('ja-JP')}
-                                                    <div className="text-xs text-slate-400">{reg.createdAtDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</div>
-                                                </td>
-                                                <td className="p-4 text-sm text-slate-600">
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">{reg.categoryCode || 'C00'}</span>
-                                                </td>
-                                                <td className="p-4 text-sm text-slate-800">
-                                                    <div className="font-bold">{reg.companyName}</div>
-                                                    <div className="text-slate-600 text-xs">{reg.department}</div>
-                                                </td>
-                                                <td className="p-4 text-sm text-slate-800">
-                                                    <div className="font-medium">{reg.lastName && reg.firstName ? `${reg.lastName} ${reg.firstName}` : reg.fullName || ''}</div>
-                                                    {reg.position && <div className="text-xs text-slate-500">{reg.position}</div>}
-                                                </td>
-                                                <td className="p-4">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${reg.plan === 'corporate' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : reg.plan === 'personal' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-                                                        {getOfficialPlanName(reg.plan, reg.paymentCycle)}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4 text-sm text-slate-600 border-l border-slate-100 bg-slate-50/30">
-                                                    <div className="font-medium truncate max-w-[150px]" title={reg.billingName}>{reg.billingName}</div>
-                                                    <div className="text-xs text-slate-400 truncate max-w-[150px]" title={reg.billingDepartment}>{reg.billingDepartment}</div>
-                                                    <div className="text-xs text-slate-400 mt-1">{reg.billingPhone}</div>
-                                                </td>
+                                                </th>
+                                                <th className="p-4 font-semibold">操作</th>
+                                                <th className="p-4 font-semibold text-center">メール</th>
+                                                <th className="p-4 font-semibold">日時</th>
+                                                <th className="p-4 font-semibold">区分</th>
+                                                <th className="p-4 font-semibold">会社・部署</th>
+                                                <th className="p-4 font-semibold">氏名・役職</th>
+                                                <th className="p-4 font-semibold">プラン</th>
+                                                <th className="p-4 font-semibold border-l border-slate-100 bg-slate-50/50">請求先情報</th>
                                             </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {registrationsWithMailStatus.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="9" className="p-8 text-center text-slate-400">まだ登録データがありません。「申し込み」タブから登録してください。</td>
+                                                </tr>
+                                            ) : (
+                                                registrationsWithMailStatus.map((reg) => (
+                                                    <tr key={reg.id} className={`hover:bg-indigo-50/30 transition-colors ${selectedIds.has(reg.id) ? 'bg-indigo-50/50' : ''}`}>
+                                                        <td className="p-4">
+                                                            <button onClick={() => toggleSelect(reg.id)} className="flex items-center text-slate-400 hover:text-slate-600">
+                                                                {selectedIds.has(reg.id) ? <CheckSquare size={20} className="text-indigo-600" /> : <Square size={20} />}
+                                                            </button>
+                                                        </td>
+                                                        <td className="p-4 flex items-center gap-2">
+                                                            <button onClick={() => setEditingMember(reg)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 hover:border-indigo-400 transition-colors" title="編集"><Edit size={16} /></button>
+                                                            <button onClick={() => handleDeleteClick(reg)} className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 hover:border-red-400 transition-colors" title="削除"><Trash2 size={16} /></button>
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <button 
+                                                                    onClick={() => setStatusDetailMail(reg)}
+                                                                    className="hover:opacity-70 transition-opacity"
+                                                                >
+                                                                    {reg.mailStatus === 'SUCCESS' && <span className="text-green-600" title="送信成功"><CheckCircle size={20} /></span>}
+                                                                    {reg.mailStatus === 'ERROR' && <span className="text-red-500" title={`送信エラー: ${reg.mailError || '詳細不明'}`}><MailWarning size={20} /></span>}
+                                                                    {(reg.mailStatus === 'PENDING' || reg.mailStatus === 'PROCESSING') && <span className="text-amber-500 animate-pulse" title="送信処理中..."><RefreshCw size={20} /></span>}
+                                                                    {reg.mailStatus === 'MISSING' && <span className="text-slate-300" title="送信記録なし"><Eye size={20} /></span>}
+                                                                </button>
+                                                                
+                                                                <button 
+                                                                    onClick={() => handlePrepareResendEmail(reg)}
+                                                                    className={`text-xs px-2 py-1 rounded border transition-colors ${reg.mailStatus === 'SUCCESS' ? 'text-slate-400 border-slate-200 hover:bg-slate-50' : 'text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 font-bold'}`}
+                                                                >
+                                                                    再送信
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-slate-500 text-sm">
+                                                            {reg.createdAtDate.toLocaleDateString('ja-JP')}
+                                                            <div className="text-xs text-slate-400">{reg.createdAtDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</div>
+                                                        </td>
+                                                        <td className="p-4 text-sm text-slate-600">
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">{reg.categoryCode || 'C00'}</span>
+                                                        </td>
+                                                        <td className="p-4 text-sm text-slate-800">
+                                                            <div className="font-bold">{reg.companyName}</div>
+                                                            <div className="text-slate-600 text-xs">{reg.department}</div>
+                                                        </td>
+                                                        <td className="p-4 text-sm text-slate-800">
+                                                            <div className="font-medium">{reg.lastName && reg.firstName ? `${reg.lastName} ${reg.firstName}` : reg.fullName || ''}</div>
+                                                            {reg.position && <div className="text-xs text-slate-500">{reg.position}</div>}
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${reg.plan === 'corporate' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : reg.plan === 'personal' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                                                                {getOfficialPlanName(reg.plan, reg.paymentCycle)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-4 text-sm text-slate-600 border-l border-slate-100 bg-slate-50/30">
+                                                            <div className="font-medium truncate max-w-[150px]" title={reg.billingName}>{reg.billingName}</div>
+                                                            <div className="text-xs text-slate-400 truncate max-w-[150px]" title={reg.billingDepartment}>{reg.billingDepartment}</div>
+                                                            <div className="text-xs text-slate-400 mt-1">{reg.billingPhone}</div>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {currentView === 'mail' && (
+                        <MailTemplateEditor />
+                    )}
                 </div>
             );
         }
