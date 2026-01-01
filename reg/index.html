@@ -8,7 +8,7 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Babel Standalone (JSXを実行するために必要) -->
+    <!-- Babel Standalone -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <!-- PDF Generation Libraries -->
@@ -53,47 +53,49 @@
         </div>
     </div>
 
-    <!-- React Application Script (BabelでJSXをコンパイル) -->
+    <!-- React Application Script -->
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
+        import React, { useState, useEffect, useRef, useMemo } from 'https://esm.sh/react@18.2.0';
         import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
         
         // Lucide Icons
         import { 
-            User, Send, CheckCircle, Shield, Mail, Search, FileText, AlertCircle, 
-            Building2, Briefcase, FileDown, LogOut, AlertTriangle
+            User, Send, CheckCircle, Shield, Mail, 
+            Search, FileText, AlertCircle, Building2, Briefcase, 
+            AlertTriangle, FileDown, LogOut, Info, Users
         } from 'https://esm.sh/lucide-react@0.292.0';
 
         // Firebase SDKs
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { 
             getAuth, 
             signInAnonymously, 
             onAuthStateChanged
-        } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
             getFirestore, 
             collection, 
             addDoc, 
+            doc, 
+            getDoc,
             serverTimestamp 
-        } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase Configuration & Initialization ---
         const firebaseConfig = {
-            apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs",
-            authDomain: "user-9b981.firebaseapp.com",
-            projectId: "user-9b981",
-            storageBucket: "user-9b981.firebasestorage.app",
-            messagingSenderId: "774702274914",
-            appId: "1:774702274914:web:d1cc06c0d191b77878743b",
-            measurementId: "G-X653ZLYV5V"
+            apiKey: "AIzaSyAAI4aEAVRFCapIScHIsY7CeldYSA0hXHI",
+            authDomain: "member-214a3.firebaseapp.com",
+            projectId: "member-214a3",
+            storageBucket: "member-214a3.firebasestorage.app",
+            messagingSenderId: "596397889206",
+            appId: "1:596397889206:web:8be83a3964ee3618a2f817",
+            measurementId: "G-35V5LFFHHG"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-
-        // データの保存場所ID
+        
         const appId = "default-app-id";
 
         // --- Helper Functions ---
@@ -111,7 +113,17 @@
             return '-';
         };
 
-        // 指定されたフッター情報
+        const resolveFullName = (data) => {
+            if (data.fullName && data.fullName.trim() !== '') {
+                return data.fullName;
+            }
+            if (data.lastName || data.firstName) {
+                return `${data.lastName || ''} ${data.firstName || ''}`.trim();
+            }
+            return 'お客様';
+        };
+
+        // --- Shared Components ---
         const CorporateFooter = () => (
             <div className="text-center text-sm text-slate-500 font-medium leading-relaxed">
                 <p>一般社団法人日本みらい研 東京都千代田区平河町２−１６−６ jeⅤビル７F</p>
@@ -123,16 +135,19 @@
             </div>
         );
 
-        // 利用規約テキスト
         const TermsOfServiceText = () => (
             <div className="text-xs leading-relaxed text-slate-700">
                 <h4 className="font-bold text-center mb-4 text-sm">「政策リサーチ」利用規約</h4>
+                
                 <p className="font-bold mt-2">第1条（目的）</p>
                 <p>本規約は、「一般社団法人日本みらい研」（以下「日本みらい研」と称します）及び「株式会社角川アスキー総合研究所」（以下「角川アスキー総研」と称します）が共同開発した「政策リサーチ」（以下「本サービス」）と称します）の利用について定めるものです。</p>
+                
                 <p className="font-bold mt-2">第2条（定義）</p>
                 <p>本規約に同意のうえ、本規約第5条に基づく利用申込を行い、日本みらい研が承認した方をシステム利用者（以下「利用者」と称します）とします。</p>
+                
                 <p className="font-bold mt-2">第3条（本サービスの運営）</p>
                 <p>本サービスは日本みらい研が運営するものとします。なお、本サービスは、カテゴライズされた情報を検索及び分析をし、かつ、閲覧するためのプラットホームを提供するものであって、情報自体を提供するものではなく、日本みらい研が、当該情報の信頼性、正確性を保証するものではありません。</p>
+                
                 <p className="font-bold mt-2">第4条（利用資格）</p>
                 <p>1　本サービスの利用資格は、次のとおりとします。</p>
                 <div className="pl-4">
@@ -146,35 +161,44 @@
                 <p>2　利用者は、前項（2）から（6）に反する事実が生じた場合には、直ちに日本みらい研に対して通知するものとします。</p>
                 <p>3　日本みらい研は、利用者から前項の通知があった場合または日本みらい研が当該事実を確認した場合には、何らの通知催告を要せず、直ちに当該利用者の利用資格を抹消することができるものとします。</p>
                 <p>4　日本みらい研は、利用者が本条の規定に違反したことにより損害を被った場合、利用者に対し、前項に基づく利用資格の抹消にかかわらず、当該損害について損害賠償を請求できるものとします。</p>
+
                 <p className="font-bold mt-2">第5条（登録）</p>
                 <p>1　本サービスの利用者として登録を希望する者は、所定の利用申込書に必要事項を記入の上、日本みらい研又は角川アスキー総研又は指定の代理店へ提出するものとします。</p>
                 <p>2　日本みらい研が承認し、利用者登録がなされたら速やかに本サービスに必要なアカウントIDとパスワードの設定通知を利用者に電子メールにて通知するものとします。</p>
+
                 <p className="font-bold mt-2">第6条（利用開始）</p>
                 <p>1　利用者は、初期登録料及び月額利用料金を支払い、アカウントIDとパスワードを受領した日から本サービスを利用できるものとします。</p>
                 <p>2　利用者は、日本みらい研又は角川アスキー総研と相互に取り決めをした場合は、初期登録料及び月額利用料金を支払う前であっても本サービスを利用できるものとします。</p>
+
                 <p className="font-bold mt-2">第7条（利用料金）</p>
                 <p>1　本サービスの利用料金は、初期登録料及び月額利用料金からなり、利用プランによりそれぞれ指定された金額となります。</p>
                 <p>2　利用プランによる利用料金の詳細は、別途定めるものとします。</p>
                 <p>3　前項に基づく利用料金の請求は、日本みらい研又は角川アスキー総研又は指定の代理店が請求書の郵送または電子メールで利用者に通知するものとし、利用者は請求に基づき、指定する口座に現金にて振り込むものとします。なお、振込手数料その他の支払いに要する費用は利用者が負担するものとします。</p>
                 <p>4　いったん受領した利用料金については、理由の如何を問わず返金しないものとします。</p>
+
                 <p className="font-bold mt-2">第8条（利用期間）</p>
                 <p>本サービスの利用期間は、利用開始日から1年間とし、利用終了日の2か月前までに申し出のない場合は自動的に1年間の延長をするものとします。</p>
+
                 <p className="font-bold mt-2">第9条（アカウントIDおよびパスワードの管理）</p>
                 <p>1　本サービスに登録したパスワードの管理およびその使用に関しての責任はすべて利用者が負うものとします。</p>
                 <p>2　利用者は、日本みらい研から交付されたアカウントIDとパスワードを冒用、盗用その他の不正利用がなされないように厳重に管理するものとします。</p>
                 <p>3　利用者は、アカウントIDまたはパスワードが第三者に使用されている疑いがある場合には、遅滞なく、日本みらい研に連絡するとともに、日本みらい研の指示がある場合にはそれに従うものとします。</p>
                 <p>4　日本みらい研は、利用者によるパスワードの使用上の過失および第三者の利用に伴う損害の一切の責任を負わないものとします。</p>
                 <p>5　アカウントIDおよびパスワードが第三者に不正に利用されたことによ り日本みらい研に損害が生じた場合には、利用者は日本みらい研に対し その損害を賠償しなければならないものとします。</p>
+
                 <p className="font-bold mt-2">第10条（利用者の登録情報の取扱い）</p>
                 <p>1　利用者の登録情報は、日本みらい研が所有するものとし、個人が特定できる情報（氏名・住所・電話番号・メールアドレス）については、本サービスの提供に必要な範囲内での利用、委託先への預託の他、個人情報にかかる利用者本人の承諾がある場合を除き、原則として、外部への提供は行わないものとします。</p>
                 <p>2　利用者は、自己が日本みらい研に提供した個人情報が正確であることを保証するものとします。日本みらい研は、当該情報が不正確であることによって利用者または第三者に損害が生じた場合には、一切責任を負わないものとします。</p>
+
                 <p className="font-bold mt-2">第11条（著作権）</p>
                 <p>本サービスの著作権およびその他一切の権利は日本みらい研及びその一部は角川アスキー総研に帰属するものとします。</p>
+
                 <p className="font-bold mt-2">第12条（禁止事項）</p>
                 <p>1　利用者は、本サービスを通じて入手したいかなる情報も、私的利用や部内検討以外の目的で複製、加工をしたり、販売、出版、その他の営利活動目的で使用することを禁止します。ただし、日本みらい研が承認した場合（当該情報に関して権利を持つ第三者がいる場合には、日本みらい研を通じ当該第三者の承諾を取得することを含む）は除くものとします。</p>
                 <p>2　利用者は、前項の使用を目的とする場合には、その取扱いについて別途書面による合意をしなければならないものとします。</p>
                 <p>3　利用者は、本サービスを政治活動や宗教活動等に使用してはならないものとします。</p>
                 <p>4　利用者は、第三者にパスワードの譲渡、売買、貸与または自己もしくは第三者のために担保の用に供する等の行為はしてはならないものとします。</p>
+
                 <p className="font-bold mt-2">第13条（利用者資格の抹消）</p>
                 <p>次の項目に該当する場合、日本みらい研は、利用者への事前通知、承諾なしにアカウントIDとパスワードを無効とすることができるものとします。</p>
                 <div className="pl-4">
@@ -185,121 +209,176 @@
                     <p>（5）利用料金の支払いが2ヶ月間滞納した場合</p>
                     <p>（6）本会則第4条に定める利用資格を満たさなくなった場合</p>
                 </div>
+
                 <p className="font-bold mt-2">第14条（利用者情報の変更）</p>
                 <p>利用者は、第5条に定める利用申込書に記載した内容に変更があった場合には、速やかに変更手続を行なうものとします。その後に変更があった場合にも同様とします。</p>
+
                 <p className="font-bold mt-2">第15条（本サービスの内容の変更、中止等）</p>
                 <p>1　本サービスは、バージョンアップや仕様変更等に伴い、利用者への事前通知、承諾なしに仕様や内容を変更する場合があります。</p>
                 <p>2　本サービスの定期保守、更新ならびに緊急事態発生、停電、天災等の不可抗力その他不測の事態によりサービス運営継続が困難になった場合、利用者への事前通知、承諾なしに本サービスの内容を変更または中止する場合があります。</p>
+
                 <p className="font-bold mt-2">第16条（解約）</p>
                 <p>本サービスは、利用開始日から1年を経過した後はいつでも解約を申し出ることができるものとし、解約を希望する場合は、解約日の2か月前までに日本みらい研に申し出るものとします。</p>
+
                 <p className="font-bold mt-2">第17条（免責）</p>
                 <p>1　日本みらい研は、理由の如何を問わず、本サービスによるサービス提供が遅延し、又は中断したことに起因して利用者または第三者が被った被害について、一切の責任を負わないものとします。</p>
                 <p>2　日本みらい研は、本サービスの利用を通じて得た情報等の正確性、特定の目的への適合性等について、一切の責任を負わないものとします。</p>
                 <p>3　日本みらい研は、本サービスの利用を通じて得た情報等に起因して損害が生じた場合、一切の責任を負わないものとします。</p>
                 <p>4　日本みらい研は、日本みらい研が推奨する本サービスの利用環境（ウェブサイトに掲示）以外の環境で生じた不具合について、一切責任を負わないものとします。</p>
+
                 <p className="font-bold mt-2">第18条（利用規約の改定）</p>
                 <p>日本みらい研は、必要に応じて、利用規約を改定することができるものとします。なお、利用規約を改定しようとする場合には、1ヶ月前までに利用者に対して電子メールまたは日本みらい研のウェブサイトへの掲示等により通知することとし、改定後の利用規約の効力は、全利用者に及ぶものとします。</p>
+
                 <p className="font-bold mt-2">第19条（準拠法）</p>
                 <p>本利用規約は、日本国法に準拠するものとします。</p>
+
                 <p className="font-bold mt-2">第20条（裁判管轄）</p>
                 <p>日本みらい研および利用者との間で訴訟の必要が生じた場合には、第一審の専属的合意管轄裁判所を東京地方裁判所または東京簡易裁判所とします。</p>
             </div>
         );
 
-        // --- APP_START ---
-        function App() {
-            const [user, setUser] = useState(null);
-            const [authError, setAuthError] = useState(null);
-
-            useEffect(() => {
-                const initAuth = async () => {
-                    try {
-                        await signInAnonymously(auth);
-                    } catch (error) {
-                        console.error("Auth error:", error);
-                        setAuthError(error.message);
-                    }
-                };
-                initAuth();
-                const unsubscribe = onAuthStateChanged(auth, setUser);
-                return () => unsubscribe();
-            }, []);
-
-            if (authError) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-                        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border-l-4 border-red-500">
-                            <div className="flex items-center gap-3 mb-4 text-red-600">
-                                <AlertTriangle size={32} />
-                                <h2 className="text-xl font-bold">システムエラー</h2>
-                            </div>
-                            <p className="text-gray-700 mb-4">データベースへの接続に失敗しました。</p>
-                            <div className="bg-slate-100 p-3 rounded text-xs font-mono text-slate-600 mb-4 overflow-x-auto">{authError}</div>
-                            <p className="text-sm text-gray-500">
-                                管理者の方へ: Firebaseコンソールで <strong>Authentication</strong> の設定を確認してください。
-                                <strong>匿名ログイン(Anonymous Auth)</strong> が有効になっている必要があります。
-                            </p>
-                        </div>
-                    </div>
-                );
-            }
-
-            if (!user) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
-                        <div className="flex flex-col items-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                            <p>システムを読み込み中...</p>
-                        </div>
-                    </div>
-                );
+        // --- UI Components ---
+        
+        function MessageModal({ isOpen, onClose, title, message, type = 'info' }) {
+            if (!isOpen) return null;
+            
+            let icon, colorClass, bgClass;
+            if (type === 'success') {
+                icon = <CheckCircle size={32} className="text-green-600" />;
+                bgClass = 'bg-green-50';
+            } else if (type === 'error') {
+                icon = <AlertTriangle size={32} className="text-red-600" />;
+                bgClass = 'bg-red-50';
+            } else {
+                icon = <Info size={32} className="text-blue-600" />;
+                bgClass = 'bg-blue-50';
             }
 
             return (
-                <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
-                    <header className="bg-indigo-800 text-white shadow-lg print:hidden">
-                        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-2">
-                                <Shield className="w-8 h-8 text-indigo-200" />
-                                <h1 className="text-xl font-bold tracking-wide">
-                                    政策リサーチ申込画面
-                                </h1>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-fade-in">
+                        <div className="flex flex-col items-center text-center space-y-4">
+                            <div className={`p-3 rounded-full ${bgClass}`}>
+                                {icon}
                             </div>
+                            <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+                            <p className="text-slate-600 whitespace-pre-wrap text-sm leading-relaxed">{message}</p>
+                            <button 
+                                onClick={onClose} 
+                                className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold transition-colors"
+                            >
+                                閉じる
+                            </button>
                         </div>
-                    </header>
-                    <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-grow">
-                        <RegistrationForm user={user} />
-                    </main>
-                    <footer className="bg-slate-100 border-t border-slate-200 print:hidden">
-                        <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-4">
-                            <CorporateFooter />
-                            <div className="text-xs flex items-center justify-center gap-2 text-slate-400">
-                                <span>© 2025 Policy Research Portal. Secure Data System.</span>
-                                <span className="text-slate-300">|</span>
-                                <a
-                                    href="https://www.rifj.jp/privacypolicy/"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="hover:text-indigo-800 hover:underline transition-colors flex items-center gap-1"
-                                >
-                                    プライバシーポリシーについて
-                                    <span className="text-xs">↗</span>
-                                </a>
-                            </div>
-                        </div>
-                    </footer>
+                    </div>
                 </div>
             );
         }
-        // --- APP_END ---
 
+        // --- PDF Components ---
+        const PdfPage1 = React.forwardRef(({ data }, ref) => {
+            if (!data) return null;
+            return (
+                <div className="absolute top-0 left-0 w-[210mm] bg-white text-slate-800" ref={ref} style={{ zIndex: -1000, display: 'none' }}>
+                    <div className="pdf-section p-8 pb-4">
+                        <div className="relative border-b pb-4">
+                            <h1 className="text-2xl font-bold text-center">政策リサーチ利用申込控え</h1>
+                            <div className="absolute right-0 bottom-4 text-sm">申込日: {data.applicationDate}</div>
+                        </div>
+                    </div>
+
+                    <div className="pdf-section px-8 py-2">
+                        <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                            <h3 className="font-bold text-lg mb-2">契約プラン</h3>
+                            <p>プラン名: {getOfficialPlanName(data.plan, data.paymentCycle)}</p>
+                            <p>金額: {getPlanPrice(data.plan, data.paymentCycle)} 円</p>
+                        </div>
+                    </div>
+
+                    <div className="pdf-section px-8 py-2">
+                        <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                            <h3 className="font-bold text-lg mb-2">利用者情報</h3>
+                            <p>会社名: {data.companyName}</p>
+                            <p>部署名: {data.department}</p>
+                            <p>氏名: {resolveFullName(data)}</p>
+                            <p>役職: {data.position || '-'}</p>
+                            <p>住所: 〒{data.postalCode} {data.address} {data.address2}</p>
+                            <p>電話番号: {data.phone}</p>
+                            <p>Email: {data.email}</p>
+                        </div>
+                    </div>
+
+                    {data.additionalMembers && data.additionalMembers.some(m => m.lastName || m.email) && (
+                        <div className="pdf-section px-8 py-2">
+                            <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                                <h3 className="font-bold text-lg mb-2">追加利用者情報</h3>
+                                <div className="space-y-3">
+                                    {data.additionalMembers.map((member, index) => (
+                                        (member.lastName || member.firstName || member.email) && (
+                                            <div key={index} className="text-sm border-b border-slate-200 pb-2 last:border-0 last:pb-0">
+                                                <p className="font-bold">利用者 {index + 1}</p>
+                                                <p>氏名: {member.lastName} {member.firstName}</p>
+                                                <p>Email: {member.email}</p>
+                                                <p>電話番号: {member.phone}</p>
+                                            </div>
+                                        )
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="pdf-section px-8 py-2">
+                        <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                            <h3 className="font-bold text-lg mb-2">請求先情報</h3>
+                            <p>請求先名（氏名）: {data.billingName}</p>
+                            <p>部署名: {data.billingDepartment}</p>
+                            <p>Email: {data.billingEmail}</p>
+                            <p>電話番号: {data.billingPhone}</p>
+                        </div>
+                    </div>
+
+                    {data.notes && (
+                        <div className="pdf-section px-8 py-2">
+                            <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                                <h3 className="font-bold text-lg mb-2">備考</h3>
+                                <p className="whitespace-pre-wrap">{data.notes}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="pdf-section p-8 pt-4">
+                        <div className="mt-4 pt-8 border-t">
+                            <CorporateFooter />
+                        </div>
+                    </div>
+                </div>
+            );
+        });
+
+        const PdfPage2 = React.forwardRef((props, ref) => (
+            <div className="absolute top-0 left-0 w-[210mm] bg-white text-slate-800" ref={ref} style={{ zIndex: -1000, display: 'none' }}>
+                <div className="pdf-section py-8 px-14">
+                    <h1 className="text-xl font-bold text-center border-b pb-4 mb-4">利用規約</h1>
+                    <div className="text-xs">
+                        <TermsOfServiceText />
+                    </div>
+                    <div className="mt-8 pt-4 border-t">
+                        <CorporateFooter />
+                    </div>
+                </div>
+            </div>
+        ));
+
+        // --- Main Components ---
         function RegistrationForm({ user }) {
             const [formData, setFormData] = useState({
                 companyName: '', department: '', lastName: '', firstName: '', position: '',
                 email: '', emailConfirm: '', phone: '', postalCode: '', address: '', address2: '',
                 plan: 'trial', paymentCycle: '', notes: '',
                 isBillingDifferent: false, billingName: '', billingDepartment: '',
-                billingEmail: '', billingEmailConfirm: '', billingPhone: ''
+                billingEmail: '', billingEmailConfirm: '', billingPhone: '',
+                additionalMembers: [{}, {}, {}, {}] // 4名分
             });
             const [finalDataForPdf, setFinalDataForPdf] = useState(null);
             const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -307,6 +386,17 @@
             const [submitStatus, setSubmitStatus] = useState(null); 
             const [addressLoading, setAddressLoading] = useState(false);
             const [validationError, setValidationError] = useState('');
+            
+            // Modal State
+            const [messageModal, setMessageModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
+            const showMessage = (title, message, type = 'info') => {
+                setMessageModal({ isOpen: true, title, message, type });
+            };
+
+            const closeMessageModal = () => {
+                setMessageModal(prev => ({ ...prev, isOpen: false }));
+            };
             
             const pdfRef1 = useRef(null);
             const pdfRef2 = useRef(null);
@@ -327,6 +417,12 @@
                     return newData;
                 });
                 if (validationError) setValidationError('');
+            };
+
+            const handleAdditionalMemberChange = (index, field, value) => {
+                const newMembers = [...formData.additionalMembers];
+                newMembers[index] = { ...newMembers[index], [field]: value };
+                setFormData(prev => ({ ...prev, additionalMembers: newMembers }));
             };
 
             const searchAddress = async () => {
@@ -356,7 +452,7 @@
 
             const generatePDF = async () => {
                 if (!window.jspdf || !window.html2canvas) {
-                    alert("PDF生成ライブラリを読み込み中です。少々お待ちください。");
+                    showMessage("準備中", "PDF生成ライブラリを読み込み中です。少々お待ちください。", 'info');
                     return;
                 }
                 try {
@@ -364,45 +460,54 @@
                     const pdf = new jsPDF('p', 'mm', 'a4');
                     const pdfWidth = pdf.internal.pageSize.getWidth();
                     const pdfHeight = pdf.internal.pageSize.getHeight();
+                    const scale = 4; 
+                    const imageFormat = 'image/jpeg';
+                    const imageQuality = 0.95;
 
-                    // 画像品質設定 (0.1〜1.0)
-                    // 0.85程度で十分な画質を保ちつつ、ファイルサイズを数MB程度に抑えられます。
-                    const imgQuality = 0.85;
-
-                    // 1ページ目
+                    // PdfPage1 の中身をセクションごとに分割して描画
                     if (pdfRef1.current) {
                         pdfRef1.current.style.display = 'block';
-                        // scale: 2 で高解像度を維持
-                        const canvas1 = await window.html2canvas(pdfRef1.current, { scale: 2, useCORS: true });
+                        const sections = pdfRef1.current.querySelectorAll('.pdf-section');
+                        
+                        let currentY = 0;
+                        
+                        for (let i = 0; i < sections.length; i++) {
+                            const section = sections[i];
+                            const canvas = await window.html2canvas(section, { scale: scale, useCORS: true });
+                            const imgData = canvas.toDataURL(imageFormat, imageQuality);
+                            const imgProps = pdf.getImageProperties(imgData);
+                            const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+                            if (currentY + imgHeight > pdfHeight) {
+                                pdf.addPage();
+                                currentY = 0;
+                            }
+
+                            pdf.addImage(imgData, 'JPEG', 0, currentY, pdfWidth, imgHeight);
+                            currentY += imgHeight;
+                        }
                         pdfRef1.current.style.display = 'none';
-                        // JPEG形式で圧縮して取得
-                        const imgData1 = canvas1.toDataURL('image/jpeg', imgQuality);
-                        const imgProps1 = pdf.getImageProperties(imgData1);
-                        const imgHeight1 = (imgProps1.height * pdfWidth) / imgProps1.width;
-                        // addImageでもJPEGを指定
-                        pdf.addImage(imgData1, 'JPEG', 0, 0, pdfWidth, imgHeight1);
                     }
 
-                    // 2ページ目
                     if (pdfRef2.current) {
                         pdf.addPage();
                         pdfRef2.current.style.display = 'block';
-                        const canvas2 = await window.html2canvas(pdfRef2.current, { scale: 2, useCORS: true });
+                        const canvas2 = await window.html2canvas(pdfRef2.current, { scale: scale, useCORS: true });
                         pdfRef2.current.style.display = 'none';
-                        const imgData2 = canvas2.toDataURL('image/jpeg', imgQuality);
+                        const imgData2 = canvas2.toDataURL(imageFormat, imageQuality);
                         const imgProps2 = pdf.getImageProperties(imgData2);
                         const imgHeight2 = (imgProps2.height * pdfWidth) / imgProps2.width;
+                        
                         if (imgHeight2 > pdfHeight) {
-                            pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                             pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, pdfHeight);
                         } else {
-                            pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, imgHeight2);
+                             pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, imgHeight2);
                         }
                     }
-
                     pdf.save('登録情報_利用規約.pdf');
                 } catch (error) {
                     console.error("PDF generation failed", error);
-                    alert("PDFの生成に失敗しました。");
+                    showMessage("エラー", "PDFの生成に失敗しました。", 'error');
                 }
             };
 
@@ -414,7 +519,8 @@
                     email: '', emailConfirm: '', phone: '', postalCode: '', address: '', address2: '',
                     plan: 'trial', paymentCycle: '', notes: '',
                     isBillingDifferent: false, billingName: '', billingDepartment: '',
-                    billingEmail: '', billingEmailConfirm: '', billingPhone: ''
+                    billingEmail: '', billingEmailConfirm: '', billingPhone: '',
+                    additionalMembers: [{}, {}, {}, {}]
                 });
                 setAgreedToTerms(false);
                 window.scrollTo(0, 0);
@@ -454,15 +560,59 @@
                 setValidationError('');
 
                 try {
-                    const { emailConfirm, billingEmailConfirm, isBillingDifferent, ...baseData } = formData;
-                    const fullName = `${formData.lastName} ${formData.firstName}`;
+                    let processingData = JSON.parse(JSON.stringify(formData));
+
+                    if (processingData.phone) {
+                        processingData.phone = processingData.phone.replace(/-/g, '');
+                    }
+                    if (processingData.billingPhone) {
+                        processingData.billingPhone = processingData.billingPhone.replace(/-/g, '');
+                    }
+
+                    if (processingData.plan === 'corporate') {
+                        const mainEmailLocalPart = processingData.email.split('@')[0];
+                        
+                        processingData.additionalMembers = processingData.additionalMembers.map((member, index) => {
+                            let newMember = { ...member };
+                            const suffix = index + 1;
+
+                            if (!newMember.lastName) {
+                                newMember.lastName = processingData.companyName;
+                            }
+                            if (!newMember.firstName) {
+                                newMember.firstName = String(suffix);
+                            }
+
+                            if (!newMember.email) {
+                                newMember.email = `${mainEmailLocalPart}${suffix}@mailinator.com`;
+                            }
+
+                            if (newMember.phone) {
+                                newMember.phone = newMember.phone.replace(/-/g, '');
+                            } else {
+                                newMember.phone = processingData.phone;
+                            }
+                            
+                            return newMember;
+                        });
+                    } else {
+                        processingData.additionalMembers = [];
+                    }
+
+                    const { emailConfirm, billingEmailConfirm, isBillingDifferent, ...baseData } = processingData;
+                    const fullName = `${baseData.lastName} ${baseData.firstName}`;
                     
+                    const finalAdditionalMembers = baseData.plan === 'corporate' 
+                        ? baseData.additionalMembers 
+                        : [];
+
                     const finalData = {
                         ...baseData,
-                        billingName: isBillingDifferent ? formData.billingName : fullName,
-                        billingDepartment: isBillingDifferent ? formData.billingDepartment : formData.department,
-                        billingEmail: isBillingDifferent ? formData.billingEmail : formData.email,
-                        billingPhone: isBillingDifferent ? formData.billingPhone : formData.phone,
+                        additionalMembers: finalAdditionalMembers,
+                        billingName: isBillingDifferent ? baseData.billingName : fullName,
+                        billingDepartment: isBillingDifferent ? baseData.billingDepartment : baseData.department,
+                        billingEmail: isBillingDifferent ? baseData.billingEmail : baseData.email,
+                        billingPhone: isBillingDifferent ? baseData.billingPhone : baseData.phone,
                         isBillingDifferent,
                         categoryCode: 'C00',
                         userId: user.uid,
@@ -473,12 +623,45 @@
                     const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
                     setFinalDataForPdf({ ...finalData, fullName, applicationDate: today });
 
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), finalData);
+                    let subject = "【政策リサーチ】利用お申し込みありがとうございます";
+                    let body = `${finalData.companyName}\n${finalData.department || ''}\n${resolveFullName(finalData)} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(finalData.plan, finalData.paymentCycle)}\n金額: ${getPlanPrice(finalData.plan, finalData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
+
+                    try {
+                        const templateDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration'));
+                        if (templateDoc.exists()) {
+                            const template = templateDoc.data();
+                            subject = template.subject || subject;
+                            let templateBody = template.body || body;
+                            
+                            body = templateBody
+                                .replace(/{{companyName}}/g, finalData.companyName || '')
+                                .replace(/{{department}}/g, finalData.department || '')
+                                .replace(/{{name}}/g, resolveFullName(finalData))
+                                .replace(/{{plan}}/g, getOfficialPlanName(finalData.plan, finalData.paymentCycle) || '')
+                                .replace(/{{price}}/g, getPlanPrice(finalData.plan, finalData.paymentCycle) + '円' || '');
+                        }
+                    } catch (e) {
+                        console.warn("Template fetch failed, using default.");
+                    }
+
+                    const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), finalData);
                     
-                    console.group("📧 自動返信メールシミュレーション");
-                    console.log(`To: ${formData.email}`);
-                    console.log(`Subject: 【政策リサーチ】利用お申し込みありがとうございます`);
-                    console.groupEnd();
+                    try {
+                        await addDoc(collection(db, 'mail'), {
+                            to: [formData.email], 
+                            cc: ['seisaku@rifj.jp'], 
+                            message: {
+                                subject: subject,
+                                text: body
+                            },
+                            metadata: {
+                                registrationId: docRef.id
+                            }
+                        });
+                    } catch (mailError) {
+                        console.error("Trigger Email Error:", mailError);
+                        showMessage("送信エラー", "登録は完了しましたが、自動返信メールの送信リクエストに失敗しました。\n管理者にお問い合わせください。\nエラー: " + mailError.message, 'error');
+                    }
 
                     setSubmitStatus('success');
                     setAgreedToTerms(false);
@@ -486,72 +669,26 @@
                 } catch (error) {
                     console.error("Error adding document: ", error);
                     setSubmitStatus('error');
+                    showMessage("システムエラー", "登録処理中にエラーが発生しました。\nもう一度お試しください。", 'error');
                 } finally {
                     setIsSubmitting(false);
                 }
             };
 
-            // PDF Template Render Logic
-            const PdfTemplate = () => (
-                <>
-                    <div className="absolute top-0 left-0 w-[210mm] bg-white p-8 hidden" ref={pdfRef1} style={{ zIndex: -1 }}>
-                        {finalDataForPdf && (
-                            <div className="space-y-6 text-slate-800">
-                                <div className="relative border-b pb-4 mb-6">
-                                    <h1 className="text-2xl font-bold text-center">政策リサーチ利用申込控え</h1>
-                                    <div className="absolute right-0 bottom-4 text-sm">申込日: {finalDataForPdf.applicationDate}</div>
-                                </div>
-                                <div className="grid grid-cols-1 gap-4">
-                                    <div className="p-4 bg-slate-50 rounded border border-slate-200">
-                                        <h3 className="font-bold text-lg mb-2">契約プラン</h3>
-                                        <p>プラン名: {getOfficialPlanName(finalDataForPdf.plan, finalDataForPdf.paymentCycle)}</p>
-                                        <p>金額: {getPlanPrice(finalDataForPdf.plan, finalDataForPdf.paymentCycle)} 円</p>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded border border-slate-200">
-                                        <h3 className="font-bold text-lg mb-2">利用者情報</h3>
-                                        <p>会社名: {finalDataForPdf.companyName}</p>
-                                        <p>部署名: {finalDataForPdf.department}</p>
-                                        <p>氏名: {finalDataForPdf.fullName}</p>
-                                        <p>役職: {finalDataForPdf.position || '-'}</p>
-                                        <p>住所: 〒{finalDataForPdf.postalCode} {finalDataForPdf.address} {finalDataForPdf.address2}</p>
-                                        <p>電話番号: {finalDataForPdf.phone}</p>
-                                        <p>Email: {finalDataForPdf.email}</p>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded border border-slate-200">
-                                        <h3 className="font-bold text-lg mb-2">請求先情報</h3>
-                                        <p>請求先名（氏名）: {finalDataForPdf.billingName}</p>
-                                        <p>部署名: {finalDataForPdf.billingDepartment}</p>
-                                        <p>Email: {finalDataForPdf.billingEmail}</p>
-                                        <p>電話番号: {finalDataForPdf.billingPhone}</p>
-                                    </div>
-                                    {finalDataForPdf.notes && (
-                                        <div className="p-4 bg-slate-50 rounded border border-slate-200">
-                                            <h3 className="font-bold text-lg mb-2">備考</h3>
-                                            <p className="whitespace-pre-wrap">{finalDataForPdf.notes}</p>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="mt-12 pt-8 border-t">
-                                    <CorporateFooter />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <div className="absolute top-0 left-0 w-[210mm] bg-white py-8 px-14 hidden" ref={pdfRef2} style={{ zIndex: -1 }}>
-                        <h1 className="text-xl font-bold text-center border-b pb-4 mb-4">利用規約</h1>
-                        <div className="text-xs">
-                            <TermsOfServiceText />
-                        </div>
-                        <div className="mt-8 pt-4 border-t">
-                            <CorporateFooter />
-                        </div>
-                    </div>
-                </>
-            );
-
             return (
                 <div className="max-w-3xl mx-auto relative">
-                    <PdfTemplate />
+                    <PdfPage1 ref={pdfRef1} data={finalDataForPdf} />
+                    <PdfPage2 ref={pdfRef2} />
+                    {messageModal.isOpen && (
+                        <MessageModal
+                            isOpen={true}
+                            onClose={() => setMessageModal(prev => ({ ...prev, isOpen: false }))}
+                            title={messageModal.title}
+                            message={messageModal.message}
+                            type={messageModal.type}
+                        />
+                    )}
+                    
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                         <div className="p-6 bg-indigo-50 border-b border-indigo-100">
                             <h2 className="text-xl font-bold text-indigo-900">利用申し込み</h2>
@@ -569,7 +706,7 @@
                                     </div>
                                     {(finalDataForPdf?.plan === 'corporate' || finalDataForPdf?.plan === 'personal') && (
                                         <div className="mt-4 pt-4 border-t border-green-200 space-y-3">
-                                            <p className="text-sm text-green-800 font-bold">登録情報の控えをPDFでダウンロードできます。必要のない場合は終了ボタンを押して下さい。</p>
+                                            <p className="text-sm text-green-800 font-bold">登録情報をPDFでダウンロードできます。必要のない場合は終了ボタンを押して下さい。</p>
                                             <div className="flex flex-wrap gap-3">
                                                 <button type="button" onClick={generatePDF} className="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm font-bold">
                                                     <FileDown size={18} />
@@ -683,6 +820,44 @@
                                             <option value="personal">個人プラン（1ID）</option>
                                         </select>
                                     </div>
+                                    
+                                    {formData.plan === 'corporate' && (
+                                        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 space-y-4 animate-fade-in">
+                                            <div className="flex items-center gap-2 text-indigo-900 font-bold border-b border-indigo-200 pb-2">
+                                                <Users size={20} />
+                                                <span>追加利用者情報（最大4名）</span>
+                                            </div>
+                                            <p className="text-xs text-indigo-700">
+                                                企業プランでは代表者様を含め最大5名までご利用いただけます。追加利用者の情報を入力してください。<br/>
+                                                <span className="font-bold">追加利用者が未定の場合は空白でも構いません。その場合は自動的に名前が割り振られますが、利用者確定後にご連絡をいただければ、いつでも変更できます。</span>
+                                            </p>
+                                            
+                                            {formData.additionalMembers.map((member, index) => (
+                                                <div key={index} className="bg-white p-3 rounded border border-indigo-100 shadow-sm">
+                                                    <p className="text-sm font-bold text-indigo-800 mb-2">利用者 {index + 1}</p>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                        <div>
+                                                            <label className="text-xs font-semibold text-slate-600">姓</label>
+                                                            <input type="text" value={member.lastName || ''} onChange={(e) => handleAdditionalMemberChange(index, 'lastName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm" placeholder="姓" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-semibold text-slate-600">名</label>
+                                                            <input type="text" value={member.firstName || ''} onChange={(e) => handleAdditionalMemberChange(index, 'firstName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm" placeholder="名" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-semibold text-slate-600">メールアドレス</label>
+                                                            <input type="email" value={member.email || ''} onChange={(e) => handleAdditionalMemberChange(index, 'email', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm" placeholder="email@example.com" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-semibold text-slate-600">電話番号</label>
+                                                            <input type="tel" value={member.phone || ''} onChange={(e) => handleAdditionalMemberChange(index, 'phone', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm" placeholder="03-1234-5678" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
                                     {formData.plan !== 'trial' && (
                                         <div className="space-y-6 animate-fade-in" ref={paymentMethodRef}>
                                             <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
@@ -753,7 +928,7 @@
                                         {isSubmitting ? '処理中...' : <><Send size={20} />申し込みを送信</>}
                                     </button>
                                     {!agreedToTerms && (
-                                        <p className="text-center text-xs text-slate-400 mt-2">※送信するには利用規約への同意が必要です</p>
+                                        <p className="text-center text-xs text-slate-400 mt-2">※送信するには利用規約への同意が必要です。また、@rifj.jpのドメインからのメールは受信可能な状態にしておいて下さい。</p>
                                     )}
                                 </div>
                             </form>
@@ -763,10 +938,90 @@
             );
         }
 
-        // --- APP_START ---
+        // --- App Component ---
+        function App() {
+            const [user, setUser] = useState(null);
+            const [authError, setAuthError] = useState(null);
+
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        await signInAnonymously(auth);
+                    } catch (error) {
+                        console.error("Auth error:", error);
+                        setAuthError(error.message);
+                    }
+                };
+                initAuth();
+                const unsubscribe = onAuthStateChanged(auth, setUser);
+                return () => unsubscribe();
+            }, []);
+
+            if (authError) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border-l-4 border-red-500">
+                            <div className="flex items-center gap-3 mb-4 text-red-600">
+                                <AlertTriangle size={32} />
+                                <h2 className="text-xl font-bold">システムエラー</h2>
+                            </div>
+                            <p className="text-gray-700 mb-4">データベースへの接続に失敗しました。</p>
+                            <div className="bg-slate-100 p-3 rounded text-xs font-mono text-slate-600 mb-4 overflow-x-auto">{authError}</div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!user) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
+                        <div className="flex flex-col items-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                            <p>システムを読み込み中...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
+                    <header className="bg-indigo-800 text-white shadow-lg print:hidden">
+                        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <Shield className="w-8 h-8 text-indigo-200" />
+                                <h1 className="text-xl font-bold tracking-wide">
+                                    政策リサーチ 申込フォーム
+                                </h1>
+                            </div>
+                        </div>
+                    </header>
+                    <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-grow">
+                        <RegistrationForm user={user} />
+                    </main>
+                    <footer className="bg-slate-100 border-t border-slate-200 print:hidden">
+                        <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-4">
+                            <CorporateFooter />
+                            <div className="text-xs flex items-center justify-center gap-2 text-slate-400">
+                                <span>© 2025 Policy Research Portal. Secure Data System.</span>
+                                <span className="text-slate-300">|</span>
+                                <a 
+                                    href="https://www.rifj.jp/privacypolicy/" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="hover:text-indigo-800 hover:underline transition-colors flex items-center gap-1"
+                                >
+                                    プライバシーポリシーについて
+                                    <span className="text-xs">↗</span>
+                                </a>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-        // --- APP_END ---
     </script>
 </body>
 </html>
