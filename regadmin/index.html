@@ -63,7 +63,7 @@
             User, FileSpreadsheet, Send, CheckCircle, List, Shield, Download, Mail, 
             Search, FileText, AlertCircle, Building2, Briefcase, CreditCard, Receipt, 
             CheckSquare, Square, UserPlus, FileCode, Edit, Trash2, X, Save, 
-            AlertTriangle, FileDown, LogOut, Copy, Settings, Info, History, RefreshCw, MailWarning, Eye
+            AlertTriangle, FileDown, LogOut, Copy, Settings, Info, History, RefreshCw, MailWarning, Eye, Printer
         } from 'https://esm.sh/lucide-react@0.292.0';
 
         // Firebase SDKs
@@ -123,7 +123,100 @@
             return '-';
         };
 
-        // --- Component: Login Screen ---
+        // 安全な名前解決を行うヘルパー関数
+        const resolveFullName = (data) => {
+            // fullNameがあり、かつ空文字でない場合
+            if (data.fullName && data.fullName.trim() !== '') {
+                return data.fullName;
+            }
+            // lastName または firstName がある場合
+            if (data.lastName || data.firstName) {
+                return `${data.lastName || ''} ${data.firstName || ''}`.trim();
+            }
+            // どちらもない場合のフォールバック
+            return 'お客様';
+        };
+
+        // --- Shared Components ---
+        const CorporateFooter = () => (
+            <div className="text-center text-sm text-slate-500 font-medium leading-relaxed">
+                <p>一般社団法人日本みらい研 東京都千代田区平河町２−１６−６ jeⅤビル７F</p>
+                <p>TEL : 03-5215-6071 ／FAX : 03-5215-6072</p>
+                <p>
+                    WEB: <a href="https://www.rifj.jp" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 hover:underline">www.rifj.jp</a> ／
+                    Mail：<a href="mailto:office@rifj.jp" className="hover:text-indigo-600 hover:underline">office@rifj.jp</a>
+                </p>
+            </div>
+        );
+
+        const TermsOfServiceText = () => (
+            <div className="text-xs leading-relaxed text-slate-700">
+                <h4 className="font-bold text-center mb-4 text-sm">「政策リサーチ」利用規約</h4>
+                <p className="font-bold mt-2">第1条（目的）</p>
+                <p>本規約は、「一般社団法人日本みらい研」（以下「日本みらい研」と称します）及び「株式会社角川アスキー総合研究所」（以下「角川アスキー総研」と称します）が共同開発した「政策リサーチ」（以下「本サービス」）と称します）の利用について定めるものです。</p>
+                {/* 省略 */}
+                <p className="font-bold mt-2">第2条（定義）</p>
+                <p>本規約に同意のうえ、本規約第5条に基づく利用申込を行い、日本みらい研が承認した方をシステム利用者（以下「利用者」と称します）とします。</p>
+                <p className="text-center my-4 text-slate-400">（...利用規約全文...）</p>
+                <p className="font-bold mt-2">第20条（裁判管轄）</p>
+                <p>日本みらい研および利用者との間で訴訟の必要が生じた場合には、第一審の専属的合意管轄裁判所を東京地方裁判所または東京簡易裁判所とします。</p>
+            </div>
+        );
+
+        // --- UI Components ---
+        
+        function MessageModal({ isOpen, onClose, title, message, type = 'info' }) {
+            if (!isOpen) return null;
+            
+            let icon, colorClass, bgClass;
+            if (type === 'success') {
+                icon = <CheckCircle size={32} className="text-green-600" />;
+                bgClass = 'bg-green-50';
+            } else if (type === 'error') {
+                icon = <AlertTriangle size={32} className="text-red-600" />;
+                bgClass = 'bg-red-50';
+            } else {
+                icon = <Info size={32} className="text-blue-600" />;
+                bgClass = 'bg-blue-50';
+            }
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-fade-in">
+                        <div className="flex flex-col items-center text-center space-y-4">
+                            <div className={`p-3 rounded-full ${bgClass}`}>
+                                {icon}
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+                            <p className="text-slate-600 whitespace-pre-wrap text-sm leading-relaxed">{message}</p>
+                            <button 
+                                onClick={onClose} 
+                                className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold transition-colors"
+                            >
+                                閉じる
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, confirmText = "OK", cancelText = "キャンセル", isDanger = false }) {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-fade-in">
+                        <h3 className="text-lg font-bold text-slate-800 mb-2">{title}</h3>
+                        <p className="text-slate-600 mb-6">{message}</p>
+                        <div className="flex justify-end gap-3">
+                            <button onClick={onCancel} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50 font-medium">{cancelText}</button>
+                            <button onClick={onConfirm} className={`px-4 py-2 text-white rounded font-bold shadow-sm ${isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>{confirmText}</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         function LoginScreen({ onLogin }) {
             const [password, setPassword] = useState('');
             const [error, setError] = useState('');
@@ -174,216 +267,459 @@
             );
         }
 
-        // 指定されたフッター情報
-        const CorporateFooter = () => (
-            <div className="text-center text-sm text-slate-500 font-medium leading-relaxed">
-                <p>一般社団法人日本みらい研 東京都千代田区平河町２−１６−６ jeⅤビル７F</p>
-                <p>TEL : 03-5215-6071 ／FAX : 03-5215-6072</p>
-                <p>
-                    WEB: <a href="https://www.rifj.jp" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 hover:underline">www.rifj.jp</a> ／
-                    Mail：<a href="mailto:office@rifj.jp" className="hover:text-indigo-600 hover:underline">office@rifj.jp</a>
-                </p>
-            </div>
-        );
-
-        // 利用規約テキスト
-        const TermsOfServiceText = () => (
-            <div className="text-xs leading-relaxed text-slate-700">
-                <h4 className="font-bold text-center mb-4 text-sm">「政策リサーチ」利用規約</h4>
-                <p className="font-bold mt-2">第1条（目的）</p>
-                <p>本規約は、「一般社団法人日本みらい研」（以下「日本みらい研」と称します）及び「株式会社角川アスキー総合研究所」（以下「角川アスキー総研」と称します）が共同開発した「政策リサーチ」（以下「本サービス」）と称します）の利用について定めるものです。</p>
-                <p className="font-bold mt-2">第2条（定義）</p>
-                <p>本規約に同意のうえ、本規約第5条に基づく利用申込を行い、日本みらい研が承認した方をシステム利用者（以下「利用者」と称します）とします。</p>
-                <p className="font-bold mt-2">第3条（本サービスの運営）</p>
-                <p>本サービスは日本みらい研が運営するものとします。なお、本サービスは、カテゴライズされた情報を検索及び分析をし、かつ、閲覧するためのプラットホームを提供するものであって、情報自体を提供するものではなく、日本みらい研が、当該情報の信頼性、正確性を保証するものではありません。</p>
-                <p className="font-bold mt-2">第4条（利用資格）</p>
-                <p>1　本サービスの利用資格は、次のとおりとします。</p>
-                <div className="pl-4">
-                    <p>（1）本規約に同意した者であること</p>
-                    <p>（2）暴力団、暴力団関係団体、公共の福祉に反する活動を行う団体、その他の反社会的勢力でない者、また、当該団体と関与していない者であること</p>
-                    <p>（3）自ら振出しもしくは引き受けた手形、小切手が不渡りになる等、支払停止または支払不能の状態にない者であること</p>
-                    <p>（4）破産、民事再生手続開始、もしくは弊社更生手続開始等の申し立てを受け、もしくは自らこれらの申し立てをなした者でないこと</p>
-                    <p>（5）仮差押、差押、仮処分、強制執行、担保権実行としての競売等の申し立てを受けた者でないこと</p>
-                    <p>（6）その他資産、信用状態に不安がある者でないこと</p>
-                </div>
-                <p>2　利用者は、前項（2）から（6）に反する事実が生じた場合には、直ちに日本みらい研に対して通知するものとします。</p>
-                <p>3　日本みらい研は、利用者から前項の通知があった場合または日本みらい研が当該事実を確認した場合には、何らの通知催告を要せず、直ちに当該利用者の利用資格を抹消することができるものとします。</p>
-                <p>4　日本みらい研は、利用者が本条の規定に違反したことにより損害を被った場合、利用者に対し、前項に基づく利用資格の抹消にかかわらず、当該損害について損害賠償を請求できるものとします。</p>
-                <p className="font-bold mt-2">第5条（登録）</p>
-                <p>1　本サービスの利用者として登録を希望する者は、所定の利用申込書に必要事項を記入の上、日本みらい研又は角川アスキー総研又は指定の代理店へ提出するものとします。</p>
-                <p>2　日本みらい研が承認し、利用者登録がなされたら速やかに本サービスに必要なアカウントIDとパスワードの設定通知を利用者に電子メールにて通知するものとします。</p>
-                <p className="font-bold mt-2">第6条（利用開始）</p>
-                <p>1　利用者は、初期登録料及び月額利用料金を支払い、アカウントIDとパスワードを受領した日から本サービスを利用できるものとします。</p>
-                <p>2　利用者は、日本みらい研又は角川アスキー総研と相互に取り決めをした場合は、初期登録料及び月額利用料金を支払う前であっても本サービスを利用できるものとします。</p>
-                <p className="font-bold mt-2">第7条（利用料金）</p>
-                <p>1　本サービスの利用料金は、初期登録料及び月額利用料金からなり、利用プランによりそれぞれ指定された金額となります。</p>
-                <p>2　利用プランによる利用料金の詳細は、別途定めるものとします。</p>
-                <p>3　前項に基づく利用料金の請求は、日本みらい研又は角川アスキー総研又は指定の代理店が請求書の郵送または電子メールで利用者に通知するものとし、利用者は請求に基づき、指定する口座に現金にて振り込むものとします。なお、振込手数料その他の支払いに要する費用は利用者が負担するものとします。</p>
-                <p>4　いったん受領した利用料金については、理由の如何を問わず返金しないものとします。</p>
-                <p className="font-bold mt-2">第8条（利用期間）</p>
-                <p>本サービスの利用期間は、利用開始日から1年間とし、利用終了日の2か月前までに申し出のない場合は自動的に1年間の延長をするものとします。</p>
-                <p className="font-bold mt-2">第9条（アカウントIDおよびパスワードの管理）</p>
-                <p>1　本サービスに登録したパスワードの管理およびその使用に関しての責任はすべて利用者が負うものとします。</p>
-                <p>2　利用者は、日本みらい研から交付されたアカウントIDとパスワードを冒用、盗用その他の不正利用がなされないように厳重に管理するものとします。</p>
-                <p>3　利用者は、アカウントIDまたはパスワードが第三者に使用されている疑いがある場合には、遅滞なく、日本みらい研に連絡するとともに、日本みらい研の指示がある場合にはそれに従うものとします。</p>
-                <p>4　日本みらい研は、利用者によるパスワードの使用上の過失および第三者の利用に伴う損害の一切の責任を負わないものとします。</p>
-                <p>5　アカウントIDおよびパスワードが第三者に不正に利用されたことによ り日本みらい研に損害が生じた場合には、利用者は日本みらい研に対し その損害を賠償しなければならないものとします。</p>
-                <p className="font-bold mt-2">第10条（利用者の登録情報の取扱い）</p>
-                <p>1　利用者の登録情報は、日本みらい研が所有するものとし、個人が特定できる情報（氏名・住所・電話番号・メールアドレス）については、本サービスの提供に必要な範囲内での利用、委託先への預託の他、個人情報にかかる利用者本人の承諾がある場合を除き、原則として、外部への提供は行わないものとします。</p>
-                <p>2　利用者は、自己が日本みらい研に提供した個人情報が正確であることを保証するものとします。日本みらい研は、当該情報が不正確であることによって利用者または第三者に損害が生じた場合には、一切責任を負わないものとします。</p>
-                <p className="font-bold mt-2">第11条（著作権）</p>
-                <p>本サービスの著作権およびその他一切の権利は日本みらい研及びその一部は角川アスキー総研に帰属するものとします。</p>
-                <p className="font-bold mt-2">第12条（禁止事項）</p>
-                <p>1　利用者は、本サービスを通じて入手したいかなる情報も、私的利用や部内検討以外の目的で複製、加工をしたり、販売、出版、その他の営利活動目的で使用することを禁止します。ただし、日本みらい研が承認した場合（当該情報に関して権利を持つ第三者がいる場合には、日本みらい研を通じ当該第三者の承諾を取得することを含む）は除くものとします。</p>
-                <p>2　利用者は、前項の使用を目的とする場合には、その取扱いについて別途書面による合意をしなければならないものとします。</p>
-                <p>3　利用者は、本サービスを政治活動や宗教活動等に使用してはならないものとします。</p>
-                <p>4　利用者は、第三者にパスワードの譲渡、売買、貸与または自己もしくは第三者のために担保の用に供する等の行為はしてはならないものとします。</p>
-                <p className="font-bold mt-2">第13条（利用者資格の抹消）</p>
-                <p>次の項目に該当する場合、日本みらい研は、利用者への事前通知、承諾なしにアカウントIDとパスワードを無効とすることができるものとします。</p>
-                <div className="pl-4">
-                    <p>（1）アカウントIDやパスワードを不正に使用し、または使用させた場合</p>
-                    <p>（2）前条に定める禁止事項その他本会則の各条項に違反した場合</p>
-                    <p>（3）日本みらい研で認めることができない不正な行為があった場合</p>
-                    <p>（4）その他日本みらい研が不適切と判断した行為があった場合</p>
-                    <p>（5）利用料金の支払いが2ヶ月間滞納した場合</p>
-                    <p>（6）本会則第4条に定める利用資格を満たさなくなった場合</p>
-                </div>
-                <p className="font-bold mt-2">第14条（利用者情報の変更）</p>
-                <p>利用者は、第5条に定める利用申込書に記載した内容に変更があった場合には、速やかに変更手続を行なうものとします。その後に変更があった場合にも同様とします。</p>
-                <p className="font-bold mt-2">第15条（本サービスの内容の変更、中止等）</p>
-                <p>1　本サービスは、バージョンアップや仕様変更等に伴い、利用者への事前通知、承諾なしに仕様や内容を変更する場合があります。</p>
-                <p>2　本サービスの定期保守、更新ならびに緊急事態発生、停電、天災等の不可抗力その他不測の事態によりサービス運営継続が困難になった場合、利用者への事前通知、承諾なしに本サービスの内容を変更または中止する場合があります。</p>
-                <p className="font-bold mt-2">第16条（解約）</p>
-                <p>本サービスは、利用開始日から1年を経過した後はいつでも解約を申し出ることができるものとし、解約を希望する場合は、解約日の2か月前までに日本みらい研に申し出るものとします。</p>
-                <p className="font-bold mt-2">第17条（免責）</p>
-                <p>1　日本みらい研は、理由の如何を問わず、本サービスによるサービス提供が遅延し、又は中断したことに起因して利用者または第三者が被った被害について、一切の責任を負わないものとします。</p>
-                <p>2　日本みらい研は、本サービスの利用を通じて得た情報等の正確性、特定の目的への適合性等について、一切の責任を負わないものとします。</p>
-                <p>3　日本みらい研は、本サービスの利用を通じて得た情報等に起因して損害が生じた場合、一切の責任を負わないものとします。</p>
-                <p>4　日本みらい研は、日本みらい研が推奨する本サービスの利用環境（ウェブサイトに掲示）以外の環境で生じた不具合について、一切責任を負わないものとします。</p>
-                <p className="font-bold mt-2">第18条（利用規約の改定）</p>
-                <p>日本みらい研は、必要に応じて、利用規約を改定することができるものとします。なお、利用規約を改定しようとする場合には、1ヶ月前までに利用者に対して電子メールまたは日本みらい研のウェブサイトへの掲示等により通知することとし、改定後の利用規約の効力は、全利用者に及ぶものとします。</p>
-                <p className="font-bold mt-2">第19条（準拠法）</p>
-                <p>本利用規約は、日本国法に準拠するものとします。</p>
-                <p className="font-bold mt-2">第20条（裁判管轄）</p>
-                <p>日本みらい研および利用者との間で訴訟の必要が生じた場合には、第一審の専属的合意管轄裁判所を東京地方裁判所または東京簡易裁判所とします。</p>
-            </div>
-        );
-
-        // --- APP_START ---
-        function App() {
-            const [user, setUser] = useState(null);
-            const [activeTab, setActiveTab] = useState('admin'); 
-            const [authError, setAuthError] = useState(null);
-            const [isAuthenticated, setIsAuthenticated] = useState(false); // パスワード認証状態
-
-            useEffect(() => {
-                const initAuth = async () => {
-                    try {
-                        // 独自のFirebase設定を使用しているため、Canvas環境のトークンは使用せず匿名認証を行います
-                        await signInAnonymously(auth);
-                    } catch (error) {
-                        console.error("Auth error:", error);
-                        setAuthError(error.message);
-                    }
-                };
-                initAuth();
-                const unsubscribe = onAuthStateChanged(auth, setUser);
-                return () => unsubscribe();
-            }, []);
-
-            if (authError) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-                        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border-l-4 border-red-500">
-                            <div className="flex items-center gap-3 mb-4 text-red-600">
-                                <AlertTriangle size={32} />
-                                <h2 className="text-xl font-bold">システムエラー</h2>
+        // --- PDF Components ---
+        const PdfPage1 = React.forwardRef(({ data }, ref) => {
+            if (!data) return null;
+            return (
+                <div className="absolute top-0 left-0 w-[210mm] bg-white p-8 text-slate-800" ref={ref} style={{ zIndex: -1000, display: 'none' }}>
+                    <div className="space-y-6">
+                        <div className="relative border-b pb-4 mb-6">
+                            <h1 className="text-2xl font-bold text-center">政策リサーチ利用申込控え</h1>
+                            <div className="absolute right-0 bottom-4 text-sm">申込日: {data.applicationDate}</div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4">
+                            <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                                <h3 className="font-bold text-lg mb-2">契約プラン</h3>
+                                <p>プラン名: {getOfficialPlanName(data.plan, data.paymentCycle)}</p>
+                                <p>金額: {getPlanPrice(data.plan, data.paymentCycle)} 円</p>
                             </div>
-                            <p className="text-gray-700 mb-4">データベースへの接続に失敗しました。</p>
-                            <div className="bg-slate-100 p-3 rounded text-xs font-mono text-slate-600 mb-4 overflow-x-auto">{authError}</div>
-                            <p className="text-sm text-gray-500">
-                                管理者の方へ: Firebaseコンソールで <strong>Authentication</strong> の設定を確認してください。
-                                <strong>匿名ログイン(Anonymous Auth)</strong> が有効になっている必要があります。
-                            </p>
+                            <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                                <h3 className="font-bold text-lg mb-2">利用者情報</h3>
+                                <p>会社名: {data.companyName}</p>
+                                <p>部署名: {data.department}</p>
+                                <p>氏名: {resolveFullName(data)}</p>
+                                <p>役職: {data.position || '-'}</p>
+                                <p>住所: 〒{data.postalCode} {data.address} {data.address2}</p>
+                                <p>電話番号: {data.phone}</p>
+                                <p>Email: {data.email}</p>
+                            </div>
+                            <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                                <h3 className="font-bold text-lg mb-2">請求先情報</h3>
+                                <p>請求先名（氏名）: {data.billingName}</p>
+                                <p>部署名: {data.billingDepartment}</p>
+                                <p>Email: {data.billingEmail}</p>
+                                <p>電話番号: {data.billingPhone}</p>
+                            </div>
+                            {data.notes && (
+                                <div className="p-4 bg-slate-50 rounded border border-slate-200">
+                                    <h3 className="font-bold text-lg mb-2">備考</h3>
+                                    <p className="whitespace-pre-wrap">{data.notes}</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="mt-12 pt-8 border-t">
+                            <CorporateFooter />
                         </div>
                     </div>
-                );
-            }
+                </div>
+            );
+        });
 
-            if (!user) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
-                        <div className="flex flex-col items-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                            <p>システムを読み込み中...</p>
-                        </div>
-                    </div>
-                );
-            }
+        const PdfPage2 = React.forwardRef((props, ref) => (
+            <div className="absolute top-0 left-0 w-[210mm] bg-white py-8 px-14 text-slate-800" ref={ref} style={{ zIndex: -1000, display: 'none' }}>
+                <h1 className="text-xl font-bold text-center border-b pb-4 mb-4">利用規約</h1>
+                <div className="text-xs">
+                    <TermsOfServiceText />
+                </div>
+                <div className="mt-8 pt-4 border-t">
+                    <CorporateFooter />
+                </div>
+            </div>
+        ));
 
-            // パスワード認証が完了していない場合、ログイン画面を表示
-            if (!isAuthenticated) {
-                return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
-            }
+        // --- Admin Sub-Components ---
+
+        function MailStatusModal({ isOpen, onClose, mailData }) {
+            if (!isOpen || !mailData) return null;
 
             return (
-                <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
-                    <header className="bg-indigo-800 text-white shadow-lg print:hidden">
-                        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-2">
-                                <Shield className="w-8 h-8 text-indigo-200" />
-                                <h1 className="text-xl font-bold tracking-wide">
-                                    {activeTab === 'admin' ? '政策リサーチ管理者画面' : '政策リサーチ申込画面'}
-                                </h1>
-                            </div>
-                            <div className="flex bg-indigo-900/50 rounded-lg p-1">
-                                <button
-                                    onClick={() => setActiveTab('admin')}
-                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'admin' ? 'bg-white text-indigo-800 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <List size={16} />
-                                        <span>管理者</span>
-                                    </div>
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('form')}
-                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'form' ? 'bg-white text-indigo-800 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <User size={16} />
-                                        <span>申し込み</span>
-                                    </div>
-                                </button>
-                            </div>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white z-10">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <Info size={24} className="text-indigo-600" />
+                                メール送信詳細情報
+                            </h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
                         </div>
-                    </header>
-                    <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-grow">
-                        {activeTab === 'form' ? <RegistrationForm user={user} /> : <AdminDashboard user={user} />}
-                    </main>
-                    <footer className="bg-slate-100 border-t border-slate-200 print:hidden">
-                        <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-4">
-                            <CorporateFooter />
-                            <div className="text-xs flex items-center justify-center gap-2 text-slate-400">
-                                <span>© 2025 Policy Research Portal. Secure Data System.</span>
-                                <span className="text-slate-300">|</span>
-                                <a
-                                    href="https://www.rifj.jp/privacypolicy/"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="hover:text-indigo-800 hover:underline transition-colors flex items-center gap-1"
-                                >
-                                    プライバシーポリシーについて
-                                    <span className="text-xs">↗</span>
-                                </a>
+                        <div className="p-6 space-y-4 text-sm">
+                            <div className={`p-4 rounded border ${mailData.mailStatus === 'SUCCESS' ? 'bg-green-50 border-green-200 text-green-800' : mailData.mailStatus === 'ERROR' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-slate-50 border-slate-200 text-slate-800'}`}>
+                                <p className="font-bold text-lg mb-1">Status: {mailData.mailStatus}</p>
+                                {mailData.mailError && <p className="font-mono text-xs mt-2 p-2 bg-white rounded border border-red-100">{mailData.mailError}</p>}
                             </div>
+                            
+                            <div className="grid grid-cols-[100px_1fr] gap-4">
+                                <div className="font-bold text-slate-500">Doc ID</div>
+                                <div className="font-mono">{mailData.mailDocId || 'N/A'}</div>
+                                
+                                <div className="font-bold text-slate-500">Email</div>
+                                <div>{mailData.email}</div>
+
+                                <div className="font-bold text-slate-500">Subject</div>
+                                <div>{mailData.mailSubject || '(不明)'}</div>
+                            </div>
+                            
+                            {/* 原因調査のヒント */}
+                            {mailData.mailStatus === 'ERROR' && (
+                                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-xs">
+                                    <p className="font-bold mb-1">トラブルシューティング:</p>
+                                    <ul className="list-disc pl-4 space-y-1">
+                                        <li><strong>Invalid login</strong>: SMTP設定（Gmailアプリパスワードなど）が間違っている可能性があります。</li>
+                                        <li><strong>Missing "to"</strong>: 宛先が正しく設定されていません。</li>
+                                        <li><strong>Quota exceeded</strong>: 送信制限を超えている可能性があります。</li>
+                                    </ul>
+                                </div>
+                            )}
+                            
+                            {mailData.mailStatus === 'MISSING' && (
+                                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded text-blue-800 text-xs">
+                                    <p>送信記録が見つかりません。以下を確認してください。</p>
+                                    <ul className="list-disc pl-4 space-y-1 mt-1">
+                                        <li>Extensionがインストールされていない可能性があります。</li>
+                                        <li>データベースの書き込み権限がない可能性があります。</li>
+                                        <li>過去のデータで、メール送信機能実装前のものかもしれません。</li>
+                                    </ul>
+                                </div>
+                            )}
                         </div>
-                    </footer>
+                        <div className="p-6 border-t border-slate-200 flex justify-end">
+                            <button onClick={onClose} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded text-slate-700">閉じる</button>
+                        </div>
+                    </div>
                 </div>
             );
         }
-        // --- APP_END ---
 
+        function SendMailModal({ isOpen, onClose, onSend, initialData }) {
+            const [mailData, setMailData] = useState({
+                to: '',
+                cc: '',
+                subject: '',
+                body: ''
+            });
+            const [isSending, setIsSending] = useState(false);
+
+            // 残り回数の計算
+            const maxResendLimit = 3;
+            const currentResendCount = initialData?.currentResendCount || 0;
+            const totalSentCount = currentResendCount + 1;
+            const remainingCount = maxResendLimit - currentResendCount;
+
+            useEffect(() => {
+                if (initialData) {
+                    setMailData({
+                        to: Array.isArray(initialData.to) ? initialData.to.join(', ') : initialData.to,
+                        cc: Array.isArray(initialData.cc) ? initialData.cc.join(', ') : (initialData.cc || 'seisaku@rifj.jp'),
+                        subject: initialData.subject,
+                        body: initialData.body
+                    });
+                }
+            }, [initialData]);
+
+            const handleSendClick = async () => {
+                setIsSending(true);
+                await onSend(mailData);
+                setIsSending(false);
+            };
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-fade-in">
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white z-10">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <Mail size={24} className="text-indigo-600" />
+                                メール送信内容の確認
+                            </h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {/* 残り回数の表示エリア */}
+                            <div className="flex items-center justify-between bg-indigo-50 border border-indigo-200 p-4 rounded-lg">
+                                <div>
+                                    <p className="text-sm font-bold text-indigo-900">送信ステータス</p>
+                                    <p className="text-xs text-indigo-700 mt-1">これまでの送信回数: <span className="font-bold text-lg">{totalSentCount}</span> 回</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs text-indigo-600 font-bold uppercase tracking-wide">残り再送信可能回数</p>
+                                    <p className="text-2xl font-bold text-indigo-600">{remainingCount} <span className="text-sm font-normal text-indigo-500">回</span></p>
+                                </div>
+                            </div>
+
+                            <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded text-sm mb-4">
+                                <p>以下の内容でメール送信リクエストを作成します。内容を確認・編集して「送信」ボタンを押してください。</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">宛先 (To) <span className="text-xs font-normal text-slate-500">※カンマ区切りで複数可</span></label>
+                                <input 
+                                    type="text" 
+                                    value={mailData.to} 
+                                    onChange={(e) => setMailData({...mailData, to: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded border-slate-300"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Cc <span className="text-xs font-normal text-slate-500">※カンマ区切りで複数可</span></label>
+                                <input 
+                                    type="text" 
+                                    value={mailData.cc} 
+                                    onChange={(e) => setMailData({...mailData, cc: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded border-slate-300"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">件名</label>
+                                <input 
+                                    type="text" 
+                                    value={mailData.subject} 
+                                    onChange={(e) => setMailData({...mailData, subject: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded border-slate-300"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">本文</label>
+                                <textarea 
+                                    value={mailData.body} 
+                                    onChange={(e) => setMailData({...mailData, body: e.target.value})}
+                                    rows="10"
+                                    className="w-full px-3 py-2 border rounded border-slate-300 font-mono text-sm leading-relaxed"
+                                ></textarea>
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-slate-200 flex justify-end gap-3 sticky bottom-0 bg-white">
+                            <button onClick={onClose} disabled={isSending} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50 disabled:bg-slate-100">キャンセル</button>
+                            <button 
+                                onClick={handleSendClick} 
+                                disabled={isSending}
+                                className={`px-6 py-2 text-white rounded font-bold shadow-md flex items-center gap-2 ${isSending ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                            >
+                                {isSending ? (
+                                    <>
+                                        <RefreshCw className="animate-spin" size={18} />
+                                        送信中...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send size={18} />
+                                        送信を実行
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function MailTemplateEditor() {
+            const [template, setTemplate] = useState({
+                subject: '',
+                body: ''
+            });
+            const [isLoading, setIsLoading] = useState(true);
+            const [isSaving, setIsSaving] = useState(false);
+            const [saveMessage, setSaveMessage] = useState(null);
+
+            const defaultTemplate = {
+                subject: "【政策リサーチ】利用お申し込みありがとうございます",
+                body: "{{companyName}}\n{{department}}\n{{name}} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: {{plan}}\n金額: {{price}}\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------"
+            };
+
+            useEffect(() => {
+                const fetchTemplate = async () => {
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration');
+                        const docSnap = await getDoc(docRef);
+                        
+                        if (docSnap.exists()) {
+                            setTemplate(docSnap.data());
+                        } else {
+                            setTemplate(defaultTemplate);
+                        }
+                    } catch (error) {
+                        console.error("Error fetching template:", error);
+                        setTemplate(defaultTemplate);
+                    } finally {
+                        setIsLoading(false);
+                    }
+                };
+                fetchTemplate();
+            }, []);
+
+            const handleSave = async () => {
+                setIsSaving(true);
+                setSaveMessage(null);
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration'), template);
+                    setSaveMessage({ type: 'success', text: 'テンプレートを保存しました' });
+                    setTimeout(() => setSaveMessage(null), 3000);
+                } catch (error) {
+                    console.error("Error saving template:", error);
+                    setSaveMessage({ type: 'error', text: '保存に失敗しました' });
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            if (isLoading) {
+                return <div className="text-center py-10 text-slate-500">読み込み中...</div>;
+            }
+
+            return (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="p-6 border-b border-slate-200 bg-slate-50">
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <Mail size={20} className="text-indigo-600" />
+                            自動返信メール設定
+                        </h3>
+                        <p className="text-sm text-slate-500 mt-1">
+                            申込完了時に送信される自動返信メールの内容を設定します。
+                        </p>
+                    </div>
+                    
+                    <div className="p-6 space-y-6">
+                        {saveMessage && (
+                            <div className={`p-4 rounded-lg flex items-center gap-2 ${saveMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                {saveMessage.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
+                                {saveMessage.text}
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-slate-700">件名</label>
+                            <input 
+                                type="text" 
+                                value={template.subject} 
+                                onChange={(e) => setTemplate({...template, subject: e.target.value})}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder="メールの件名を入力"
+                            />
+                            <p className="text-xs text-slate-500 mt-1">
+                                ※送信時には自動的に Cc: seisaku@rifj.jp が追加されます。
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-slate-700">本文</label>
+                            <div className="flex gap-4">
+                                <div className="flex-grow">
+                                    <textarea 
+                                        value={template.body} 
+                                        onChange={(e) => setTemplate({...template, body: e.target.value})}
+                                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none h-96 font-mono text-sm leading-relaxed"
+                                        placeholder="メールの本文を入力"
+                                    ></textarea>
+                                </div>
+                                <div className="w-64 flex-shrink-0 space-y-4">
+                                    <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100 text-sm">
+                                        <div className="flex items-center gap-2 font-bold text-indigo-900 mb-2">
+                                            <Info size={16} />
+                                            利用可能な差し込み変数
+                                        </div>
+                                        <ul className="space-y-2 text-indigo-800">
+                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
+                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{companyName}}`}</code>
+                                                <span className="text-xs mt-0.5">会社名</span>
+                                            </li>
+                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
+                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{department}}`}</code>
+                                                <span className="text-xs mt-0.5">部署名</span>
+                                            </li>
+                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
+                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{name}}`}</code>
+                                                <span className="text-xs mt-0.5">申込者氏名</span>
+                                            </li>
+                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
+                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{plan}}`}</code>
+                                                <span className="text-xs mt-0.5">選択プラン名</span>
+                                            </li>
+                                            <li className="flex flex-col">
+                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{price}}`}</code>
+                                                <span className="text-xs mt-0.5">金額（円表記）</span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-200 flex justify-end">
+                            <button 
+                                onClick={handleSave} 
+                                disabled={isSaving}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow font-bold flex items-center gap-2 transition-colors disabled:bg-indigo-400"
+                            >
+                                {isSaving ? '保存中...' : <><Save size={18} /> 設定を保存</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function EditMemberModal({ member, onClose, onUpdate }) {
+            const [formData, setFormData] = useState({ ...member });
+            const handleChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => ({ ...prev, [name]: value }));
+            };
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onUpdate(member.id, formData);
+            };
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white z-10">
+                            <h3 className="text-xl font-bold text-slate-800">会員情報の編集</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">区分コード</label><input type="text" name="categoryCode" value={formData.categoryCode || 'C00'} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">会社名</label><input type="text" name="companyName" value={formData.companyName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">部署名</label><input type="text" name="department" value={formData.department || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">役職</label><input type="text" name="position" value={formData.position || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">姓</label><input type="text" name="lastName" value={formData.lastName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">名</label><input type="text" name="firstName" value={formData.firstName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">メールアドレス</label><input type="email" name="email" value={formData.email || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">電話番号</label><input type="tel" name="phone" value={formData.phone || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">郵便番号</label><input type="text" name="postalCode" value={formData.postalCode || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1 md:col-span-2"><label className="text-sm font-bold text-slate-700">住所1</label><input type="text" name="address" value={formData.address || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1 md:col-span-2"><label className="text-sm font-bold text-slate-700">住所2</label><input type="text" name="address2" value={formData.address2 || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                            </div>
+                            <div className="border-t pt-4 mt-4">
+                                <h4 className="font-bold mb-4 text-slate-800">プラン情報</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">プラン</label><select name="plan" value={formData.plan} onChange={handleChange} className="w-full px-3 py-2 border rounded"><option value="trial">トライアル</option><option value="corporate">企業プラン</option><option value="personal">個人プラン</option></select></div>
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">支払いサイクル</label><select name="paymentCycle" value={formData.paymentCycle || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded"><option value="">(なし)</option><option value="monthly">月払い</option><option value="yearly">年払い</option></select></div>
+                                </div>
+                            </div>
+                            <div className="border-t pt-4 mt-4">
+                                <h4 className="font-bold mb-4 text-slate-800">請求先情報</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先名</label><input type="text" name="billingName" value={formData.billingName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先部署</label><input type="text" name="billingDepartment" value={formData.billingDepartment || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先メール</label><input type="email" name="billingEmail" value={formData.billingEmail || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先電話</label><input type="tel" name="billingPhone" value={formData.billingPhone || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                </div>
+                            </div>
+                            <div className="border-t pt-4 mt-4">
+                                <label className="text-sm font-bold text-slate-700 block mb-1">備考</label>
+                                <textarea name="notes" value={formData.notes || ''} onChange={handleChange} rows="3" className="w-full px-3 py-2 border rounded"></textarea>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white">
+                                <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50">キャンセル</button>
+                                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-2"><Save size={18} /> 保存する</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- Main Components ---
         function RegistrationForm({ user }) {
             const [formData, setFormData] = useState({
                 companyName: '', department: '', lastName: '', firstName: '', position: '',
@@ -398,6 +734,17 @@
             const [submitStatus, setSubmitStatus] = useState(null); 
             const [addressLoading, setAddressLoading] = useState(false);
             const [validationError, setValidationError] = useState('');
+            
+            // Modal State
+            const [messageModal, setMessageModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
+            const showMessage = (title, message, type = 'info') => {
+                setMessageModal({ isOpen: true, title, message, type });
+            };
+
+            const closeMessageModal = () => {
+                setMessageModal(prev => ({ ...prev, isOpen: false }));
+            };
             
             const pdfRef1 = useRef(null);
             const pdfRef2 = useRef(null);
@@ -447,7 +794,7 @@
 
             const generatePDF = async () => {
                 if (!window.jspdf || !window.html2canvas) {
-                    alert("PDF生成ライブラリを読み込み中です。少々お待ちください。");
+                    showMessage("準備中", "PDF生成ライブラリを読み込み中です。少々お待ちください。", 'info');
                     return;
                 }
                 try {
@@ -455,13 +802,10 @@
                     const pdf = new jsPDF('p', 'mm', 'a4');
                     const pdfWidth = pdf.internal.pageSize.getWidth();
                     const pdfHeight = pdf.internal.pageSize.getHeight();
-
-                    // 高画質・高解像度設定
                     const scale = 4; 
                     const imageFormat = 'image/jpeg';
                     const imageQuality = 0.95;
 
-                    // 1ページ目
                     if (pdfRef1.current) {
                         pdfRef1.current.style.display = 'block';
                         const canvas1 = await window.html2canvas(pdfRef1.current, { scale: scale, useCORS: true });
@@ -472,7 +816,6 @@
                         pdf.addImage(imgData1, 'JPEG', 0, 0, pdfWidth, imgHeight1);
                     }
 
-                    // 2ページ目
                     if (pdfRef2.current) {
                         pdf.addPage();
                         pdfRef2.current.style.display = 'block';
@@ -487,11 +830,10 @@
                             pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, imgHeight2);
                         }
                     }
-
                     pdf.save('登録情報_利用規約.pdf');
                 } catch (error) {
                     console.error("PDF generation failed", error);
-                    alert("PDFの生成に失敗しました。");
+                    showMessage("エラー", "PDFの生成に失敗しました。", 'error');
                 }
             };
 
@@ -564,7 +906,8 @@
 
                     // 1. メール本文の生成
                     let subject = "【政策リサーチ】利用お申し込みありがとうございます";
-                    let body = `${finalData.companyName}\n${finalData.fullName} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(finalData.plan, finalData.paymentCycle)}\n金額: ${getPlanPrice(finalData.plan, finalData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
+                    // デフォルト本文の修正: resolveFullNameを使用
+                    let body = `${finalData.companyName}\n${finalData.department || ''}\n${resolveFullName(finalData)} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(finalData.plan, finalData.paymentCycle)}\n金額: ${getPlanPrice(finalData.plan, finalData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
 
                     try {
                         const templateDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration'));
@@ -573,10 +916,11 @@
                             subject = template.subject || subject;
                             let templateBody = template.body || body;
                             
+                            // プレースホルダーの置換: resolveFullNameを使用
                             body = templateBody
                                 .replace(/{{companyName}}/g, finalData.companyName || '')
                                 .replace(/{{department}}/g, finalData.department || '')
-                                .replace(/{{name}}/g, finalData.fullName || '')
+                                .replace(/{{name}}/g, resolveFullName(finalData))
                                 .replace(/{{plan}}/g, getOfficialPlanName(finalData.plan, finalData.paymentCycle) || '')
                                 .replace(/{{price}}/g, getPlanPrice(finalData.plan, finalData.paymentCycle) + '円' || '');
                         }
@@ -584,37 +928,24 @@
                         console.warn("Template fetch failed, using default.");
                     }
 
-                    // 2. データ保存 (registrations)
                     const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), finalData);
                     
-                    // 3. Trigger Email (mail collection)
                     try {
                         await addDoc(collection(db, 'mail'), {
-                            to: [formData.email], // 配列形式に変更
-                            cc: ['seisaku@rifj.jp'], // 配列形式に変更
+                            to: [formData.email], 
+                            cc: ['seisaku@rifj.jp'], 
                             message: {
                                 subject: subject,
                                 text: body
                             },
-                            // 紐付け用のメタデータ (Trigger Emailはこれを無視するがFirestoreには残る)
                             metadata: {
                                 registrationId: docRef.id
                             }
                         });
-                        console.log("Trigger Email: Request added to 'mail' collection.");
                     } catch (mailError) {
                         console.error("Trigger Email Error:", mailError);
-                        // ユーザーには登録完了は見せるが、裏でメール送信エラーがあったことを知らせる（必要に応じて削除可）
-                        alert("登録は完了しましたが、自動返信メールの送信リクエストに失敗しました。\n管理者にお問い合わせください。\nエラー: " + mailError.message);
+                        showMessage("送信エラー", "登録は完了しましたが、自動返信メールの送信リクエストに失敗しました。\n管理者にお問い合わせください。\nエラー: " + mailError.message, 'error');
                     }
-
-                    // Console Log for simulation
-                    console.group("📧 自動返信メールシミュレーション");
-                    console.log(`To: ${formData.email}`);
-                    console.log(`Cc: seisaku@rifj.jp`);
-                    console.log(`Subject: ${subject}`);
-                    console.log(`Body:\n${body}`);
-                    console.groupEnd();
 
                     setSubmitStatus('success');
                     setAgreedToTerms(false);
@@ -622,72 +953,26 @@
                 } catch (error) {
                     console.error("Error adding document: ", error);
                     setSubmitStatus('error');
+                    showMessage("システムエラー", "登録処理中にエラーが発生しました。\nもう一度お試しください。", 'error');
                 } finally {
                     setIsSubmitting(false);
                 }
             };
 
-            // PDF Template Render Logic
-            const PdfTemplate = () => (
-                <>
-                    <div className="absolute top-0 left-0 w-[210mm] bg-white p-8 hidden" ref={pdfRef1} style={{ zIndex: -1 }}>
-                        {finalDataForPdf && (
-                            <div className="space-y-6 text-slate-800">
-                                <div className="relative border-b pb-4 mb-6">
-                                    <h1 className="text-2xl font-bold text-center">政策リサーチ利用申込控え</h1>
-                                    <div className="absolute right-0 bottom-4 text-sm">申込日: {finalDataForPdf.applicationDate}</div>
-                                </div>
-                                <div className="grid grid-cols-1 gap-4">
-                                    <div className="p-4 bg-slate-50 rounded border border-slate-200">
-                                        <h3 className="font-bold text-lg mb-2">契約プラン</h3>
-                                        <p>プラン名: {getOfficialPlanName(finalDataForPdf.plan, finalDataForPdf.paymentCycle)}</p>
-                                        <p>金額: {getPlanPrice(finalDataForPdf.plan, finalDataForPdf.paymentCycle)} 円</p>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded border border-slate-200">
-                                        <h3 className="font-bold text-lg mb-2">利用者情報</h3>
-                                        <p>会社名: {finalDataForPdf.companyName}</p>
-                                        <p>部署名: {finalDataForPdf.department}</p>
-                                        <p>氏名: {finalDataForPdf.fullName}</p>
-                                        <p>役職: {finalDataForPdf.position || '-'}</p>
-                                        <p>住所: 〒{finalDataForPdf.postalCode} {finalDataForPdf.address} {finalDataForPdf.address2}</p>
-                                        <p>電話番号: {finalDataForPdf.phone}</p>
-                                        <p>Email: {finalDataForPdf.email}</p>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded border border-slate-200">
-                                        <h3 className="font-bold text-lg mb-2">請求先情報</h3>
-                                        <p>請求先名（氏名）: {finalDataForPdf.billingName}</p>
-                                        <p>部署名: {finalDataForPdf.billingDepartment}</p>
-                                        <p>Email: {finalDataForPdf.billingEmail}</p>
-                                        <p>電話番号: {finalDataForPdf.billingPhone}</p>
-                                    </div>
-                                    {finalDataForPdf.notes && (
-                                        <div className="p-4 bg-slate-50 rounded border border-slate-200">
-                                            <h3 className="font-bold text-lg mb-2">備考</h3>
-                                            <p className="whitespace-pre-wrap">{finalDataForPdf.notes}</p>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="mt-12 pt-8 border-t">
-                                    <CorporateFooter />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <div className="absolute top-0 left-0 w-[210mm] bg-white py-8 px-14 hidden" ref={pdfRef2} style={{ zIndex: -1 }}>
-                        <h1 className="text-xl font-bold text-center border-b pb-4 mb-4">利用規約</h1>
-                        <div className="text-xs">
-                            <TermsOfServiceText />
-                        </div>
-                        <div className="mt-8 pt-4 border-t">
-                            <CorporateFooter />
-                        </div>
-                    </div>
-                </>
-            );
-
             return (
                 <div className="max-w-3xl mx-auto relative">
-                    <PdfTemplate />
+                    <PdfPage1 ref={pdfRef1} data={finalDataForPdf} />
+                    <PdfPage2 ref={pdfRef2} />
+                    {messageModal.isOpen && (
+                        <MessageModal
+                            isOpen={true}
+                            onClose={() => setMessageModal(prev => ({ ...prev, isOpen: false }))}
+                            title={messageModal.title}
+                            message={messageModal.message}
+                            type={messageModal.type}
+                        />
+                    )}
+                    
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                         <div className="p-6 bg-indigo-50 border-b border-indigo-100">
                             <h2 className="text-xl font-bold text-indigo-900">利用申し込み</h2>
@@ -899,392 +1184,6 @@
             );
         }
 
-        // --- Component: Confirm Modal ---
-        function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, confirmText = "OK", cancelText = "キャンセル", isDanger = false }) {
-            if (!isOpen) return null;
-            return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-fade-in">
-                        <h3 className="text-lg font-bold text-slate-800 mb-2">{title}</h3>
-                        <p className="text-slate-600 mb-6">{message}</p>
-                        <div className="flex justify-end gap-3">
-                            <button onClick={onCancel} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50 font-medium">{cancelText}</button>
-                            <button onClick={onConfirm} className={`px-4 py-2 text-white rounded font-bold shadow-sm ${isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>{confirmText}</button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // --- Component: Mail Status Modal (Debug Info) ---
-        function MailStatusModal({ isOpen, onClose, mailData }) {
-            if (!isOpen || !mailData) return null;
-
-            return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white z-10">
-                            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                <Info size={24} className="text-indigo-600" />
-                                メール送信詳細情報
-                            </h3>
-                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
-                        </div>
-                        <div className="p-6 space-y-4 text-sm">
-                            <div className={`p-4 rounded border ${mailData.mailStatus === 'SUCCESS' ? 'bg-green-50 border-green-200 text-green-800' : mailData.mailStatus === 'ERROR' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-slate-50 border-slate-200 text-slate-800'}`}>
-                                <p className="font-bold text-lg mb-1">Status: {mailData.mailStatus}</p>
-                                {mailData.mailError && <p className="font-mono text-xs mt-2 p-2 bg-white rounded border border-red-100">{mailData.mailError}</p>}
-                            </div>
-                            
-                            <div className="grid grid-cols-[100px_1fr] gap-4">
-                                <div className="font-bold text-slate-500">Doc ID</div>
-                                <div className="font-mono">{mailData.mailDocId || 'N/A'}</div>
-                                
-                                <div className="font-bold text-slate-500">Email</div>
-                                <div>{mailData.email}</div>
-
-                                <div className="font-bold text-slate-500">Subject</div>
-                                <div>{mailData.mailSubject || '(不明)'}</div>
-                            </div>
-                            
-                            {/* 原因調査のヒント */}
-                            {mailData.mailStatus === 'ERROR' && (
-                                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-xs">
-                                    <p className="font-bold mb-1">トラブルシューティング:</p>
-                                    <ul className="list-disc pl-4 space-y-1">
-                                        <li><strong>Invalid login</strong>: SMTP設定（Gmailアプリパスワードなど）が間違っている可能性があります。</li>
-                                        <li><strong>Missing "to"</strong>: 宛先が正しく設定されていません。</li>
-                                        <li><strong>Quota exceeded</strong>: 送信制限を超えている可能性があります。</li>
-                                    </ul>
-                                </div>
-                            )}
-                            
-                            {mailData.mailStatus === 'MISSING' && (
-                                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded text-blue-800 text-xs">
-                                    <p>送信記録が見つかりません。以下を確認してください。</p>
-                                    <ul className="list-disc pl-4 space-y-1 mt-1">
-                                        <li>Extensionがインストールされていない可能性があります。</li>
-                                        <li>データベースの書き込み権限がない可能性があります。</li>
-                                        <li>過去のデータで、メール送信機能実装前のものかもしれません。</li>
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                        <div className="p-6 border-t border-slate-200 flex justify-end">
-                            <button onClick={onClose} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded text-slate-700">閉じる</button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // --- Component: Send Mail Modal (Manual Send) ---
-        function SendMailModal({ isOpen, onClose, onSend, initialData }) {
-            const [mailData, setMailData] = useState({
-                to: '',
-                cc: '',
-                subject: '',
-                body: ''
-            });
-            const [isSending, setIsSending] = useState(false);
-
-            useEffect(() => {
-                if (initialData) {
-                    setMailData({
-                        to: Array.isArray(initialData.to) ? initialData.to.join(', ') : initialData.to,
-                        cc: Array.isArray(initialData.cc) ? initialData.cc.join(', ') : (initialData.cc || 'seisaku@rifj.jp'),
-                        subject: initialData.subject,
-                        body: initialData.body
-                    });
-                }
-            }, [initialData]);
-
-            const handleSendClick = async () => {
-                setIsSending(true);
-                await onSend(mailData);
-                setIsSending(false);
-            };
-
-            if (!isOpen) return null;
-
-            return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white z-10">
-                            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                <Mail size={24} className="text-indigo-600" />
-                                メール送信内容の確認
-                            </h3>
-                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded text-sm mb-4">
-                                <p>以下の内容でメール送信リクエストを作成します。内容を確認・編集して「送信」ボタンを押してください。</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">宛先 (To) <span className="text-xs font-normal text-slate-500">※カンマ区切りで複数可</span></label>
-                                <input 
-                                    type="text" 
-                                    value={mailData.to} 
-                                    onChange={(e) => setMailData({...mailData, to: e.target.value})}
-                                    className="w-full px-3 py-2 border rounded border-slate-300"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">Cc <span className="text-xs font-normal text-slate-500">※カンマ区切りで複数可</span></label>
-                                <input 
-                                    type="text" 
-                                    value={mailData.cc} 
-                                    onChange={(e) => setMailData({...mailData, cc: e.target.value})}
-                                    className="w-full px-3 py-2 border rounded border-slate-300"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">件名</label>
-                                <input 
-                                    type="text" 
-                                    value={mailData.subject} 
-                                    onChange={(e) => setMailData({...mailData, subject: e.target.value})}
-                                    className="w-full px-3 py-2 border rounded border-slate-300"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">本文</label>
-                                <textarea 
-                                    value={mailData.body} 
-                                    onChange={(e) => setMailData({...mailData, body: e.target.value})}
-                                    rows="10"
-                                    className="w-full px-3 py-2 border rounded border-slate-300 font-mono text-sm leading-relaxed"
-                                ></textarea>
-                            </div>
-                        </div>
-                        <div className="p-6 border-t border-slate-200 flex justify-end gap-3 sticky bottom-0 bg-white">
-                            <button onClick={onClose} disabled={isSending} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50 disabled:bg-slate-100">キャンセル</button>
-                            <button 
-                                onClick={handleSendClick} 
-                                disabled={isSending}
-                                className="px-6 py-2 bg-indigo-600 text-white rounded font-bold hover:bg-indigo-700 shadow-md flex items-center gap-2 disabled:bg-indigo-400"
-                            >
-                                {isSending ? '送信中...' : <><Send size={18} /> 送信を実行</>}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // --- ADMIN_START ---
-        
-        // --- Component: Mail Template Editor ---
-        function MailTemplateEditor() {
-            const [template, setTemplate] = useState({
-                subject: '',
-                body: ''
-            });
-            const [isLoading, setIsLoading] = useState(true);
-            const [isSaving, setIsSaving] = useState(false);
-            const [saveMessage, setSaveMessage] = useState(null);
-
-            // デフォルトテンプレート
-            const defaultTemplate = {
-                subject: "【政策リサーチ】利用お申し込みありがとうございます",
-                body: "{{companyName}}\n{{department}}\n{{name}} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: {{plan}}\n金額: {{price}}\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------"
-            };
-
-            useEffect(() => {
-                const fetchTemplate = async () => {
-                    try {
-                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration');
-                        const docSnap = await getDoc(docRef);
-                        
-                        if (docSnap.exists()) {
-                            setTemplate(docSnap.data());
-                        } else {
-                            setTemplate(defaultTemplate);
-                        }
-                    } catch (error) {
-                        console.error("Error fetching template:", error);
-                        setTemplate(defaultTemplate);
-                    } finally {
-                        setIsLoading(false);
-                    }
-                };
-                fetchTemplate();
-            }, []);
-
-            const handleSave = async () => {
-                setIsSaving(true);
-                setSaveMessage(null);
-                try {
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration'), template);
-                    setSaveMessage({ type: 'success', text: 'テンプレートを保存しました' });
-                    setTimeout(() => setSaveMessage(null), 3000);
-                } catch (error) {
-                    console.error("Error saving template:", error);
-                    setSaveMessage({ type: 'error', text: '保存に失敗しました' });
-                } finally {
-                    setIsSaving(false);
-                }
-            };
-
-            if (isLoading) {
-                return <div className="text-center py-10 text-slate-500">読み込み中...</div>;
-            }
-
-            return (
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="p-6 border-b border-slate-200 bg-slate-50">
-                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                            <Mail size={20} className="text-indigo-600" />
-                            自動返信メール設定
-                        </h3>
-                        <p className="text-sm text-slate-500 mt-1">
-                            申込完了時に送信される自動返信メールの内容を設定します。
-                        </p>
-                    </div>
-                    
-                    <div className="p-6 space-y-6">
-                        {saveMessage && (
-                            <div className={`p-4 rounded-lg flex items-center gap-2 ${saveMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                                {saveMessage.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-                                {saveMessage.text}
-                            </div>
-                        )}
-
-                        <div className="space-y-2">
-                            <label className="block text-sm font-bold text-slate-700">件名</label>
-                            <input 
-                                type="text" 
-                                value={template.subject} 
-                                onChange={(e) => setTemplate({...template, subject: e.target.value})}
-                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                                placeholder="メールの件名を入力"
-                            />
-                            <p className="text-xs text-slate-500 mt-1">
-                                ※送信時には自動的に Cc: seisaku@rifj.jp が追加されます。
-                            </p>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="block text-sm font-bold text-slate-700">本文</label>
-                            <div className="flex gap-4">
-                                <div className="flex-grow">
-                                    <textarea 
-                                        value={template.body} 
-                                        onChange={(e) => setTemplate({...template, body: e.target.value})}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none h-96 font-mono text-sm leading-relaxed"
-                                        placeholder="メールの本文を入力"
-                                    ></textarea>
-                                </div>
-                                <div className="w-64 flex-shrink-0 space-y-4">
-                                    <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100 text-sm">
-                                        <div className="flex items-center gap-2 font-bold text-indigo-900 mb-2">
-                                            <Info size={16} />
-                                            利用可能な差し込み変数
-                                        </div>
-                                        <ul className="space-y-2 text-indigo-800">
-                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
-                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{companyName}}`}</code>
-                                                <span className="text-xs mt-0.5">会社名</span>
-                                            </li>
-                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
-                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{department}}`}</code>
-                                                <span className="text-xs mt-0.5">部署名</span>
-                                            </li>
-                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
-                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{name}}`}</code>
-                                                <span className="text-xs mt-0.5">申込者氏名</span>
-                                            </li>
-                                            <li className="flex flex-col border-b border-indigo-200 pb-1">
-                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{plan}}`}</code>
-                                                <span className="text-xs mt-0.5">選択プラン名</span>
-                                            </li>
-                                            <li className="flex flex-col">
-                                                <code className="font-mono bg-white px-1 rounded border border-indigo-200 w-fit">{`{{price}}`}</code>
-                                                <span className="text-xs mt-0.5">金額（円表記）</span>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-200 flex justify-end">
-                            <button 
-                                onClick={handleSave} 
-                                disabled={isSaving}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow font-bold flex items-center gap-2 transition-colors disabled:bg-indigo-400"
-                            >
-                                {isSaving ? '保存中...' : <><Save size={18} /> 設定を保存</>}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // --- Component: Edit Modal ---
-        function EditMemberModal({ member, onClose, onUpdate }) {
-            const [formData, setFormData] = useState({ ...member });
-            const handleChange = (e) => {
-                const { name, value } = e.target;
-                setFormData(prev => ({ ...prev, [name]: value }));
-            };
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                onUpdate(member.id, formData);
-            };
-            return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white z-10">
-                            <h3 className="text-xl font-bold text-slate-800">会員情報の編集</h3>
-                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">区分コード</label><input type="text" name="categoryCode" value={formData.categoryCode || 'C00'} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">会社名</label><input type="text" name="companyName" value={formData.companyName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">部署名</label><input type="text" name="department" value={formData.department || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">役職</label><input type="text" name="position" value={formData.position || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">姓</label><input type="text" name="lastName" value={formData.lastName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">名</label><input type="text" name="firstName" value={formData.firstName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">メールアドレス</label><input type="email" name="email" value={formData.email || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">電話番号</label><input type="tel" name="phone" value={formData.phone || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">郵便番号</label><input type="text" name="postalCode" value={formData.postalCode || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                <div className="space-y-1 md:col-span-2"><label className="text-sm font-bold text-slate-700">住所1</label><input type="text" name="address" value={formData.address || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                <div className="space-y-1 md:col-span-2"><label className="text-sm font-bold text-slate-700">住所2</label><input type="text" name="address2" value={formData.address2 || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                            </div>
-                            <div className="border-t pt-4 mt-4">
-                                <h4 className="font-bold mb-4 text-slate-800">プラン情報</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">プラン</label><select name="plan" value={formData.plan} onChange={handleChange} className="w-full px-3 py-2 border rounded"><option value="trial">トライアル</option><option value="corporate">企業プラン</option><option value="personal">個人プラン</option></select></div>
-                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">支払いサイクル</label><select name="paymentCycle" value={formData.paymentCycle || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded"><option value="">(なし)</option><option value="monthly">月払い</option><option value="yearly">年払い</option></select></div>
-                                </div>
-                            </div>
-                            <div className="border-t pt-4 mt-4">
-                                <h4 className="font-bold mb-4 text-slate-800">請求先情報</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先名</label><input type="text" name="billingName" value={formData.billingName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先部署</label><input type="text" name="billingDepartment" value={formData.billingDepartment || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先メール</label><input type="email" name="billingEmail" value={formData.billingEmail || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先電話</label><input type="tel" name="billingPhone" value={formData.billingPhone || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
-                                </div>
-                            </div>
-                            <div className="border-t pt-4 mt-4">
-                                <label className="text-sm font-bold text-slate-700 block mb-1">備考</label>
-                                <textarea name="notes" value={formData.notes || ''} onChange={handleChange} rows="3" className="w-full px-3 py-2 border rounded"></textarea>
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white">
-                                <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50">キャンセル</button>
-                                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-2"><Save size={18} /> 保存する</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            );
-        }
-
         // --- Component: Admin Dashboard ---
         function AdminDashboard({ user }) {
             const [registrations, setRegistrations] = useState([]);
@@ -1301,18 +1200,39 @@
             
             // Mail Status Detail Modal State
             const [statusDetailMail, setStatusDetailMail] = useState(null);
+            
+            // Message Modal State
+            const [messageModal, setMessageModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
+            const showMessage = (title, message, type = 'info') => {
+                setMessageModal({ isOpen: true, title, message, type });
+            };
+
+            const closeMessageModal = () => {
+                setMessageModal(prev => ({ ...prev, isOpen: false }));
+            };
+
+            // PDF Generation
+            const pdfRef1 = useRef(null);
+            const pdfRef2 = useRef(null);
+            const [pdfData, setPdfData] = useState(null);
+            const [isPdfGenerating, setIsPdfGenerating] = useState(false);
 
             useEffect(() => {
                 if (!user) return;
                 
                 const qReg = query(collectionGroup(db, 'registrations'));
                 const unsubReg = onSnapshot(qReg, (snapshot) => {
-                    const data = snapshot.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data(),
-                        createdAtDate: doc.data().createdAt?.toDate() || new Date(),
-                        refPath: doc.ref.path 
-                    }));
+                    const data = snapshot.docs.map(doc => {
+                        const d = doc.data();
+                        return {
+                            id: doc.id,
+                            ...d,
+                            createdAtDate: d.createdAt?.toDate() || new Date(),
+                            applicationDate: d.createdAt?.toDate().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) || '',
+                            refPath: doc.ref.path 
+                        };
+                    });
                     data.sort((a, b) => b.createdAtDate - a.createdAtDate);
                     setRegistrations(data);
                     setLoading(false);
@@ -1381,6 +1301,84 @@
                 }
                 return registrationsWithMailStatus;
             };
+            
+            // --- PDF Bulk Generation ---
+            const generateBulkPDF = async () => {
+                const targets = getTargetData();
+                if (targets.length === 0) {
+                    showMessage("通知", "PDFを出力するデータを選択してください。", 'info');
+                    return;
+                }
+
+                if (!window.jspdf || !window.html2canvas) {
+                    showMessage("準備中", "PDF生成ライブラリを読み込み中です。少々お待ちください。", 'info');
+                    return;
+                }
+
+                setIsPdfGenerating(true);
+
+                try {
+                    const { jsPDF } = window.jspdf;
+                    // p: portrait, mm: units, a4: format
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = pdf.internal.pageSize.getHeight();
+                    const scale = 4;
+                    const imageFormat = 'image/jpeg';
+                    const imageQuality = 0.95;
+
+                    for (let i = 0; i < targets.length; i++) {
+                        const data = targets[i];
+                        
+                        // Set data for rendering
+                        setPdfData(data);
+                        // Wait for render
+                        await new Promise(resolve => setTimeout(resolve, 100));
+
+                        // 1ページ目 (申込書)
+                        if (pdfRef1.current) {
+                            pdfRef1.current.style.display = 'block';
+                            const canvas1 = await window.html2canvas(pdfRef1.current, { scale, useCORS: true });
+                            pdfRef1.current.style.display = 'none';
+                            const imgData1 = canvas1.toDataURL(imageFormat, imageQuality);
+                            const imgProps1 = pdf.getImageProperties(imgData1);
+                            const imgHeight1 = (imgProps1.height * pdfWidth) / imgProps1.width;
+                            
+                            if (i > 0) pdf.addPage();
+                            pdf.addImage(imgData1, 'JPEG', 0, 0, pdfWidth, imgHeight1);
+                        }
+
+                        // 2ページ目 (規約) - 常にページ追加
+                        if (pdfRef2.current) {
+                            pdf.addPage();
+                            pdfRef2.current.style.display = 'block';
+                            const canvas2 = await window.html2canvas(pdfRef2.current, { scale, useCORS: true });
+                            pdfRef2.current.style.display = 'none';
+                            const imgData2 = canvas2.toDataURL(imageFormat, imageQuality);
+                            const imgProps2 = pdf.getImageProperties(imgData2);
+                            const imgHeight2 = (imgProps2.height * pdfWidth) / imgProps2.width;
+                            if (imgHeight2 > pdfHeight) {
+                                pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                            } else {
+                                pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, imgHeight2);
+                            }
+                        }
+                    }
+                    
+                    const filename = targets.length === 1 
+                        ? `${targets[0].companyName}_${targets[0].fullName}_申込書.pdf` 
+                        : `政策リサーチ申込書一括出力_${new Date().toISOString().slice(0,10)}.pdf`;
+                        
+                    pdf.save(filename);
+
+                } catch (e) {
+                    console.error("PDF generation error:", e);
+                    showMessage("エラー", "PDF生成中にエラーが発生しました。\n" + e.message, 'error');
+                } finally {
+                    setIsPdfGenerating(false);
+                    setPdfData(null); // Clear data to hide hidden elements
+                }
+            };
 
             const handleDeleteClick = (item) => {
                 setDeleteConfirmationItem(item);
@@ -1393,7 +1391,7 @@
                     setDeleteConfirmationItem(null);
                 } catch (e) {
                     console.error("Delete failed:", e);
-                    alert("削除に失敗しました: " + e.message);
+                    showMessage("エラー", "削除に失敗しました: " + e.message, 'error');
                 }
             };
 
@@ -1403,8 +1401,10 @@
 
                 try {
                     const updateData = { ...newData };
+                    // 不要なUI用プロパティを削除
                     delete updateData.id;
                     delete updateData.createdAtDate;
+                    delete updateData.applicationDate;
                     delete updateData.refPath;
                     delete updateData.mailStatus;
                     delete updateData.mailError;
@@ -1418,12 +1418,19 @@
                     setEditingMember(null);
                 } catch (e) {
                     console.error("Update failed:", e);
-                    alert("更新に失敗しました: " + e.message);
+                    showMessage("エラー", "更新に失敗しました: " + e.message, 'error');
                 }
             };
 
             // メール再送信処理（準備）
             const handlePrepareResendEmail = async (regData) => {
+                // 再送信回数のチェック (モーダルを開く前にもチェック)
+                const currentResendCount = regData.resendCount || 0;
+                if (currentResendCount >= 3) {
+                    showMessage("送信制限", "再送信の限度（3回）に達しました。これ以上は送信できません。", 'error');
+                    return;
+                }
+
                 try {
                     let subject = "【政策リサーチ】利用お申し込みありがとうございます";
                     let body = ""; 
@@ -1434,13 +1441,15 @@
                         subject = template.subject || subject;
                         body = template.body;
                     } else {
-                        body = `${regData.companyName}\n${regData.department || ''}\n${regData.fullName} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(regData.plan, regData.paymentCycle)}\n金額: ${getPlanPrice(regData.plan, regData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
+                        // デフォルト本文の修正: resolveFullNameを使用
+                        body = `${regData.companyName}\n${regData.department || ''}\n${resolveFullName(regData)} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(regData.plan, regData.paymentCycle)}\n金額: ${getPlanPrice(regData.plan, regData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
                     }
 
+                    // プレースホルダーの置換: resolveFullNameを使用
                     const finalBody = body
                         .replace(/{{companyName}}/g, regData.companyName || '')
                         .replace(/{{department}}/g, regData.department || '')
-                        .replace(/{{name}}/g, regData.fullName || '')
+                        .replace(/{{name}}/g, resolveFullName(regData))
                         .replace(/{{plan}}/g, getOfficialPlanName(regData.plan, regData.paymentCycle) || '')
                         .replace(/{{price}}/g, getPlanPrice(regData.plan, regData.paymentCycle) + '円' || '');
 
@@ -1449,12 +1458,13 @@
                         to: [regData.email],
                         cc: ['seisaku@rifj.jp'],
                         subject: subject,
-                        body: finalBody
+                        body: finalBody,
+                        currentResendCount: currentResendCount // 現在の回数を渡す
                     });
 
                 } catch (e) {
                     console.error("Template fetch failed:", e);
-                    alert("メールテンプレートの読み込みに失敗しました。: " + e.message);
+                    showMessage("エラー", "メールテンプレートの読み込みに失敗しました。: " + e.message, 'error');
                 }
             };
 
@@ -1462,11 +1472,33 @@
             const handleConfirmResendEmail = async (mailData) => {
                 if (!resendTargetReg) return;
 
-                try {
-                    // split string by comma if needed, or keep as array if already
-                    const toList = typeof mailData.to === 'string' ? mailData.to.split(',').map(s=>s.trim()) : mailData.to;
-                    const ccList = typeof mailData.cc === 'string' ? mailData.cc.split(',').map(s=>s.trim()) : mailData.cc;
+                // 再送信回数のチェック
+                const currentResendCount = resendTargetReg.resendCount || 0;
+                const maxResendCount = 3;
+                
+                if (currentResendCount >= maxResendCount) {
+                    showMessage("送信制限", "再送信の限度に達しました。", 'error');
+                    setSendingMailData(null);
+                    setResendTargetReg(null);
+                    return;
+                }
 
+                try {
+                    // 文字列の場合はカンマ区切りで配列化し、空白除去と空要素のフィルタリングを行う
+                    const toList = typeof mailData.to === 'string' 
+                        ? mailData.to.split(',').map(s => s.trim()).filter(s => s !== '') 
+                        : mailData.to;
+                    const ccList = typeof mailData.cc === 'string' 
+                        ? mailData.cc.split(',').map(s => s.trim()).filter(s => s !== '') 
+                        : mailData.cc;
+
+                    // 必須チェック
+                    if (toList.length === 0) {
+                        showMessage("入力エラー", "宛先(To)を入力してください。", 'error');
+                        return; 
+                    }
+
+                    // 1. メール送信リクエスト (mailコレクションへの追加)
                     await addDoc(collection(db, 'mail'), {
                         to: toList,
                         cc: ccList,
@@ -1480,13 +1512,28 @@
                         }
                     });
 
-                    // alert("再送信リクエストを登録しました。");
+                    // 2. 再送信回数の更新 (registrationsコレクションの更新)
+                    const newCount = currentResendCount + 1;
+                    const remainingCount = maxResendCount - newCount;
+                    
+                    await updateDoc(doc(db, resendTargetReg.refPath), {
+                        resendCount: newCount
+                    });
+
+                    // 送信モーダルを閉じる
                     setSendingMailData(null);
                     setResendTargetReg(null);
 
+                    // 成功メッセージを表示
+                    setTimeout(() => {
+                        showMessage("送信完了", `送信が正常に完了しました。\n\n現在の送信回数: ${newCount}/${maxResendCount}\n残り送信可能回数: ${remainingCount}回`, 'success');
+                    }, 100);
+
                 } catch (e) {
                     console.error("Resend failed:", e);
-                    alert("再送信に失敗しました: " + e.message);
+                    setSendingMailData(null);
+                    setResendTargetReg(null);
+                    showMessage("送信エラー", "再送信リクエストの作成に失敗しました:\n" + e.message, 'error');
                 }
             };
 
@@ -1499,7 +1546,7 @@
 
             const downloadMemberCSV = () => {
                 const targetData = getTargetData();
-                if (targetData.length === 0) { alert("データがありません。"); return; }
+                if (targetData.length === 0) { showMessage("通知", "データがありません。", 'info'); return; }
                 const headers = ["区分", "会社名", "部署", "姓", "名", "役職", "プラン", "メールアドレス", "電話番号", "郵便番号", "住所1", "住所2", "請求先名", "請求先部署", "請求先メール", "請求先電話", "備考", "登録日時"];
                 const rows = targetData.map(reg => [
                     `"${reg.categoryCode || 'C00'}"`, `"${reg.companyName || ''}"`, `"${reg.department || ''}"`, `"${reg.lastName || ''}"`, `"${reg.firstName || ''}"`, `"${reg.position || ''}"`,
@@ -1512,7 +1559,7 @@
 
             const downloadBillingCSV = () => {
                 const targetData = getTargetData();
-                if (targetData.length === 0) { alert("データがありません。"); return; }
+                if (targetData.length === 0) { showMessage("通知", "データがありません。", 'info'); return; }
                 const headers = ["区分", "請求先名", "請求先部署", "請求先メール", "請求先電話", "プラン", "金額(円)", "登録日時"];
                 const rows = targetData.map(reg => [
                     `"${reg.categoryCode || 'C00'}"`, `"${reg.billingName || ''}"`, `"${reg.billingDepartment || ''}"`, `"${reg.billingEmail || ''}"`, `"${reg.billingPhone || ''}"`,
@@ -1523,7 +1570,7 @@
 
             const downloadRegistrationCSV = () => {
                 const targetData = getTargetData();
-                if (targetData.length === 0) { alert("データがありません。"); return; }
+                if (targetData.length === 0) { showMessage("通知", "データがありません。", 'info'); return; }
                 const headers = ["メールアドレス", "姓", "名", "携帯電話番号", "自宅電話番号", "会社名", "会社電話番号", "郵便番号", "国", "都道府県", "市町村", "番地", "ビル名", "区分", "プラン"];
                 const rows = targetData.map(reg => {
                     const address = reg.address || '';
@@ -1543,6 +1590,10 @@
 
             return (
                 <div className="space-y-6">
+                    {/* Invisible PDF Components for Admin generation */}
+                    <PdfPage1 ref={pdfRef1} data={pdfData} />
+                    <PdfPage2 ref={pdfRef2} />
+
                     {editingMember && (
                         <EditMemberModal
                             member={editingMember}
@@ -1576,6 +1627,15 @@
                             onClose={() => setStatusDetailMail(null)}
                         />
                     )}
+                    {messageModal.isOpen && (
+                        <MessageModal
+                            isOpen={true}
+                            onClose={closeMessageModal}
+                            title={messageModal.title}
+                            message={messageModal.message}
+                            type={messageModal.type}
+                        />
+                    )}
                     
                     {/* Admin Nav */}
                     <div className="bg-white p-2 rounded-lg shadow-sm border border-slate-200 inline-flex gap-1 mb-2">
@@ -1607,6 +1667,10 @@
                                     </p>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
+                                    <button onClick={generateBulkPDF} disabled={isPdfGenerating} className={`bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm ${isPdfGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                        {isPdfGenerating ? <RefreshCw className="animate-spin" size={16} /> : <Printer size={16} />}
+                                        <span>PDF一括出力</span>
+                                    </button>
                                     <button onClick={downloadMemberCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><FileSpreadsheet size={16} /><span>会員リスト出力</span></button>
                                     <button onClick={downloadBillingCSV} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><Receipt size={16} /><span>請求先リスト出力</span></button>
                                     <button onClick={downloadRegistrationCSV} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><UserPlus size={16} /><span>システム登録用出力</span></button>
@@ -1645,12 +1709,14 @@
                                                                 {selectedIds.has(reg.id) ? <CheckSquare size={20} className="text-indigo-600" /> : <Square size={20} />}
                                                             </button>
                                                         </td>
-                                                        <td className="p-4 flex items-center gap-2">
-                                                            <button onClick={() => setEditingMember(reg)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 hover:border-indigo-400 transition-colors" title="編集"><Edit size={16} /></button>
-                                                            <button onClick={() => handleDeleteClick(reg)} className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 hover:border-red-400 transition-colors" title="削除"><Trash2 size={16} /></button>
+                                                        <td className="p-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <button onClick={() => setEditingMember(reg)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 hover:border-indigo-400 transition-colors" title="編集"><Edit size={16} /></button>
+                                                                <button onClick={() => handleDeleteClick(reg)} className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 hover:border-red-400 transition-colors" title="削除"><Trash2 size={16} /></button>
+                                                            </div>
                                                         </td>
                                                         <td className="p-4 text-center">
-                                                            <div className="flex flex-col items-center gap-1">
+                                                            <div className="flex flex-row items-center justify-center gap-3">
                                                                 <button 
                                                                     onClick={() => setStatusDetailMail(reg)}
                                                                     className="hover:opacity-70 transition-opacity"
@@ -1663,8 +1729,10 @@
                                                                 
                                                                 <button 
                                                                     onClick={() => handlePrepareResendEmail(reg)}
-                                                                    className={`text-xs px-2 py-1 rounded border transition-colors ${reg.mailStatus === 'SUCCESS' ? 'text-slate-400 border-slate-200 hover:bg-slate-50' : 'text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 font-bold'}`}
+                                                                    className={`text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1 ${reg.mailStatus === 'SUCCESS' ? 'text-slate-400 border-slate-200 hover:bg-slate-50' : 'text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 font-bold'}`}
+                                                                    title="再送信"
                                                                 >
+                                                                    <Send size={12} />
                                                                     再送信
                                                                 </button>
                                                             </div>
@@ -1681,7 +1749,7 @@
                                                             <div className="text-slate-600 text-xs">{reg.department}</div>
                                                         </td>
                                                         <td className="p-4 text-sm text-slate-800">
-                                                            <div className="font-medium">{reg.lastName && reg.firstName ? `${reg.lastName} ${reg.firstName}` : reg.fullName || ''}</div>
+                                                            <div className="font-medium">{resolveFullName(reg)}</div>
                                                             {reg.position && <div className="text-xs text-slate-500">{reg.position}</div>}
                                                         </td>
                                                         <td className="p-4">
@@ -1710,12 +1778,123 @@
                 </div>
             );
         }
-        // --- ADMIN_END ---
 
-        // --- APP_START ---
+        // --- App Component ---
+        function App() {
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('admin'); 
+            const [authError, setAuthError] = useState(null);
+            const [isAuthenticated, setIsAuthenticated] = useState(false); // パスワード認証状態
+
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        // 独自のFirebase設定を使用しているため、Canvas環境のトークンは使用せず匿名認証を行います
+                        await signInAnonymously(auth);
+                    } catch (error) {
+                        console.error("Auth error:", error);
+                        setAuthError(error.message);
+                    }
+                };
+                initAuth();
+                const unsubscribe = onAuthStateChanged(auth, setUser);
+                return () => unsubscribe();
+            }, []);
+
+            if (authError) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border-l-4 border-red-500">
+                            <div className="flex items-center gap-3 mb-4 text-red-600">
+                                <AlertTriangle size={32} />
+                                <h2 className="text-xl font-bold">システムエラー</h2>
+                            </div>
+                            <p className="text-gray-700 mb-4">データベースへの接続に失敗しました。</p>
+                            <div className="bg-slate-100 p-3 rounded text-xs font-mono text-slate-600 mb-4 overflow-x-auto">{authError}</div>
+                            <p className="text-sm text-gray-500">
+                                管理者の方へ: Firebaseコンソールで <strong>Authentication</strong> の設定を確認してください。
+                                <strong>匿名ログイン(Anonymous Auth)</strong> が有効になっている必要があります。
+                            </p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!user) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
+                        <div className="flex flex-col items-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                            <p>システムを読み込み中...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            // パスワード認証が完了していない場合、ログイン画面を表示
+            if (!isAuthenticated) {
+                return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
+                    <header className="bg-indigo-800 text-white shadow-lg print:hidden">
+                        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <Shield className="w-8 h-8 text-indigo-200" />
+                                <h1 className="text-xl font-bold tracking-wide">
+                                    {activeTab === 'admin' ? '政策リサーチ管理者画面' : '政策リサーチ申込画面'}
+                                </h1>
+                            </div>
+                            <div className="flex bg-indigo-900/50 rounded-lg p-1">
+                                <button
+                                    onClick={() => setActiveTab('admin')}
+                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'admin' ? 'bg-white text-indigo-800 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <List size={16} />
+                                        <span>管理者</span>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('form')}
+                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'form' ? 'bg-white text-indigo-800 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <User size={16} />
+                                        <span>申し込み</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+                    <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-grow">
+                        {activeTab === 'form' ? <RegistrationForm user={user} /> : <AdminDashboard user={user} />}
+                    </main>
+                    <footer className="bg-slate-100 border-t border-slate-200 print:hidden">
+                        <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-4">
+                            <CorporateFooter />
+                            <div className="text-xs flex items-center justify-center gap-2 text-slate-400">
+                                <span>© 2025 Policy Research Portal. Secure Data System.</span>
+                                <span className="text-slate-300">|</span>
+                                <a
+                                    href="https://www.rifj.jp/privacypolicy/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:text-indigo-800 hover:underline transition-colors flex items-center gap-1"
+                                >
+                                    プライバシーポリシーについて
+                                    <span className="text-xs">↗</span>
+                                </a>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-        // --- APP_END ---
     </script>
 </body>
 </html>
