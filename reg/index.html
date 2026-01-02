@@ -42,6 +42,15 @@
                 display: block !important;
             }
         }
+        
+        /* PDF生成用の一時非表示クラス */
+        .pdf-hidden {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: -1000;
+            visibility: hidden;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -62,7 +71,7 @@
         import { 
             User, Send, CheckCircle, Shield, Mail, 
             Search, FileText, AlertCircle, Building2, Briefcase, 
-            AlertTriangle, FileDown, LogOut, Info, Users
+            AlertTriangle, FileDown, LogOut, Info, Users, Receipt
         } from 'https://esm.sh/lucide-react@0.292.0';
 
         // Firebase SDKs
@@ -99,10 +108,15 @@
         const appId = "default-app-id";
 
         // --- Helper Functions ---
-        const getOfficialPlanName = (plan, cycle) => {
+        const getOfficialPlanName = (plan, cycle, useCreditCard = false) => {
             if (plan === 'trial') return 'Navi Plus Trial（10日間無料トライアル）';
             if (plan === 'corporate') return cycle === 'yearly' ? 'Navi Plus5（Fプラン5 年払）' : 'Navi Plus5（Fプラン5）';
-            if (plan === 'personal') return cycle === 'yearly' ? 'Navi Plus1（Fプラン1 年払）' : 'Navi Plus1（Fプラン1）';
+            if (plan === 'personal') {
+                if (cycle === 'yearly') return 'Navi Plus1（Fプラン1 年払）';
+                // 月払いの場合、クレジット決済かどうかで分岐
+                if (useCreditCard) return 'Navi All';
+                return 'Navi Plus1（Fプラン1）';
+            }
             return plan;
         };
 
@@ -121,6 +135,17 @@
                 return `${data.lastName || ''} ${data.firstName || ''}`.trim();
             }
             return 'お客様';
+        };
+
+        // 電話番号の正規化（全角→半角、数字以外削除）
+        const normalizePhoneNumber = (str) => {
+            if (!str) return '';
+            // 全角数字を半角に変換
+            const halfWidth = str.replace(/[０-９]/g, (s) => {
+                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+            });
+            // 数字以外をすべて削除
+            return halfWidth.replace(/[^0-9]/g, '');
         };
 
         // --- Shared Components ---
@@ -290,8 +315,11 @@
                     <div className="pdf-section px-8 py-2">
                         <div className="p-4 bg-slate-50 rounded border border-slate-200">
                             <h3 className="font-bold text-lg mb-2">契約プラン</h3>
-                            <p>プラン名: {getOfficialPlanName(data.plan, data.paymentCycle)}</p>
+                            <p>プラン名: {getOfficialPlanName(data.plan, data.paymentCycle, data.useCreditCard)}</p>
                             <p>金額: {getPlanPrice(data.plan, data.paymentCycle)} 円</p>
+                            {data.useCreditCard && (
+                                <p className="mt-2 text-red-600 font-bold text-sm">※クレジット決済希望</p>
+                            )}
                         </div>
                     </div>
 
@@ -332,9 +360,13 @@
                         <div className="p-4 bg-slate-50 rounded border border-slate-200">
                             <h3 className="font-bold text-lg mb-2">請求先情報</h3>
                             <p>請求先名（氏名）: {data.billingName}</p>
-                            <p>部署名: {data.billingDepartment}</p>
-                            <p>Email: {data.billingEmail}</p>
-                            <p>電話番号: {data.billingPhone}</p>
+                            {!data.useCreditCard && (
+                                <>
+                                    <p>部署名: {data.billingDepartment}</p>
+                                    <p>Email: {data.billingEmail}</p>
+                                    <p>電話番号: {data.billingPhone}</p>
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -386,6 +418,7 @@
             const [submitStatus, setSubmitStatus] = useState(null); 
             const [addressLoading, setAddressLoading] = useState(false);
             const [validationError, setValidationError] = useState('');
+            const [useCreditCard, setUseCreditCard] = useState(false);
             
             // Modal State
             const [messageModal, setMessageModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
@@ -406,6 +439,21 @@
                 const { name, value, type, checked } = e.target;
                 setFormData(prev => {
                     const newData = { ...prev, [name]: type === 'checkbox' ? checked : value };
+                    
+                    // プランやサイクルが変わったらクレジット決済をリセット
+                    if (name === 'plan' || name === 'paymentCycle') {
+                        setUseCreditCard(false);
+                        // クレジットによる強制上書きを解除
+                        if (useCreditCard) {
+                             newData.isBillingDifferent = false;
+                             newData.billingName = '';
+                             newData.billingEmail = '';
+                             newData.billingEmailConfirm = '';
+                             newData.billingPhone = '';
+                             newData.billingDepartment = ''; 
+                        }
+                    }
+
                     if (name === 'plan') {
                         if (value === 'trial') {
                             newData.paymentCycle = ''; 
@@ -522,6 +570,7 @@
                     billingEmail: '', billingEmailConfirm: '', billingPhone: '',
                     additionalMembers: [{}, {}, {}, {}]
                 });
+                setUseCreditCard(false);
                 setAgreedToTerms(false);
                 window.scrollTo(0, 0);
             };
@@ -540,7 +589,9 @@
                     paymentMethodRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     return;
                 }
-                if (formData.isBillingDifferent) {
+                
+                // クレジット決済でない場合のみ、請求先の通常バリデーションを行う
+                if (formData.isBillingDifferent && !useCreditCard) {
                     if (formData.billingEmail !== formData.billingEmailConfirm) {
                         setValidationError("請求先のメールアドレスが一致しません。");
                         return;
@@ -550,6 +601,7 @@
                         return;
                     }
                 }
+                
                 if (!agreedToTerms) {
                     setValidationError("利用規約への同意が必要です。");
                     return;
@@ -562,11 +614,22 @@
                 try {
                     let processingData = JSON.parse(JSON.stringify(formData));
 
+                    // 電話番号の正規化（代表者・請求先）
                     if (processingData.phone) {
-                        processingData.phone = processingData.phone.replace(/-/g, '');
+                        processingData.phone = normalizePhoneNumber(processingData.phone);
                     }
                     if (processingData.billingPhone) {
-                        processingData.billingPhone = processingData.billingPhone.replace(/-/g, '');
+                        processingData.billingPhone = normalizePhoneNumber(processingData.billingPhone);
+                    }
+
+                    // クレジット決済の場合の請求先情報補完
+                    if (useCreditCard) {
+                        processingData.isBillingDifferent = true;
+                        processingData.billingName = 'クレジット決済';
+                        // 必須項目を埋めるために利用者の情報をコピー（データとしては保持）
+                        processingData.billingEmail = processingData.email;
+                        processingData.billingPhone = processingData.phone;
+                        processingData.billingDepartment = '';
                     }
 
                     if (processingData.plan === 'corporate') {
@@ -587,8 +650,9 @@
                                 newMember.email = `${mainEmailLocalPart}${suffix}@mailinator.com`;
                             }
 
+                            // 追加メンバーの電話番号も正規化
                             if (newMember.phone) {
-                                newMember.phone = newMember.phone.replace(/-/g, '');
+                                newMember.phone = normalizePhoneNumber(newMember.phone);
                             } else {
                                 newMember.phone = processingData.phone;
                             }
@@ -614,6 +678,7 @@
                         billingEmail: isBillingDifferent ? baseData.billingEmail : baseData.email,
                         billingPhone: isBillingDifferent ? baseData.billingPhone : baseData.phone,
                         isBillingDifferent,
+                        useCreditCard, // フラグ保存
                         categoryCode: 'C00',
                         userId: user.uid,
                         createdAt: serverTimestamp(),
@@ -624,7 +689,7 @@
                     setFinalDataForPdf({ ...finalData, fullName, applicationDate: today });
 
                     let subject = "【政策リサーチ】利用お申し込みありがとうございます";
-                    let body = `${finalData.companyName}\n${finalData.department || ''}\n${resolveFullName(finalData)} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(finalData.plan, finalData.paymentCycle)}\n金額: ${getPlanPrice(finalData.plan, finalData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
+                    let body = `${finalData.companyName}\n${finalData.department || ''}\n${resolveFullName(finalData)} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(finalData.plan, finalData.paymentCycle, finalData.useCreditCard)}\n金額: ${getPlanPrice(finalData.plan, finalData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
 
                     try {
                         const templateDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration'));
@@ -637,7 +702,7 @@
                                 .replace(/{{companyName}}/g, finalData.companyName || '')
                                 .replace(/{{department}}/g, finalData.department || '')
                                 .replace(/{{name}}/g, resolveFullName(finalData))
-                                .replace(/{{plan}}/g, getOfficialPlanName(finalData.plan, finalData.paymentCycle) || '')
+                                .replace(/{{plan}}/g, getOfficialPlanName(finalData.plan, finalData.paymentCycle, finalData.useCreditCard) || '')
                                 .replace(/{{price}}/g, getPlanPrice(finalData.plan, finalData.paymentCycle) + '円' || '');
                         }
                     } catch (e) {
@@ -876,23 +941,71 @@
                                                 </div>
                                                 <div className="text-xs text-slate-600 bg-white p-3 rounded border border-indigo-100">請求は、メールでの電子形式で行います。郵送による請求を希望される場合は、備考欄にその旨をご記載下さい。</div>
                                             </div>
-                                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                                                <label className="flex items-center gap-3 cursor-pointer select-none mb-4">
-                                                    <input type="checkbox" name="isBillingDifferent" checked={formData.isBillingDifferent} onChange={handleChange} className="w-5 h-5 border-2 border-indigo-500 rounded text-indigo-600 cursor-pointer" />
-                                                    <span className="font-bold text-slate-800">請求先が利用者情報と異なる場合はチェック</span>
-                                                </label>
-                                                {formData.isBillingDifferent && (
-                                                    <div className="space-y-4 pt-2 border-t border-slate-200 animate-fade-in">
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                            <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">請求先名 <span className="text-red-500">*</span></label><input required type="text" name="billingName" value={formData.billingName} onChange={handleChange} placeholder="氏名（例：山田 太郎）" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
-                                                            <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">請求先部署 <span className="text-slate-400 font-normal text-xs">（任意）</span></label><input type="text" name="billingDepartment" value={formData.billingDepartment} onChange={handleChange} placeholder="経理部" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
-                                                            <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス <span className="text-red-500">*</span></label><input required type="email" name="billingEmail" value={formData.billingEmail} onChange={handleChange} placeholder="keiri@example.com" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
-                                                            <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス（確認） <span className="text-red-500">*</span></label><input required type="email" name="billingEmailConfirm" value={formData.billingEmailConfirm} onChange={handleChange} placeholder="確認のため再入力" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
-                                                            <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">電話番号 <span className="text-red-500">*</span></label><input required type="tel" name="billingPhone" value={formData.billingPhone} onChange={handleChange} placeholder="03-9876-5432" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+
+                                            {/* クレジット決済オプション (個人プランかつ月払いのみ) */}
+                                            {formData.plan === 'personal' && formData.paymentCycle === 'monthly' && (
+                                                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg animate-fade-in">
+                                                    <label className="flex items-start gap-3 cursor-pointer">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={useCreditCard} 
+                                                            onChange={(e) => {
+                                                                const checked = e.target.checked;
+                                                                setUseCreditCard(checked);
+                                                                if (checked) {
+                                                                    setFormData(prev => ({
+                                                                        ...prev,
+                                                                        isBillingDifferent: true,
+                                                                        billingName: 'クレジット決済',
+                                                                        // 便宜上コピー
+                                                                        billingEmail: prev.email,
+                                                                        billingEmailConfirm: prev.emailConfirm,
+                                                                        billingPhone: prev.phone,
+                                                                        billingDepartment: '' 
+                                                                    }));
+                                                                } else {
+                                                                    setFormData(prev => ({
+                                                                        ...prev,
+                                                                        isBillingDifferent: false,
+                                                                        billingName: '',
+                                                                        billingEmail: '',
+                                                                        billingEmailConfirm: '',
+                                                                        billingPhone: '',
+                                                                        billingDepartment: ''
+                                                                    }));
+                                                                }
+                                                            }} 
+                                                            className="w-5 h-5 mt-0.5 border-2 border-yellow-500 rounded text-yellow-600 cursor-pointer" 
+                                                        />
+                                                        <div>
+                                                            <span className="font-bold text-yellow-800">クレジット決済を希望する場合は、チェックして下さい。</span>
+                                                            <p className="text-sm text-yellow-700 mt-1 leading-relaxed">
+                                                                利用登録終了後のアカウント有効通知メールからシステムにログインすると、NaviDataのトライアル画面が表示されます。その画面から決済手続きを完了しますと、政策リサーチをご利用いただけるようになります。
+                                                            </p>
                                                         </div>
-                                                    </div>
-                                                )}
-                                            </div>
+                                                    </label>
+                                                </div>
+                                            )}
+
+                                            {!useCreditCard && (
+                                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 animate-fade-in">
+                                                    <label className="flex items-center gap-3 cursor-pointer select-none mb-4">
+                                                        <input type="checkbox" name="isBillingDifferent" checked={formData.isBillingDifferent} onChange={handleChange} className="w-5 h-5 border-2 border-indigo-500 rounded text-indigo-600 cursor-pointer" />
+                                                        <span className="font-bold text-slate-800">請求先が利用者情報と異なる場合はチェック</span>
+                                                    </label>
+                                                    {formData.isBillingDifferent && (
+                                                        <div className="space-y-4 pt-2 border-t border-slate-200 animate-fade-in">
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">請求先名 <span className="text-red-500">*</span></label><input required type="text" name="billingName" value={formData.billingName} onChange={handleChange} placeholder="氏名（例：山田 太郎）" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                                                <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">請求先部署 <span className="text-slate-400 font-normal text-xs">（任意）</span></label><input type="text" name="billingDepartment" value={formData.billingDepartment} onChange={handleChange} placeholder="経理部" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                                                <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス <span className="text-red-500">*</span></label><input required type="email" name="billingEmail" value={formData.billingEmail} onChange={handleChange} placeholder="keiri@example.com" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                                                <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス（確認） <span className="text-red-500">*</span></label><input required type="email" name="billingEmailConfirm" value={formData.billingEmailConfirm} onChange={handleChange} placeholder="確認のため再入力" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                                                <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">電話番号 <span className="text-red-500">*</span></label><input required type="tel" name="billingPhone" value={formData.billingPhone} onChange={handleChange} placeholder="03-9876-5432" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                     <div className="space-y-2">
