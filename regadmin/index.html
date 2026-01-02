@@ -131,9 +131,21 @@
 
         const getPlanPrice = (plan, cycle) => {
             if (plan === 'trial') return '0';
-            if (plan === 'corporate') return cycle === 'yearly' ? '1,200,000' : '100,000';
-            if (plan === 'personal') return cycle === 'yearly' ? '360,000' : '30,000';
-            return '-';
+            if (plan === 'corporate') return cycle === 'yearly' ? 1200000 : 100000;
+            if (plan === 'personal') return cycle === 'yearly' ? 360000 : 30000;
+            return 0;
+        };
+        
+        const getFormattedPrice = (plan, cycle) => {
+            if (plan === 'trial') return '0円';
+            
+            const price = getPlanPrice(plan, cycle);
+            if (price === 0) return '-';
+
+            const taxIncluded = Math.floor(price * 1.1);
+            const unit = cycle === 'yearly' ? '/年' : '/月';
+            
+            return `¥${price.toLocaleString()}（税込 ¥${taxIncluded.toLocaleString()}）${unit}`;
         };
 
         const resolveFullName = (data) => {
@@ -371,7 +383,7 @@
                         <div className="p-4 bg-slate-50 rounded border border-slate-200">
                             <h3 className="font-bold text-lg mb-2">契約プラン</h3>
                             <p>プラン名: {getOfficialPlanName(data.plan, data.paymentCycle, data.useCreditCard)}</p>
-                            <p>金額: {getPlanPrice(data.plan, data.paymentCycle)} 円</p>
+                            <p>金額: {getFormattedPrice(data.plan, data.paymentCycle)}</p>
                             {data.useCreditCard && (
                                 <p className="mt-2 text-red-600 font-bold text-sm">※クレジット決済希望</p>
                             )}
@@ -1178,7 +1190,7 @@
                     setFinalDataForPdf({ ...finalData, fullName, applicationDate: today });
 
                     let subject = "【政策リサーチ】利用お申し込みありがとうございます";
-                    let body = `${finalData.companyName}\n${finalData.department || ''}\n${resolveFullName(finalData)} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(finalData.plan, finalData.paymentCycle, finalData.useCreditCard)}\n金額: ${getPlanPrice(finalData.plan, finalData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
+                    let body = `${finalData.companyName}\n${finalData.department || ''}\n${resolveFullName(finalData)} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(finalData.plan, finalData.paymentCycle, finalData.useCreditCard)}\n金額: ${getFormattedPrice(finalData.plan, finalData.paymentCycle)}\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
 
                     try {
                         const templateDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration'));
@@ -1192,7 +1204,7 @@
                                 .replace(/{{department}}/g, finalData.department || '')
                                 .replace(/{{name}}/g, resolveFullName(finalData))
                                 .replace(/{{plan}}/g, getOfficialPlanName(finalData.plan, finalData.paymentCycle, finalData.useCreditCard) || '')
-                                .replace(/{{price}}/g, getPlanPrice(finalData.plan, finalData.paymentCycle) + '円' || '');
+                                .replace(/{{price}}/g, getFormattedPrice(finalData.plan, finalData.paymentCycle) || '');
                         }
                     } catch (e) {
                         console.warn("Template fetch failed, using default.");
@@ -1420,12 +1432,12 @@
                                                     <label className={`relative flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all ${formData.paymentCycle === 'monthly' ? 'border-indigo-600 bg-white shadow-md' : 'border-slate-200 bg-white/50'}`}>
                                                         <input type="radio" name="paymentCycle" value="monthly" checked={formData.paymentCycle === 'monthly'} onChange={handleChange} className="absolute opacity-0 w-full h-full cursor-pointer top-0 left-0" />
                                                         <div className="flex items-center gap-2 mb-1"><span className="font-bold text-slate-800">月払い</span></div>
-                                                        <div className="text-xs text-slate-500 pl-6">{formData.plan === 'corporate' ? '¥100,000/月' : '¥30,000/月'}</div>
+                                                        <div className="text-xs text-slate-500 pl-6">{getFormattedPrice(formData.plan, 'monthly')}</div>
                                                     </label>
                                                     <label className={`relative flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all ${formData.paymentCycle === 'yearly' ? 'border-indigo-600 bg-white shadow-md' : 'border-slate-200 bg-white/50'}`}>
                                                         <input type="radio" name="paymentCycle" value="yearly" checked={formData.paymentCycle === 'yearly'} onChange={handleChange} className="absolute opacity-0 w-full h-full cursor-pointer top-0 left-0" />
                                                         <div className="flex items-center gap-2 mb-1"><span className="font-bold text-slate-800">年払い</span></div>
-                                                        <div className="text-xs text-slate-500 pl-6">{formData.plan === 'corporate' ? '¥1,200,000/年' : '¥360,000/年'}</div>
+                                                        <div className="text-xs text-slate-500 pl-6">{getFormattedPrice(formData.plan, 'yearly')}</div>
                                                     </label>
                                                 </div>
                                                 <div className="text-xs text-slate-600 bg-white p-3 rounded border border-indigo-100">請求は、メールでの電子形式で行います。郵送による請求を希望される場合は、備考欄にその旨をご記載下さい。</div>
@@ -1796,7 +1808,7 @@
                         subject = template.subject || subject;
                         body = template.body;
                     } else {
-                        body = `${regData.companyName}\n${regData.department || ''}\n${resolveFullName(regData)} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(regData.plan, regData.paymentCycle)}\n金額: ${getPlanPrice(regData.plan, regData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
+                        body = `${regData.companyName}\n${regData.department || ''}\n${resolveFullName(regData)} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(regData.plan, regData.paymentCycle)}\n金額: ${getFormattedPrice(regData.plan, regData.paymentCycle)}\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
                     }
 
                     const finalBody = body
@@ -1804,7 +1816,7 @@
                         .replace(/{{department}}/g, regData.department || '')
                         .replace(/{{name}}/g, resolveFullName(regData))
                         .replace(/{{plan}}/g, getOfficialPlanName(regData.plan, regData.paymentCycle) || '')
-                        .replace(/{{price}}/g, getPlanPrice(regData.plan, regData.paymentCycle) + '円' || '');
+                        .replace(/{{price}}/g, getFormattedPrice(regData.plan, regData.paymentCycle) || '');
 
                     setResendTargetReg(regData);
                     setSendingMailData({
@@ -1908,7 +1920,7 @@
                 const headers = ["区分", "請求先名", "請求先部署", "請求先メール", "請求先電話", "プラン", "金額(円)", "登録日時"];
                 const rows = targetData.map(reg => [
                     `"${reg.categoryCode || 'C00'}"`, `"${reg.billingName || ''}"`, `"${reg.billingDepartment || ''}"`, `"${reg.billingEmail || ''}"`, `"${reg.billingPhone || ''}"`,
-                    `"${getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}"`, `"${getPlanPrice(reg.plan, reg.paymentCycle)}"`, reg.createdAtDate.toLocaleString('ja-JP')
+                    `"${getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}"`, `"${getFormattedPrice(reg.plan, reg.paymentCycle)}"`, reg.createdAtDate.toLocaleString('ja-JP')
                 ]);
                 generateCSV(headers, rows, `政策リサーチ請求先リスト_${new Date().toISOString().slice(0, 10)}.csv`);
             };
