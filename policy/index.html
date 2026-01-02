@@ -20,13 +20,40 @@
         .sortable-header.desc .sort-icon::after { content: '▼'; }
         .pagination-button { min-width: 2.5rem; }
         .pagination-button.active { z-index: 10; }
+        
+        /* ログイン画面用スタイル */
+        #login-overlay {
+            position: fixed;
+            inset: 0;
+            background: #f3f4f6;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
-    <div class="container mx-auto px-4 py-8 flex-grow flex flex-col">
+    <!-- ログイン画面 -->
+    <div id="login-overlay">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
+            <h2 class="text-2xl font-bold mb-6 text-gray-900">パスワード入力</h2>
+            <p class="text-gray-600 mb-6 text-sm">このサイトを閲覧するにはパスワードが必要です。</p>
+            <div class="space-y-4">
+                <input type="password" id="passwordInput" placeholder="パスワードを入力" class="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <button id="loginButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">
+                    ログイン
+                </button>
+                <p id="loginError" class="text-red-500 text-sm hidden">パスワードが正しくありません。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ (初期状態は隠す) -->
+    <div id="app-content" class="container mx-auto px-4 py-8 flex-grow flex flex-col hidden">
         <header class="text-center mb-8 flex-shrink-0 relative">
            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 inline-flex items-center">
-               政策リサーチ情報一覧（政策レポート）
+                政策リサーチ情報一覧（政策レポート）
                 <a href="https://youtube.com/playlist?list=PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2&si=7jw8Suro5oX0zVES" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-700 text-xl ml-4" title="動画プレイリストを開く">
                     <i class="fas fa-video"></i>
                 </a>
@@ -36,12 +63,15 @@
            </h1>
             <div id="last-import-time" class="absolute right-0 top-0 text-gray-500 text-xs"></div>
         </header>
+
         <main class="bg-white p-6 rounded-lg shadow-md flex-grow flex flex-col">
             <div class="flex-shrink-0 flex flex-col sm:flex-row justify-between items-end mb-4 gap-4">
                 <div class="flex flex-col sm:flex-row items-center w-full sm:justify-start gap-4">
-                    <input type="text" id="searchInput" placeholder="検索（省庁名は略称でも可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-80">
+                    <input type="text" id="searchInput" placeholder="検索（省庁名は略称可・複数ワード検索可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-96">
                     <div class="flex items-center gap-2">
-                        <button id="clearSearchButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg"><i class="fas fa-times mr-2"></i>クリア</button>
+                        <button id="clearSearchButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
+                            <i class="fas fa-times mr-2"></i>クリア
+                        </button>
                     </div>
                     <div class="flex items-center gap-2">
                         <input type="checkbox" id="bookmark-filter-checkbox" class="form-checkbox h-5 w-5 text-yellow-500 rounded cursor-pointer">
@@ -50,6 +80,7 @@
                 </div>
                 <div id="dataCountDisplay" class="text-gray-600 text-sm w-full sm:w-auto text-center sm:text-right flex-shrink-0"></div>
             </div>
+
             <div class="bg-white border border-gray-200 rounded-lg overflow-auto flex-grow">
                 <table class="min-w-full leading-normal table-auto">
                     <thead id="table-header" class="bg-gray-200 text-gray-600 sticky top-0 z-10">
@@ -67,10 +98,12 @@
             </div>
             <div id="pagination-controls" class="flex justify-center items-center mt-4"></div>
         </main>
+
         <footer class="text-center mt-8 text-gray-500 flex-shrink-0">
              <p>&copy; 2024 政策リサーチポータル.</p>
         </footer>
     </div>
+
     <audio id="audioPlayer" style="display: none;"></audio>
     
     <script type="module">
@@ -78,13 +111,20 @@
         import { getFirestore, collection, onSnapshot, query, where, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // --- Public Page Logic ---
+        // --- Config ---
         const firebaseConfig = {"apiKey":"AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04","authDomain":"import-b6097.firebaseapp.com","projectId":"import-b6097","storageBucket":"import-b6097.appspot.com","messagingSenderId":"462510788117","appId":"1:462510788117:web:44ff1fd1af583f67bc081c","measurementId":"G-Z5ZNMKGTTK"};
         const appId = 'default-policy-research-app';
         const COLLECTION_NAME = 'policy_data';
         const METADATA_DOC_ID = 'policy_last_import_metadata';
         const ITEMS_PER_PAGE = 100;
-        const SYNONYMS = [["国土交通省","国交省"],["経済産業省","経産省"],["文部科学省","文科省"],["厚生労働省","厚労省"],["農林水産省","農水省"]];
+        const VALID_PASSWORD = 'policy'; // 要求パスワード
+        const SYNONYMS = [
+            ["国土交通省","国交省"],
+            ["経済産業省","経産省"],
+            ["文部科学省","文科省"],
+            ["厚生労働省","厚労省"],
+            ["農林水産省","農水省"]
+        ];
         
         let db;
         let currentData = [], filteredAndSortedData = [], currentPage = 1;
@@ -103,12 +143,64 @@
         const mainAudioIconI = document.getElementById('main-audio-icon-i');
         const bookmarkFilterCheckbox = document.getElementById('bookmark-filter-checkbox');
 
+        // --- Auth Logic ---
+        const loginOverlay = document.getElementById('login-overlay');
+        const appContent = document.getElementById('app-content');
+        const passwordInput = document.getElementById('passwordInput');
+        const loginButton = document.getElementById('loginButton');
+        const loginError = document.getElementById('loginError');
+
+        function checkAuthentication() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const pwParam = urlParams.get('pw');
+
+                if (pwParam === VALID_PASSWORD) {
+                    completeLogin();
+                } else {
+                    loginOverlay.style.display = 'flex';
+                }
+            } catch (e) {
+                loginOverlay.style.display = 'flex';
+            }
+        }
+
+        function completeLogin() {
+            try {
+                const url = new URL(window.location.href);
+                if (url.searchParams.has('pw') || url.hash === '#policy') {
+                    url.searchParams.delete('pw');
+                    if (url.hash === '#policy') url.hash = '';
+                    window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+                }
+            } catch (e) {
+                console.warn("URL cleanup suppressed in this environment.");
+            }
+            loginOverlay.style.display = 'none';
+            appContent.classList.remove('hidden');
+            startApp();
+        }
+
+        loginButton.addEventListener('click', () => {
+            if (passwordInput.value === VALID_PASSWORD) {
+                completeLogin();
+            } else {
+                loginError.classList.remove('hidden');
+            }
+        });
+
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') loginButton.click();
+        });
+
+        // --- App Starter ---
         async function startApp() {
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 const auth = getAuth(app);
                 await signInAnonymously(auth);
+                
                 setupEventListeners();
                 setupFirestoreListener();
                 setupMetadataListener(METADATA_DOC_ID, document.getElementById('last-import-time'));
@@ -121,15 +213,18 @@
         function setupFirestoreListener() {
             const dataCollection = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
             const q = query(dataCollection);
-                    onSnapshot(q, (snapshot) => {
-                        currentData = snapshot.docs
-                            .map(doc => ({ id: doc.id, ...doc.data() }))
-                            .filter(item => item['区分'] !== '会議');
-                        render();
-                    });
+            
+            onSnapshot(q, (snapshot) => {
+                currentData = snapshot.docs
+                    .map(doc => ({ id: doc.id, ...doc.data() }))
+                    .filter(item => item['区分'] !== '会議');
+                render();
+            }, (error) => {
+                console.error("Firestore listen error:", error);
+                loading.textContent = "データの取得に失敗しました。";
+            });
         }
         
-        // --- ALL THE RENDERING AND LOGIC FUNCTIONS COPIED HERE ---
         function setupMetadataListener(docId, displayElement) {
             const metadataDocRef = doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, docId);
             onSnapshot(metadataDocRef, (docSnap) => {
@@ -138,7 +233,10 @@
                         const data = docSnap.data();
                         const lastImportDate = data.lastImportTimestamp?.toDate();
                         if (lastImportDate) {
-                            const formattedDate = lastImportDate.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                            const formattedDate = lastImportDate.toLocaleString('ja-JP', { 
+                                year: 'numeric', month: '2-digit', day: '2-digit', 
+                                hour: '2-digit', minute: '2-digit' 
+                            });
                             displayElement.textContent = `更新: ${formattedDate}`;
                         }
                     } else {
@@ -147,12 +245,14 @@
                 }
             });
         }
+
         function render() {
              filteredAndSortedData = getFilteredAndSortedData();
              currentPage = 1;
              renderTable();
              renderPagination();
         }
+
         function getFilteredAndSortedData() {
             const localBookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
             let data = [...currentData].map(item => ({...item, isBookmarked: localBookmarks.has(item.id)}));
@@ -163,6 +263,7 @@
             sortData(data);
             return data;
         }
+
         function renderTable() {
              const totalItems = filteredAndSortedData.length;
              const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -182,13 +283,12 @@
                  tableBody.appendChild(fragment);
                  dataCountDisplay.textContent = `${startIndex + 1} - ${Math.min(endIndex, totalItems)} / 全${totalItems}件`;
              }
-             
         }
+
         function renderPagination() {
             const totalItems = filteredAndSortedData.length;
             const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
             paginationControls.innerHTML = '';
-
             if (totalPages <= 1) return;
 
             const createButton = (html, page, isDisabled = false, isActive = false) => {
@@ -201,7 +301,6 @@
             };
 
             paginationControls.appendChild(createButton('<i class="fas fa-chevron-left"></i>', currentPage - 1, currentPage === 1));
-            
             let startPage = Math.max(1, currentPage - 2);
             let endPage = Math.min(totalPages, currentPage + 2);
 
@@ -209,18 +308,16 @@
                 paginationControls.appendChild(createButton('1', 1));
                 if (startPage > 2) paginationControls.insertAdjacentHTML('beforeend', `<span class="px-2 py-1">...</span>`);
             }
-
             for (let i = startPage; i <= endPage; i++) {
                 paginationControls.appendChild(createButton(i, i, false, i === currentPage));
             }
-
             if (endPage < totalPages) {
                 if (endPage < totalPages - 1) paginationControls.insertAdjacentHTML('beforeend', `<span class="px-2 py-1">...</span>`);
                 paginationControls.appendChild(createButton(totalPages, totalPages));
             }
-
             paginationControls.appendChild(createButton('<i class="fas fa-chevron-right"></i>', currentPage + 1, currentPage === totalPages));
         }
+
         function createTableRow(item) {
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50 transition-colors duration-150';
@@ -231,27 +328,20 @@
 
             let bikou = (item['備考'] || '').replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>');
             
-            // --- Date Color Logic ---
             const getFormattedDate = (d) => d.toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
             const today = new Date();
             const todayStr = getFormattedDate(today);
-            
             const yesterday = new Date();
             yesterday.setDate(today.getDate() - 1);
             const yesterdayStr = getFormattedDate(yesterday);
-            
             const dayBefore = new Date();
             dayBefore.setDate(today.getDate() - 2);
             const dayBeforeStr = getFormattedDate(dayBefore);
 
             let dateClass = 'text-gray-900';
-            if (date === todayStr) {
-                dateClass = 'text-red-500 font-bold';
-            } else if (date === yesterdayStr) {
-                dateClass = 'text-red-500';
-            } else if (date === dayBeforeStr) {
-                dateClass = 'text-red-400';
-            }
+            if (date === todayStr) { dateClass = 'text-red-500 font-bold'; } 
+            else if (date === yesterdayStr) { dateClass = 'text-red-500'; } 
+            else if (date === dayBeforeStr) { dateClass = 'text-red-400'; }
 
             let titlePrefixHtml = '';
             const url2 = String(item['URL2'] || '');
@@ -264,7 +354,6 @@
             const videoIconHtml = item['YouTube'] ? `<a href="${item['YouTube']}" target="_blank" rel="noopener noreferrer" title="動画を再生" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : '';
 
             row.innerHTML = `
-                
                 <td class="px-2 py-3 text-center"><input type="checkbox" class="bookmark-checkbox" data-id="${item.id}" ${item.isBookmarked ? 'checked' : ''}></td>
                 <td class="px-2 py-3 text-sm"><p class="${dateClass}">${date}</p></td>
                 <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-start">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" class="text-blue-600 hover:underline">${displayTitle}</a></div><p class="text-xs text-gray-500 mt-1">${bikou}</p></div></td>
@@ -273,134 +362,112 @@
             `;
             return row;
         }
-        function filterData(data, query) {
-            if (!query) return data;
-            const lowerCaseQuery = query.toLowerCase().trim();
-            const searchTerms = new Set([lowerCaseQuery]);
-            SYNONYMS.forEach(group => {
-                const lowerCaseGroup = group.map(term => term.toLowerCase());
-                if (lowerCaseGroup.includes(lowerCaseQuery)) {
-                    lowerCaseGroup.forEach(term => searchTerms.add(term));
-                }
-            });
 
-             return data.filter(item => {
-                 let labelText = '';
-                 const url2 = String(item['URL2'] || '');
-                 if (String(item['区分'] || '').trim() === '会議') {
-                     labelText = '会議';
-                 } else if (url2) {
-                     labelText = url2.toLowerCase().includes('.pdf') ? 'PDF' : 'WEB';
-                 }
-                 const content = `${item['タイトル名'] || ''} ${item['備考'] || ''} ${labelText}`.toLowerCase();
-                 return Array.from(searchTerms).some(term => content.includes(term));
-             });
+        /**
+         * 複数ワード検索（AND検索）に対応
+         */
+        function filterData(data, queryText) {
+            if (!queryText) return data;
+            
+            // 全角・半角スペースで分割し、空の文字列を除去
+            const terms = queryText.toLowerCase().trim().split(/[\s　]+/).filter(t => t !== '');
+            if (terms.length === 0) return data;
+
+            return data.filter(item => {
+                const url2 = String(item['URL2'] || '');
+                let labelText = '';
+                if (String(item['区分'] || '').trim() === '会議') labelText = '会議';
+                else if (url2) labelText = url2.toLowerCase().includes('.pdf') ? 'PDF' : 'WEB';
+                
+                const content = `${item['タイトル名'] || ''} ${item['備考'] || ''} ${labelText}`.toLowerCase();
+
+                // すべての単語が含まれているか確認 (AND検索)
+                return terms.every(term => {
+                    // 単語そのものが含まれているか
+                    if (content.includes(term)) return true;
+
+                    // シノニム（略称）のチェック
+                    const matchedSynonyms = SYNONYMS.find(group => 
+                        group.map(s => s.toLowerCase()).includes(term)
+                    );
+                    if (matchedSynonyms) {
+                        return matchedSynonyms.some(s => content.includes(s.toLowerCase()));
+                    }
+                    return false;
+                });
+            });
         }
+
         function sortData(data) {
             const getKaigiDate = (title) => {
                 const match = (title || '').match(/\[会議日: (.*?)\]/);
-                return match && match[1] ? new Date(match[1]) : new Date(0); // Use epoch for non-dates
+                return match && match[1] ? new Date(match[1]) : new Date(0);
             };
-
             data.sort((a, b) => {
                 const { key, direction } = sortState;
                 if (key === 'default') {
-                    // 1. 公開日 (desc)
                     const dateA = new Date(a['日付'] || 0);
                     const dateB = new Date(b['日付'] || 0);
                     if (dateB.getTime() !== dateA.getTime()) return dateB - dateA;
-
-                    // 2. 区分 (asc)
                     const kubunA = a['区分'] || '';
                     const kubunB = b['区分'] || '';
                     const kubunCompare = kubunA.localeCompare(kubunB, 'ja');
                     if (kubunCompare !== 0) return kubunCompare;
-
-                    // 3. 会議日 (desc)
                     const kaigiDateA = getKaigiDate(a['タイトル名']);
                     const kaigiDateB = getKaigiDate(b['タイトル名']);
                     if (kaigiDateB.getTime() !== kaigiDateA.getTime()) return kaigiDateB - kaigiDateA;
-
-                    // 4. タイトル名 (asc)
                     const titleA = (a['タイトル名'] || '').replace(/\[会議日: [^\]]+\]/g, '').trim();
                     const titleB = (b['タイトル名'] || '').replace(/\[会議日: [^\]]+\]/g, '').trim();
                     return titleA.localeCompare(titleB, 'ja');
                 }
-                
-                const valA = a[key] || ''; 
-                const valB = b[key] || '';
+                const valA = a[key] || ''; const valB = b[key] || '';
                 const modifier = direction === 'asc' ? 1 : -1;
-                if (key === '日付') {
-                    return (new Date(valA) - new Date(valB)) * modifier;
-                }
+                if (key === '日付') return (new Date(valA) - new Date(valB)) * modifier;
                 return valA.localeCompare(valB, 'ja') * modifier;
             });
         }
+
         function toggleBookmark(id, checked) { 
             const bookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
-            if(checked) {
-                bookmarks.add(id);
-            } else {
-                bookmarks.delete(id);
-            }
+            if(checked) bookmarks.add(id); else bookmarks.delete(id);
             localStorage.setItem(`bookmarks_${appId}`, JSON.stringify(Array.from(bookmarks)));
             render();
         }
+
         function handleAudioEnded() {
             const currentIcon = currentlyPlayingIcon;
             setIconState(currentIcon, 'stopped');
             updateMainAudioIcon('stopped');
             currentlyPlayingIcon = null;
-            
             const allIcons = Array.from(tableBody.querySelectorAll('.audio-icon[data-src]'));
             const currentIndex = allIcons.findIndex(icon => icon === currentIcon);
             if (currentIndex > -1 && currentIndex < allIcons.length - 1) {
                 setTimeout(() => toggleAudioPlayback(allIcons[currentIndex + 1]), 3000);
             }
         }
+
         function updateMainAudioIcon(state) {
             mainAudioIconI.classList.remove('fa-volume-up', 'fa-play', 'fa-pause');
             mainAudioControl.classList.remove('playing');
             switch(state) {
-                case 'playing':
-                    mainAudioIconI.classList.add('fa-pause');
-                    mainAudioControl.classList.add('playing');
-                    mainAudioControl.title = "一時停止";
-                    break;
-                case 'paused':
-                    mainAudioIconI.classList.add('fa-play');
-                    mainAudioControl.title = "再生";
-                    break;
-                case 'stopped':
-                default:
-                    mainAudioIconI.classList.add('fa-volume-up');
-                    mainAudioControl.title = "音声コントロール";
-                    break;
+                case 'playing': mainAudioIconI.classList.add('fa-pause'); mainAudioControl.classList.add('playing'); break;
+                case 'paused': mainAudioIconI.classList.add('fa-play'); break;
+                default: mainAudioIconI.classList.add('fa-volume-up'); break;
             }
         }
+
         function setIconState(icon, state) {
             if (!icon) return;
             const i = icon.querySelector('i');
             icon.classList.remove('playing', 'paused');
             i.classList.remove('fa-volume-up', 'fa-play', 'fa-pause');
             switch (state) {
-                case 'playing':
-                    icon.classList.add('playing');
-                    i.classList.add('fa-pause');
-                    icon.title = "一時停止";
-                    break;
-                case 'paused':
-                    icon.classList.add('paused');
-                    i.classList.add('fa-play');
-                    icon.title = "再生";
-                    break;
-                case 'stopped':
-                default:
-                    i.classList.add('fa-volume-up');
-                    icon.title = "音声を再生";
-                    break;
+                case 'playing': icon.classList.add('playing'); i.classList.add('fa-pause'); break;
+                case 'paused': icon.classList.add('paused'); i.classList.add('fa-play'); break;
+                default: i.classList.add('fa-volume-up'); break;
             }
         }
+
         function toggleAudioPlayback(clickedIcon) {
             if (currentlyPlayingIcon === clickedIcon) {
                 if (audioPlayer.paused) audioPlayer.play(); else audioPlayer.pause();
@@ -420,12 +487,8 @@
                 const header = e.target.closest('.sortable-header');
                 if (!header) return;
                 const key = header.dataset.sortKey;
-                if (sortState.key === key) {
-                    sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
-                } else {
-                    sortState.key = key;
-                    sortState.direction = 'desc';
-                }
+                sortState.direction = (sortState.key === key && sortState.direction === 'asc') ? 'desc' : 'asc';
+                sortState.key = key;
                 document.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('asc', 'desc'));
                 header.classList.add(sortState.direction);
                 render();
@@ -433,16 +496,12 @@
             tableBody.addEventListener('click', e => {
                 const target = e.target;
                 const audioIcon = target.closest('.audio-icon');
-                if (audioIcon) {
-                    toggleAudioPlayback(audioIcon);
-                } else if (target.classList.contains('bookmark-checkbox')) {
-                    toggleBookmark(target.dataset.id, target.checked);
-                }
+                if (audioIcon) toggleAudioPlayback(audioIcon);
+                else if (target.classList.contains('bookmark-checkbox')) toggleBookmark(target.dataset.id, target.checked);
             });
             mainAudioControl.addEventListener('click', () => {
                 if (!audioPlayer.src || audioPlayer.ended) return;
-                if (audioPlayer.paused) audioPlayer.play();
-                else audioPlayer.pause();
+                if (audioPlayer.paused) audioPlayer.play(); else audioPlayer.pause();
             });
             audioPlayer.addEventListener('play', () => { setIconState(currentlyPlayingIcon, 'playing'); updateMainAudioIcon('playing'); });
             audioPlayer.addEventListener('pause', () => { if (!audioPlayer.ended) { setIconState(currentlyPlayingIcon, 'paused'); updateMainAudioIcon('paused'); }});
@@ -450,7 +509,8 @@
             bookmarkFilterCheckbox.addEventListener('change', render);
         }
         
-        document.addEventListener('DOMContentLoaded', startApp);
+        // --- Entry Point ---
+        document.addEventListener('DOMContentLoaded', checkAuthentication);
     </script>
 </body>
 </html>
