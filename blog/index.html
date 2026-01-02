@@ -167,23 +167,37 @@
         // 検索競合制御用
         let activeSearchId = 0;
 
-        // --- 自動ログイン判定 ---
-        // 以下の条件のいずれかに合致する場合のみ、ログイン済みとして扱う。
-        // 合致しない場合（例：指定外のドメイン、pwなし）は isAuthenticated は false のままであり、ログインモーダルが表示される。
-        const urlParams = new URLSearchParams(window.location.search);
-        const pwParam = urlParams.get('pw');
-        const AUTO_LOGIN_URL_PREFIX = "https://report.rifj.jp/";
+        // --- 自動ログイン判定ロジック ---
+        // 条件に合致する場合のみ true を返し、画面遷移を行う。
+        // 合致しない場合は false を返し、デフォルトのログインモーダルが表示されたままとなる。
+        const checkAutoLogin = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const pwParam = urlParams.get('pw');
+            
+            // 修正: URLプレフィックスによる自動ログイン条件を削除し、
+            // URLパラメータ pw が 'blog' である場合のみ自動ログインするように変更
+            const hasCorrectPw = pwParam === 'blog';
 
-        if (window.location.href.startsWith(AUTO_LOGIN_URL_PREFIX) || pwParam === 'blog') {
-            isAuthenticated = true;
-            loginModal.classList.add('hidden'); // モーダルを非表示
-            document.body.classList.remove('overflow-hidden'); // スクロールロック解除
-            mainContent.classList.remove('opacity-0'); // コンテンツを表示
+            if (hasCorrectPw) {
+                isAuthenticated = true;
+                
+                // UIの更新: ログインモーダルを消してコンテンツを表示
+                loginModal.classList.add('hidden'); 
+                document.body.classList.remove('overflow-hidden'); 
+                mainContent.classList.remove('opacity-0'); 
 
-            // URLからクエリパラメータ(?pw=blog)やハッシュを削除して隠蔽する
-            const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-            window.history.replaceState(null, '', cleanUrl);
-        }
+                // URLパラメータでログインした場合は、パラメータをURLから消す（履歴の書き換え）
+                const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                window.history.replaceState(null, '', cleanUrl);
+                
+                return true;
+            }
+            // 条件に合致しない場合は false を返す
+            return false;
+        };
+
+        // アプリ起動時にチェックを実行
+        checkAutoLogin();
 
         const loadBookmarks = () => {
             const stored = localStorage.getItem(BOOKMARK_STORAGE_KEY_PUBLIC);
