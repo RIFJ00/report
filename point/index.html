@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>政策リサーチ情報一覧（本日のポイント）</title>
+    <title>政策リサーチ情報一覧（政策レポート）</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <style>
@@ -20,39 +20,40 @@
         .sortable-header.desc .sort-icon::after { content: '▼'; }
         .pagination-button { min-width: 2.5rem; }
         .pagination-button.active { z-index: 10; }
-
-        /* ログイン画面用スタイル */
+        
         #login-overlay {
             position: fixed;
             inset: 0;
             background: #f3f4f6;
+            z-index: 1000;
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 9999;
         }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
-    
     <!-- ログイン画面 -->
-    <div id="login-overlay">
+    <div id="login-overlay" style="display: none;">
         <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
-            <h2 class="text-2xl font-bold mb-6 text-gray-800">パスワードを入力してください</h2>
+            <h2 class="text-2xl font-bold mb-6 text-gray-900">パスワード入力</h2>
+            <p class="text-gray-600 mb-6 text-sm">このサイトを閲覧するにはパスワードが必要です。</p>
             <div class="space-y-4">
-                <input type="password" id="password-input" placeholder="パスワード" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                <button id="login-submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">ログイン</button>
+                <input type="password" id="passwordInput" placeholder="パスワードを入力" class="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <button id="loginButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">
+                    ログイン
+                </button>
+                <p id="loginError" class="text-red-500 text-sm hidden">パスワードが正しくありません。</p>
             </div>
-            <p id="login-error" class="text-red-500 mt-4 hidden">パスワードが正しくありません。</p>
         </div>
     </div>
 
     <!-- メインコンテンツ -->
-    <div id="main-content" class="container mx-auto px-4 py-8 flex-grow flex-col" style="display: none;">
+    <div id="app-content" class="container mx-auto px-4 py-8 flex-grow flex flex-col hidden">
         <header class="text-center mb-8 flex-shrink-0 relative">
            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 inline-flex items-center">
-               政策リサーチ情報一覧（本日のポイント）
-                <a href="https://www.youtube.com/playlist?list=PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-700 text-xl ml-4" title="動画プレイリストを開く">
+                政策リサーチ情報一覧（政策レポート）
+                <a href="https://youtube.com/playlist?list=PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2&si=7jw8Suro5oX0zVES" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-700 text-xl ml-4" title="動画プレイリストを開く">
                     <i class="fas fa-video"></i>
                 </a>
                <span id="main-audio-control" class="audio-icon text-blue-500 hover:text-blue-700 text-xl ml-3 cursor-pointer" title="音声コントロール">
@@ -61,13 +62,15 @@
            </h1>
             <div id="last-import-time" class="absolute right-0 top-0 text-gray-500 text-xs"></div>
         </header>
+
         <main class="bg-white p-6 rounded-lg shadow-md flex-grow flex flex-col">
             <div class="flex-shrink-0 flex flex-col sm:flex-row justify-between items-end mb-4 gap-4">
                 <div class="flex flex-col sm:flex-row items-center w-full sm:justify-start gap-4">
-                    <!-- プレイスホルダーの表現を簡潔に更新 -->
-                    <input type="text" id="searchInput" placeholder="検索（省庁名は略称でも可、複数ワード検索も可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-96">
+                    <input type="text" id="searchInput" placeholder="検索（省庁名は略称可・複数ワード検索可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-96">
                     <div class="flex items-center gap-2">
-                        <button id="clearSearchButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg"><i class="fas fa-times mr-2"></i>クリア</button>
+                        <button id="clearSearchButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
+                            <i class="fas fa-times mr-2"></i>クリア
+                        </button>
                     </div>
                     <div class="flex items-center gap-2">
                         <input type="checkbox" id="bookmark-filter-checkbox" class="form-checkbox h-5 w-5 text-yellow-500 rounded cursor-pointer">
@@ -76,6 +79,7 @@
                 </div>
                 <div id="dataCountDisplay" class="text-gray-600 text-sm w-full sm:w-auto text-center sm:text-right flex-shrink-0"></div>
             </div>
+
             <div class="bg-white border border-gray-200 rounded-lg overflow-auto flex-grow">
                 <table class="min-w-full leading-normal table-auto">
                     <thead id="table-header" class="bg-gray-200 text-gray-600 sticky top-0 z-10">
@@ -93,10 +97,12 @@
             </div>
             <div id="pagination-controls" class="flex justify-center items-center mt-4"></div>
         </main>
+
         <footer class="text-center mt-8 text-gray-500 flex-shrink-0">
              <p>&copy; 2024 政策リサーチポータル.</p>
         </footer>
     </div>
+
     <audio id="audioPlayer" style="display: none;"></audio>
     
     <script type="module">
@@ -104,13 +110,14 @@
         import { getFirestore, collection, onSnapshot, query, where, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
+        // --- Config ---
         const firebaseConfig = {"apiKey":"AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04","authDomain":"import-b6097.firebaseapp.com","projectId":"import-b6097","storageBucket":"import-b6097.appspot.com","messagingSenderId":"462510788117","appId":"1:462510788117:web:44ff1fd1af583f67bc081c","measurementId":"G-Z5ZNMKGTTK"};
         const appId = 'default-policy-research-app';
         const COLLECTION_NAME = 'policy_data';
-        const METADATA_DOC_ID = 'point_last_import_metadata';
+        const METADATA_DOC_ID = 'policy_last_import_metadata';
         const ITEMS_PER_PAGE = 100;
+        const VALID_PASSWORD = 'policy'; 
         const SYNONYMS = [["国土交通省","国交省"],["経済産業省","経産省"],["文部科学省","文科省"],["厚生労働省","厚労省"],["農林水産省","農水省"]];
-        const REQUIRED_PASSWORD = "point";
         
         let db;
         let currentData = [], filteredAndSortedData = [], currentPage = 1;
@@ -129,43 +136,78 @@
         const mainAudioIconI = document.getElementById('main-audio-icon-i');
         const bookmarkFilterCheckbox = document.getElementById('bookmark-filter-checkbox');
 
-        // --- 認証ロジック ---
-        function initLoginCheck() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const passwordParam = urlParams.get('pw');
+        // --- Auth Logic ---
+        const loginOverlay = document.getElementById('login-overlay');
+        const appContent = document.getElementById('app-content');
+        const passwordInput = document.getElementById('passwordInput');
+        const loginButton = document.getElementById('loginButton');
+        const loginError = document.getElementById('loginError');
 
-            if (passwordParam === REQUIRED_PASSWORD) {
-                completeLogin();
-            } else {
-                document.getElementById('login-submit').addEventListener('click', () => {
-                    const entered = document.getElementById('password-input').value;
-                    if (entered === REQUIRED_PASSWORD) {
-                        completeLogin();
-                    } else {
-                        document.getElementById('login-error').classList.remove('hidden');
-                    }
-                });
+        /**
+         * 認証状態の確認
+         */
+        function checkAuthentication() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const pwParam = urlParams.get('pw');
+                const hashParam = window.location.hash;
+                const currentUrl = window.location.href;
+                
+                // 本番ドメインのベースURL
+                const targetBase = "https://report.rifj.jp/";
 
-                document.getElementById('password-input').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') document.getElementById('login-submit').click();
-                });
+                // 1. 本番URL（report.rifj.jp）からのアクセスであること
+                // 2. かつ、パスワードパラメータ (?pw=policy) または ハッシュ (#policy) が存在すること
+                if (currentUrl.startsWith(targetBase) && (pwParam === VALID_PASSWORD || hashParam === '#' + VALID_PASSWORD)) {
+                    completeLogin();
+                } else {
+                    // それ以外の場合は必ずログイン画面を表示
+                    loginOverlay.style.display = 'flex';
+                }
+            } catch (e) {
+                loginOverlay.style.display = 'flex';
             }
         }
 
+        /**
+         * ログイン成功処理
+         */
         function completeLogin() {
-            document.getElementById('login-overlay').style.display = 'none';
-            document.getElementById('main-content').style.display = 'flex';
-
             try {
-                const cleanUrl = window.location.pathname;
-                window.history.replaceState(null, '', cleanUrl);
+                const url = new URL(window.location.href);
+                let needsUpdate = false;
+
+                if (url.searchParams.has('pw')) {
+                    url.searchParams.delete('pw');
+                    needsUpdate = true;
+                }
+                if (url.hash === '#' + VALID_PASSWORD) {
+                    url.hash = '';
+                    needsUpdate = true;
+                }
+
+                if (needsUpdate) {
+                    // URLパラメータとハッシュを即座に削除して非表示にする
+                    window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+                }
             } catch (e) {
-                console.warn("URL cleanup failed due to environment security restrictions:", e);
+                // プレビュー環境(blob:)でのSecurityErrorを無視
+                console.warn("URL cleanup suppressed in this environment.");
             }
 
+            loginOverlay.style.display = 'none';
+            appContent.classList.remove('hidden');
             startApp();
         }
 
+        loginButton.addEventListener('click', () => {
+            if (passwordInput.value === VALID_PASSWORD) completeLogin();
+            else loginError.classList.remove('hidden');
+        });
+
+        passwordInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') loginButton.click(); });
+
+        // --- App Starter ---
         async function startApp() {
             try {
                 const app = initializeApp(firebaseConfig);
@@ -183,27 +225,21 @@
 
         function setupFirestoreListener() {
             const dataCollection = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
-            const q = query(dataCollection, where("区分", "==", "会議"));
+            const q = query(dataCollection);
             onSnapshot(q, (snapshot) => {
-                currentData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                currentData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(item => item['区分'] !== '会議');
                 render();
+            }, (error) => {
+                loading.textContent = "データの取得に失敗しました。";
             });
         }
         
         function setupMetadataListener(docId, displayElement) {
             const metadataDocRef = doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, docId);
             onSnapshot(metadataDocRef, (docSnap) => {
-                if (displayElement) {
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        const lastImportDate = data.lastImportTimestamp?.toDate();
-                        if (lastImportDate) {
-                            const formattedDate = lastImportDate.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-                            displayElement.textContent = `更新: ${formattedDate}`;
-                        }
-                    } else {
-                        displayElement.textContent = '';
-                    }
+                if (displayElement && docSnap.exists()) {
+                    const lastImportDate = docSnap.data().lastImportTimestamp?.toDate();
+                    if (lastImportDate) displayElement.textContent = `更新: ${lastImportDate.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
                 }
             });
         }
@@ -218,9 +254,7 @@
         function getFilteredAndSortedData() {
             const localBookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
             let data = [...currentData].map(item => ({...item, isBookmarked: localBookmarks.has(item.id)}));
-            if (bookmarkFilterCheckbox.checked) {
-                data = data.filter(item => item.isBookmarked);
-            }
+            if (bookmarkFilterCheckbox.checked) data = data.filter(item => item.isBookmarked);
             data = filterData(data, searchInput.value);
             sortData(data);
             return data;
@@ -231,12 +265,11 @@
              const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
              const endIndex = startIndex + ITEMS_PER_PAGE;
              const paginatedData = filteredAndSortedData.slice(startIndex, endIndex);
-
              tableBody.innerHTML = '';
              loading.style.display = 'none';
 
              if (totalItems === 0) {
-                 loading.textContent = searchInput.value || bookmarkFilterCheckbox.checked ? '条件に一致するデータがありません。' : 'データがありません。';
+                 loading.textContent = 'データがありません。';
                  loading.style.display = 'block';
                  dataCountDisplay.textContent = '0件';
              } else {
@@ -251,7 +284,6 @@
             const totalItems = filteredAndSortedData.length;
             const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
             paginationControls.innerHTML = '';
-
             if (totalPages <= 1) return;
 
             const createButton = (html, page, isDisabled = false, isActive = false) => {
@@ -264,24 +296,11 @@
             };
 
             paginationControls.appendChild(createButton('<i class="fas fa-chevron-left"></i>', currentPage - 1, currentPage === 1));
-            
             let startPage = Math.max(1, currentPage - 2);
             let endPage = Math.min(totalPages, currentPage + 2);
-
-            if (startPage > 1) {
-                paginationControls.appendChild(createButton('1', 1));
-                if (startPage > 2) paginationControls.insertAdjacentHTML('beforeend', `<span class="px-2 py-1">...</span>`);
-            }
-
-            for (let i = startPage; i <= endPage; i++) {
-                paginationControls.appendChild(createButton(i, i, false, i === currentPage));
-            }
-
-            if (endPage < totalPages) {
-                if (endPage < totalPages - 1) paginationControls.insertAdjacentHTML('beforeend', `<span class="px-2 py-1">...</span>`);
-                paginationControls.appendChild(createButton(totalPages, totalPages));
-            }
-
+            if (startPage > 1) paginationControls.appendChild(createButton('1', 1));
+            for (let i = startPage; i <= endPage; i++) paginationControls.appendChild(createButton(i, i, false, i === currentPage));
+            if (endPage < totalPages) paginationControls.appendChild(createButton(totalPages, totalPages));
             paginationControls.appendChild(createButton('<i class="fas fa-chevron-right"></i>', currentPage + 1, currentPage === totalPages));
         }
 
@@ -289,169 +308,51 @@
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50 transition-colors duration-150';
             const date = item['日付'] || '';
-            let displayTitle = (item['タイトル名'] || 'タイトルなし')
-                .replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>')
-                .replace(/(\[会議日: [^\]]+\])/g, '<span class="text-gray-500 font-normal ml-2">$1</span>');
-
-            let bikou = (item['備考'] || '').replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>');
+            const today = new Date().toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
+            let dateClass = date === today ? 'text-red-500 font-bold' : 'text-gray-900';
             
-            const getFormattedDate = (d) => d.toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
-            const today = new Date();
-            const todayStr = getFormattedDate(today);
-            const yesterday = new Date();
-            yesterday.setDate(today.getDate() - 1);
-            const yesterdayStr = getFormattedDate(yesterday);
-            const dayBefore = new Date();
-            dayBefore.setDate(today.getDate() - 2);
-            const dayBeforeStr = getFormattedDate(dayBefore);
-
-            let dateClass = 'text-gray-900';
-            if (date === todayStr) dateClass = 'text-red-500 font-bold';
-            else if (date === yesterdayStr) dateClass = 'text-red-500';
-            else if (date === dayBeforeStr) dateClass = 'text-red-400';
-
             let titlePrefixHtml = '';
             const url2 = String(item['URL2'] || '');
-            if (String(item['区分'] || '').trim() === '会議') {
-                titlePrefixHtml = '<span class="inline-block bg-purple-100 text-purple-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">会議</span>';
-            } else if (url2) {
-                titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>';
-            }
-            const audioIconHtml = item['URL1'] ? `<span data-src="${item['URL1']}" title="音声を再生" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : '';
-            const videoIconHtml = item['YouTube'] ? `<a href="${item['YouTube']}" target="_blank" rel="noopener noreferrer" title="動画を再生" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : '';
+            if (url2) titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>';
 
             row.innerHTML = `
                 <td class="px-2 py-3 text-center"><input type="checkbox" class="bookmark-checkbox" data-id="${item.id}" ${item.isBookmarked ? 'checked' : ''}></td>
                 <td class="px-2 py-3 text-sm"><p class="${dateClass}">${date}</p></td>
-                <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-start">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" class="text-blue-600 hover:underline">${displayTitle}</a></div><p class="text-xs text-gray-500 mt-1">${bikou}</p></div></td>
-                <td class="text-center">${videoIconHtml}</td>
-                <td class="text-center">${audioIconHtml}</td>
+                <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-start">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" class="text-blue-600 hover:underline">${item['タイトル名']}</a></div><p class="text-xs text-gray-500 mt-1">${item['備考'] || ''}</p></div></td>
+                <td class="text-center">${item['YouTube'] ? `<a href="${item['YouTube']}" target="_blank" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : ''}</td>
+                <td class="text-center">${item['URL1'] ? `<span data-src="${item['URL1']}" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : ''}</td>
             `;
             return row;
         }
 
-        // --- 検索ロジック（複数ワード・略称対応） ---
-        function filterData(data, query) {
-            if (!query) return data;
-            
-            const queryWords = query.toLowerCase().trim().split(/\s+/);
-            
+        function filterData(data, queryText) {
+            if (!queryText) return data;
+            const terms = queryText.toLowerCase().trim().split(/[\s　]+/).filter(t => t !== '');
             return data.filter(item => {
-                let labelText = '';
-                const url2 = String(item['URL2'] || '');
-                if (String(item['区分'] || '').trim() === '会議') labelText = '会議';
-                else if (url2) labelText = url2.toLowerCase().includes('.pdf') ? 'PDF' : 'WEB';
-                const content = `${item['タイトル名'] || ''} ${item['備考'] || ''} ${labelText}`.toLowerCase();
-                
-                return queryWords.every(word => {
-                    const termsToMatch = new Set([word]);
-                    SYNONYMS.forEach(group => {
-                        const lowerCaseGroup = group.map(term => term.toLowerCase());
-                        if (lowerCaseGroup.includes(word)) {
-                            lowerCaseGroup.forEach(term => termsToMatch.add(term));
-                        }
-                    });
-                    
-                    return Array.from(termsToMatch).some(term => content.includes(term));
+                const content = `${item['タイトル名'] || ''} ${item['備考'] || ''}`.toLowerCase();
+                return terms.every(term => {
+                    if (content.includes(term)) return true;
+                    const group = SYNONYMS.find(g => g.map(s => s.toLowerCase()).includes(term));
+                    return group ? group.some(s => content.includes(s.toLowerCase())) : false;
                 });
             });
         }
 
         function sortData(data) {
-            const getKaigiDate = (title) => {
-                const match = (title || '').match(/\[会議日: (.*?)\]/);
-                return match && match[1] ? new Date(match[1]) : new Date(0);
-            };
-
             data.sort((a, b) => {
                 const { key, direction } = sortState;
-                if (key === 'default') {
-                    const dateA = new Date(a['日付'] || 0);
-                    const dateB = new Date(b['日付'] || 0);
-                    if (dateB.getTime() !== dateA.getTime()) return dateB - dateA;
-                    const kubunA = a['区分'] || '';
-                    const kubunB = b['区分'] || '';
-                    const kubunCompare = kubunA.localeCompare(kubunB, 'ja');
-                    if (kubunCompare !== 0) return kubunCompare;
-                    const kaigiDateA = getKaigiDate(a['タイトル名']);
-                    const kaigiDateB = getKaigiDate(b['タイトル名']);
-                    if (kaigiDateB.getTime() !== kaigiDateA.getTime()) return kaigiDateB - kaigiDateA;
-                    const titleA = (a['タイトル名'] || '').replace(/\[会議日: [^\]]+\]/g, '').trim();
-                    const titleB = (b['タイトル名'] || '').replace(/\[会議日: [^\]]+\]/g, '').trim();
-                    return titleA.localeCompare(titleB, 'ja');
-                }
-                
-                const valA = a[key] || ''; 
-                const valB = b[key] || '';
                 const modifier = direction === 'asc' ? 1 : -1;
-                if (key === '日付') return (new Date(valA) - new Date(valB)) * modifier;
-                return valA.localeCompare(valB, 'ja') * modifier;
+                if (key === 'default') return (new Date(b['日付'] || 0) - new Date(a['日付'] || 0));
+                const valA = a[key] || '', valB = b[key] || '';
+                return key === '日付' ? (new Date(valA) - new Date(valB)) * modifier : valA.localeCompare(valB, 'ja') * modifier;
             });
         }
 
         function toggleBookmark(id, checked) { 
             const bookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
-            if(checked) bookmarks.add(id);
-            else bookmarks.delete(id);
+            if(checked) bookmarks.add(id); else bookmarks.delete(id);
             localStorage.setItem(`bookmarks_${appId}`, JSON.stringify(Array.from(bookmarks)));
             render();
-        }
-
-        function handleAudioEnded() {
-            const currentIcon = currentlyPlayingIcon;
-            setIconState(currentIcon, 'stopped');
-            updateMainAudioIcon('stopped');
-            currentlyPlayingIcon = null;
-            const allIcons = Array.from(tableBody.querySelectorAll('.audio-icon[data-src]'));
-            const currentIndex = allIcons.findIndex(icon => icon === currentIcon);
-            if (currentIndex > -1 && currentIndex < allIcons.length - 1) {
-                setTimeout(() => toggleAudioPlayback(allIcons[currentIndex + 1]), 3000);
-            }
-        }
-
-        function updateMainAudioIcon(state) {
-            mainAudioIconI.classList.remove('fa-volume-up', 'fa-play', 'fa-pause');
-            mainAudioControl.classList.remove('playing');
-            switch(state) {
-                case 'playing':
-                    mainAudioIconI.classList.add('fa-pause');
-                    mainAudioControl.classList.add('playing');
-                    mainAudioControl.title = "一時停止";
-                    break;
-                case 'paused':
-                    mainAudioIconI.classList.add('fa-play');
-                    mainAudioControl.title = "再生";
-                    break;
-                case 'stopped':
-                default:
-                    mainAudioIconI.classList.add('fa-volume-up');
-                    mainAudioControl.title = "音声コントロール";
-                    break;
-            }
-        }
-
-        function setIconState(icon, state) {
-            if (!icon) return;
-            const i = icon.querySelector('i');
-            icon.classList.remove('playing', 'paused');
-            i.classList.remove('fa-volume-up', 'fa-play', 'fa-pause');
-            switch (state) {
-                case 'playing':
-                    icon.classList.add('playing');
-                    i.classList.add('fa-pause');
-                    icon.title = "一時停止";
-                    break;
-                case 'paused':
-                    icon.classList.add('paused');
-                    i.classList.add('fa-play');
-                    icon.title = "再生";
-                    break;
-                case 'stopped':
-                default:
-                    i.classList.add('fa-volume-up');
-                    icon.title = "音声を再生";
-                    break;
-            }
         }
 
         function toggleAudioPlayback(clickedIcon) {
@@ -460,43 +361,51 @@
             } else {
                 if (currentlyPlayingIcon) setIconState(currentlyPlayingIcon, 'stopped');
                 audioPlayer.src = clickedIcon.dataset.src;
-                audioPlayer.play().catch(e => console.error("Audio play failed:", e));
+                audioPlayer.play();
                 currentlyPlayingIcon = clickedIcon;
             }
         }
 
+        function setIconState(icon, state) {
+            if (!icon) return;
+            const i = icon.querySelector('i');
+            icon.classList.remove('playing', 'paused');
+            i.classList.remove('fa-volume-up', 'fa-play', 'fa-pause');
+            if (state === 'playing') { icon.classList.add('playing'); i.classList.add('fa-pause'); }
+            else if (state === 'paused') { icon.classList.add('paused'); i.classList.add('fa-play'); }
+            else { i.classList.add('fa-volume-up'); }
+        }
+
         function setupEventListeners() {
-            clearSearchButton.addEventListener('click', () => { searchInput.value = ''; render(); });
+            clearSearchButton.onclick = () => { searchInput.value = ''; render(); };
             let timeout;
-            searchInput.addEventListener('keyup', () => { clearTimeout(timeout); timeout = setTimeout(render, 200); });
-            tableHeader.addEventListener('click', e => {
+            searchInput.onkeyup = () => { clearTimeout(timeout); timeout = setTimeout(render, 200); };
+            tableHeader.onclick = e => {
                 const header = e.target.closest('.sortable-header');
                 if (!header) return;
                 const key = header.dataset.sortKey;
-                if (sortState.key === key) sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
-                else { sortState.key = key; sortState.direction = 'desc'; }
-                document.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('asc', 'desc'));
-                header.classList.add(sortState.direction);
+                sortState.direction = (sortState.key === key && sortState.direction === 'asc') ? 'desc' : 'asc';
+                sortState.key = key;
                 render();
-            });
-            tableBody.addEventListener('click', e => {
-                const target = e.target;
-                const audioIcon = target.closest('.audio-icon');
+            };
+            tableBody.onclick = e => {
+                const audioIcon = e.target.closest('.audio-icon');
                 if (audioIcon) toggleAudioPlayback(audioIcon);
-                else if (target.classList.contains('bookmark-checkbox')) toggleBookmark(target.dataset.id, target.checked);
-            });
-            mainAudioControl.addEventListener('click', () => {
-                if (!audioPlayer.src || audioPlayer.ended) return;
-                if (audioPlayer.paused) audioPlayer.play();
-                else audioPlayer.pause();
-            });
-            audioPlayer.addEventListener('play', () => { setIconState(currentlyPlayingIcon, 'playing'); updateMainAudioIcon('playing'); });
-            audioPlayer.addEventListener('pause', () => { if (!audioPlayer.ended) { setIconState(currentlyPlayingIcon, 'paused'); updateMainAudioIcon('paused'); }});
-            audioPlayer.addEventListener('ended', handleAudioEnded);
-            bookmarkFilterCheckbox.addEventListener('change', render);
+                else if (e.target.classList.contains('bookmark-checkbox')) toggleBookmark(e.target.dataset.id, e.target.checked);
+            };
+            audioPlayer.onplay = () => { setIconState(currentlyPlayingIcon, 'playing'); mainAudioIconI.className = 'fas fa-pause'; };
+            audioPlayer.onpause = () => { setIconState(currentlyPlayingIcon, 'paused'); mainAudioIconI.className = 'fas fa-play'; };
+            audioPlayer.onended = () => {
+                setIconState(currentlyPlayingIcon, 'stopped');
+                mainAudioIconI.className = 'fas fa-volume-up';
+                const icons = Array.from(tableBody.querySelectorAll('.audio-icon'));
+                const next = icons[icons.indexOf(currentlyPlayingIcon) + 1];
+                if (next) setTimeout(() => toggleAudioPlayback(next), 3000);
+            };
+            bookmarkFilterCheckbox.onchange = render;
         }
         
-        initLoginCheck();
+        document.addEventListener('DOMContentLoaded', checkAuthentication);
     </script>
 </body>
 </html>
