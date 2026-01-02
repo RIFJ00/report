@@ -42,6 +42,15 @@
                 display: block !important;
             }
         }
+        
+        /* PDF生成用の一時非表示クラス */
+        .pdf-hidden {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: -1000;
+            visibility: hidden;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -108,10 +117,15 @@
         const appId = "default-app-id";
 
         // --- Helper Functions ---
-        const getOfficialPlanName = (plan, cycle) => {
+        const getOfficialPlanName = (plan, cycle, useCreditCard = false) => {
             if (plan === 'trial') return 'Navi Plus Trial（10日間無料トライアル）';
             if (plan === 'corporate') return cycle === 'yearly' ? 'Navi Plus5（Fプラン5 年払）' : 'Navi Plus5（Fプラン5）';
-            if (plan === 'personal') return cycle === 'yearly' ? 'Navi Plus1（Fプラン1 年払）' : 'Navi Plus1（Fプラン1）';
+            if (plan === 'personal') {
+                if (cycle === 'yearly') return 'Navi Plus1（Fプラン1 年払）';
+                // 月払いの場合、クレジット決済かどうかで分岐
+                if (useCreditCard) return 'Navi All';
+                return 'Navi Plus1（Fプラン1）';
+            }
             return plan;
         };
 
@@ -130,6 +144,17 @@
                 return `${data.lastName || ''} ${data.firstName || ''}`.trim();
             }
             return 'お客様';
+        };
+
+        // 電話番号の正規化（全角→半角、数字以外削除）
+        const normalizePhoneNumber = (str) => {
+            if (!str) return '';
+            // 全角数字を半角に変換
+            const halfWidth = str.replace(/[０-９]/g, (s) => {
+                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+            });
+            // 数字以外をすべて削除
+            return halfWidth.replace(/[^0-9]/g, '');
         };
 
         // --- Shared Components ---
@@ -345,7 +370,7 @@
                     <div className="pdf-section px-8 py-2">
                         <div className="p-4 bg-slate-50 rounded border border-slate-200">
                             <h3 className="font-bold text-lg mb-2">契約プラン</h3>
-                            <p>プラン名: {getOfficialPlanName(data.plan, data.paymentCycle)}</p>
+                            <p>プラン名: {getOfficialPlanName(data.plan, data.paymentCycle, data.useCreditCard)}</p>
                             <p>金額: {getPlanPrice(data.plan, data.paymentCycle)} 円</p>
                             {data.useCreditCard && (
                                 <p className="mt-2 text-red-600 font-bold text-sm">※クレジット決済希望</p>
@@ -390,7 +415,6 @@
                         <div className="p-4 bg-slate-50 rounded border border-slate-200">
                             <h3 className="font-bold text-lg mb-2">請求先情報</h3>
                             <p>請求先名（氏名）: {data.billingName}</p>
-                            {/* クレジット決済の場合は請求先情報は形式的なものなので表示調整してもよいが、そのまま表示 */}
                             {!data.useCreditCard && (
                                 <>
                                     <p>部署名: {data.billingDepartment}</p>
@@ -778,7 +802,22 @@
 
             const handleSubmit = (e) => {
                 e.preventDefault();
-                onUpdate(member.id, formData);
+                
+                const processedData = { ...formData };
+                
+                // 電話番号の正規化（編集時も適用）
+                if (processedData.phone) {
+                    processedData.phone = normalizePhoneNumber(processedData.phone);
+                }
+                
+                if (processedData.additionalMembers) {
+                    processedData.additionalMembers = processedData.additionalMembers.map(m => ({
+                        ...m,
+                        phone: m.phone ? normalizePhoneNumber(m.phone) : m.phone
+                    }));
+                }
+
+                onUpdate(member.id, processedData);
             };
 
             return (
@@ -840,7 +879,7 @@
                             </div>
                             <div className="border-t pt-4 mt-4">
                                 <label className="text-sm font-bold text-slate-700 block mb-1">備考</label>
-                                <textarea name="notes" value={formData.notes || ''} onChange={handleChange} rows="3" className="w-full px-3 py-2 border rounded"></textarea>
+                                <textarea name="notes" value={formData.notes} onChange={handleChange} rows="3" className="w-full px-3 py-2 border rounded"></textarea>
                             </div>
                             <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white">
                                 <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50">キャンセル</button>
@@ -1041,7 +1080,6 @@
                 }
                 
                 // クレジット決済でない場合のみ、請求先の通常バリデーションを行う
-                // クレジット決済の場合は自動補完するのでチェック不要（あるいは補完済みデータでチェック通過させる）
                 if (formData.isBillingDifferent && !useCreditCard) {
                     if (formData.billingEmail !== formData.billingEmailConfirm) {
                         setValidationError("請求先のメールアドレスが一致しません。");
@@ -1065,18 +1103,19 @@
                 try {
                     let processingData = JSON.parse(JSON.stringify(formData));
 
+                    // 電話番号の正規化（代表者・請求先）
                     if (processingData.phone) {
-                        processingData.phone = processingData.phone.replace(/-/g, '');
+                        processingData.phone = normalizePhoneNumber(processingData.phone);
                     }
                     if (processingData.billingPhone) {
-                        processingData.billingPhone = processingData.billingPhone.replace(/-/g, '');
+                        processingData.billingPhone = normalizePhoneNumber(processingData.billingPhone);
                     }
 
                     // クレジット決済の場合の請求先情報補完
                     if (useCreditCard) {
                         processingData.isBillingDifferent = true;
                         processingData.billingName = 'クレジット決済';
-                        // 必須項目を埋めるために利用者の情報をコピー（ただしUI上は見せないことが多いが、データとしては保持）
+                        // 必須項目を埋めるために利用者の情報をコピー（データとしては保持）
                         processingData.billingEmail = processingData.email;
                         processingData.billingPhone = processingData.phone;
                         processingData.billingDepartment = '';
@@ -1100,8 +1139,9 @@
                                 newMember.email = `${mainEmailLocalPart}${suffix}@mailinator.com`;
                             }
 
+                            // 追加メンバーの電話番号も正規化
                             if (newMember.phone) {
-                                newMember.phone = newMember.phone.replace(/-/g, '');
+                                newMember.phone = normalizePhoneNumber(newMember.phone);
                             } else {
                                 newMember.phone = processingData.phone;
                             }
@@ -1138,7 +1178,7 @@
                     setFinalDataForPdf({ ...finalData, fullName, applicationDate: today });
 
                     let subject = "【政策リサーチ】利用お申し込みありがとうございます";
-                    let body = `${finalData.companyName}\n${finalData.department || ''}\n${resolveFullName(finalData)} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(finalData.plan, finalData.paymentCycle)}\n金額: ${getPlanPrice(finalData.plan, finalData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
+                    let body = `${finalData.companyName}\n${finalData.department || ''}\n${resolveFullName(finalData)} 様\n\nこの度は、「政策リサーチ」にお申し込みいただき、誠にありがとうございます。\n以下の内容で承りました。\n\nプラン: ${getOfficialPlanName(finalData.plan, finalData.paymentCycle, finalData.useCreditCard)}\n金額: ${getPlanPrice(finalData.plan, finalData.paymentCycle)}円\n\nシステムへの登録完了後に、改めてアカウント有効通知のメールが送信されますので、パスワードを設定の上ご利用ください。\n\n--------------------------------------------------\n一般社団法人日本みらい研\n--------------------------------------------------`;
 
                     try {
                         const templateDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'mail_templates', 'registration'));
@@ -1151,7 +1191,7 @@
                                 .replace(/{{companyName}}/g, finalData.companyName || '')
                                 .replace(/{{department}}/g, finalData.department || '')
                                 .replace(/{{name}}/g, resolveFullName(finalData))
-                                .replace(/{{plan}}/g, getOfficialPlanName(finalData.plan, finalData.paymentCycle) || '')
+                                .replace(/{{plan}}/g, getOfficialPlanName(finalData.plan, finalData.paymentCycle, finalData.useCreditCard) || '')
                                 .replace(/{{price}}/g, getPlanPrice(finalData.plan, finalData.paymentCycle) + '円' || '');
                         }
                     } catch (e) {
@@ -1855,7 +1895,7 @@
                 const headers = ["区分", "会社名", "部署", "姓", "名", "役職", "プラン", "メールアドレス", "電話番号", "郵便番号", "住所1", "住所2", "請求先名", "請求先部署", "請求先メール", "請求先電話", "備考", "登録日時"];
                 const rows = targetData.map(reg => [
                     `"${reg.categoryCode || 'C00'}"`, `"${reg.companyName || ''}"`, `"${reg.department || ''}"`, `"${reg.lastName || ''}"`, `"${reg.firstName || ''}"`, `"${reg.position || ''}"`,
-                    `"${getOfficialPlanName(reg.plan, reg.paymentCycle)}"`, `"${reg.email}"`, `"${reg.phone}"`, `"${reg.postalCode || ''}"`, `"${reg.address}"`, `"${reg.address2 || ''}"`,
+                    `"${getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}"`, `"${reg.email}"`, `"${reg.phone}"`, `"${reg.postalCode || ''}"`, `"${reg.address}"`, `"${reg.address2 || ''}"`,
                     `"${reg.billingName || ''}"`, `"${reg.billingDepartment || ''}"`, `"${reg.billingEmail || ''}"`, `"${reg.billingPhone || ''}"`, `"${(reg.notes || '').replace(/\n/g, ' ')}"`,
                     reg.createdAtDate.toLocaleString('ja-JP')
                 ]);
@@ -1868,7 +1908,7 @@
                 const headers = ["区分", "請求先名", "請求先部署", "請求先メール", "請求先電話", "プラン", "金額(円)", "登録日時"];
                 const rows = targetData.map(reg => [
                     `"${reg.categoryCode || 'C00'}"`, `"${reg.billingName || ''}"`, `"${reg.billingDepartment || ''}"`, `"${reg.billingEmail || ''}"`, `"${reg.billingPhone || ''}"`,
-                    `"${getOfficialPlanName(reg.plan, reg.paymentCycle)}"`, `"${getPlanPrice(reg.plan, reg.paymentCycle)}"`, reg.createdAtDate.toLocaleString('ja-JP')
+                    `"${getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}"`, `"${getPlanPrice(reg.plan, reg.paymentCycle)}"`, reg.createdAtDate.toLocaleString('ja-JP')
                 ]);
                 generateCSV(headers, rows, `政策リサーチ請求先リスト_${new Date().toISOString().slice(0, 10)}.csv`);
             };
@@ -1887,7 +1927,7 @@
                     
                     // 代表者
                     rows.push([
-                        `"${reg.email}"`, `"${reg.lastName || ''}"`, `"${reg.firstName || ''}"`, `"${reg.phone}"`, `""`, `"${reg.companyName || ''}"`, `""`, `"${reg.postalCode || ''}"`, `"日本"`, `"${prefecture}"`, `"${city}"`, `""`, `"${reg.address2 || ''}"`, `"${reg.categoryCode || 'C00'}"`, `"${getOfficialPlanName(reg.plan, reg.paymentCycle)}"`
+                        `"${reg.email}"`, `"${reg.lastName || ''}"`, `"${reg.firstName || ''}"`, `"${reg.phone}"`, `""`, `"${reg.companyName || ''}"`, `""`, `"${reg.postalCode || ''}"`, `"日本"`, `"${prefecture}"`, `"${city}"`, `""`, `"${reg.address2 || ''}"`, `"${reg.categoryCode || 'C00'}"`, `"${getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}"`
                     ]);
 
                     // 追加メンバー
@@ -1895,7 +1935,7 @@
                         reg.additionalMembers.forEach(mem => {
                             if (mem.lastName || mem.email) {
                                 rows.push([
-                                    `"${mem.email}"`, `"${mem.lastName || ''}"`, `"${mem.firstName || ''}"`, `"${mem.phone}"`, `""`, `"${reg.companyName || ''}"`, `""`, `"${reg.postalCode || ''}"`, `"日本"`, `"${prefecture}"`, `"${city}"`, `""`, `"${reg.address2 || ''}"`, `"${reg.categoryCode || 'C00'}"`, `"${getOfficialPlanName(reg.plan, reg.paymentCycle)}"`
+                                    `"${mem.email}"`, `"${mem.lastName || ''}"`, `"${mem.firstName || ''}"`, `"${mem.phone}"`, `""`, `"${reg.companyName || ''}"`, `""`, `"${reg.postalCode || ''}"`, `"日本"`, `"${prefecture}"`, `"${city}"`, `""`, `"${reg.address2 || ''}"`, `"${reg.categoryCode || 'C00'}"`, `"${getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}"`
                                 ]);
                             }
                         });
@@ -2076,7 +2116,7 @@
                                                         </td>
                                                         <td className="p-4">
                                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${reg.plan === 'corporate' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : reg.plan === 'personal' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-                                                                {getOfficialPlanName(reg.plan, reg.paymentCycle)}
+                                                                {getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}
                                                             </span>
                                                         </td>
                                                         <td className="p-4 text-sm">
