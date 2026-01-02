@@ -151,7 +151,9 @@
         const passwordInput = getEl('password');
         const loginError = getEl('loginError');
         const mainContent = getEl('mainContent');
-        let isAuthenticated = false;
+        
+        let isAuthenticated = false; // デフォルトは未認証
+        let hasInitialPreviewLoaded = false; // 初回の自動プレビュー選択管理用
 
         let fileDatabase = [];
         let currentFilteredFiles = [];
@@ -165,18 +167,20 @@
         // 検索競合制御用
         let activeSearchId = 0;
 
-        // 自動ログイン処理 (特定のURLでアクセスされた場合、またはクエリパラメータ pw=blog がある場合)
+        // --- 自動ログイン判定 ---
+        // 以下の条件のいずれかに合致する場合のみ、ログイン済みとして扱う。
+        // 合致しない場合（例：指定外のドメイン、pwなし）は isAuthenticated は false のままであり、ログインモーダルが表示される。
         const urlParams = new URLSearchParams(window.location.search);
         const pwParam = urlParams.get('pw');
         const AUTO_LOGIN_URL_PREFIX = "https://report.rifj.jp/";
 
         if (window.location.href.startsWith(AUTO_LOGIN_URL_PREFIX) || pwParam === 'blog') {
             isAuthenticated = true;
-            loginModal.classList.add('hidden');
-            document.body.classList.remove('overflow-hidden');
-            mainContent.classList.remove('opacity-0');
+            loginModal.classList.add('hidden'); // モーダルを非表示
+            document.body.classList.remove('overflow-hidden'); // スクロールロック解除
+            mainContent.classList.remove('opacity-0'); // コンテンツを表示
 
-            // URLからクエリパラメータ(?pw=blog)やハッシュ(#blog)を削除して隠蔽する
+            // URLからクエリパラメータ(?pw=blog)やハッシュを削除して隠蔽する
             const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
             window.history.replaceState(null, '', cleanUrl);
         }
@@ -366,7 +370,6 @@
             const startItem = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
             const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
-            // 修正箇所: ページネーション時も「全体数」を表示に含める
             itemCountEl.textContent = `${startItem}-${endItem} / ヒット ${totalItems} 件 (全 ${baseTotal} 件)`;
             
             if (totalPages <= 1) { return; }
@@ -567,9 +570,10 @@
                 
                 await renderList(); // Load list after login
 
-                // ログイン直後に最新の記事（リストの先頭）を自動的に表示する
-                if (currentFilteredFiles.length > 0) {
+                // 手動ログイン直後は最新の記事を自動的に表示し、フラグを立てる
+                if (!hasInitialPreviewLoaded && currentFilteredFiles.length > 0) {
                     previewFile(currentFilteredFiles[0].id);
+                    hasInitialPreviewLoaded = true;
                 }
 
                 // モーダルを完全に隠すための遅延
@@ -593,9 +597,15 @@
             if (isAuthenticated) {
                 renderList();
                 if (fileDatabase.length > 0) {
-                    // 初回ロード時はまだ何も選択されていないので、最初の記事を表示
-                    const firstId = currentFilteredFiles[0]?.id;
-                    if(firstId) previewFile(firstId);
+                    // ログイン直後（初期表示）のみ、自動的に最新記事を選択する
+                    // hasInitialPreviewLoadedフラグで管理することで、更新時に勝手に切り替わるのを防ぐ
+                    if (!hasInitialPreviewLoaded && currentFilteredFiles.length > 0) {
+                        const firstId = currentFilteredFiles[0]?.id;
+                        if(firstId) {
+                            previewFile(firstId);
+                            hasInitialPreviewLoaded = true;
+                        }
+                    }
                 }
             }
         });
