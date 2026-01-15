@@ -10,6 +10,7 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap');
         body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
         .audio-icon { cursor: pointer; }
+        /* 再生中のアニメーション */
         .playing i, #main-audio-control.playing i { color: #3b82f6; animation: pulse 1.2s infinite; }
         .paused i { color: #3b82f6; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
@@ -36,7 +37,7 @@
     <!-- ログイン画面 -->
     <div id="login-overlay" style="display: none;">
         <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
-            <h2 class="text-2xl font-bold mb-6 text-gray-900">パスワード入力</h2>
+            <h2 class="text-2xl font-bold mb-6 text-gray-900">政策レポート</h2>
             <p class="text-gray-600 mb-6 text-sm">このサイトを閲覧するにはパスワードが必要です。</p>
             <div class="space-y-4">
                 <input type="password" id="passwordInput" placeholder="パスワードを入力" class="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
@@ -56,6 +57,7 @@
                 <a href="https://youtube.com/playlist?list=PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2&si=7jw8Suro5oX0zVES" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-700 text-xl ml-4" title="動画プレイリストを開く">
                     <i class="fas fa-video"></i>
                 </a>
+               <!-- タイトル横のメイン音声コントロール -->
                <span id="main-audio-control" class="audio-icon text-blue-500 hover:text-blue-700 text-xl ml-3 cursor-pointer" title="音声コントロール">
                    <i id="main-audio-icon-i" class="fas fa-volume-up"></i>
                </span>
@@ -66,7 +68,7 @@
         <main class="bg-white p-6 rounded-lg shadow-md flex-grow flex flex-col">
             <div class="flex-shrink-0 flex flex-col sm:flex-row justify-between items-end mb-4 gap-4">
                 <div class="flex flex-col sm:flex-row items-center w-full sm:justify-start gap-4">
-                    <input type="text" id="searchInput" placeholder="検索（省庁名は略称可・複数ワード検索可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-96">
+                    <input type="text" id="searchInput" placeholder="検索（ラベル・省庁略称可・複数ワード可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-96">
                     <div class="flex items-center gap-2">
                         <button id="clearSearchButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
                             <i class="fas fa-times mr-2"></i>クリア
@@ -124,39 +126,24 @@
         let sortState = { key: 'default', direction: 'desc' };
         let currentlyPlayingIcon = null;
 
-        const searchInput = document.getElementById('searchInput');
-        const clearSearchButton = document.getElementById('clearSearchButton');
-        const tableBody = document.getElementById('data-table-body');
-        const tableHeader = document.getElementById('table-header');
-        const loading = document.getElementById('loading');
-        const dataCountDisplay = document.getElementById('dataCountDisplay');
-        const paginationControls = document.getElementById('pagination-controls');
-        const audioPlayer = document.getElementById('audioPlayer');
-        const mainAudioControl = document.getElementById('main-audio-control');
-        const mainAudioIconI = document.getElementById('main-audio-icon-i');
-        const bookmarkFilterCheckbox = document.getElementById('bookmark-filter-checkbox');
-
-        // --- Auth Logic ---
-        const loginOverlay = document.getElementById('login-overlay');
-        const appContent = document.getElementById('app-content');
-        const passwordInput = document.getElementById('passwordInput');
-        const loginButton = document.getElementById('loginButton');
-        const loginError = document.getElementById('loginError');
+        // UI Elements
+        let searchInput, clearSearchButton, tableBody, tableHeader, loading, dataCountDisplay, paginationControls, audioPlayer, mainAudioControl, mainAudioIconI, bookmarkFilterCheckbox;
 
         function checkAuthentication() {
             try {
                 const urlParams = new URLSearchParams(window.location.search);
                 const pwParam = urlParams.get('pw');
                 const hashParam = window.location.hash;
+                const currentUrl = window.location.href;
+                const targetBase = "https://report.rifj.jp/";
 
-                // 即座にチェック（/?pw=policy または #policy）
-                if (pwParam === VALID_PASSWORD || hashParam === '#' + VALID_PASSWORD) {
+                if (currentUrl.startsWith(targetBase) && (pwParam === VALID_PASSWORD || hashParam === '#' + VALID_PASSWORD)) {
                     completeLogin();
                 } else {
-                    loginOverlay.style.display = 'flex';
+                    document.getElementById('login-overlay').style.display = 'flex';
                 }
             } catch (e) {
-                loginOverlay.style.display = 'flex';
+                document.getElementById('login-overlay').style.display = 'flex';
             }
         }
 
@@ -164,43 +151,43 @@
             try {
                 const url = new URL(window.location.href);
                 let needsUpdate = false;
-
-                if (url.searchParams.has('pw')) {
-                    url.searchParams.delete('pw');
-                    needsUpdate = true;
-                }
-                if (url.hash === '#' + VALID_PASSWORD) {
-                    url.hash = '';
-                    needsUpdate = true;
-                }
-
-                if (needsUpdate) {
-                    // 即座にパラメータを隠す
-                    window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
-                }
-            } catch (e) {
-                console.warn("URL cleanup suppressed.");
-            }
-
-            loginOverlay.style.display = 'none';
-            appContent.classList.remove('hidden');
+                if (url.searchParams.has('pw')) { url.searchParams.delete('pw'); needsUpdate = true; }
+                if (url.hash === '#' + VALID_PASSWORD) { url.hash = ''; needsUpdate = true; }
+                if (needsUpdate) window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+            } catch (e) { console.warn("URL cleanup suppressed."); }
+            
+            document.getElementById('login-overlay').style.display = 'none';
+            document.getElementById('app-content').classList.remove('hidden');
             startApp();
         }
 
-        loginButton.addEventListener('click', () => {
-            if (passwordInput.value === VALID_PASSWORD) completeLogin();
-            else loginError.classList.remove('hidden');
+        document.getElementById('loginButton').addEventListener('click', () => {
+            if (document.getElementById('passwordInput').value === VALID_PASSWORD) completeLogin();
+            else document.getElementById('loginError').classList.remove('hidden');
+        });
+        document.getElementById('passwordInput').addEventListener('keypress', (e) => { 
+            if (e.key === 'Enter') document.getElementById('loginButton').click(); 
         });
 
-        passwordInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') loginButton.click(); });
-
-        // --- App Starter ---
         async function startApp() {
+            searchInput = document.getElementById('searchInput');
+            clearSearchButton = document.getElementById('clearSearchButton');
+            tableBody = document.getElementById('data-table-body');
+            tableHeader = document.getElementById('table-header');
+            loading = document.getElementById('loading');
+            dataCountDisplay = document.getElementById('dataCountDisplay');
+            paginationControls = document.getElementById('pagination-controls');
+            audioPlayer = document.getElementById('audioPlayer');
+            mainAudioControl = document.getElementById('main-audio-control');
+            mainAudioIconI = document.getElementById('main-audio-icon-i');
+            bookmarkFilterCheckbox = document.getElementById('bookmark-filter-checkbox');
+
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 const auth = getAuth(app);
                 await signInAnonymously(auth);
+                
                 setupEventListeners();
                 setupFirestoreListener();
                 setupMetadataListener(METADATA_DOC_ID, document.getElementById('last-import-time'));
@@ -256,7 +243,7 @@
              loading.style.display = 'none';
 
              if (totalItems === 0) {
-                 loading.textContent = 'データがありません。';
+                 loading.textContent = '条件に一致するデータがありません。';
                  loading.style.display = 'block';
                  dataCountDisplay.textContent = '0件';
              } else {
@@ -313,10 +300,14 @@
         }
 
         function filterData(data, queryText) {
-            if (!queryText) return data;
+            if (!queryText || !queryText.trim()) return data;
             const terms = queryText.toLowerCase().trim().split(/[\s　]+/).filter(t => t !== '');
             return data.filter(item => {
-                const content = `${item['タイトル名'] || ''} ${item['備考'] || ''}`.toLowerCase();
+                const url2 = String(item['URL2'] || '');
+                let labelText = '';
+                if (String(item['区分'] || '').trim() === '会議') labelText = '会議';
+                else if (url2) labelText = url2.toLowerCase().includes('.pdf') ? 'PDF' : 'WEB';
+                const content = `${item['タイトル名'] || ''} ${item['備考'] || ''} ${labelText}`.toLowerCase();
                 return terms.every(term => {
                     if (content.includes(term)) return true;
                     const group = SYNONYMS.find(g => g.map(s => s.toLowerCase()).includes(term));
@@ -330,7 +321,7 @@
                 const { key, direction } = sortState;
                 const modifier = direction === 'asc' ? 1 : -1;
                 if (key === 'default') return (new Date(b['日付'] || 0) - new Date(a['日付'] || 0));
-                const valA = a[key] || '', valB = b[key] || '';
+                const valA = String(a[key] || ''), valB = String(b[key] || '');
                 return key === '日付' ? (new Date(valA) - new Date(valB)) * modifier : valA.localeCompare(valB, 'ja') * modifier;
             });
         }
@@ -364,32 +355,68 @@
         }
 
         function setupEventListeners() {
-            clearSearchButton.onclick = () => { searchInput.value = ''; render(); };
+            clearSearchButton.addEventListener('click', () => { searchInput.value = ''; render(); });
             let timeout;
-            searchInput.onkeyup = () => { clearTimeout(timeout); timeout = setTimeout(render, 200); };
-            tableHeader.onclick = e => {
+            searchInput.addEventListener('input', () => { clearTimeout(timeout); timeout = setTimeout(render, 300); });
+            
+            tableHeader.addEventListener('click', (e) => {
                 const header = e.target.closest('.sortable-header');
                 if (!header) return;
                 const key = header.dataset.sortKey;
                 sortState.direction = (sortState.key === key && sortState.direction === 'asc') ? 'desc' : 'asc';
                 sortState.key = key;
+                document.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('asc', 'desc'));
+                header.classList.add(sortState.direction);
                 render();
-            };
-            tableBody.onclick = e => {
+            });
+
+            tableBody.addEventListener('click', (e) => {
                 const audioIcon = e.target.closest('.audio-icon');
                 if (audioIcon) toggleAudioPlayback(audioIcon);
                 else if (e.target.classList.contains('bookmark-checkbox')) toggleBookmark(e.target.dataset.id, e.target.checked);
+            });
+
+            // メイン音声ボタンの制御ロジック改善
+            mainAudioControl.addEventListener('click', () => {
+                if (!audioPlayer.src || audioPlayer.src === window.location.href) {
+                    // 音声がセットされていない場合は、リストの最初にある再生可能なアイコンを探す
+                    const firstIcon = tableBody.querySelector('.audio-icon[data-src]');
+                    if (firstIcon) {
+                        toggleAudioPlayback(firstIcon);
+                    }
+                    return;
+                }
+                
+                // すでに音声がセットされている場合は、一時停止・再生を切り替える
+                if (audioPlayer.paused) {
+                    audioPlayer.play();
+                } else {
+                    audioPlayer.pause();
+                }
+            });
+
+            // 音声プレイヤーの状態変更時のUI同期
+            audioPlayer.onplay = () => { 
+                setIconState(currentlyPlayingIcon, 'playing'); 
+                mainAudioIconI.className = 'fas fa-pause';
+                mainAudioControl.classList.add('playing');
             };
-            audioPlayer.onplay = () => { setIconState(currentlyPlayingIcon, 'playing'); mainAudioIconI.className = 'fas fa-pause'; };
-            audioPlayer.onpause = () => { setIconState(currentlyPlayingIcon, 'paused'); mainAudioIconI.className = 'fas fa-play'; };
+            audioPlayer.onpause = () => { 
+                setIconState(currentlyPlayingIcon, 'paused'); 
+                mainAudioIconI.className = 'fas fa-play';
+                mainAudioControl.classList.remove('playing');
+            };
             audioPlayer.onended = () => {
                 setIconState(currentlyPlayingIcon, 'stopped');
                 mainAudioIconI.className = 'fas fa-volume-up';
-                const icons = Array.from(tableBody.querySelectorAll('.audio-icon'));
+                mainAudioControl.classList.remove('playing');
+                // 次の音声を自動再生
+                const icons = Array.from(tableBody.querySelectorAll('.audio-icon[data-src]'));
                 const next = icons[icons.indexOf(currentlyPlayingIcon) + 1];
                 if (next) setTimeout(() => toggleAudioPlayback(next), 3000);
             };
-            bookmarkFilterCheckbox.onchange = render;
+
+            bookmarkFilterCheckbox.addEventListener('change', render);
         }
         
         document.addEventListener('DOMContentLoaded', checkAuthentication);
