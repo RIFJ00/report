@@ -1,0 +1,898 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>衆議院選挙シミュレーター2026年度版 (閲覧専用)</title><script src="https://cdn.tailwindcss.com"></script><script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script><script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script><script src="https://unpkg.com/prop-types/prop-types.min.js"></script><script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script><script src="https://unpkg.com/@babel/standalone/babel.min.js"></script><style>::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: #f1f1f1; } ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; } input[type=range] { height: 6px; border-radius: 5px; outline: none; }</style></head><body class="bg-gray-100 text-gray-800"><div id="root"></div><script type="text/babel">
+        const { useState, useEffect, useMemo, useRef, memo } = React;
+        const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie, LineChart, Line } = Recharts;
+
+        // --- Configuration ---
+        const IS_READ_ONLY = true; 
+
+        // --- Icons ---
+        const IconBase = ({ children, className, ...props }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
+        );
+        const Upload = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></IconBase>;
+        const Download = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconBase>;
+        const FileText = (props) => <IconBase {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></IconBase>;
+        const Search = (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></IconBase>;
+        const BarChart2 = (props) => <IconBase {...props}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></IconBase>;
+        const MapIcon = (props) => <IconBase {...props}><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></IconBase>;
+        const AlertCircle = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></IconBase>;
+        const ChevronDown = (props) => <IconBase {...props}><polyline points="6 9 12 15 18 9"/></IconBase>;
+        const X = (props) => <IconBase {...props}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBase>;
+        const Info = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></IconBase>;
+        const User = (props) => <IconBase {...props}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></IconBase>;
+        const Trash2 = (props) => <IconBase {...props}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></IconBase>;
+        const Save = (props) => <IconBase {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconBase>;
+        const Users = (props) => <IconBase {...props}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>;
+        const History = (props) => <IconBase {...props}><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></IconBase>;
+        const Layers = (props) => <IconBase {...props}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></IconBase>;
+        const Edit = (props) => <IconBase {...props}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></IconBase>;
+        const RefreshCcw = (props) => <IconBase {...props}><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></IconBase>;
+        const Filter = (props) => <IconBase {...props}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></IconBase>;
+        const Sliders = (props) => <IconBase {...props}><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></IconBase>;
+        const TrendingUp = (props) => <IconBase {...props}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></IconBase>;
+        const Cloud = (props) => <IconBase {...props}><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></IconBase>;
+        const Code = (props) => <IconBase {...props}><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></IconBase>;
+        const Copy = (props) => <IconBase {...props}><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></IconBase>;
+
+        // --- Constants ---
+        const PARTY_COLORS = { '自民': '#D32F2F', '公明': '#FBC02D', '立憲': '#1976D2', '維新': '#388E3C', '国民': '#F57C00', '共産': '#7B1FA2', 'れいわ': '#EC407A', '社民': '#0288D1', '参政': '#FF7043', '保守': '#1A237E', '無所属': '#9E9E9E', '諸派': '#607D8B', '他': '#607D8B' };
+        const DEFAULT_COLOR = '#9E9E9E';
+        const PREFECTURE_ORDER = ["北海道", "青森", "岩手", "宮城", "秋田", "山形", "福島", "茨城", "栃木", "群馬", "埼玉", "千葉", "東京", "神奈川", "新潟", "富山", "石川", "福井", "山梨", "長野", "岐阜", "静岡", "愛知", "三重", "滋賀", "京都", "大阪", "兵庫", "奈良", "和歌山", "鳥取", "島根", "岡山", "広島", "山口", "徳島", "香川", "愛媛", "高知", "福岡", "佐賀", "長崎", "熊本", "大分", "宮崎", "鹿児島", "沖縄"];
+        const PR_BLOCKS = ["北海道ブロック", "東北ブロック", "北関東ブロック", "南関東ブロック", "東京ブロック", "北陸信越ブロック", "東海ブロック", "近畿ブロック", "中国ブロック", "四国ブロック", "九州ブロック"];
+        const PARTY_COEFFICIENTS = { '自民': 1.4, '公明': 0.8, '立憲': 0.8, '維新': 1.15, '国民': 1.3, '参政': 1.2, 'れいわ': 0.8, '社民': 0.8, '保守': 0.98 };
+
+        const PREF_TO_BLOCK = {
+            "北海道": "北海道ブロック", "青森": "東北ブロック", "岩手": "東北ブロック", "宮城": "東北ブロック", "秋田": "東北ブロック", "山形": "東北ブロック", "福島": "東北ブロック",
+            "茨城": "北関東ブロック", "栃木": "北関東ブロック", "群馬": "北関東ブロック", "埼玉": "北関東ブロック", "千葉": "南関東ブロック", "神奈川": "南関東ブロック", "山梨": "南関東ブロック",
+            "東京": "東京ブロック", "新潟": "北陸信越ブロック", "富山": "北陸信越ブロック", "石川": "北陸信越ブロック", "福井": "北陸信越ブロック", "長野": "北陸信越ブロック",
+            "岐阜": "東海ブロック", "静岡": "東海ブロック", "愛知": "東海ブロック", "三重": "東海ブロック", "滋賀": "近畿ブロック", "京都": "近畿ブロック", "大阪": "近畿ブロック", "兵庫": "近畿ブロック", "奈良": "近畿ブロック", "和歌山": "近畿ブロック",
+            "鳥取": "中国ブロック", "島根": "中国ブロック", "岡山": "中国ブロック", "広島": "中国ブロック", "山口": "中国ブロック", "徳島": "四国ブロック", "香川": "四国ブロック", "愛媛": "四国ブロック", "高知": "四国ブロック",
+            "福岡": "九州ブロック", "佐賀": "九州ブロック", "長崎": "九州ブロック", "熊本": "九州ブロック", "大分": "九州ブロック", "宮崎": "九州ブロック", "鹿児島": "九州ブロック", "沖縄": "九州ブロック"
+        };
+        const BLOCK_TO_PREFS = {};
+        Object.entries(PREF_TO_BLOCK).forEach(([pref, block]) => { if (!BLOCK_TO_PREFS[block]) BLOCK_TO_PREFS[block] = []; BLOCK_TO_PREFS[block].push(pref); });
+
+        // --- Mock Data ---
+        const generateInitialData = () => {
+            const candidates = [];
+            let idCounter = 1;
+            const getVotes = (base, range) => Math.floor(base + Math.random() * range);
+            PREFECTURE_ORDER.forEach(pref => {
+                const count = 3; 
+                for (let i = 1; i <= count; i++) {
+                    const districtName = `${pref}${i}区`;
+                    const rand = Math.random();
+                    let winnerParty = '自民', loserParty = '立憲';
+                    if (rand > 0.6) { winnerParty = '立憲'; loserParty = '自民'; }
+                    candidates.push({ id: String(idCounter++), district: districtName, party: winnerParty, name: `${winnerParty} 候補`, age: '50歳', incumbentStatus: '現', predictedVotes: getVotes(80000, 40000), votes2024: getVotes(75000, 10000), votes2021: getVotes(70000, 10000), votes2017: getVotes(68000, 10000), votes2014: getVotes(65000, 10000), votes2012: getVotes(60000, 10000), votes2009: getVotes(55000, 10000), votes2005: getVotes(60000, 10000), status: '◎', status2021: '◎', winningStatus: '当選', type: 'single' });
+                    candidates.push({ id: String(idCounter++), district: districtName, party: loserParty, name: `${loserParty} 候補`, age: '45歳', incumbentStatus: '新', predictedVotes: getVotes(60000, 30000), votes2024: getVotes(55000, 10000), votes2021: getVotes(50000, 10000), votes2017: getVotes(48000, 8000), votes2014: getVotes(45000, 8000), votes2012: getVotes(40000, 8000), votes2009: getVotes(70000, 15000), votes2005: getVotes(40000, 8000), status: '△', status2021: '', winningStatus: '比例', type: 'single' });
+                }
+            });
+            PR_BLOCKS.forEach(block => {
+                const parties = ['自民', '立憲', '維新', '公明', '共産', '国民', 'れいわ', '参政', '保守'];
+                parties.forEach((party, idx) => {
+                    const votes = getVotes(100000, 200000 - idx * 20000);
+                    let coef = 1.0;
+                    Object.keys(PARTY_COEFFICIENTS).forEach(key => { if (party.includes(key)) coef = PARTY_COEFFICIENTS[key]; });
+                    const predVotes = Math.floor(votes * coef);
+                    candidates.push({ id: String(idCounter++), district: block, party: party, name: `${party} (名簿)`, age: '-', incumbentStatus: '－', predictedVotes: predVotes, votes2024: votes, votes2021: getVotes(votes * 0.8, 10000), votes2017: null, votes2014: null, votes2012: null, votes2009: null, votes2005: null, status: '', status2021: '', winningStatus: `${Math.floor(votes / 60000)}議席`, type: 'proportional' });
+                });
+            });
+            return candidates;
+        };
+
+        const INITIAL_MOCK_DATA = generateInitialData();
+        const INITIAL_VOTER_COUNTS = [];
+        const STORAGE_KEY_DATA = 'election_app_candidates_v50';
+        const STORAGE_KEY_VOTERS = 'election_app_voters_v50';
+        const STORAGE_KEY_DATE = 'election_app_last_updated_v50';
+
+        const calculateDhondt = (votesObj, totalSeats) => {
+            let seats = {};
+            Object.keys(votesObj).forEach(party => seats[party] = 0);
+            for (let i = 0; i < totalSeats; i++) {
+                let maxQuotient = -1;
+                let maxParty = null;
+                Object.keys(votesObj).forEach(party => {
+                    const quotient = votesObj[party] / (seats[party] + 1);
+                    if (quotient > maxQuotient) { maxQuotient = quotient; maxParty = party; }
+                });
+                if (maxParty) seats[maxParty]++;
+            }
+            return seats;
+        };
+
+        // --- Common Components ---
+        const Card = ({ children, className = "", onClick }) => <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${onClick ? 'cursor-pointer hover:shadow-md hover:border-blue-300 active:bg-blue-50' : ''} transition-all ${className}`} onClick={onClick}>{children}</div>;
+        const Badge = ({ children, color }) => <span className="px-2 py-0.5 rounded text-xs text-white font-bold whitespace-nowrap" style={{ backgroundColor: color }}>{children}</span>;
+        const AlertDialog = ({ message, onClose }) => {
+            if (!message) return null;
+            return <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4"><div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full"><h3 className="text-lg font-bold text-gray-900 mb-2">お知らせ</h3><p className="text-gray-600 mb-6 whitespace-pre-wrap">{message}</p><button onClick={onClose} className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-bold">OK</button></div></div>;
+        };
+        const ConfirmDialog = ({ config, onCancel }) => {
+            if (!config) return null;
+            return <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4"><div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full"><h3 className="text-lg font-bold text-gray-900 mb-2">確認</h3><p className="text-gray-600 mb-6 whitespace-pre-wrap">{config.message}</p><div className="flex gap-3"><button onClick={onCancel} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors font-bold">キャンセル</button><button onClick={() => { config.onConfirm(); onCancel(); }} className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition-colors font-bold">実行する</button></div></div></div>;
+        };
+        const CodeExportDialog = ({ code, onClose }) => {
+            const [copied, setCopied] = useState(false);
+            const handleCopy = () => { navigator.clipboard.writeText(code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
+            return <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4" onClick={onClose}><div className="bg-white rounded-xl shadow-xl w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}><div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50"><h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Code className="w-5 h-5 text-purple-600" /> 閲覧専用コード出力</h3><button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full"><X className="w-5 h-5" /></button></div><div className="p-4 flex-1 overflow-hidden flex flex-col"><p className="text-sm text-gray-600 mb-2">以下のHTMLコードをコピーして、<code>.html</code>ファイルとして保存すると、現在のデータを保持した閲覧専用アプリとして動作します。</p><textarea readOnly className="w-full flex-1 p-3 border border-gray-300 rounded font-mono text-xs bg-gray-50 resize-none focus:outline-none" value={code} onClick={(e) => e.target.select()}></textarea></div><div className="p-4 border-t border-gray-100 flex justify-end gap-3"><button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-bold text-sm">閉じる</button><button onClick={handleCopy} className="flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm transition-colors">{copied ? "コピーしました！" : <><Copy className="w-4 h-4" /> コードをコピー</>}</button></div></div></div>;
+        };
+
+        // --- Sub Components ---
+        const FilterSection = memo(({ filterText, setFilterText, selectedPrefecture, setSelectedPrefecture, selectedParty, setSelectedParty, displayYear, setDisplayYear, filterType, setFilterType, clearFilters, showCloseRaceOnly, filteredCount, activeTab }) => {
+            return (
+                <div className="flex-none p-4 bg-white border-b border-gray-200 shadow-sm z-10 space-y-4">
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <div className="flex-1"><div className="relative"><div className="absolute left-3 top-2.5 text-gray-400"><Search width={16} height={16} /></div><input type="text" placeholder="候補者名、選挙区名、政党名..." className="pl-10 pr-10 w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={filterText} onChange={(e) => setFilterText(e.target.value)} />{filterText && <button onClick={() => setFilterText("")} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"><X width={16} height={16} /></button>}</div></div>
+                        <div className="w-full md:w-48"><div className="relative">
+                            <select className="w-full p-2 border border-gray-300 rounded-md outline-none appearance-none" value={selectedPrefecture} onChange={(e) => setSelectedPrefecture(e.target.value)}>
+                                <option value="All">全国</option>
+                                <optgroup label="比例ブロック">{PR_BLOCKS.map(b => <option key={b} value={b}>{b}</option>)}</optgroup>
+                                <optgroup label="都道府県">{PREFECTURE_ORDER.map(p => <option key={p} value={p}>{p}</option>)}</optgroup>
+                            </select>
+                            <div className="absolute right-3 top-3 text-gray-400 pointer-events-none"><ChevronDown width={16} height={16} /></div></div></div>
+                        <div className="w-full md:w-48"><div className="relative"><select className="w-full p-2 border border-gray-300 rounded-md outline-none appearance-none" value={selectedParty} onChange={(e) => setSelectedParty(e.target.value)}><option value="All">全政党</option>{Object.keys(PARTY_COLORS).map(p => <option key={p} value={p}>{p}</option>)}</select><div className="absolute right-3 top-3 text-gray-400 pointer-events-none"><ChevronDown width={16} height={16} /></div></div></div>
+                        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg self-end md:self-auto h-[42px]">
+                            <button className={`px-3 h-full rounded-md text-xs font-bold transition-all ${displayYear === '2026' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} onClick={() => setDisplayYear('2026')}>2026予想</button>
+                            <button className={`px-3 h-full rounded-md text-xs font-bold transition-all ${displayYear === '2024' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} onClick={() => setDisplayYear('2024')}>2024当選</button>
+                            <button className={`px-3 h-full rounded-md text-xs font-bold transition-all ${displayYear === '2021' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} onClick={() => setDisplayYear('2021')}>2021当選</button>
+                        </div>
+                        <div className="flex items-center gap-2 self-end md:self-auto h-[42px] px-2 bg-gray-50 rounded border border-gray-200">
+                            <label className="text-xs font-bold text-gray-500 mr-1">絞り込み:</label>
+                            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="bg-transparent text-sm font-bold text-gray-700 outline-none cursor-pointer"><option value="all">全て</option><option value="winner_all">当選 (◎+○)</option><option value="winner_single">選挙区 (◎)</option><option value="winner_pr">比例復活 (○)</option></select>
+                        </div>
+                        <button onClick={clearFilters} className="flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors self-end md:self-auto h-[42px]" title="条件をクリア"><RefreshCcw width={16} height={16} /><span className="text-sm font-bold">クリア</span></button>
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-gray-500">
+                        <span>{showCloseRaceOnly ? <span className="text-red-600 font-bold mr-2">【接戦区のみ表示中】</span> : ""}表示中: <strong>{filteredCount}</strong> {activeTab === 'single' ? '選挙区' : 'ブロック'}</span>
+                        <span className="text-xs">クリックで詳細・編集</span>
+                    </div>
+                </div>
+            );
+        });
+
+        const HistoryGraphModal = ({ candidates, onClose }) => {
+            const data = useMemo(() => {
+                const years = [2005, 2009, 2012, 2014, 2017, 2021, 2024];
+                const chartData = years.map(year => {
+                    const point = { name: String(year) };
+                    candidates.forEach(cand => {
+                        const val = cand[`votes${year}`];
+                        if (val !== null && val !== undefined && val > 0) point[cand.id] = val;
+                    });
+                    return point;
+                });
+                const predPoint = { name: '2026(予)' };
+                candidates.forEach(cand => { if (cand.predictedVotes > 0) predPoint[cand.id] = cand.predictedVotes; });
+                chartData.push(predPoint);
+                return chartData;
+            }, [candidates]);
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4" onClick={onClose}><div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl h-[500px] flex flex-col p-6" onClick={e => e.stopPropagation()}><div className="flex justify-between items-center mb-4"><h3 className="text-xl font-bold text-gray-800 flex items-center gap-2"><TrendingUp className="w-6 h-6 text-blue-600" /> 得票数推移 (実績＋予測)</h3><button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><X className="w-6 h-6" /></button></div><div className="flex-1 w-full min-h-0"><ResponsiveContainer width="100%" height="100%"><LineChart data={data} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" /><XAxis dataKey="name" tick={{fontSize: 12}} /><YAxis tickFormatter={(val) => val >= 10000 ? `${val/10000}万` : val} width={40} tick={{fontSize: 11}} /><RechartsTooltip formatter={(value) => value.toLocaleString()} labelStyle={{color: '#333'}} contentStyle={{borderRadius: '8px'}} /><Legend />{candidates.map((cand) => { const partyColor = Object.entries(PARTY_COLORS).find(([k]) => cand.party.includes(k))?.[1] || DEFAULT_COLOR; return <Line key={cand.id} type="monotone" dataKey={cand.id} name={`${cand.party} ${cand.name}`} stroke={partyColor} strokeWidth={3} dot={{ r: 4, fill: partyColor, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} connectNulls={false} />; })}</LineChart></ResponsiveContainer></div><div className="mt-4 text-xs text-center text-gray-500">※ データがない年はプロットされません。2026年は現在のシミュレーション予測値です。</div></div></div>
+            );
+        };
+
+        const DistrictModal = ({ district, onClose, onUpdate }) => {
+            const [isEditing, setIsEditing] = useState(false);
+            const [editedCandidates, setEditedCandidates] = useState(district?.candidates || []);
+            const [showHistoryGraph, setShowHistoryGraph] = useState(false);
+
+            useEffect(() => { if (district) setEditedCandidates(district.candidates.map(c => ({...c}))); }, [district, isEditing]);
+            if (!district) return null;
+
+            const handleSave = () => { onUpdate(editedCandidates); setIsEditing(false); onClose(); };
+            const handleChange = (id, field, value) => { setEditedCandidates(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c)); };
+            const handleVoteChange = (id, value) => { const num = parseInt(value, 10); handleChange(id, 'predictedVotes', isNaN(num) ? 0 : num); };
+            const totalPredicted = editedCandidates.reduce((sum, c) => sum + (c.predictedVotes || 0), 0);
+            const currentTurnout = district.voterCount ? (totalPredicted / district.voterCount) : null;
+            const sortedByVotes = [...editedCandidates].sort((a, b) => b.predictedVotes - a.predictedVotes);
+            const winnerId = sortedByVotes.length > 0 ? sortedByVotes[0].id : null;
+            const historyYears = [2005, 2009, 2012, 2014, 2017, 2021, 2024];
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}><div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}><div className="px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-50 gap-4"><div><h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">{district.name} {district.isCloseRace && <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full border border-red-200">接戦</span>}</h2><div className="text-sm text-gray-600 mt-1 flex flex-wrap gap-4"><span className="font-mono"><span className="font-bold">予想総票数:</span> {totalPredicted.toLocaleString()}</span>{district.voterCount && <span className="flex items-center gap-1"><Users className="w-3 h-3" /> 有権者数: {district.voterCount.toLocaleString()}</span>}{currentTurnout && <span className="font-bold text-blue-700">予想投票率: {(currentTurnout * 100).toFixed(2)}%</span>}</div></div><div className="flex gap-2 self-end md:self-auto">{!IS_READ_ONLY && (!isEditing ? <button onClick={() => setIsEditing(true)} className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-bold text-sm transition-colors"><Edit className="w-4 h-4" /> 編集</button> : <><button onClick={() => setIsEditing(false)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-bold text-sm transition-colors">キャンセル</button><button onClick={handleSave} className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm transition-colors"><Save className="w-4 h-4" /> 保存</button></>)}<button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-6 h-6 text-gray-500" /></button></div></div><div className="p-6 overflow-y-auto"><div className="space-y-6">{editedCandidates.map((cand, idx) => { const percentage = totalPredicted > 0 ? (cand.predictedVotes / totalPredicted) * 100 : 0; const partyColor = Object.entries(PARTY_COLORS).find(([k]) => cand.party.includes(k))?.[1] || DEFAULT_COLOR; const isPredictedWinner = cand.id === winnerId; return (<div key={cand.id} className={`p-4 rounded-lg border ${isPredictedWinner ? 'border-l-4 border-l-red-500 border-gray-200 bg-red-50/10' : 'border-gray-100'} ${isEditing ? 'border-blue-200 ring-1 ring-blue-100' : ''}`}><div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2"><div className="flex items-center gap-3 w-full sm:w-auto">{isPredictedWinner && !isEditing && <div className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded shadow-sm whitespace-nowrap">{district.type === 'proportional' ? '第1党' : '当選予測'}</div>}<div className="flex-1"><div className="flex items-center gap-2 flex-wrap">{isEditing ? <input type="text" value={cand.name} onChange={(e) => handleChange(cand.id, 'name', e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-lg font-bold w-full sm:w-48" /> : <h3 className="text-lg font-bold text-gray-900">{cand.name}</h3>}<Badge color={partyColor}>{cand.party}</Badge><span className="text-sm text-gray-600">({cand.age})</span><span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">{cand.incumbentStatus}</span></div></div></div><div className="text-right self-end sm:self-auto">{isEditing ? <div className="flex flex-col items-end"><label className="text-xs text-gray-500 font-bold">予測得票数</label><input type="number" value={cand.predictedVotes} onChange={(e) => handleVoteChange(cand.id, e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-right font-mono font-bold w-32" /></div> : <><div className="text-xl font-mono font-bold text-gray-800">{cand.predictedVotes.toLocaleString()}</div><div className="text-xs text-gray-500">予測得票率 {percentage.toFixed(1)}%</div></>}</div></div><div className="flex items-center gap-4 text-xs text-gray-600 mb-3 bg-gray-50 p-2 rounded"><div className="flex items-center gap-2"><span className="font-bold">2024結果:</span>{isEditing ? <select value={cand.status} onChange={(e) => handleChange(cand.id, 'status', e.target.value)} className="border border-gray-300 rounded px-1 py-0.5"><option value="">-</option><option value="◎">◎</option><option value="○">○</option><option value="⚪︎">⚪︎</option><option value="△">△</option><option value="▲">▲</option></select> : <span className={`font-bold ${cand.status?.includes('◎') ? 'text-red-600' : ''}`}>{cand.status || '-'}</span>}</div><div className="flex items-center gap-2"><span className="font-bold">2021結果:</span>{isEditing ? <select value={cand.status2021} onChange={(e) => handleChange(cand.id, 'status2021', e.target.value)} className="border border-gray-300 rounded px-1 py-0.5"><option value="">-</option><option value="◎">◎</option><option value="○">○</option><option value="⚪︎">⚪︎</option><option value="△">△</option><option value="▲">▲</option></select> : <span className={`font-bold ${cand.status2021?.includes('◎') ? 'text-red-600' : ''}`}>{cand.status2021 || '-'}</span>}</div><div className="flex items-center gap-2 ml-auto"><span className="font-bold">当落予測(元データ):</span>{isEditing ? <input type="text" value={cand.winningStatus} onChange={(e) => handleChange(cand.id, 'winningStatus', e.target.value)} className="border border-gray-300 rounded px-2 py-0.5 w-20" /> : <span>{cand.winningStatus || '-'}</span>}</div></div><div className="w-full bg-gray-100 rounded-full h-3 mb-4"><div className="h-3 rounded-full transition-all duration-500" style={{ width: `${percentage}%`, backgroundColor: partyColor }}></div></div><div className="mt-2 bg-white rounded border border-gray-100 overflow-hidden cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all" onClick={() => setShowHistoryGraph(true)} title="クリックして推移グラフを表示"><div className="bg-gray-50 px-3 py-1 text-xs font-bold text-gray-500 flex items-center justify-between border-b border-gray-100"><span className="flex items-center gap-1"><History className="w-3 h-3" /> 過去の実績 (得票数)</span><span className="text-blue-500 flex items-center gap-1 hover:underline"><TrendingUp className="w-3 h-3"/> グラフで見る</span></div><div className="overflow-x-auto"><table className="w-full text-xs text-left"><thead><tr className="text-gray-400 border-b border-gray-50">{historyYears.map(y => <th key={y} className="py-1 px-2 font-normal whitespace-nowrap text-center">{y}</th>)}</tr></thead><tbody><tr>{historyYears.map(y => { const val = cand[`votes${y}`]; return (<td key={y} className={`py-1 px-2 font-mono whitespace-nowrap text-center ${y===2024 ? 'bg-yellow-50 font-bold' : ''}`}>{val ? val.toLocaleString() : '-'}</td>); })}</tr></tbody></table></div></div></div>); })}</div><div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-500"><h4 className="font-bold mb-2 flex items-center gap-2"><Info className="w-4 h-4" /> 分析メモ</h4><p>{district.isCloseRace ? `${editedCandidates[0].name} と ${editedCandidates[1].name} の票差が10%未満の激戦区です。` : `${editedCandidates[0].name} がリードしています。`}</p></div></div></div>{showHistoryGraph && <HistoryGraphModal candidates={editedCandidates} onClose={() => setShowHistoryGraph(false)} />}</div>);
+        };
+
+        const SimulationPanel = ({ settings, setSettings }) => {
+            const handleChange = (key, val) => { setSettings(prev => ({ ...prev, [key]: parseInt(val, 10) })); };
+            const handleClear = () => { setSettings({ takaichiEffect: 0, coalitionEffect: 0, newPartyEffect: 0, emergingSurge: 0 }); };
+            const isDefault = settings.takaichiEffect === 0 && settings.coalitionEffect === 0 && settings.newPartyEffect === 0 && settings.emergingSurge === 0;
+            return (
+                <Card className="mb-6 p-4 border-l-4 border-l-purple-500 bg-purple-50/50"><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-800 flex items-center gap-2"><Sliders width={18} height={18} className="text-purple-600" /> シミュレーション設定</h3><button onClick={handleClear} disabled={isDefault} className={`flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-full transition-colors ${isDefault ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white text-purple-600 shadow hover:bg-purple-100'}`}><RefreshCcw width={12} height={12} /> クリア</button></div><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><div className="flex flex-col gap-1"><div className="flex justify-between text-xs font-bold text-gray-600"><span>高市効果 (自民)</span><span className={settings.takaichiEffect !== 0 ? 'text-purple-700' : ''}>{settings.takaichiEffect > 0 ? '+' : ''}{settings.takaichiEffect}%</span></div><input type="range" min="-15" max="20" step="1" value={settings.takaichiEffect} onChange={(e) => handleChange('takaichiEffect', e.target.value)} className="w-full accent-purple-600" /><div className="flex justify-between text-[10px] text-gray-400"><span>-15%</span><span>+20%</span></div></div><div className="flex flex-col gap-1"><div className="flex justify-between text-xs font-bold text-gray-600"><span>連立効果 (維新)</span><span className={settings.coalitionEffect !== 0 ? 'text-green-700' : ''}>+{settings.coalitionEffect}%</span></div><input type="range" min="0" max="15" step="1" value={settings.coalitionEffect} onChange={(e) => handleChange('coalitionEffect', e.target.value)} className="w-full accent-green-600" /><div className="flex justify-between text-[10px] text-gray-400"><span>0%</span><span>+15%</span></div></div><div className="flex flex-col gap-1"><div className="flex justify-between text-xs font-bold text-gray-600"><span>新党効果 (立憲・公明比)</span><span className={settings.newPartyEffect !== 0 ? 'text-blue-700' : ''}>{settings.newPartyEffect > 0 ? '+' : ''}{settings.newPartyEffect}%</span></div><input type="range" min="-20" max="20" step="1" value={settings.newPartyEffect} onChange={(e) => handleChange('newPartyEffect', e.target.value)} className="w-full accent-blue-600" /><div className="flex justify-between text-[10px] text-gray-400"><span>-20%</span><span>+20%</span></div></div><div className="flex flex-col gap-1"><div className="flex justify-between text-xs font-bold text-gray-600"><span>新興躍進 (国民・参政↑ 立憲↓)</span><span className={settings.emergingSurge !== 0 ? 'text-orange-700' : ''}>+{settings.emergingSurge}%</span></div><input type="range" min="0" max="20" step="1" value={settings.emergingSurge} onChange={(e) => handleChange('emergingSurge', e.target.value)} className="w-full accent-orange-500" /><div className="flex justify-between text-[10px] text-gray-400"><span>0%</span><span>+20%</span></div></div></div></Card>
+            );
+        };
+
+        const App = () => {
+            const [candidates, setCandidates] = useState(() => INITIAL_MOCK_DATA);
+            const [voterCounts, setVoterCounts] = useState(() => new Map(INITIAL_VOTER_COUNTS));
+            const [lastUpdated, setLastUpdated] = useState("Simulation Data");
+            const [simSettings, setSimSettings] = useState({ takaichiEffect: 0, coalitionEffect: 0, newPartyEffect: 0, emergingSurge: 0 });
+            const [filterText, setFilterText] = useState("");
+            const [selectedParty, setSelectedParty] = useState("All");
+            const [selectedPrefecture, setSelectedPrefecture] = useState("All");
+            const [activeTab, setActiveTab] = useState("summary");
+            const [showCloseRaceOnly, setShowCloseRaceOnly] = useState(false);
+            const [displayYear, setDisplayYear] = useState('2024');
+            const [filterType, setFilterType] = useState('all');
+            const [selectedDistrict, setSelectedDistrict] = useState(null);
+            const [alertMessage, setAlertMessage] = useState(null);
+            const [confirmConfig, setConfirmConfig] = useState(null);
+            const [exportCode, setExportCode] = useState(null);
+
+            useEffect(() => {
+                if (IS_READ_ONLY) return; 
+
+                const loadData = async () => {
+                    if (window.fb) {
+                        try {
+                            const user = await window.fb.initAuth();
+                            window.fb.subscribe('candidates', (data, time) => { if (data && Array.isArray(data)) { setCandidates(data); if(time) setLastUpdated(new Date(time).toLocaleString('ja-JP')); }});
+                            window.fb.subscribe('voters', (data) => { if (data) setVoterCounts(new Map(Object.entries(data))); });
+                        } catch (e) { console.error("Firebase init failed:", e); }
+                    }
+                };
+                loadData();
+            }, []);
+
+            const parseNumber = (val) => { if (typeof val === 'number') return val; if (!val) return null; const clean = String(val).replace(/["',]/g, ''); const num = parseFloat(clean); return isNaN(num) ? null : num; };
+            const getStr = (val) => val === undefined || val === null ? "" : String(val);
+            const calculateAge = (birthDateStr) => { const today = new Date(); const birthDate = new Date(birthDateStr); if (isNaN(birthDate.getTime())) return null; let age = today.getFullYear() - birthDate.getFullYear(); const m = today.getMonth() - birthDate.getMonth(); if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) { age--; } const yyyy = birthDate.getFullYear(); const mm = String(birthDate.getMonth() + 1).padStart(2, '0'); const dd = String(birthDate.getDate()).padStart(2, '0'); return `${yyyy}/${mm}/${dd} (${age}歳)`; };
+            const findHeaderRow = (rows, keywords) => { for (let i = 0; i < Math.min(rows.length, 15); i++) { const row = rows[i].map(c => getStr(c)); const matchCount = keywords.filter(kw => row.some(cell => cell.includes(kw))).length; if (matchCount >= 2) return { index: i, row }; } return null; };
+            const findColumnIndex = (headerRow, possibleNames, excludeNames = []) => { return headerRow.findIndex(cell => possibleNames.some(name => cell.includes(name)) && (!excludeNames || !excludeNames.some(ex => cell.includes(ex)))); };
+
+            const processAnalysisData = async (rows) => { /* ... same as previous ... */
+                if (IS_READ_ONLY) return;
+                if (!rows || rows.length === 0) return;
+                const keyColumns = ['選挙区', '小選挙区', '政党', '党派', '名', '氏名', '候補', '候補者'];
+                const headerInfo = findHeaderRow(rows, keyColumns);
+                let headerRow, startRowIdx;
+                if (headerInfo) { headerRow = headerInfo.row; startRowIdx = headerInfo.index + 1; } else { headerRow = rows[0].map(h => getStr(h)); startRowIdx = 1; }
+
+                const districtIdx = findColumnIndex(headerRow, ['小選挙区', '選挙区', '選挙区名', 'District']);
+                const partyIdx = findColumnIndex(headerRow, ['政党', '党派', '会派', 'Party']);
+                const nameIdx = findColumnIndex(headerRow, ['候補者名', '氏名', '名前', '候補', '2024候補者', 'Name', 'Candidate']);
+                const votesPredIdx = findColumnIndex(headerRow, ['今回予想', '得票予測', '予想', 'Predicted']);
+                const statusIdx = findColumnIndex(headerRow, ['当落', '結果', '2024'], ['得票', '候補', '予想', '基数', 'No', '年齢', '回数']); 
+                const status2021Idx = findColumnIndex(headerRow, ['2021当落', '2021結果', '21当落']); 
+                const winStatusIdx = findColumnIndex(headerRow, ['当落予想', '判断', '判定']);
+                const ageIdx = findColumnIndex(headerRow, ['年齢', 'Age']);
+                const dobIdx = findColumnIndex(headerRow, ['生年月日', '誕生日']);
+                const incStatusIdx = findColumnIndex(headerRow, ['回数', '現新']);
+                const voterCountIdx = findColumnIndex(headerRow, ['有権者数', '直近有権者数']);
+                const typeIdx = findColumnIndex(headerRow, ['区分', 'Type']);
+                const votes2024Idx = findColumnIndex(headerRow, ['2024得票数', '2024得票', '2024年得票', 'R6得票']);
+                const votes2021Idx = findColumnIndex(headerRow, ['2021得票数', '2021得票', '2021年得票', 'R3得票']);
+                const votes2017Idx = findColumnIndex(headerRow, ['2017得票数', '2017得票', '2017年得票', 'H29得票']);
+                const votes2014Idx = findColumnIndex(headerRow, ['2014得票数', '2014得票', '2014年得票', 'H26得票']);
+                const votes2012Idx = findColumnIndex(headerRow, ['2012得票数', '2012得票', '2012年得票', 'H24得票']);
+                const votes2009Idx = findColumnIndex(headerRow, ['2009得票数', '2009得票', '2009年得票', 'H21得票']);
+                const votes2005Idx = findColumnIndex(headerRow, ['2005得票数', '2005得票', '2005年得票', 'H17得票']);
+
+                if (nameIdx === -1 || (districtIdx === -1 && partyIdx === -1)) {
+                    let missing = [];
+                    if (nameIdx === -1) missing.push("候補者名/氏名");
+                    if (districtIdx === -1 && partyIdx === -1) missing.push("選挙区 または 政党");
+                    setAlertMessage(`必須列が見つかりません: ${missing.join(", ")} を含む列が必要です。\nヘッダー行が正しいか、文字化けしていないか確認してください。`);
+                    return;
+                }
+
+                const newCandidates = [];
+                const newVoterCounts = new Map(voterCounts); 
+                
+                for (let i = startRowIdx; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (!row || row.length < 3) continue;
+                    const nameRaw = getStr(row[nameIdx]);
+                    if (!nameRaw || nameRaw.trim() === '') continue;
+                    const districtName = districtIdx !== -1 ? getStr(row[districtIdx]).replace(/"/g, '').trim() : '不明';
+                    let type = 'single';
+                    let typeFound = false;
+                    if (typeIdx !== -1) {
+                        const typeVal = getStr(row[typeIdx]);
+                        if (typeVal.includes('比例') || typeVal.includes('2')) { type = 'proportional'; typeFound = true; } 
+                        else if (typeVal.includes('選挙区') || typeVal.includes('1')) { type = 'single'; typeFound = true; }
+                    } 
+                    if (!typeFound) { if (districtName.includes('比例') || districtName.includes('ブロック')) type = 'proportional'; }
+                    if (voterCountIdx !== -1) {
+                        const vCount = parseNumber(row[voterCountIdx]);
+                        if (vCount) newVoterCounts.set(districtName.replace(/\s+/g, ''), vCount);
+                    }
+                    let displayAge = '';
+                    const dobRaw = dobIdx !== -1 ? getStr(row[dobIdx]) : '';
+                    if (dobRaw) {
+                        const calculated = calculateAge(dobRaw);
+                        displayAge = calculated ? calculated : (ageIdx !== -1 ? getStr(row[ageIdx]).replace(/"/g, '') : '');
+                    } else {
+                        displayAge = ageIdx !== -1 ? getStr(row[ageIdx]).replace(/"/g, '') : '';
+                        if (displayAge && !isNaN(displayAge) && !displayAge.includes('歳')) displayAge += '歳';
+                    }
+                    const getVotes = (idx) => idx !== -1 ? parseNumber(row[idx]) : null;
+                    const v2024 = getVotes(votes2024Idx);
+                    let predictedVotes = votesPredIdx !== -1 ? parseNumber(row[votesPredIdx]) : 0;
+                    
+                    // 正規化: 日本保守 -> 保守
+                    let partyNameRaw = partyIdx !== -1 ? getStr(row[partyIdx]).replace(/"/g, '').trim() : '無所属';
+                    if (partyNameRaw.includes('日本保守')) { partyNameRaw = '保守'; }
+
+                    if (predictedVotes === null || predictedVotes === 0) {
+                        if (type === 'proportional') {
+                            if (v2024 !== null && v2024 > 0) {
+                                let coef = 1.0;
+                                Object.keys(PARTY_COEFFICIENTS).forEach(key => { if (partyNameRaw.includes(key)) coef = PARTY_COEFFICIENTS[key]; });
+                                predictedVotes = Math.floor(v2024 * coef);
+                            }
+                        } else {
+                            const history = [v2024, getVotes(votes2021Idx), getVotes(votes2017Idx), getVotes(votes2014Idx), getVotes(votes2012Idx)].filter(v => v !== null && v > 0);
+                            if (history.length > 0) predictedVotes = Math.floor(history.reduce((a, b) => a + b, 0) / history.length);
+                        }
+                    }
+                    newCandidates.push({
+                        id: `row-${i}`,
+                        district: districtName,
+                        party: partyNameRaw,
+                        name: nameRaw.replace(/"/g, '').trim(),
+                        age: displayAge,
+                        incumbentStatus: incStatusIdx !== -1 ? getStr(row[incStatusIdx]).replace(/"/g, '') : '',
+                        predictedVotes: predictedVotes || 0,
+                        votes2024: v2024,
+                        votes2021: getVotes(votes2021Idx),
+                        votes2017: getVotes(votes2017Idx),
+                        votes2014: getVotes(votes2014Idx),
+                        votes2012: getVotes(votes2012Idx),
+                        votes2009: getVotes(votes2009Idx),
+                        votes2005: getVotes(votes2005Idx),
+                        status: statusIdx !== -1 ? getStr(row[statusIdx]).replace(/"/g, '') : '',
+                        status2021: status2021Idx !== -1 ? getStr(row[status2021Idx]).replace(/"/g, '') : '',
+                        winningStatus: winStatusIdx !== -1 ? getStr(row[winStatusIdx]).replace(/"/g, '') : '',
+                        type: type
+                    });
+                }
+                
+                const districtMap = new Map();
+                newCandidates.forEach(c => { if (c.type === 'single') { if (!districtMap.has(c.district)) districtMap.set(c.district, []); districtMap.get(c.district).push(c); } });
+                const candidatesToAdd = [];
+                districtMap.forEach((districtCandidates, districtName) => {
+                    const komei = districtCandidates.find(c => c.party.includes('公明'));
+                    const jimin = districtCandidates.find(c => c.party.includes('自民'));
+                    if (komei && komei.predictedVotes > 0) {
+                        const transferVotes = Math.floor(komei.predictedVotes * 0.88);
+                        komei.predictedVotes = 0;
+                        if (jimin) { jimin.predictedVotes += transferVotes; } 
+                        else {
+                            candidatesToAdd.push({
+                                id: `generated-jimin-${districtName}`,
+                                district: districtName,
+                                party: '自民', name: '(自民党)', age: '-', incumbentStatus: '-',
+                                predictedVotes: transferVotes,
+                                votes2024: null, votes2021: null, votes2017: null, votes2014: null, votes2012: null, votes2009: null, votes2005: null,
+                                status: '', status2021: '', winningStatus: '-', type: 'single'
+                            });
+                        }
+                    }
+                });
+                newCandidates.push(...candidatesToAdd);
+
+                if (newCandidates.length > 0) {
+                    if(window.fb) {
+                        try {
+                            await window.fb.saveData('candidates', newCandidates);
+                            await window.fb.saveData('voters', Object.fromEntries(newVoterCounts));
+                            setAlertMessage(`データを更新し、クラウドに保存しました。\n候補者数: ${newCandidates.length}名`);
+                        } catch(e) {
+                            setAlertMessage("クラウドへの保存に失敗しました。認証状態を確認してください。");
+                        }
+                    } else {
+                        setCandidates(newCandidates);
+                        setVoterCounts(newVoterCounts);
+                        setLastUpdated(new Date().toLocaleString('ja-JP'));
+                        setAlertMessage("ローカルプレビューを更新しました(保存機能なし)。");
+                    }
+                    const singleCount = newCandidates.filter(c => c.type === 'single').length;
+                    setActiveTab(singleCount > 0 ? 'single' : 'proportional');
+                } else {
+                    setAlertMessage("有効なデータが見つかりませんでした。");
+                }
+            };
+
+            const processVoterData = async (rows) => { /* ... same as previous ... */ 
+                if (IS_READ_ONLY) return;
+                if (!rows || rows.length === 0) return;
+                let headerRow = rows[0].map(h => getStr(h));
+                let startRowIdx = 1;
+                for(let i=0; i<Math.min(rows.length, 5); i++){ if (rows[i].map(c => getStr(c)).some(c => c.includes('選挙区'))) { headerRow = rows[i].map(c => getStr(c)); startRowIdx = i + 1; break; } }
+                const districtIdx = headerRow.findIndex(h => h.includes('選挙区') || h.includes('都道府県'));
+                const voterCountIdx = headerRow.findIndex(h => h.includes('有権者数') || h.includes('有権者総数'));
+                if (districtIdx === -1 || voterCountIdx === -1) { setAlertMessage("必須列が見つかりません: 「選挙区」「有権者数」"); return; }
+                const newVoterCounts = new Map(voterCounts); 
+                let count = 0;
+                for (let i = startRowIdx; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (!row || row.length < 2) continue;
+                    const districtRaw = getStr(row[districtIdx]).replace(/"/g, '').trim();
+                    const voterVal = parseNumber(row[voterCountIdx]);
+                    if (districtRaw && voterVal !== null) { newVoterCounts.set(districtRaw.replace(/\s+/g, ''), voterVal); count++; }
+                }
+                if (count > 0) {
+                    setVoterCounts(newVoterCounts);
+                    if(window.fb) { try { await window.fb.saveData('voters', Object.fromEntries(newVoterCounts)); setAlertMessage(`有権者数データを更新し、クラウドに保存しました。\n件数: ${count}`); } catch(e) {} }
+                } else { setAlertMessage("有効な有権者データが見つかりませんでした。"); }
+            };
+
+            const handleFileUpload = (event, type) => {
+                if (IS_READ_ONLY) return;
+                if (typeof XLSX === 'undefined') { setAlertMessage("Excel解析ライブラリが読み込まれていません。"); return; }
+                const file = event.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+                        if (type === 'analysis') processAnalysisData(rows);
+                        else processVoterData(rows);
+                    } catch (err) { console.error(err); setAlertMessage("ファイルの読み込みに失敗しました。"); }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+
+            const handleExportData = () => { /* ... same ... */
+                const headers = ["選挙区", "政党", "候補者名", "年齢", "回数/現新", "今回予想", "当落", "当落予想", "2024年得票数", "2021年得票数", "2017年得票数", "2014年得票数", "2012年得票数", "2009年得票数", "2005年得票数"];
+                const csvContent = [headers.join(','), ...candidates.map(c => [c.district, c.party, c.name, c.age, c.incumbentStatus, c.predictedVotes, c.status, c.winningStatus, c.votes2024, c.votes2021, c.votes2017, c.votes2014, c.votes2012, c.votes2009, c.votes2005].map(val => `"${val !== null && val !== undefined ? val : ''}"`).join(','))].join('\n');
+                const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", `election_analysis_${new Date().toISOString().slice(0,10)}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            const handleResetData = () => { /* ... same ... */
+                setConfirmConfig({
+                    message: "データを初期化しますか？ (クラウド上のデータは削除されませんが、表示はリセットされます)",
+                    onConfirm: () => {
+                        setCandidates(INITIAL_MOCK_DATA);
+                        setVoterCounts(new Map());
+                        setLastUpdated("Simulation Data");
+                        setSimSettings({ takaichiEffect: 0, coalitionEffect: 0, newPartyEffect: 0, emergingSurge: 0 });
+                        setAlertMessage("表示をリセットしました。");
+                    }
+                });
+            };
+
+            const handleUpdateCandidates = (updatedDistrictCandidates) => { /* ... same ... */
+                if (IS_READ_ONLY) return;
+                setCandidates(prev => {
+                    const newCandidates = [...prev];
+                    updatedDistrictCandidates.forEach(updated => {
+                        const index = newCandidates.findIndex(c => c.id === updated.id);
+                        if (index !== -1) newCandidates[index] = updated;
+                    });
+                    if (window.fb) { window.fb.saveData('candidates', newCandidates); }
+                    return newCandidates;
+                });
+            };
+
+            // --- Export Read-Only HTML Logic ---
+            const handleExportReadOnlyHtml = () => { /* ... same ... */
+                const scriptContent = document.getElementById('app-script').textContent;
+                let newScript = scriptContent.replace('const IS_READ_ONLY = false;', 'const IS_READ_ONLY = true;');
+                const candidatesJson = JSON.stringify(candidates);
+                newScript = newScript.replace(/const INITIAL_MOCK_DATA = generateInitialData\(\); \/\/ \/\* DATA_PLACEHOLDER \*\//, `const INITIAL_MOCK_DATA = ${candidatesJson}; // Data embedded at export`);
+                const votersJson = JSON.stringify(Array.from(voterCounts.entries()));
+                newScript = newScript.replace(/const INITIAL_VOTER_COUNTS = \[\]; \/\/ \/\* VOTER_PLACEHOLDER \*\//, `const INITIAL_VOTER_COUNTS = ${votersJson}; // Data embedded at export`);
+                const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>衆議院選挙シミュレーター2026年度版 (閲覧専用)</title><script src="https://cdn.tailwindcss.com"></` + `script><script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></` + `script><script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></` + `script><script src="https://unpkg.com/prop-types/prop-types.min.js"></` + `script><script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></` + `script><script src="https://unpkg.com/@babel/standalone/babel.min.js"></` + `script><style>::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: #f1f1f1; } ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; } input[type=range] { height: 6px; border-radius: 5px; outline: none; }</style></head><body class="bg-gray-100 text-gray-800"><div id="root"></div><script type="text/babel">${newScript}const root = ReactDOM.createRoot(document.getElementById('root'));root.render(<App />);</` + `script></body></html>`;
+                setExportCode(html);
+            };
+
+            const handleSummaryClick = (data) => { if (data && data.name) { setSelectedParty(data.name); setActiveTab('single'); } };
+            const clearFilters = () => { setFilterText(""); setSelectedParty("All"); setSelectedPrefecture("All"); setShowCloseRaceOnly(false); setFilterType('all'); };
+            const handleCloseRaceClick = () => { setFilterText(""); setSelectedParty("All"); setSelectedPrefecture("All"); setShowCloseRaceOnly(true); setActiveTab('single'); };
+
+            const simulatedCandidates = useMemo(() => { /* ... same ... */
+                return candidates.map(c => {
+                    let multiplier = 1.0;
+                    if (c.party.includes('自民')) multiplier += (simSettings.takaichiEffect / 100);
+                    if (c.party.includes('維新')) multiplier += (simSettings.coalitionEffect / 100);
+                    if (c.party.includes('立憲')) { multiplier += (simSettings.newPartyEffect / 100); multiplier -= (simSettings.emergingSurge / 100); }
+                    if (c.party.includes('公明') && c.type === 'proportional') multiplier += (simSettings.newPartyEffect / 100);
+                    if (c.party.includes('国民') || c.party.includes('参政')) multiplier += (simSettings.emergingSurge / 100);
+                    if (c.party.includes('共産')) multiplier *= 1.05;
+                    const baseVotes = c.predictedVotes || 0;
+                    const simulatedVotes = Math.floor(baseVotes * Math.max(0, multiplier));
+                    return { ...c, predictedVotes: simulatedVotes };
+                });
+            }, [candidates, simSettings]);
+
+            const districtsData = useMemo(() => { /* ... same ... */
+                const map = new Map();
+                simulatedCandidates.forEach(c => {
+                    const key = c.district.replace(/\s+/g, '');
+                    if (!map.has(key)) map.set(key, []);
+                    map.get(key)?.push(c);
+                });
+                const districts = [];
+                map.forEach((cands, key) => {
+                    cands.sort((a, b) => b.predictedVotes - a.predictedVotes);
+                    let isClose = false;
+                    if (cands.length >= 2 && cands[0].predictedVotes > 0) {
+                        const diff = cands[0].predictedVotes - cands[1].predictedVotes;
+                        if (diff / cands[0].predictedVotes < 0.1) isClose = true;
+                    }
+                    const totalPredictedVotes = cands.reduce((sum, c) => sum + c.predictedVotes, 0);
+                    let voters = voterCounts.get(key) || null;
+                    let turnout = null;
+                    if (voters && voters > 0) turnout = totalPredictedVotes / voters;
+                    const type = cands.length > 0 ? cands[0].type : 'single';
+                    districts.push({ name: key, candidates: cands, isCloseRace: isClose, totalPredictedVotes, voterCount: voters, turnout, type });
+                });
+                const getBlockIndex = (name) => PR_BLOCKS.indexOf(name);
+                return districts.sort((a, b) => {
+                    if (a.type === 'proportional' && b.type === 'proportional') return getBlockIndex(a.name) - getBlockIndex(b.name);
+                    const getPrefIndex = (name) => { const pref = PREFECTURE_ORDER.find(p => name.startsWith(p)); return pref ? PREFECTURE_ORDER.indexOf(pref) : 999; };
+                    const indexA = getPrefIndex(a.name); const indexB = getPrefIndex(b.name);
+                    if (indexA !== indexB) return indexA - indexB;
+                    const getDistrictNumber = (name) => { const match = name.match(/(\d+)区/); return match ? parseInt(match[1], 10) : 0; };
+                    return getDistrictNumber(a.name) - getDistrictNumber(b.name);
+                });
+            }, [simulatedCandidates, voterCounts]);
+
+            const partyStats = useMemo(() => { /* ... same ... */
+                const stats = {};
+                Object.keys(PARTY_COLORS).forEach(p => { stats[p] = { name: p, color: PARTY_COLORS[p], singleWinsResult: 0, prWinsResult: 0, singleWinsPred: 0, prWinsPred: 0 }; });
+                simulatedCandidates.forEach(c => {
+                    const statusVal = displayYear === '2024' ? c.status : c.status2021;
+                    if (statusVal) {
+                        const partyKey = Object.keys(PARTY_COLORS).find(k => c.party.includes(k)) || '諸派';
+                        if (!stats[partyKey]) stats[partyKey] = { name: partyKey, color: DEFAULT_COLOR, singleWinsResult: 0, prWinsResult: 0, singleWinsPred: 0, prWinsPred: 0 };
+                        if (statusVal.includes('◎')) stats[partyKey].singleWinsResult++;
+                        else if (statusVal.includes('○') || statusVal.includes('⚪︎')) stats[partyKey].prWinsResult++;
+                    }
+                });
+                districtsData.forEach(d => {
+                    if (d.type === 'single' && d.candidates.length > 0) {
+                        const winner = d.candidates[0];
+                        const partyKey = Object.keys(PARTY_COLORS).find(k => winner.party.includes(k)) || '諸派';
+                        if (!stats[partyKey]) stats[partyKey] = { name: partyKey, color: DEFAULT_COLOR, singleWinsResult: 0, prWinsResult: 0, singleWinsPred: 0, prWinsPred: 0 };
+                        stats[partyKey].singleWinsPred++;
+                    }
+                });
+                const proportionalVotes = {};
+                simulatedCandidates.forEach(c => {
+                    if (c.type === 'proportional' && c.predictedVotes > 0) {
+                        const partyKey = Object.keys(PARTY_COLORS).find(k => c.party.includes(k)) || '諸派';
+                        if (!proportionalVotes[partyKey]) proportionalVotes[partyKey] = 0;
+                        proportionalVotes[partyKey] += c.predictedVotes;
+                    }
+                });
+                const prAllocation = calculateDhondt(proportionalVotes, 176);
+                Object.keys(prAllocation).forEach(party => {
+                    if (!stats[party]) stats[party] = { name: party, color: DEFAULT_COLOR, singleWinsResult: 0, prWinsResult: 0, singleWinsPred: 0, prWinsPred: 0 };
+                    stats[party].prWinsPred = prAllocation[party];
+                });
+                return Object.values(stats).filter(p => (p.singleWinsResult + p.prWinsResult + p.singleWinsPred + p.prWinsPred) > 0).sort((a, b) => (b.singleWinsPred + b.prWinsPred) - (a.singleWinsPred + a.prWinsPred));
+            }, [simulatedCandidates, districtsData, displayYear]);
+
+            const semiCircleData = useMemo(() => { /* ... same ... */
+                const order = ['諸派', '社民', '共産', 'れいわ', '公明', '立憲', '日本保守', '参政', '国民', '維新', '自民'];
+                return order.map(partyName => {
+                    const stat = partyStats.find(p => p.name === partyName);
+                    const seats = stat ? (stat.singleWinsPred + stat.prWinsPred) : 0;
+                    return { name: partyName, value: seats, fill: PARTY_COLORS[partyName] || DEFAULT_COLOR };
+                }).filter(d => d.value > 0);
+            }, [partyStats]);
+
+            const isCountablePR = (name) => !name.includes("全国") && !name.includes("区分");
+            
+            const filteredDistricts = useMemo(() => {
+                return districtsData.filter(d => {
+                    if (activeTab === 'single' && d.type !== 'single') return false;
+                    if (activeTab === 'proportional' && d.type !== 'proportional') return false;
+                    if (showCloseRaceOnly && !d.isCloseRace) return false;
+                    
+                    let matchPref = false;
+                    if (selectedPrefecture === "All") {
+                        matchPref = true;
+                    } else {
+                        // 1. 小選挙区: 地区名に県名が含まれているか (部分一致)
+                        if (d.name.includes(selectedPrefecture)) {
+                            matchPref = true;
+                        } 
+                        // 2. 比例代表: 部分一致 OR 選択した県が属するブロックか
+                        else if (d.type === 'proportional') {
+                             if (d.name.includes(selectedPrefecture)) {
+                                 matchPref = true;
+                             }
+                             const targetBlock = PREF_TO_BLOCK[selectedPrefecture];
+                             if (targetBlock && d.name === targetBlock) {
+                                 matchPref = true;
+                             }
+                        }
+                        // 3. ブロック選択時にそのブロックに含まれる県の小選挙区を表示
+                        else if (d.type === 'single') {
+                            const targetPrefs = BLOCK_TO_PREFS[selectedPrefecture]; // ブロック→県リスト
+                            if (targetPrefs && targetPrefs.some(pref => d.name.includes(pref))) {
+                                matchPref = true;
+                            }
+                        }
+                    }
+
+                    // 政党フィルタ: その地区に「指定された政党を含む候補者」がいればOK (部分一致)
+                    const matchParty = selectedParty === "All" || d.candidates.some(c => c.party.includes(selectedParty));
+                    
+                    if (!matchPref || !matchParty) return false;
+                    if (!filterText) return true;
+                    const lowerFilter = filterText.toLowerCase().trim();
+                    const matchDistrictName = d.name.toLowerCase().includes(lowerFilter);
+                    const matchCandidate = d.candidates.some(c => 
+                        (c.name && c.name.toLowerCase().includes(lowerFilter)) || 
+                        (c.party && c.party.toLowerCase().includes(lowerFilter))
+                    );
+                    return matchDistrictName || matchCandidate;
+                });
+            }, [districtsData, filterText, selectedParty, selectedPrefecture, activeTab, showCloseRaceOnly]);
+
+            const renderSummary = () => ( /* ... same ... */
+                <div className="space-y-8 p-4 md:p-8 overflow-y-auto h-full pb-20">
+                    <SimulationPanel settings={simSettings} setSettings={setSimSettings} />
+                    <div className="flex flex-col md:flex-row gap-6">
+                        <Card className="flex-1 p-6 flex flex-col min-h-[600px]">
+                            <h3 className="text-lg font-bold mb-4 text-gray-800 flex-none">2026年 獲得議席予測 (小選挙区＋比例)</h3>
+                            <div className="flex-1 flex flex-col gap-4">
+                                <div className="flex-1 w-full min-h-[300px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={partyStats} layout="vertical" margin={{ left: 20, right: 30 }} onClick={(data) => { if (data && data.activePayload && data.activePayload.length > 0) handleSummaryClick(data.activePayload[0].payload); }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                            <XAxis type="number" />
+                                            <YAxis dataKey="name" type="category" width={70} interval={0} tick={{ fontSize: 11 }} />
+                                            <RechartsTooltip />
+                                            <Legend verticalAlign="top" height={36}/>
+                                            <Bar dataKey="singleWinsPred" name="小選挙区(予測)" stackId="a" fill="#8884d8" cursor="pointer" />
+                                            <Bar dataKey="prWinsPred" name="比例(176配分)" stackId="a" fill="#82ca9d" cursor="pointer" />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                <div className="h-48 w-full relative">
+                                    <h4 className="text-sm text-center font-bold text-gray-500 absolute top-0 left-0 w-full z-10">勢力図 (予測合計)</h4>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie data={semiCircleData} cx="50%" cy="85%" startAngle={180} endAngle={0} innerRadius="100%" outerRadius="140%" paddingAngle={1} dataKey="value">
+                                                {semiCircleData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
+                                            </Pie>
+                                            <RechartsTooltip />
+                                            <Legend verticalAlign="bottom" height={36}/>
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card className="flex-1 p-6 h-fit relative">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-gray-800">政党別 実績・予測詳細</h3>
+                                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                                    <button onClick={() => setDisplayYear('2024')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${displayYear === '2024' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>2024当選</button>
+                                    <button onClick={() => setDisplayYear('2021')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${displayYear === '2021' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>2021当選</button>
+                                </div>
+                            </div>
+                            <div className="w-full">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-50"><tr><th className="p-2 text-left bg-gray-50">政党</th><th className="p-2 text-right bg-gray-50">{displayYear}当選<br/><span className="text-xs font-normal">(小+比)</span></th><th className="p-2 text-right bg-gray-50">2026予測<br/><span className="text-xs font-normal">(小+比)</span></th></tr></thead>
+                                    <tbody>
+                                        {partyStats.map((p) => (
+                                            <tr key={p.name} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => handleSummaryClick(p)}>
+                                                <td className="p-1 flex items-center align-top"><span className="w-3 h-3 rounded-full mr-2 mt-1.5" style={{ backgroundColor: p.color }}></span><span className="text-lg">{p.name}</span></td>
+                                                <td className="p-1 text-right align-top"><div className="flex flex-col items-end"><span className="font-bold text-lg">{p.singleWinsResult + p.prWinsResult}</span><span className="text-xs text-gray-500 font-mono">(小{p.singleWinsResult}/比{p.prWinsResult})</span></div></td>
+                                                <td className="p-1 text-right align-top"><div className="flex flex-col items-end"><span className="font-bold text-lg text-blue-600">{p.singleWinsPred + p.prWinsPred}</span><span className="text-xs text-gray-500 font-mono">(小{p.singleWinsPred}/比{p.prWinsPred})</span></div></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-red-50 p-4 rounded-lg border border-red-100 cursor-pointer hover:bg-red-100 transition-colors" onClick={handleCloseRaceClick}>
+                            <div className="text-red-800 font-bold text-lg">{districtsData.filter(d => d.type === 'single' && d.isCloseRace).length}</div>
+                            <div className="text-red-600 text-sm">小選挙区 接戦数 (票差10%未満)</div>
+                            <div className="text-xs text-red-400 mt-1">クリックで一覧を表示</div>
+                        </div>
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                            <div className="text-blue-800 font-bold text-lg">{districtsData.filter(d => d.type === 'single').length}</div>
+                            <div className="text-blue-600 text-sm">分析対象 小選挙区数</div>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <div className="text-gray-800 font-bold text-lg">{districtsData.filter(d => d.type === 'proportional' && isCountablePR(d.name)).length}</div>
+                            <div className="text-gray-600 text-sm">比例ブロック数 (全国比例除く)</div>
+                        </div>
+                    </div>
+                    <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-500">
+                        <h4 className="font-bold mb-2 flex items-center gap-2"><Info className="w-4 h-4" />分析メモ</h4>
+                        <p>データ分析に基づく注釈: ... (省略) ... {IS_READ_ONLY ? "" : <br/> } {IS_READ_ONLY ? "" : "※ クラウド保存機能が有効です。"}</p>
+                    </div>
+                </div>
+            );
+            
+            // アップロード画面の定義を追加（ReferenceError解消のため）
+            const renderUpload = () => (
+                <div className="flex flex-col items-center justify-start h-full p-6 bg-gray-50 pb-20 overflow-y-auto gap-6 animate-in fade-in duration-300">
+                    <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200 text-center max-w-lg w-full">
+                        <div className="mx-auto mb-4 text-blue-500 flex justify-center"><Upload width={48} height={48} /></div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">1. 分析データをアップロード</h3>
+                        <p className="text-gray-600 text-sm mb-6">「得票予測シュミレーション.csv」などを読み込みます。<br/><span className="text-xs text-gray-400">必須列: 選挙区, 政党, 候補者名<br/>追加: 今回予想, 年齢, 2024/2021/2017...得票数</span></p>
+                        <label className="block w-full cursor-pointer group"><div className="flex items-center justify-center w-full px-6 py-3 bg-blue-600 text-white rounded-lg group-hover:bg-blue-700 transition-colors shadow-md font-bold text-sm"><span className="mr-2"><Upload width={16} height={16} /></span>分析ファイルを選択 (CSV / Excel)</div><input type="file" accept=".csv, .xlsx, .xls" onChange={(e) => handleFileUpload(e, 'analysis')} className="hidden" /></label>
+                    </div>
+                    <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200 text-center max-w-lg w-full">
+                        <div className="mx-auto mb-4 text-green-500 flex justify-center"><Users width={48} height={48} /></div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">2. 有権者数ファイルをアップロード</h3>
+                        <p className="text-gray-600 text-sm mb-6">「有権者数入力用ファイル.csv」などを読み込み、選挙区データに紐付けます。<br/><span className="text-xs text-gray-400">必須列: 選挙区, 有権者数 (または有権者総数)</span></p>
+                        <label className="block w-full cursor-pointer group"><div className="flex items-center justify-center w-full px-6 py-3 bg-green-600 text-white rounded-lg group-hover:bg-green-700 transition-colors shadow-md font-bold text-sm"><span className="mr-2"><Upload width={16} height={16} /></span>有権者数ファイルを選択 (CSV / Excel)</div><input type="file" accept=".csv, .xlsx, .xls" onChange={(e) => handleFileUpload(e, 'voter')} className="hidden" /></label>
+                    </div>
+                    <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200 text-center max-w-lg w-full">
+                        <div className="mx-auto mb-4 text-purple-500 flex justify-center"><Download width={48} height={48} /></div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">3. データをエクスポート</h3>
+                        <p className="text-gray-600 text-sm mb-6">現在の分析データをCSVファイルとしてダウンロードします。<br/><span className="text-xs text-gray-400">編集した内容も含まれます。</span></p>
+                        <button onClick={handleExportData} className="flex items-center justify-center w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-md font-bold text-sm"><span className="mr-2"><Download width={16} height={16} /></span>CSV形式でダウンロード</button>
+                    </div>
+                    <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200 text-center max-w-lg w-full border-t-4 border-t-purple-500">
+                        <div className="mx-auto mb-4 text-purple-600 flex justify-center"><Code width={48} height={48} /></div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">4. 閲覧専用ファイル書き出し</h3>
+                        <p className="text-gray-600 text-sm mb-6">現在のデータを保持したまま、アップロードや編集機能を削除した<br/><strong>「閲覧専用のHTMLファイル」</strong>のコードを生成します。<br/><span className="text-xs text-gray-400">配布や共有に便利です。</span></p>
+                        <button onClick={handleExportReadOnlyHtml} className="flex items-center justify-center w-full px-6 py-3 bg-white border-2 border-purple-600 text-purple-600 rounded-lg hover:bg-purple-50 transition-colors shadow-sm font-bold text-sm"><span className="mr-2"><Code width={16} height={16} /></span>閲覧専用コードを生成</button>
+                    </div>
+                    <div className="max-w-lg w-full mt-4">
+                        <div className="flex items-center justify-center gap-2 p-3 bg-yellow-50 text-yellow-800 rounded-lg text-xs mb-4"><Cloud width={16} height={16} /> <span>データは自動的にクラウド(Firestore)に同期されます。</span></div>
+                        <button onClick={handleResetData} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm"><Trash2 width={16} height={16} />データをリセット(表示のみ)</button>
+                    </div>
+                </div>
+            );
+
+            // Filter UI Component - Move options logic here to ensure correct rendering
+            const renderFilterUI = () => (
+                <div className="flex-none p-4 bg-white border-b border-gray-200 shadow-sm z-10 space-y-4">
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <div className="flex-1"><div className="relative"><div className="absolute left-3 top-2.5 text-gray-400"><Search width={16} height={16} /></div><input type="text" placeholder="候補者名、選挙区名、政党名..." className="pl-10 pr-10 w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={filterText} onChange={(e) => setFilterText(e.target.value)} />{filterText && <button onClick={() => setFilterText("")} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"><X width={16} height={16} /></button>}</div></div>
+                        <div className="w-full md:w-48"><div className="relative">
+                            <select className="w-full p-2 border border-gray-300 rounded-md outline-none appearance-none" value={selectedPrefecture} onChange={(e) => setSelectedPrefecture(e.target.value)}>
+                                <option value="All">全国</option>
+                                <optgroup label="比例ブロック">
+                                    {PR_BLOCKS.map(b => <option key={b} value={b}>{b}</option>)}
+                                </optgroup>
+                                <optgroup label="都道府県">
+                                    {PREFECTURE_ORDER.map(p => <option key={p} value={p}>{p}</option>)}
+                                </optgroup>
+                            </select>
+                            <div className="absolute right-3 top-3 text-gray-400 pointer-events-none"><ChevronDown width={16} height={16} /></div></div></div>
+                        <div className="w-full md:w-48"><div className="relative"><select className="w-full p-2 border border-gray-300 rounded-md outline-none appearance-none" value={selectedParty} onChange={(e) => setSelectedParty(e.target.value)}><option value="All">全政党</option>{Object.keys(PARTY_COLORS).map(p => <option key={p} value={p}>{p}</option>)}</select><div className="absolute right-3 top-3 text-gray-400 pointer-events-none"><ChevronDown width={16} height={16} /></div></div></div>
+                        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg self-end md:self-auto h-[42px]">
+                            <button className={`px-3 h-full rounded-md text-xs font-bold transition-all ${displayYear === '2026' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} onClick={() => setDisplayYear('2026')}>2026予想</button>
+                            <button className={`px-3 h-full rounded-md text-xs font-bold transition-all ${displayYear === '2024' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} onClick={() => setDisplayYear('2024')}>2024当選</button>
+                            <button className={`px-3 h-full rounded-md text-xs font-bold transition-all ${displayYear === '2021' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} onClick={() => setDisplayYear('2021')}>2021当選</button>
+                        </div>
+                        <div className="flex items-center gap-2 self-end md:self-auto h-[42px] px-2 bg-gray-50 rounded border border-gray-200">
+                            <label className="text-xs font-bold text-gray-500 mr-1">絞り込み:</label>
+                            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="bg-transparent text-sm font-bold text-gray-700 outline-none cursor-pointer"><option value="all">全て</option><option value="winner_all">当選 (◎+○)</option><option value="winner_single">選挙区 (◎)</option><option value="winner_pr">比例復活 (○)</option></select>
+                        </div>
+                        <button onClick={clearFilters} className="flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors self-end md:self-auto h-[42px]" title="条件をクリア"><RefreshCcw width={16} height={16} /><span className="text-sm font-bold">クリア</span></button>
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-gray-500">
+                        <span>{showCloseRaceOnly ? <span className="text-red-600 font-bold mr-2">【接戦区のみ表示中】</span> : ""}表示中: <strong>{filteredDistricts.length}</strong> {activeTab === 'single' ? '選挙区' : 'ブロック'}</span>
+                        <span className="text-xs">クリックで詳細・編集</span>
+                    </div>
+                </div>
+            );
+
+            // ... (renderDistrictsList same structure) ...
+            const renderDistrictsList = () => { /* ... same as previous ... */
+                const getWinnerId2026 = (candidates) => {
+                     if (!candidates || candidates.length === 0) return null;
+                     const sorted = [...candidates].sort((a, b) => b.predictedVotes - a.predictedVotes);
+                     return sorted[0].id;
+                };
+                const isWinner = (candidate, districtCandidates) => {
+                    if (displayYear === '2026') { const winnerId = getWinnerId2026(districtCandidates); return candidate.id === winnerId; } 
+                    else { const status = displayYear === '2024' ? candidate.status : candidate.status2021; return status && (status.includes('◎') || status.includes('○') || status.includes('⚪︎')); }
+                };
+                const isSingleWinner = (candidate, districtCandidates) => {
+                     if (displayYear === '2026') { const winnerId = getWinnerId2026(districtCandidates); return candidate.id === winnerId; } 
+                     else { const status = displayYear === '2024' ? candidate.status : candidate.status2021; return status && status.includes('◎'); }
+                };
+                const isPrWinner = (candidate) => {
+                    if (displayYear === '2026') return false; 
+                    const status = displayYear === '2024' ? candidate.status : candidate.status2021;
+                    return status && (status.includes('○') || status.includes('⚪︎'));
+                };
+
+                return (
+                    <div className="flex flex-col h-full">
+                        {renderFilterUI()}
+                        
+                        <div className="flex-1 overflow-y-auto p-4 bg-gray-100 pb-20">
+                            <SimulationPanel settings={simSettings} setSettings={setSimSettings} />
+                            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                                {filteredDistricts.map((district) => (
+                                    <Card key={district.name} className="p-4" onClick={() => setSelectedDistrict(district)}>
+                                        <div className="flex justify-between items-center mb-3">
+                                            <div>
+                                                <h4 className="font-bold text-lg text-gray-800 flex items-center">{district.name} {activeTab === 'single' && district.isCloseRace && <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded-full border border-red-200">接戦</span>}</h4>
+                                                <div className="text-xs text-gray-500 mt-0.5">予想総票数: {district.totalPredictedVotes.toLocaleString()} {district.turnout && <span>(投票率: {(district.turnout*100).toFixed(1)}%)</span>}</div>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {district.candidates.map((cand, idx) => {
+                                                let match = true;
+                                                if (filterType === 'winner_all') match = isWinner(cand, district.candidates);
+                                                else if (filterType === 'winner_single') match = isSingleWinner(cand, district.candidates);
+                                                else if (filterType === 'winner_pr') match = isPrWinner(cand);
+                                                if (!match) return null;
+
+                                                const percentage = district.totalPredictedVotes > 0 ? (cand.predictedVotes / district.totalPredictedVotes) * 100 : 0;
+                                                const partyColor = Object.entries(PARTY_COLORS).find(([k]) => cand.party.includes(k))?.[1] || DEFAULT_COLOR;
+                                                if (filterType === 'all' && idx >= (activeTab === 'single' ? 2 : 5)) return null;
+
+                                                let displayStatus = "";
+                                                if (displayYear === '2026') { if (isSingleWinner(cand, district.candidates)) displayStatus = "当選予測"; } 
+                                                else { displayStatus = displayYear === '2024' ? cand.status : cand.status2021; }
+
+                                                return (
+                                                    <div key={cand.id} className="relative">
+                                                        <div className="flex justify-between text-sm mb-1">
+                                                            <div className="flex items-center gap-2 overflow-hidden"><span className={`font-bold truncate ${idx === 0 && filterType === 'all' ? 'text-gray-900' : 'text-gray-700'}`}>{cand.name.replace(` (${district.name})`, '')} </span><Badge color={partyColor}>{cand.party}</Badge>{displayStatus && <span className="text-xs bg-gray-100 px-1 rounded text-gray-600">{displayStatus}</span>}</div>
+                                                            <span className="font-mono text-gray-600 text-xs">{cand.predictedVotes.toLocaleString()}</span>
+                                                        </div>
+                                                        <div className="w-full bg-gray-100 rounded-full h-1.5 mb-2"><div className="h-1.5 rounded-full" style={{ width: `${percentage}%`, backgroundColor: partyColor }}></div></div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {filterType === 'all' && district.candidates.length > (activeTab === 'single' ? 2 : 5) && <div className="text-xs text-center text-gray-400 mt-2">他 {district.candidates.length - (activeTab === 'single' ? 2 : 5)} {activeTab === 'single' ? '名' : '政党'}...</div>}
+                                            {filterType !== 'all' && district.candidates.filter(c => isWinner(c, district.candidates)).length === 0 && <div className="text-xs text-center text-gray-400 mt-2">該当なし</div>}
+                                        </div>
+                                    </Card>
+                                ))}
+                                {filteredDistricts.length === 0 && <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-500"><AlertCircle width={48} height={48} /><p>条件に一致するデータが見つかりません。</p></div>}
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="h-screen bg-gray-100 font-sans text-gray-800 flex flex-col overflow-hidden">
+                    <header className="flex-none bg-white shadow-sm z-20">
+                        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                            <div className="flex items-center gap-2"><div className="text-blue-600"><BarChart2 width={24} height={24} /></div><h1 className="text-2xl font-bold text-gray-900">衆議院選挙シミュレーター2026年度版 {IS_READ_ONLY && <span className="text-xs bg-gray-200 px-2 py-1 rounded text-gray-600 ml-2">閲覧専用</span>}</h1></div>
+                            <div className="text-xs text-gray-500 hidden sm:flex flex-col items-end"><span className="flex items-center gap-1"><Save width={12} height={12} />最終更新: {lastUpdated}</span></div>
+                        </div>
+                    </header>
+                    <div className="flex-none bg-white border-b border-gray-200 z-20">
+                        <div className="max-w-7xl mx-auto px-4 flex space-x-6 overflow-x-auto no-scrollbar">
+                            <button onClick={() => setActiveTab('summary')} className={`py-3 px-1 flex items-center gap-2 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'summary' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><MapIcon width={16} height={16} />情勢サマリー</button>
+                            <button onClick={() => setActiveTab('single')} className={`py-3 px-1 flex items-center gap-2 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'single' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><FileText width={16} height={16} />小選挙区</button>
+                            <button onClick={() => setActiveTab('proportional')} className={`py-3 px-1 flex items-center gap-2 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'proportional' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><Layers width={16} height={16} />比例代表</button>
+                            {!IS_READ_ONLY && <button onClick={() => setActiveTab('upload')} className={`py-3 px-1 flex items-center gap-2 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'upload' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><Upload width={16} height={16} />データ管理・読込</button>}
+                        </div>
+                    </div>
+                    <main className="flex-1 overflow-hidden relative max-w-7xl mx-auto w-full">
+                        {activeTab === 'summary' && renderSummary()}
+                        {(activeTab === 'single' || activeTab === 'proportional') && renderDistrictsList()}
+                        {activeTab === 'upload' && !IS_READ_ONLY && renderUpload()}
+                    </main>
+                    <footer className="flex-none bg-white border-t border-gray-200 py-4 text-center text-xs text-gray-500">
+                        &copy; 一般社団法人日本みらい研
+                    </footer>
+                    {selectedDistrict && <DistrictModal district={selectedDistrict} onClose={() => setSelectedDistrict(null)} onUpdate={handleUpdateCandidates} />}
+                    <AlertDialog message={alertMessage} onClose={() => setAlertMessage(null)} />
+                    <ConfirmDialog config={confirmConfig} onCancel={() => setConfirmConfig(null)} />
+                    {exportCode && <CodeExportDialog code={exportCode} onClose={() => setExportCode(null)} />}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    const root = ReactDOM.createRoot(document.getElementById('root'));root.render(<App />);</script></body></html>
