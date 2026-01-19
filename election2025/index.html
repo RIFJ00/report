@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>参議院選挙シミュレーション分析（2025年）</title>
+    <!-- Tailwind CSSを読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.jsを読み込み -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* カスタムスタイル */
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        .tab-button.active {
+            color: #2563EB; /* blue-600 */
+            border-bottom-width: 2px;
+            border-color: #2563EB; /* blue-600 */
+            font-weight: 500;
+        }
+        .tab-button {
+            color: #6B7280; /* gray-500 */
+        }
+        /* Chart.jsのツールチップのフォント設定 */
+        .chartjs-tooltip {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        /* Sub-tab styles */
+        .sub-tab-button.active {
+            background-color: #1e40af;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        
+        /* ローディングスピナー */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            width: 40px;
+            height: 40px;
+            -webkit-animation: spin 2s linear infinite; /* Safari */
+            animation: spin 2s linear infinite;
+        }
+
+        /* Safari */
+        @-webkit-keyframes spin {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 sm:p-6 lg:p-8">
+    <div id="app" class="bg-white rounded-lg shadow-lg p-4 sm:p-6 max-w-7xl mx-auto">
+        <h2 class="text-2xl font-bold mb-6 text-gray-800">参議院選挙シミュレーション分析（2025年）</h2>
+
+        <!-- タブナビゲーション -->
+        <div class="mb-6">
+            <div class="flex flex-wrap border-b border-gray-200">
+                <button class="tab-button px-4 py-2" data-tab="baseline">基本分析</button>
+                <button class="tab-button px-4 py-2" data-tab="scenarios">シナリオ分析</button>
+                <button class="tab-button px-4 py-2" data-tab="risks">リスク要因</button>
+                <button class="tab-button px-4 py-2" data-tab="issues-risks">争点とリスク</button>
+                <button class="tab-button px-4 py-2" data-tab="politics">政治情勢</button>
+                <button class="tab-button px-4 py-2" data-tab="prediction">議席予測</button>
+                <button class="tab-button px-4 py-2" data-tab="economic-policies">主要な公約</button>
+                <button class="tab-button px-4 py-2" data-tab="summary">総括と提言</button>
+                <button class="tab-button px-4 py-2" data-tab="ai-analysis">AI分析</button>
+                <button class="tab-button px-4 py-2" data-tab="results-summary">選挙結果総括</button>
+            </div>
+        </div>
+
+        <!-- タブコンテンツ -->
+        <div class="bg-gray-50 rounded-lg">
+            <!-- 基本分析タブ -->
+            <div id="baseline" class="tab-content p-4">
+                <h3 class="text-xl font-semibold mb-4 text-gray-700">参院選ベースライン予測結果（10万回シミュレーション平均）</h3>
+                <div class="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-200">
+                    <h4 class="font-medium text-blue-800 mb-3">主要ポイント</h4>
+                    <ul class="list-disc pl-5 space-y-2 text-sm text-gray-700">
+                        <li>自民党は伸び悩み、改選議席を大きく減らす予測。与党の改選過半数（63議席）は困難な情勢。</li>
+                        <li>立憲民主党とれいわ新選組が議席を増やす一方、第3極の勢いはやや失速するも依然として高い存在感を示す。</li>
+                        <li>保守票は自民党から国民民主党やその他保守系候補に流れる傾向が見られる。</li>
+                        <li>第3極の動向が、選挙後の政治状況を左右する重要な鍵となる。</li>
+                    </ul>
+                </div>
+                <div class="mb-8">
+                    <h4 class="font-medium mb-2 text-gray-700">政党別獲得議席予測（合計）</h4>
+                    <div class="h-96"><canvas id="baselineChart"></canvas></div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <div>
+                        <h4 class="font-medium mb-2 text-gray-700">議席構成（政党グループ別）</h4>
+                        <div class="h-80"><canvas id="partyGroupsChart"></canvas></div>
+                    </div>
+                    <div>
+                        <h4 class="font-medium mb-2 text-gray-700">選挙区/比例区の議席配分</h4>
+                        <div class="h-80"><canvas id="seatAllocationChart"></canvas></div>
+                    </div>
+                </div>
+                <div class="bg-gray-100 p-4 rounded shadow-sm">
+                    <h4 class="font-medium mb-3 text-gray-700">シミュレーション計算方法</h4>
+                    <div class="text-sm space-y-2 text-gray-600">
+                        <p>• 改選124議席（選挙区74＋比例50）</p>
+                        <p>• 最新の都議選結果を反映し、既成政党の伸び悩みと第3極の躍進シナリオを加味。</p>
+                        <p>• 7月7日時点のデータを基準にモンテカルロ10万回シミュレーション</p>
+                        <p>• 勝敗ライン：過半数獲得には<strong>63議席</strong>必要</p>
+                    </div>
+                </div>
+
+                <!-- 現有議席数と改選対象 -->
+                <div class="mt-8 pt-8 border-t border-gray-300">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-700">現有議席数と改選対象（2025年選挙）</h3>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div>
+                             <h4 class="font-medium mb-2 text-gray-700">各党議席数（参議院）</h4>
+                             <div class="overflow-x-auto">
+                                 <table class="min-w-full bg-white border border-gray-200 text-sm">
+                                     <thead class="bg-gray-100">
+                                         <tr>
+                                             <th class="py-2 px-3 border-b text-left font-semibold">会派名</th>
+                                             <th class="py-2 px-3 border-b text-center font-semibold">現有議席</th>
+                                             <th class="py-2 px-3 border-b text-center font-semibold">改選対象</th>
+                                             <th class="py-2 px-3 border-b text-center font-semibold">非改選</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody id="currentSeatsTableBody">
+                                         <!-- JavaScript will populate this -->
+                                     </tbody>
+                                 </table>
+                             </div>
+                        </div>
+                        <div>
+                            <h4 class="font-medium mb-2 text-gray-700">現有議席の構成</h4>
+                             <div class="h-96"><canvas id="currentSeatsChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- シナリオ分析タブ -->
+            <div id="scenarios" class="tab-content hidden p-4">
+                 <h3 class="text-xl font-semibold mb-4">選挙シナリオ分析（実現確率とインパクト）</h3>
+                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <div>
+                        <h4 class="font-medium mb-2">シナリオ別実現確率</h4>
+                        <div class="h-80"><canvas id="scenarioPieChart"></canvas></div>
+                    </div>
+                    <div>
+                        <h4 class="font-medium mb-2">選択シナリオの詳細</h4>
+                        <div id="scenarioDetail"></div>
+                    </div>
+                 </div>
+                <div class="mb-8">
+                    <h4 class="font-medium mb-2">シナリオ実現性と政党支持率の関係</h4>
+                    <div class="h-96"><canvas id="supportRateChart"></canvas></div>
+                </div>
+                 <div class="mb-8">
+                    <h4 class="font-medium mb-2">単独選挙区（1人区）の勝敗予測</h4>
+                    <div class="h-80"><canvas id="singleDistrictChart"></canvas></div>
+                    <p class="text-sm text-gray-600 mt-1">※32の1人区における与野党の競争状況の予測</p>
+                 </div>
+                <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
+                    <h4 class="font-medium text-blue-800 mb-3">シナリオ分析の結論</h4>
+                     <ul class="list-disc pl-5 space-y-2 text-sm">
+                        <li>都議選の結果を受け、最も可能性が高いのは「<strong>与党過半数割れ・DPFP補完</strong>」シナリオ（確率40%）だが、その内実はより複雑化。</li>
+                        <li>「<strong>第3極の地殻変動</strong>」シナリオの確率が25%に急上昇。既成政党への不満が、国民・維新だけでなく、参政党やれいわ等の多様な受け皿に向かう可能性。</li>
+                        <li>与党単独での過半数獲得（確率10%）は非常に困難な状況。自民惨敗シナリオ（15%）も現実味を帯びる。</li>
+                        <li>選挙の鍵は、無党派層に加え、自民党の支持基盤から離反した保守層の動向となる。</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- リスク分析タブ -->
+            <div id="risks" class="tab-content hidden p-4">
+                <h3 class="text-lg font-semibold mb-4">参院選に影響するリスク要因と注視点</h3>
+                <div class="mb-8">
+                    <h4 class="font-medium mb-2">主要リスク要因（影響度×確率）</h4>
+                    <div class="h-96"><canvas id="riskFactorChart"></canvas></div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <div>
+                        <h4 class="font-medium mb-2">リスク要因のレーダーチャート</h4>
+                        <div class="h-96"><canvas id="riskRadarChart"></canvas></div>
+                    </div>
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <h4 class="font-medium mb-3">リスク要因の詳細分析</h4>
+                        <div id="riskFactorDetails"></div>
+                    </div>
+                </div>
+                <div class="mb-8">
+                    <h4 class="font-medium mb-2">注視すべき政治イベントタイムライン</h4>
+                    <div class="relative pt-8">
+                        <div class="bg-gray-200 h-2 absolute top-6 left-0 right-0 rounded-full"></div>
+                        <div class="grid grid-cols-4 relative text-center">
+                            <div class="p-2">
+                                <div class="w-8 h-8 rounded-full bg-white border-4 border-gray-300 mx-auto mb-2 z-10 relative"></div>
+                                <div class="font-medium text-sm">5月末</div>
+                                <div class="text-xs text-gray-600">最新世論調査</div>
+                            </div>
+                            <div class="p-2">
+                                <div class="w-8 h-8 rounded-full bg-white border-4 border-blue-300 mx-auto mb-2 z-10 relative"></div>
+                                <div class="font-medium text-sm">6月中旬</div>
+                                <div class="text-xs text-gray-600">追加経済対策</div>
+                            </div>
+                            <div class="p-2">
+                                <div class="w-8 h-8 rounded-full bg-white border-4 border-yellow-400 mx-auto mb-2 z-10 relative"></div>
+                                <div class="font-medium text-sm">6月末</div>
+                                <div class="text-xs text-gray-600">選挙公示</div>
+                            </div>
+                             <div class="p-2">
+                                <div class="w-8 h-8 rounded-full bg-white border-4 border-red-500 mx-auto mb-2 z-10 relative"></div>
+                                <div class="font-medium text-sm">7月中旬</div>
+                                <div class="text-xs text-gray-600">投開票日</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
+                    <h4 class="font-medium text-blue-800 mb-3">リスク要因の総合評価</h4>
+                    <ul class="list-disc pl-5 space-y-2 text-sm">
+                        <li><strong>既成政党への不信感</strong>が最大の変動要因。都議選で見られた傾向が全国に波及すれば、予測が大きく覆るリスク。</li>
+                        <li><strong>物価高第２波</strong>は依然として大きなリスク。生活実感に響く問題は投票行動に直結する。</li>
+                        <li><strong>野党の共闘のあり方</strong>。候補者調整の成否に加え、第3極との距離感が全体の議席配分に影響。</li>
+                        <li><strong>保守票の行方</strong>。自民党から離れた票がどの程度、国民民主党や参政党に流れるかが焦点。</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 争点とリスクタブ -->
+            <div id="issues-risks" class="tab-content hidden p-4">
+                <div class="text-center mb-8">
+                    <h2 class="text-3xl font-bold text-slate-900 mb-2">勝敗を分ける争点とリスク要因</h2>
+                    <p class="max-w-3xl mx-auto text-slate-600">
+                        選挙の行方を左右する主要な変動要因である。タブを選択して、各テーマの詳細な分析を閲覧されたい。
+                    </p>
+                </div>
+                <div>
+                    <div class="mb-4 flex flex-wrap justify-center gap-2">
+                        <button class="sub-tab-button px-4 py-2 text-sm font-bold rounded-full transition-all duration-200 bg-white shadow-sm" data-subtab="tab1">経済と物価</button>
+                        <button class="sub-tab-button px-4 py-2 text-sm font-bold rounded-full transition-all duration-200 bg-white shadow-sm" data-subtab="tab2">野党の動向</button>
+                        <button class="sub-tab-button px-4 py-2 text-sm font-bold rounded-full transition-all duration-200 bg-white shadow-sm" data-subtab="tab3">無党派層の動向</button>
+                        <button class="sub-tab-button px-4 py-2 text-sm font-bold rounded-full transition-all duration-200 bg-white shadow-sm" data-subtab="tab4">公明党の課題</button>
+                    </div>
+                    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg min-h-[450px]">
+                        <div id="sub-tab1" class="sub-tab-content">
+                            <h3 class="text-xl font-bold mb-4">経済戦線：インフレ圧力 vs 政府の緩和策</h3>
+                            <p class="text-slate-600 mb-4">根強いインフレ、特に食料品価格の高騰は有権者の最大の不満である。一方、政府は補助金によるガソリン価格の抑制を成果として強調する。選挙戦は「日々の食費」対「ガソリン価格」という二つの経済ナラティブの戦いとなり、無党派層がどちらをより切実に感じるかが投票行動を左右する。</p>
+                            <div class="grid md:grid-cols-2 gap-4 text-center">
+                                <div class="bg-rose-50 p-4 rounded-lg">
+                                    <p class="text-sm font-bold text-rose-800">消費者物価指数 (生鮮食品除く)</p>
+                                    <p class="text-3xl font-bold text-rose-600">+3.4% ~ 3.6%</p>
+                                    <p class="text-xs text-rose-500">(4-5月 前年同月比)</p>
+                                </div>
+                                <div class="bg-green-50 p-4 rounded-lg">
+                                    <p class="text-sm font-bold text-green-800">ガソリン価格</p>
+                                    <p class="text-3xl font-bold text-green-600">7週連続下落</p>
+                                    <p class="text-xs text-green-500">(政府補助金が主因)</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="sub-tab2" class="sub-tab-content hidden">
+                            <h3 class="text-xl font-bold mb-4">野党の戦略的ジレンマ：統一戦線の約束と危険</h3>
+                            <p class="text-slate-600 mb-4">野党が一人区で勝利するには候補者一本化が不可欠であるが、その道のりは険しい。立憲民主党が支持を伸ばす一方、維新は失速し、野党内のパワーバランスが変化している。主導権争いが、全選挙区での完全な統一を困難にする。特に共産党との連携を巡るジレンマは、野党が抱える長年の課題である。</p>
+                            <div class="relative mx-auto h-64 md:h-80 max-w-xl"><canvas id="oppositionSupportChart"></canvas></div>
+                        </div>
+                        <div id="sub-tab3" class="sub-tab-content hidden">
+                            <h3 class="text-xl font-bold mb-4">決定的要因となる無党派層</h3>
+                            <p class="text-slate-600 mb-4">「支持政党なし」と答える無党派層は、全有権者の約4割を占める最大の勢力である。彼らは与党に不満を持ちつつも、野党に政権を託す確信も持てていない。彼らの投票行動は選挙終盤の「空気」に大きく左右され、この巨大な層をどちらが惹きつけられるかが選挙結果を決定づける。</p>
+                            <div class="relative mx-auto h-64 md:h-80 max-w-sm"><canvas id="voterSegmentsChart"></canvas></div>
+                        </div>
+                        <div id="sub-tab4" class="sub-tab-content hidden">
+                            <h3 class="text-xl font-bold mb-4">公明党の難問：連立パートナーの健全性</h3>
+                            <p class="text-slate-600">連立与党の公明党は、支持母体である創価学会の高齢化による基礎票の減少という構造的な課題に直面している。低い支持率も相まって、比例代表での議席減が現実的なリスクとなっている。公明党が目標の7議席を大きく割り込むような事態になれば、与党の単独過半数獲得はほぼ不可能となり、国民民主党への依存度が決定的に高まる。</p>
+                             <div class="relative mx-auto h-64 md:h-80 max-w-xl"><canvas id="komeitoPerformanceChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 政治情勢タブ -->
+            <div id="politics" class="tab-content hidden p-4">
+                 <h3 class="text-lg font-semibold mb-4">選挙後の政治情勢シミュレーション</h3>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-blue-100">
+                      <h4 class="font-medium text-blue-800 mb-3">石破続投パターン（S-1/S-2）</h4>
+                      <div class="text-sm space-y-3">
+                        <p>• 国民民主党と「物価対策・減税協議会」設置</p>
+                        <p>• ガソリン補助延長で臨時国会を乗り切る</p>
+                        <p>• 支持率が30%台前半で底打ち、党内反乱は当面沈静</p>
+                        <p>• 石破内閣は継続するが、重要法案は常に国民民主党との調整が必須に</p>
+                      </div>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-orange-100">
+                      <h4 class="font-medium text-orange-800 mb-3">石破退陣・ポスト石破（S-4）</h4>
+                      <div class="text-sm space-y-3">
+                        <p>• 選挙区で自民が25議席以下の場合、「責任論」が噴出</p>
+                        <p>• 有力後継：小林鷹之・萩生田光一・野田佳彦（自公連立解消時）</p>
+                        <p>• 党内混乱で政策停滞のリスク</p>
+                        <p>• 次期総選挙までの「繋ぎ」政権の可能性大</p>
+                      </div>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-red-100">
+                      <h4 class="font-medium text-red-800 mb-3">野党主導の「参院多数」（S-3）</h4>
+                      <div class="text-sm space-y-3">
+                        <p>• 予算関連法案は衆院優越で成立も、重要政策で修正圧力</p>
+                        <p>• 憲法改正は参院３分の２に遠く、議論停滞</p>
+                        <p>• 野党間の政策調整が複雑化し、一貫性を欠く可能性</p>
+                        <p>• 国民民主党が与野党の橋渡し役として存在感を高める</p>
+                      </div>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-purple-100">
+                      <h4 class="font-medium text-purple-800 mb-3">衆院解散・再信任（S-5）</h4>
+                      <div class="text-sm space-y-3">
+                        <p>• 秋口以降の衆院解散、もしくは解散せず政権継続。</p>
+                        <p>• 低支持率での解散は党内抵抗大。</p>
+                        <p>• 石破総理の「捨て身」の賭けとなる可能性。</p>
+                        <p>• 政局の不安定化と市場の混乱リスク。</p>
+                      </div>
+                    </div>
+                     <div class="bg-white p-4 rounded-lg shadow-sm border border-teal-200">
+                      <h4 class="font-medium text-teal-800 mb-3">第3極の地殻変動（S-6）</h4>
+                      <div class="text-sm space-y-3">
+                        <p>• 既存政党への不信感から、無党派層の票が少数政党・新党へ</p>
+                        <p>• 参院が細分化し、キャスティングボートを握る勢力が乱立</p>
+                        <p>• 連立協議が難航し、首班指名が困難になる可能性</p>
+                        <p>• 政策の一貫性が失われ、政局が極度に不安定化するリスク</p>
+                      </div>
+                    </div>
+                 </div>
+
+                 <div class="mb-8">
+                    <h4 class="font-medium mb-3">選挙後の政策変化予測</h4>
+                    <div class="overflow-x-auto">
+                      <table class="min-w-full bg-white border border-gray-200">
+                        <thead class="bg-gray-100">
+                          <tr>
+                            <th class="py-2 px-4 border-b text-left text-sm font-semibold">シナリオ</th>
+                            <th class="py-2 px-4 border-b text-left text-sm font-semibold">財政政策</th>
+                            <th class="py-2 px-4 border-b text-left text-sm font-semibold">経済対策</th>
+                            <th class="py-2 px-4 border-b text-left text-sm font-semibold">外交・防衛</th>
+                            <th class="py-2 px-4 border-b text-left text-sm font-semibold">憲法改正</th>
+                          </tr>
+                        </thead>
+                        <tbody class="text-sm">
+                          <tr class="hover:bg-gray-50">
+                            <td class="py-2 px-4 border-b font-medium">S-1 与党過半数維持</td>
+                            <td class="py-2 px-4 border-b">現行路線継続</td>
+                            <td class="py-2 px-4 border-b">小規模対策</td>
+                            <td class="py-2 px-4 border-b">同盟強化推進</td>
+                            <td class="py-2 px-4 border-b">積極推進</td>
+                          </tr>
+                          <tr class="hover:bg-gray-50">
+                            <td class="py-2 px-4 border-b font-medium">S-2 DPFP閣外協力</td>
+                            <td class="py-2 px-4 border-b">大型減税導入</td>
+                            <td class="py-2 px-4 border-b">物価対策強化</td>
+                            <td class="py-2 px-4 border-b">現状維持</td>
+                            <td class="py-2 px-4 border-b">議論継続</td>
+                          </tr>
+                          <tr class="hover:bg-gray-50">
+                            <td class="py-2 px-4 border-b font-medium">S-3 野党参院過半数</td>
+                            <td class="py-2 px-4 border-b">大幅修正</td>
+                            <td class="py-2 px-4 border-b">給付金拡大</td>
+                            <td class="py-2 px-4 border-b">歳出見直し</td>
+                            <td class="py-2 px-4 border-b">議論停滞</td>
+                          </tr>
+                          <tr class="hover:bg-gray-50">
+                            <td class="py-2 px-4 border-b font-medium">S-4 石破退陣</td>
+                            <td class="py-2 px-4 border-b">方針不明確化</td>
+                            <td class="py-2 px-4 border-b">大型対策</td>
+                            <td class="py-2 px-4 border-b">一時停滞</td>
+                            <td class="py-2 px-4 border-b">棚上げ</td>
+                          </tr>
+                          <tr class="hover:bg-gray-50">
+                            <td class="py-2 px-4 border-b font-medium">S-6 第3極地殻変動</td>
+                            <td class="py-2 px-4 border-b">極度に不安定化</td>
+                            <td class="py-2 px-4 border-b">ポピュリズム的</td>
+                            <td class="py-2 px-4 border-b">方針の揺らぎ</td>
+                            <td class="py-2 px-4 border-b">議論停止</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                 <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
+                    <h4 class="font-medium text-blue-800 mb-3">政治情勢シミュレーションの結論</h4>
+                    <ul class="list-disc pl-5 space-y-2 text-sm">
+                        <li>最も可能性の高いシナリオは「<strong>与党過半数割れ・国民民主党による閣外協力</strong>」パターン</li>
+                        <li>この場合、石破政権は継続するが<strong>物価対策・減税が政権運営の焦点</strong>となる</li>
+                        <li>野党参院過半数となった場合でも、衆院優越で予算関連法案は成立するが、重要政策に修正圧力</li>
+                        <li>新たに加わった「第3極の地殻変動」シナリオは、<strong>政治の不安定化を極度に高める</strong>リスクとして注視が必要</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 議席予測タブ -->
+            <div id="prediction" class="tab-content hidden p-4">
+                <h3 class="text-xl font-semibold mb-4 text-gray-700">ベースライン予測</h3>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <div>
+                        <h4 class="font-medium mb-2 text-gray-700">選挙後 参議院全体勢力図（ベースライン）</h4>
+                        <div class="h-96 relative">
+                            <canvas id="powerBalanceChart"></canvas>
+                        </div>
+                        <div class="text-xs text-center text-gray-600 mt-2 space-y-1">
+                            <p>総議席数: 248議席</p>
+                            <p>過半数: 125議席 / 憲法改正発議に必要な3分の2: 166議席</p>
+                        </div>
+                    </div>
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <h4 class="font-medium text-gray-800 mb-3">勢力別議席数（ベースライン）</h4>
+                        <div id="powerBalanceDetails" class="space-y-4">
+                           <!-- JSで動的に生成 -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-8 border-t border-gray-300">
+                       <h3 class="text-xl font-semibold mb-4 text-gray-700">現有議席と予測議席の比較（ベースライン）</h3>
+                       <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                           <div class="lg:col-span-3">
+                               <h4 class="font-medium mb-2 text-gray-700">会派別 議席数変化</h4>
+                               <div class="h-96"><canvas id="postElectionChart"></canvas></div>
+                           </div>
+                           <div class="lg:col-span-2">
+                               <h4 class="font-medium mb-2 text-gray-700">議席増減表</h4>
+                               <div class="overflow-x-auto">
+                                   <table class="min-w-full bg-white border border-gray-200 text-sm">
+                                       <thead class="bg-gray-100">
+                                           <tr>
+                                               <th class="py-2 px-3 border-b text-left font-semibold">会派名</th>
+                                               <th class="py-2 px-3 border-b text-center font-semibold">現有</th>
+                                               <th class="py-2 px-3 border-b text-center font-semibold">予測</th>
+                                               <th class="py-2 px-3 border-b text-center font-semibold">増減</th>
+                                           </tr>
+                                       </thead>
+                                       <tbody id="seatChangeTableBody">
+                                           <!-- JavaScript will populate this -->
+                                       </tbody>
+                                   </table>
+                               </div>
+                           </div>
+                       </div>
+                </div>
+                
+                <div class="mt-12 pt-8 border-t-4 border-dashed border-red-300">
+                     <h3 class="text-xl font-semibold mb-4 text-red-700">悲観シナリオ（直近情勢を反映）</h3>
+                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <h4 class="font-medium mb-2 text-gray-700">選挙後 参議院全体勢力図（悲観シナリオ）</h4>
+                            <div class="h-96 relative">
+                                <canvas id="powerBalanceChartPessimistic"></canvas>
+                            </div>
+                             <div class="text-xs text-center text-gray-600 mt-2 space-y-1">
+                                <p>総議席数: 248議席</p>
+                                <p>過半数: 125議席 / 憲法改正発議に必要な3分の2: 166議席</p>
+                            </div>
+                        </div>
+                        <div class="bg-red-50 p-4 rounded-lg">
+                            <h4 class="font-medium text-gray-800 mb-3">勢力別議席数（悲観シナリオ）</h4>
+                            <div id="powerBalanceDetailsPessimistic" class="space-y-4">
+                               <!-- JSで動的に生成 -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-8 pt-8 border-t border-gray-300">
+                        <h3 class="text-xl font-semibold mb-4 text-gray-700">現有議席と予測議席の比較（悲観シナリオ）</h3>
+                        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                            <div class="lg:col-span-3">
+                                <h4 class="font-medium mb-2 text-gray-700">会派別 議席数変化</h4>
+                                <div class="h-96"><canvas id="postElectionChartPessimistic"></canvas></div>
+                            </div>
+                            <div class="lg:col-span-2">
+                                <h4 class="font-medium mb-2 text-gray-700">議席増減表</h4>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full bg-white border border-gray-200 text-sm">
+                                        <thead class="bg-gray-100">
+                                            <tr>
+                                                <th class="py-2 px-3 border-b text-left font-semibold">会派名</th>
+                                                <th class="py-2 px-3 border-b text-center font-semibold">現有</th>
+                                                <th class="py-2 px-3 border-b text-center font-semibold">予測</th>
+                                                <th class="py-2 px-3 border-b text-center font-semibold">増減</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="seatChangeTableBodyPessimistic">
+                                            <!-- JavaScript will populate this -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 主要な公約タブ -->
+            <div id="economic-policies" class="tab-content hidden p-4">
+                 <div class="overflow-x-auto rounded-lg shadow-lg">
+                    <table class="w-full text-sm text-left text-slate-500">
+                      <thead class="text-xs text-slate-700 uppercase bg-slate-200">
+                        <tr>
+                          <th scope="col" class="px-6 py-3 min-w-[150px]">政策分野</th>
+                          <th scope="col" class="px-6 py-3 min-w-[200px] text-center">自由民主党</th>
+                          <th scope="col" class="px-6 py-3 min-w-[200px] text-center">立憲民主党</th>
+                          <th scope="col" class="px-6 py-3 min-w-[200px] text-center">国民民主党</th>
+                          <th scope="col" class="px-6 py-3 min-w-[200px] text-center">日本維新の会</th>
+                          <th scope="col" class="px-6 py-3 min-w-[200px] text-center">参政党</th>
+                          <th scope="col" class="px-6 py-3 min-w-[200px] text-center">れいわ新選組</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr class="bg-white border-b hover:bg-slate-100">
+                          <th scope="row" class="px-6 py-4 font-bold text-slate-900 whitespace-nowrap">
+                            <div class="text-base">消費税</div>
+                            <div class="font-normal text-xs text-slate-500">法人税・所得税とのバランス</div>
+                          </th>
+                          <td class="px-6 py-4 align-top">
+                            <div class="font-semibold text-center text-blue-600">当面維持 (10%)</div>
+                            <p class="mt-1 text-xs">全世代型社会保障の重要な財源として堅持。軽減税率は見直しの対象。</p>
+                          </td>
+                          <td class="px-6 py-4 align-top">
+                            <div class="font-semibold text-center text-red-600">時限的に0%へ減税</div>
+                            <p class="mt-1 text-xs">インフレが収束するまでの時限措置。富裕層への課税強化とセットで提案。</p>
+                          </td>
+                          <td class="px-6 py-4 align-top">
+                            <div class="font-semibold text-center text-green-600">5%へ減税</div>
+                            <p class="mt-1 text-xs">トリガー条項凍結解除と合わせ、恒久的な消費減税を主張。</p>
+                          </td>
+                            <td class="px-6 py-4 align-top">
+                            <div class="font-semibold text-center text-yellow-500">段階的に5%へ減税</div>
+                            <p class="mt-1 text-xs">社会保障制度改革とセットでの減税を主張。「教育国債」で財源を確保。</p>
+                          </td>
+                           <td class="px-6 py-4 align-top">
+                            <div class="font-semibold text-center" style="color: #75A9A9;">0%へ減税</div>
+                            <p class="mt-1 text-xs">経済成長を最優先し、消費税は0%に。将来的には廃止も視野。</p>
+                          </td>
+                          <td class="px-6 py-4 align-top">
+                            <div class="font-semibold text-center text-orange-500">廃止</div>
+                            <p class="mt-1 text-xs">消費税は廃止し、法人税の累進課税強化や富裕層への資産課税で代替。</p>
+                          </td>
+                        </tr>
+                        <tr class="bg-white border-b hover:bg-slate-100">
+                            <th scope="row" class="px-6 py-4 font-bold text-slate-900 whitespace-nowrap">
+                              <div class="text-base">賃金上昇</div>
+                              <div class="font-normal text-xs text-slate-500">持続的な賃上げの実現</div>
+                            </th>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-blue-600">賃上げ促進税制の強化</div>
+                              <p class="mt-1 text-xs">大企業から中小企業への価格転嫁を促進。三位一体の労働市場改革を推進。</p>
+                            </td>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-red-600">最低賃金1500円</div>
+                              <p class="mt-1 text-xs">公的セクター（介護・保育等）の賃金引き上げを先行。中小企業への社会保険料負担を軽減。</p>
+                            </td>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-green-600">給料が上がる経済</div>
+                              <p class="mt-1 text-xs">人への投資を拡大し、スキルアップ支援を強化。同一労働同一賃金の徹底。</p>
+                            </td>
+                              <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-yellow-500">解雇規制の緩和</div>
+                              <p class="mt-1 text-xs">労働市場の流動性を高め、成長産業への人材移動を促進する。リカレント教育の無償化を行う。</p>
+                            </td>
+                             <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center" style="color: #75A9A9;">国内産業保護</div>
+                              <p class="mt-1 text-xs">減税と規制緩和で国内企業の競争力を強化し、自然な賃金上昇を目指す。</p>
+                            </td>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-orange-500">中小企業支援と公契約</div>
+                              <p class="mt-1 text-xs">社会保険料の事業者負担を時限的にゼロ。政府・自治体の事業を請け負う企業の労働者に適正賃金保証。</p>
+                            </td>
+                          </tr>
+                          <tr class="bg-white border-b hover:bg-slate-100">
+                            <th scope="row" class="px-6 py-4 font-bold text-slate-900 whitespace-nowrap">
+                              <div class="text-base">エネルギー政策</div>
+                              <div class="font-normal text-xs text-slate-500">安定供給と脱炭素</div>
+                            </th>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-blue-600">原発の最大限活用</div>
+                              <p class="mt-1 text-xs">安全性が確認された原発の再稼働・次世代革新炉の開発を推進。再エネも拡大。</p>
+                            </td>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-red-600">原発に依存しない</div>
+                              <p class="mt-1 text-xs">省エネと再エネの導入を加速。原発の新増設・建て替えは認めない。</p>
+                            </td>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-green-600">多様な選択肢を追求</div>
+                              <p class="mt-1 text-xs">再エネ主力化を目指し、安全基準を満たした原発の活用も選択肢として維持。</p>
+                            </td>
+                              <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-yellow-500">原発フェードアウト</div>
+                              <p class="mt-1 text-xs">原発は段階的に縮小し、再エネへの転換を加速。発送電分離の徹底。</p>
+                            </td>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center" style="color: #75A9A9;">国産エネルギー推進</div>
+                              <p class="mt-1 text-xs">食料自給率向上と合わせ、エネルギー自給率の向上を重視。原発は選択肢の一つ。</p>
+                            </td>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-orange-500">即時原発禁止</div>
+                              <p class="mt-1 text-xs">全ての原発を停止し、再エネ100%を目指す。エネルギーの地産地消を推進。</p>
+                            </td>
+                          </tr>
+                          <tr class="bg-white hover:bg-slate-100">
+                            <th scope="row" class="px-6 py-4 font-bold text-slate-900 whitespace-nowrap">
+                              <div class="text-base">財政規律</div>
+                              <div class="font-normal text-xs text-slate-500">PB黒字化目標</div>
+                            </th>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-blue-600">目標を堅持</div>
+                              <p class="mt-1 text-xs">2025年度のPB黒字化目標を堅持し、経済再生と財政健全化の両立を目指す。</p>
+                            </td>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-red-600">柔軟に見直し</div>
+                              <p class="mt-1 text-xs">PB黒字化目標は一旦凍結し、経済状況に応じた機動的な財政出動を優先。</p>
+                            </td>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-green-600">目標にこだわらない</div>
+                              <p class="mt-1 text-xs">積極財政による経済成長を優先。PB黒字化は成長の結果として目指す。</p>
+                            </td>
+                              <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-yellow-500">改革実行で達成</div>
+                              <p class="mt-1 text-xs">徹底した行財政改革（身を切る改革）で、財源を生み出し、PB黒字化を実現。</p>
+                            </td>
+                             <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center" style="color: #75A9A9;">プライマリーバランス制約からの脱却</div>
+                              <p class="mt-1 text-xs">国益に資する投資は国債発行で賄う。将来世代への負担を考慮した財政運営。</p>
+                            </td>
+                            <td class="px-6 py-4 align-top">
+                              <div class="font-semibold text-center text-orange-500">積極財政に転換</div>
+                              <p class="mt-1 text-xs">PB黒字化目標破棄。デフレ脱却まで国債を大規模に発行し、財政出動を行う。</p>
+                            </td>
+                          </tr>
+                      </tbody>
+                    </table>
+                  </div>
+            </div>
+
+            <!-- 総括タブ -->
+            <div id="summary" class="tab-content hidden p-4">
+                <h3 class="text-lg font-semibold mb-4">参院選シミュレーション総括と提言</h3>
+                <div class="bg-gray-100 p-6 rounded-lg mb-8">
+                    <h4 class="font-semibold text-gray-800 mb-4">主要な発見</h4>
+                    <div class="space-y-4">
+                        <div class="p-3 bg-white rounded shadow-sm border-l-4 border-blue-500">
+                          <h5 class="font-medium text-blue-800">1. 既成政党の苦戦と第3極の躍進</h5>
+                          <p class="mt-1 text-sm">都議選の結果が示すように、自民・立憲の二大政党が伸び悩み、国民民主、参政党、れいわ等の第3極がその受け皿として躍進する構図が鮮明になった。与党の改選過半数（63議席）確保は厳しい情勢。</p>
+                        </div>
+                        <div class="p-3 bg-white rounded shadow-sm border-l-4 border-purple-500">
+                          <h5 class="font-medium text-purple-800">2. 保守票の流動化</h5>
+                          <p class="mt-1 text-sm">自民党への批判票は、野党第一党の立憲には向かわず、同じ保守系の国民民主党や参政党に流れる傾向が強まっている。無党派層だけでなく、保守層の動向が選挙の鍵を握る。</p>
+                        </div>
+                        <div class="p-3 bg-white rounded shadow-sm border-l-4 border-green-500">
+                          <h5 class="font-medium text-green-800">3. 政治の多極化と不安定化</h5>
+                          <p class="mt-1 text-sm">選挙後は特定の政党が安定多数を確保できず、多くの少数政党がキャスティングボートを握る「多極化」時代に突入する可能性が高い。政策決定プロセスはより複雑化・不安定化するだろう。</p>
+                        </div>
+                        <div class="p-3 bg-white rounded shadow-sm border-l-4 border-teal-500">
+                          <h5 class="font-medium text-teal-800">4. 国民民主党のキープレーヤー化</h5>
+                          <p class="mt-1 text-sm">議席を伸ばし、与野党のいずれにも与しない国民民主党が、選挙後の政権の枠組みを決める上で最も重要なキープレイヤーとなる。連立のあり方を巡り、その動向が最大の焦点となる。</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-8">
+                    <h4 class="font-medium mb-2">選挙結果によるシナリオ発生確率</h4>
+                    <div class="h-96"><canvas id="summaryChart"></canvas></div>
+                </div>
+                 <div id="summary-boxes" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- Populated by JS -->
+                 </div>
+                 <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
+                    <h4 class="font-medium text-blue-800 mb-3">最終提言</h4>
+                    <div class="space-y-3 text-sm">
+                      <p>今回の参院選は、都議選を前哨戦とする<strong>「第3極の地殻変動」</strong>が最大のテーマとなる。最も可能性の高いシナリオは、自民・公明の与党が過半数を割り込み、国民民主党がキャスティングボートを握る<strong>「与党過半数割れ・DPFP補完」</strong>（確率40%）である。</p>
+                      <p>しかし、本質はより複雑であり、「第3極」の躍進シナリオ（確率25%）と連動して考える必要がある。これは単なる議席数の変動ではなく、日本の政治構造が二大政党制から<strong>多極多党制へと移行する歴史的な転換点</strong>となる可能性を秘めている。</p>
+                      <p>自民党は、離反した保守層の支持をいかに取り戻すかが最大の課題。立憲民主党は、批判の受け皿としての信頼を再構築しなければ、さらなる埋没のリスクに直面する。各党は、従来の選挙戦略の抜本的な見直しを迫られている。</p>
+                    </div>
+                  </div>
+                 <div class="text-sm text-gray-500 mt-8">
+                    <p>今後１か月で公示前最後の大型調査が相次ぐため、随時最新のデータを反映したシミュレーション結果を更新予定。</p>
+                </div>
+            </div>
+            
+            <!-- AI分析タブ -->
+            <div id="ai-analysis" class="tab-content hidden p-4">
+                <h3 class="text-xl font-semibold mb-4 text-gray-700">AIによる総合分析</h3>
+
+                <!-- API Key Input Section -->
+                <div class="max-w-3xl mx-auto mb-6 bg-white p-6 rounded-xl shadow">
+                    <h4 class="text-lg font-semibold mb-3 text-gray-800">APIキーの設定</h4>
+                    <p class="text-sm text-gray-600 mb-4">分析機能を利用するには、Google AI Studioの無料APIキーが必要です。</p>
+                    <div class="flex flex-col sm:flex-row items-center gap-3">
+                        <label for="api-key-input" class="sr-only">API Key</label>
+                        <input type="password" id="api-key-input" placeholder="ここにAPIキーを貼り付け" class="flex-grow w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <button id="save-api-key" class="w-full sm:w-auto bg-indigo-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-indigo-700 transition-colors duration-300 whitespace-nowrap">
+                            APIキーを保存
+                        </button>
+                    </div>
+                    <p id="api-key-message" class="text-center text-sm h-5 mt-2"></p>
+                    <div class="mt-4 text-xs text-gray-500 border-t pt-3">
+                        <p class="font-bold mb-1">無料APIキーの取得方法:</p>
+                        <ol class="list-decimal list-inside space-y-1">
+                            <li><a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">Google AI Studio</a> にアクセスし、Googleアカウントでログインします。</li>
+                            <li>「Get API key」メニューに移動します。</li>
+                            <li>「Create API key」をクリックして新しいキーを生成します。</li>
+                            <li>生成されたAPIキーをコピーし、上の入力欄に貼り付けて保存してください。</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="text-center mb-8">
+                    <p class="max-w-3xl mx-auto text-slate-600">
+                        シミュレーション分析の内容を基に、AIが選挙情勢の要約と戦略的洞察を生成。
+                    </p>
+                </div>
+
+                <div class="text-center mb-8">
+                    <button id="run-ai-analysis" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors duration-300 shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                        分析実行
+                    </button>
+                </div>
+                <div id="ai-result-container" class="bg-white p-6 md:p-8 rounded-xl shadow-lg min-h-[300px] prose max-w-none">
+                    <div id="ai-loader" class="hidden justify-center items-center">
+                       <div class="loader"></div>
+                    </div>
+                    <div id="ai-output">
+                        <p class="text-center text-gray-500">APIキーを設定してから、「分析実行」ボタンを押してAIによる分析を開始してください。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 情勢分析タブ -->
+            <div id="situation-analysis" class="tab-content hidden p-8 flex flex-col items-center justify-center text-center">
+                <h3 class="text-xl font-semibold mb-4 text-gray-700">外部サイトでの情勢分析</h3>
+                <p class="text-gray-600 mb-6 max-w-lg">
+                    直近の情勢分析は、外部サイトで確認できます。以下のボタンをクリックすると、新しいタブで情報分析ページが開きます。
+                </p>
+                <a href="https://felo.ai/ja/page/856dfc38-65fc-4b8e-9255-ab6305657bca?invite=2mGjka1gKG4gn" target="_blank" rel="noopener noreferrer" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors duration-300 shadow-md">
+                    情勢分析ページを開く
+                </a>
+                <p class="text-xs text-gray-500 mt-4">（felo.ai のページが新しいタブで開きます）</p>
+            </div>
+            
+            <!-- 選挙結果総括タブ -->
+            <div id="results-summary" class="tab-content hidden p-4">
+                <h3 class="text-xl font-semibold mb-6 text-gray-700">選挙結果総括とシミュレーション比較</h3>
+
+                <div class="mb-8 overflow-x-auto">
+                    <h4 class="font-medium mb-2 text-gray-700">予測と結果の比較</h4>
+                    <table class="min-w-full bg-white border border-gray-200 text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="py-2 px-3 border-b text-left font-semibold">政党名</th>
+                                <th class="py-2 px-3 border-b text-center font-semibold">予測 (ベースライン)</th>
+                                <th class="py-2 px-3 border-b text-center font-semibold">予測 (悲観シナリオ)</th>
+                                <th class="py-2 px-3 border-b text-center font-semibold bg-blue-50">実際の結果</th>
+                                <th class="py-2 px-3 border-b text-center font-semibold">差異 (vs ベースライン)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-comparison-table">
+                            </tbody>
+                    </table>
+                </div>
+
+                <div class="space-y-6">
+                    <div>
+                        <h4 class="font-medium text-green-700 mb-2">的中した点</h4>
+                        <ul class="list-disc pl-5 space-y-2 text-sm text-gray-700 bg-green-50 p-4 rounded-lg">
+                            <li>与党（自民・公明）が改選過半数を割り込むという大きな潮流を正確に予測した。</li>
+                            <li>既成政党への不満の受け皿として、国民民主党や参政党といった「第3極」が大きく躍進する構図を捉えることができた。</li>
+                            <li>立憲民主党が与党への批判票の受け皿になりきれず、議席が伸び悩む展開を予測できた。</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-red-700 mb-2">課題となった点</h4>
+                        <ul class="list-disc pl-5 space-y-2 text-sm text-gray-700 bg-red-50 p-4 rounded-lg">
+                            <li>自民党の敗北は想定していたものの、実際の結果（39議席）はベースライン予測（40議席）をも下回る厳しいものであった。</li>
+                            <li>国民民主党（17議席）と参政党（14議席）の躍進は、シミュレーションの想定（それぞれ15議席、12議席）をさらに上回る規模であった。</li>
+                            <li>れいわ新選組の議席を過大評価（予測6議席に対し結果3議席）し、日本維新の会を過小評価（予測6議席に対し結果7議席）するなど、第3極内での力学の読み違いがあった。</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-blue-800 mb-2">全体の総括</h4>
+                        <div class="text-sm text-gray-800 space-y-3 bg-blue-50 p-4 rounded-lg">
+                            <p>今回のシミュレーションは、「自民党の一強体制が揺らぎ、政治が多極化する」というマクロなトレンドを正確に捉えることができた。特に、選挙前の段階で「悲観シナリオ」として提示した議席予測が、実際の結果に非常に近いものとなった点は、情勢の厳しい見方が現実的であったことを示している。</p>
+                            <p>一方で、個別の政党、特に躍進した第3極の中での議席配分の予測には課題が残った。これは、従来の政党支持の枠組みを超えた、有権者の新しい選択の動きを完全にモデル化することの難しさを示唆している。今後は、無党派層や特定の政策課題に強く反応する層の動向を、より精密に分析モデルに組み込むことが重要となるだろう。</p>
+                        </div>
+                    </div>
+                </div>
+                 <div class="mt-12 pt-8 border-t-4 border-dashed border-gray-300">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-700">今後の政治情勢レポート</h3>
+                     <div class="space-y-6 text-sm text-gray-800">
+                        <div>
+                            <h4 class="text-lg font-semibold text-slate-800 mb-2">一強時代の終焉と多極化時代の幕開け</h4>
+                            <p class="mb-3">参議院で自民党が単独過半数を失ったことは、日本の政治における歴史的な転換点となる。これにより、長らく続いた「自民一強」体制は事実上終焉を迎え、複数の勢力が拮抗する「多極化時代」へと本格的に移行する。今後は、国民民主党や参政党、日本維新の会といった第3極の勢力が、法案ごとに賛否を決めるキャスティングボートを握ることになり、国会運営はこれまで以上に複雑化・流動化することが必至である。</p>
+                        </div>
+
+                        <div>
+                            <h4 class="text-lg font-semibold text-slate-800 mb-3">過半数割れした自民党の今後の動向シミュレーション</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div class="p-4 bg-white rounded-lg shadow">
+                                    <h5 class="font-bold text-center mb-2">A) 国民民主党との連立・閣外協力</h5>
+                                    <p class="text-xs mb-2"><span class="font-semibold">確率:</span> 高</p>
+                                    <p class="text-xs">過半数回復のため、最も現実的な選択肢。国民民主党が掲げる減税や経済対策を受け入れる形で、部分連立や閣外協力を模索する。石破政権は当面維持されるが、政策の主導権の一部を譲渡することになり、党内保守派からの反発も予想される。</p>
+                                </div>
+                                <div class="p-4 bg-white rounded-lg shadow">
+                                    <h5 class="font-bold text-center mb-2">B) 少数与党での政権運営</h5>
+                                    <p class="text-xs mb-2"><span class="font-semibold">確率:</span> 中</p>
+                                    <p class="text-xs">連立協議が不調に終わった場合、少数与党のまま政権運営を続ける。重要法案の成立は極めて困難となり、野党や第3極の協力がなければ予算案の通過すら危ぶまれる。政権は常に行き詰まりのリスクを抱え、早期の衆院解散・総選挙につながる可能性が高い。</p>
+                                </div>
+                                <div class="p-4 bg-white rounded-lg shadow">
+                                    <h5 class="font-bold text-center mb-2">C) 党内抗争と総裁交代</h5>
+                                    <p class="text-xs mb-2"><span class="font-semibold">確率:</span> 中</p>
+                                    <p class="text-xs">選挙敗北の責任を取り、石破総理が退陣に追い込まれるシナリオ。党内は後継総裁を巡る権力闘争に突入し、政治的な空白が生まれる。新総裁の下で人心一新を図るが、党の分裂やさらなる支持率低下のリスクもはらむ。</p>
+                                </div>
+                                <div class="p-4 bg-white rounded-lg shadow">
+                                    <h5 class="font-bold text-center mb-2">D) 維新との連立・閣外協力</h5>
+                                    <p class="text-xs mb-2"><span class="font-semibold">確率:</span> 中</p>
+                                    <p class="text-xs">憲法改正や行政改革など、政策的な親和性は高い。しかし、大阪での対立関係もあり、全面的な協力にはハードルが存在する。限定的な政策協力から探る形となるか。</p>
+                                </div>
+                                <div class="p-4 bg-white rounded-lg shadow">
+                                    <h5 class="font-bold text-center mb-2">E) 立憲との連立・閣外協力（大連立）</h5>
+                                    <p class="text-xs mb-2"><span class="font-semibold">確率:</span> 低</p>
+                                    <p class="text-xs">安全保障やエネルギー政策など基本政策での隔たりが大きく、極めて非現実的。国家的な危機でもない限り、双方の支持層が許容しない可能性が高い。</p>
+                                </div>
+                                <div class="p-4 bg-white rounded-lg shadow">
+                                    <h5 class="font-bold text-center mb-2">F) 自民党下野と野党政権</h5>
+                                    <p class="text-xs mb-2"><span class="font-semibold">確率:</span> 低</p>
+                                    <p class="text-xs">連立協議が全て不調に終わり、自民党が政権運営能力を失った場合。立憲・国民を中心に第3極を取り込んだ連立政権が樹立されるが、政策調整は難航し、短命政権となるリスクを抱える。</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <footer class="text-center text-xs text-gray-500 mt-8 pb-4">
+        <p>この分析は一般社団法人日本みらい研による独自調査である（更新日: <span id="update-date"></span>）</p>
+    </footer>
+
+    <script>
+        // === DATA DEFINITIONS (UPDATED July 21, 2025) ===
+        // Reflects the trend of the Tokyo Metropolitan Assembly election results and user feedback.
+        const baselineResults = [
+            { party: '自由民主党', color: '#58A9F2', singleSeat: 27, proportionalSeat: 13, total: 40 },
+            { party: '公明党', color: '#92C364', singleSeat: 3, proportionalSeat: 5, total: 8 },
+            { party: '国民民主党・新緑風会', color: '#BA68C8', singleSeat: 8, proportionalSeat: 7, total: 15 },
+            { party: '立憲民主・社民・無所属', color: '#F06292', singleSeat: 15, proportionalSeat: 8, total: 23 },
+            { party: '日本維新の会', color: '#FFB74D', singleSeat: 4, proportionalSeat: 2, total: 6 },
+            { party: '参政党', color: '#75A9A9', singleSeat: 6, proportionalSeat: 6, total: 12 },
+            { party: '日本共産党', color: '#E57373', singleSeat: 2, proportionalSeat: 3, total: 5 },
+            { party: 'れいわ新選組', color: '#FF8A65', singleSeat: 4, proportionalSeat: 2, total: 6 },
+            { party: 'その他・無所属', color: '#90A4AE', singleSeat: 5, proportionalSeat: 3, total: 8 }, 
+        ];
+        
+        const pessimisticResults = [
+            { party: '自由民主党', color: '#58A9F2', singleSeat: 25, proportionalSeat: 11, total: 36 },
+            { party: '公明党', color: '#92C364', singleSeat: 2, proportionalSeat: 5, total: 7 },
+            { party: '国民民主党・新緑風会', color: '#BA68C8', singleSeat: 8, proportionalSeat: 7, total: 15 },
+            { party: '立憲民主・社民・無所属', color: '#F06292', singleSeat: 16, proportionalSeat: 10, total: 26 },
+            { party: '日本維新の会', color: '#FFB74D', singleSeat: 4, proportionalSeat: 2, total: 6 },
+            { party: '参政党', color: '#75A9A9', singleSeat: 7, proportionalSeat: 7, total: 14 },
+            { party: '日本共産党', color: '#E57373', singleSeat: 2, proportionalSeat: 3, total: 5 },
+            { party: 'れいわ新選組', color: '#FF8A65', singleSeat: 5, proportionalSeat: 2, total: 7 },
+            { party: 'その他・無所属', color: '#90A4AE', singleSeat: 5, proportionalSeat: 4, total: 9 }, 
+        ];
+        
+        const actualElectionResults = [
+             { party: '自由民主党', seats: 39 },
+             { party: '公明党', seats: 8 },
+             { party: '国民民主党・新緑風会', seats: 17 },
+             { party: '立憲民主・社民・無所属', seats: 22 },
+             { party: '日本維新の会', seats: 7 },
+             { party: '参政党', seats: 14 },
+             { party: '日本共産党', seats: 3 },
+             { party: 'れいわ新選組', seats: 3 },
+             { party: 'その他・無所属', seats: 11 }, // 社民1 + 保守2 + 諸派1 + 無所属8
+        ];
+
+        // This data represents the CURRENT seats in the House of Councillors before the election.
+        const currentSeatsData = [
+            { party: '自由民主党', total: 113, reElect: 52, nonReElect: 61, color: '#58A9F2' },
+            { party: '立憲民主・社民・無所属', total: 41, reElect: 23, nonReElect: 18, color: '#F06292' },
+            { party: '公明党', total: 27, reElect: 14, nonReElect: 13, color: '#92C364' },
+            { party: '日本維新の会', total: 17, reElect: 5, nonReElect: 12, color: '#FFB74D' },
+            { party: '国民民主党・新緑風会', total: 12, reElect: 5, nonReElect: 7, color: '#BA68C8' },
+            { party: '日本共産党', total: 11, reElect: 7, nonReElect: 4, color: '#E57373' },
+            { party: 'れいわ新選組', total: 5, reElect: 2, nonReElect: 3, color: '#FF8A65' },
+            { party: '参政党', total: 1, reElect: 0, nonReElect: 1, color: '#75A9A9' },
+            { party: 'その他・無所属', total: 13, reElect: 9, nonReElect: 4, color: '#90A4AE' }
+        ];
+
+        const partyGroups = [
+            { name: '与党', value: 55, fill: '#64B5F6' },
+            { name: '第3極', value: 42, fill: '#4DB6AC'},
+            { name: '野党', value: 27, fill: '#EF5350' },
+        ];
+
+        const scenarios = [
+            { id: 'S-1', name: '与党単独で改選過半数維持', probability: 10, color: '#64B5F6', description: '自民党が奇跡的に支持を回復し、与党だけで過半数の63議席以上を確保するシナリオ。実現のハードルは非常に高い。', trigger: '経済の急回復・野党の失策', outcome: '石破政権の基盤が強化され、安定政権運営が可能になる。' },
+            { id: 'S-2', name: '与党過半数割れ・DPFP補完', probability: 40, color: '#81C784', description: '与党が過半数に届かず、国民民主党が閣外協力する形で政権運営を継続するシナリオ。依然として可能性は高いが、第3極の動向次第で流動的。', trigger: 'DPFPが物価対策で連立合意、石破続投', outcome: '国民民主党の意向を強く反映した政策運営が求められ、政権内の緊張感が高まる。' },
+            { id: 'S-3', name: '野党連携で参院過半数奪取', probability: 7, color: '#EF5350', description: '立憲民主党を中心とした野党が連携し、参議院で過半数を握るシナリオ。第3極への票の流れから、実現性は低下。', trigger: '1人区で統一候補が予想外の善戦', outcome: '衆参ねじれ状態となり、重要政策で修正圧力が強まるが、野党内の足並みの乱れも懸念される。' },
+            { id: 'S-4', name: '自民惨敗＋石破退陣', probability: 15, color: '#FF8A65', description: '与党が50議席台前半に留まり、自民党内で石破総裁の責任論が噴出するシナリオ。都議選の流れが全国に波及した場合、現実味を帯びる。', trigger: '与党が55議席以下＋党内力学の変化', outcome: '選挙結果を受け石破総理が退陣。党内は混乱し、次期総選挙までの「繋ぎ」政権となる可能性が高い。' },
+            { id: 'S-5', name: '衆院解散・再信任', probability: 3, color: '#9575CD', description: '参院選での敗北を受け、石破総理が起死回生を狙い衆議院を解散するシナリオ。または、批判を覚悟の上で解散せずに政権運営を継続する選択肢も含まれる。', trigger: '秋口以降の衆院解散か、解散せず政権継続', outcome: '秋口以降の衆院解散、もしくは解散権を封じられたままの政権運営。いずれにせよ政局は不安定化。' },
+            { id: 'S-6', name: '第3極の地殻変動', probability: 25, color: '#4DB6AC', description: '都議選の結果が示すように、既成政党への不信が爆発し、国民、維新、れいわ、参政党等の第3極が大きく躍進するシナリオ。', trigger: '無党派層・保守離反層の受け皿となる', outcome: '参院の勢力図が細分化し、連立協議が極度に難航。政策の一貫性が失われ、政局が不安定化する。' }
+        ];
+        
+        const singleDistrictData = [
+            { id: 1, name: '与党有利', count: 6, color: '#64B5F6' },
+            { id: 2, name: '与党やや有利', count: 9, color: '#90CAF9' },
+            { id: 3, name: '接戦', count: 10, color: '#E0E0E0' },
+            { id: 4, name: '野党やや有利', count: 5, color: '#FFAB91' },
+            { id: 5, name: '野党有利', count: 2, color: '#FF8A65' }
+        ];
+
+        const riskFactors = [
+            { name: '既成政党への不信感', impact: 10, probability: 8, score: 80, color: '#4DB6AC', description: '都議選で表面化した既成政党への不満が全国に波及し、第3極へ票が流れる最大のリスク。' },
+            { name: '物価高第２波', impact: 9, probability: 7, score: 63, color: '#EF5350', description: 'コメ高騰などによる物価高が再発し、支持率が想定以上に悪化するリスク' },
+            { name: '保守票の流動化', impact: 8, probability: 8, score: 64, color: '#FFD54F', description: '自民党から離反した保守層の票が、国民民主党や参政党にどの程度流れるか。' },
+            { name: '野党共闘の形骸化', impact: 6, probability: 7, score: 42, color: '#81C784', description: '第3極の台頭により、従来の「与野党対決」の構図が崩れ、野党の連携が機能しなくなるリスク。' }
+        ];
+
+        const supportRateSimulation = [
+            { support: 25, seats: 42, result: 'S-4/S-5' }, { support: 27, seats: 48, result: 'S-4/S-3' },
+            { support: 30, seats: 56, result: 'S-2' }, { support: 33, seats: 61, result: 'S-2' },
+            { support: 35, seats: 64, result: 'S-1' }, { support: 38, seats: 69, result: 'S-1' },
+        ];
+        
+        const summaryChartData = [
+            { seats: "70以上", s1: 90, s2: 10, s3: 0, s4: 0, s5: 0, s6: 0 },
+            { seats: "63-69", s1: 80, s2: 18, s3: 0, s4: 0, s5: 2, s6: 0 },
+            { seats: "58-62", s1: 0, s2: 80, s3: 10, s4: 0, s5: 5, s6: 5 },
+            { seats: "50-57", s1: 0, s2: 55, s3: 25, s4: 5, s5: 5, s6: 10 },
+            { seats: "45-49", s1: 0, s2: 10, s3: 40, s4: 30, s5: 5, s6: 15 },
+            { seats: "45未満", s1: 0, s2: 0, s3: 15, s4: 55, s5: 10, s6: 20 },
+        ];
+        
+        // === DATA FOR "ISSUES & RISKS" TAB ===
+        const reportData = {
+          oppositionSupport: {
+            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+            datasets: [
+                { label: '立憲民主', data: [5.8, 6.1, 5.9, 5.6, 5.6, 8.2], borderColor: '#F06292', tension: 0.1 },
+                { label: '国民民主', data: [8.1, 7.5, 9.1, 8.8, 10.2, 6.8], borderColor: '#BA68C8', tension: 0.1 },
+                { label: '維新', data: [6.5, 5.9, 4.8, 4.1, 4.3, 2.3], borderColor: '#FFB74D', tension: 0.1 },
+            ]
+          },
+          voterSegments: {
+            labels: ['支持政党なし', '自民', '立憲', '国民', 'その他政党'],
+            data: [42.2, 24.3, 8.2, 6.8, 18.5],
+            colors: ['#9ca3af', '#58A9F2', '#F06292', '#BA68C8', '#d1d5db']
+          },
+          komeitoPerformance: {
+            labels: ['2013', '2016', '2019', '2022', '2025(予測)'],
+            datasets: [{
+                label: '比例獲得議席',
+                data: [7, 7, 7, 6, 5],
+                backgroundColor: '#92C364',
+                borderColor: '#689F38',
+            }]
+          }
+        };
+
+        // === DATA CALCULATION FOR PREDICTION TAB ===
+        const calculateProjection = (results) => {
+            return results.map(prediction => {
+                const current = currentSeatsData.find(c => c.party === prediction.party);
+                if (!current) {
+                    return { ...prediction, currentTotal: 0, nonReElect: 0, projectedTotal: prediction.total, change: prediction.total };
+                }
+                const projectedTotal = current.nonReElect + prediction.total;
+                const change = projectedTotal - current.total;
+                return {
+                    ...prediction,
+                    currentTotal: current.total,
+                    nonReElect: current.nonReElect,
+                    projectedTotal: projectedTotal,
+                    change: change,
+                };
+            }).sort((a,b) => b.projectedTotal - a.projectedTotal);
+        };
+
+        const calculatePowerBalance = (projectedData) => {
+            const balance = {
+                '与党': { parties: ['自由民主党', '公明党'], seats: 0, reElectBefore: 0, nonReElect: 0, color: '#64B5F6' },
+                '第3極': { parties: ['国民民主党・新緑風会', '日本維新の会', '参政党', 'その他・無所属'], seats: 0, reElectBefore: 0, nonReElect: 0, color: '#4DB6AC'},
+                '野党': { parties: ['立憲民主・社民・無所属', '日本共産党', 'れいわ新選組'], seats: 0, reElectBefore: 0, nonReElect: 0, color: '#EF5350' },
+            };
+            
+            projectedData.forEach(p => {
+                for (const group in balance) {
+                    if (balance[group].parties.includes(p.party)) {
+                        balance[group].seats += p.projectedTotal;
+                    }
+                }
+            });
+             currentSeatsData.forEach(c => {
+                for (const group in balance) {
+                    if (balance[group].parties.includes(c.party)) {
+                        balance[group].reElectBefore += c.reElect;
+                        balance[group].nonReElect += c.nonReElect;
+                    }
+                }
+            });
+            return balance;
+        };
+
+        const projectedSeatData = calculateProjection(baselineResults);
+        const powerBalanceData = calculatePowerBalance(projectedSeatData);
+        
+        const projectedSeatDataPessimistic = calculateProjection(pessimisticResults);
+        const powerBalanceDataPessimistic = calculatePowerBalance(projectedSeatDataPessimistic);
+
+
+        // === CHARTING LOGIC ===
+        let charts = {};
+        const destroyChart = (chartId) => {
+            if (charts[chartId]) {
+                charts[chartId].destroy();
+                delete charts[chartId];
+            }
+        };
+
+        const populateCurrentSeatsTable = () => {
+            const tableBody = document.getElementById('currentSeatsTableBody');
+            const sortedData = [...currentSeatsData].sort((a, b) => b.total - a.total);
+            tableBody.innerHTML = sortedData.map(d => `
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-3 border-b text-left font-medium">${d.party}</td>
+                    <td class="py-2 px-3 border-b text-center font-bold">${d.total}</td>
+                    <td class="py-2 px-3 border-b text-center text-red-600">${d.reElect}</td>
+                    <td class="py-2 px-3 border-b text-center text-gray-600">${d.nonReElect}</td>
+                </tr>
+            `).join('');
+        };
+        
+        const renderCurrentSeatsChart = () => {
+            destroyChart('currentSeatsChart');
+            const sortedData = [...currentSeatsData].sort((a, b) => a.total - b.total);
+            charts['currentSeatsChart'] = new Chart(document.getElementById('currentSeatsChart'), {
+                type: 'bar',
+                data: {
+                    labels: sortedData.map(d => d.party),
+                    datasets: [
+                        { label: '改選対象', data: sortedData.map(d => d.reElect), backgroundColor: '#EF5350' },
+                        { label: '非改選', data: sortedData.map(d => d.nonReElect), backgroundColor: '#90A4AE' },
+                    ]
+                },
+                options: { 
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false, 
+                    scales: { x: { stacked: true, title: { display: true, text: '議席数' } }, y: { stacked: true } }, 
+                    plugins: { legend: { position: 'top' }, tooltip: { callbacks: { footer: (items) => '合計: ' + items.reduce((sum, item) => sum + item.parsed.x, 0) + '議席' } } } 
+                }
+            });
+        };
+
+        const renderBaselineCharts = () => {
+            destroyChart('baselineChart');
+            const sortedData = [...baselineResults].sort((a,b) => a.total - b.total);
+            charts['baselineChart'] = new Chart(document.getElementById('baselineChart'), {
+                type: 'bar',
+                data: {
+                    labels: sortedData.map(d => d.party),
+                    datasets: [ { label: '選挙区', data: sortedData.map(d => d.singleSeat), backgroundColor: '#2196F3' }, { label: '比例区', data: sortedData.map(d => d.proportionalSeat), backgroundColor: '#4CAF50' }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true, max: 60 }, y: { stacked: true } }, plugins: { legend: { position: 'top' } } }
+            });
+
+            destroyChart('partyGroupsChart');
+            charts['partyGroupsChart'] = new Chart(document.getElementById('partyGroupsChart'), {
+                type: 'pie',
+                data: {
+                    labels: partyGroups.map(d => `${d.name} (${((d.value/124)*100).toFixed(1)}%)`),
+                    datasets: [{ data: partyGroups.map(d => d.value), backgroundColor: partyGroups.map(d => d.fill) }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' }, tooltip: { callbacks: { label: (c) => `${c.raw}議席` } } } }
+            });
+            
+            destroyChart('seatAllocationChart');
+            charts['seatAllocationChart'] = new Chart(document.getElementById('seatAllocationChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['選挙区', '比例区'],
+                     datasets: [ 
+                        { label: '与党', data: [32, 23], backgroundColor: '#64B5F6' }, 
+                        { label: '野党', data: [16, 11], backgroundColor: '#EF5350' }, 
+                        { label: '第3極', data: [26, 16], backgroundColor: '#4DB6AC' } 
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { legend: { position: 'top' } } }
+            });
+
+            populateCurrentSeatsTable();
+            renderCurrentSeatsChart();
+        };
+        
+        const renderScenarioDetail = (index) => {
+            const scenario = scenarios[index];
+            const detailDiv = document.getElementById('scenarioDetail');
+            detailDiv.innerHTML = `
+                <div class="bg-white p-4 rounded-lg shadow-sm">
+                  <div class="flex items-center">
+                    <div class="w-12 h-12 flex items-center justify-center rounded-full mr-4 text-white font-bold" style="background-color: ${scenario.color};">
+                      <span>${scenario.id}</span>
+                    </div>
+                    <div>
+                      <h3 class="font-medium text-lg">${scenario.name}</h3>
+                      <div class="text-sm text-gray-600">実現確率: <span class="font-medium">${scenario.probability}%</span></div>
+                    </div>
+                  </div>
+                  <div class="mt-4">
+                    <p class="text-sm text-gray-800 mb-3">${scenario.description}</p>
+                    <div class="bg-gray-100 p-3 rounded">
+                      <p class="text-xs text-gray-600 mb-1">トリガー条件:</p>
+                      <p class="text-sm font-medium">${scenario.trigger}</p>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded mt-3">
+                      <p class="text-xs text-blue-800 mb-1">想定される結果:</p>
+                      <p class="text-sm">${scenario.outcome}</p>
+                    </div>
+                  </div>
+                </div>`;
+        };
+
+        const renderScenariosCharts = () => {
+            destroyChart('scenarioPieChart');
+            const scenarioPieCtx = document.getElementById('scenarioPieChart');
+            charts['scenarioPieChart'] = new Chart(scenarioPieCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: scenarios.map(s => s.name),
+                    datasets: [{ data: scenarios.map(s => s.probability), backgroundColor: scenarios.map(s => s.color), borderWidth: 4, borderColor: '#f9fafb' }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '60%',
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => `${c.label}: ${c.raw}%` } } },
+                    onClick: (evt, elements) => { if (elements.length > 0) { renderScenarioDetail(elements[0].index); } }
+                }
+            });
+            renderScenarioDetail(5); // Default to S-6
+
+            destroyChart('supportRateChart');
+            charts['supportRateChart'] = new Chart(document.getElementById('supportRateChart'), {
+                type: 'line',
+                data: {
+                    labels: supportRateSimulation.map(d => d.support),
+                    datasets: [{ label: '自民党予測議席', data: supportRateSimulation.map(d => d.seats), borderColor: '#2196F3', backgroundColor: '#2196F3', tension: 0.1 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { x: { title: { display: true, text: '自民党支持率(%)' } }, y: { title: { display: true, text: '予測獲得議席数' }, min: 40, max: 70 } },
+                    plugins: { legend: { position: 'top' } }
+                }
+            });
+            
+            destroyChart('singleDistrictChart');
+            charts['singleDistrictChart'] = new Chart(document.getElementById('singleDistrictChart'), {
+                type: 'bar',
+                data: {
+                    labels: singleDistrictData.map(d => d.name),
+                    datasets: [{ label: '選挙区数', data: singleDistrictData.map(d => d.count), backgroundColor: singleDistrictData.map(d => d.color) }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        };
+        
+        const renderRiskDetails = () => {
+             const container = document.getElementById('riskFactorDetails');
+             container.innerHTML = riskFactors.sort((a,b) => b.score - a.score).map(risk => `
+                 <div class="mb-4 last:mb-0">
+                   <div class="flex items-center mb-1">
+                     <div class="w-3 h-3 rounded-full mr-2" style="background-color: ${risk.color};"></div>
+                     <h5 class="font-medium">${risk.name}</h5>
+                   </div>
+                   <div class="text-sm pl-5">
+                     <p class="text-gray-700 mb-1">${risk.description}</p>
+                     <div class="flex text-xs text-gray-600">
+                       <span class="mr-4">影響度: <strong>${risk.impact}/10</strong></span>
+                       <span>確率: <strong>${risk.probability}/10</strong></span>
+                     </div>
+                   </div>
+                 </div>
+             `).join('');
+        };
+
+        const renderRisksCharts = () => {
+            destroyChart('riskFactorChart');
+             charts['riskFactorChart'] = new Chart(document.getElementById('riskFactorChart'), {
+                type: 'bar',
+                data: {
+                    labels: riskFactors.map(d => d.name),
+                    datasets: [
+                        { type: 'bar', label: 'リスクスコア', data: riskFactors.map(d => d.score), backgroundColor: riskFactors.map(d => d.color), yAxisID: 'y' },
+                        { type: 'line', label: '影響度', data: riskFactors.map(d => d.impact), borderColor: '#2196F3', yAxisID: 'y1' },
+                        { type: 'line', label: '発生確率', data: riskFactors.map(d => d.probability), borderColor: '#FF5722', yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'リスクスコア' } },
+                        y1: { type: 'linear', display: true, position: 'right', max: 10, title: { display: true, text: '確率/影響度' }, grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+            
+            destroyChart('riskRadarChart');
+            charts['riskRadarChart'] = new Chart(document.getElementById('riskRadarChart'), {
+                type: 'radar',
+                data: {
+                    labels: riskFactors.map(d => d.name),
+                    datasets: [ { label: '影響度', data: riskFactors.map(d => d.impact), backgroundColor: 'rgba(136, 132, 216, 0.6)', borderColor: '#8884d8' }, { label: '発生確率', data: riskFactors.map(d => d.probability), backgroundColor: 'rgba(130, 202, 157, 0.6)', borderColor: '#82ca9d' } ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, max: 10 } } }
+            });
+            renderRiskDetails();
+        };
+
+        const renderIssuesRisksCharts = () => {
+            const tabButtons = document.querySelectorAll('#issues-risks .sub-tab-button');
+            const tabContents = document.querySelectorAll('#issues-risks .sub-tab-content');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const subtabId = button.dataset.subtab;
+
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+
+                    tabContents.forEach(content => {
+                        content.classList.add('hidden');
+                        if (content.id === `sub-${subtabId}`) {
+                            content.classList.remove('hidden');
+                        }
+                    });
+
+                    // Render charts on tab click to ensure canvas is visible
+                    if (subtabId === 'tab2') {
+                        destroyChart('oppositionSupportChart');
+                        const ctx = document.getElementById('oppositionSupportChart').getContext('2d');
+                        charts['oppositionSupportChart'] = new Chart(ctx, {
+                            type: 'line', data: reportData.oppositionSupport,
+                            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: '主要野党の支持率推移 (%)', font: {size: 14}}, legend: { position: 'bottom', labels: { boxWidth: 20 } }}, scales: { y: { beginAtZero: true, title: { display: true, text: '支持率 (%)' } }}}
+                        });
+                    }
+                    if (subtabId === 'tab3') {
+                        destroyChart('voterSegmentsChart');
+                        const ctx = document.getElementById('voterSegmentsChart').getContext('2d');
+                        charts['voterSegmentsChart'] = new Chart(ctx, {
+                            type: 'doughnut', data: { labels: reportData.voterSegments.labels, datasets: [{ data: reportData.voterSegments.data, backgroundColor: reportData.voterSegments.colors, hoverOffset: 4 }] },
+                            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: '有権者の支持政党（6月 JNN調査）', font: {size: 14}}, legend: { position: 'bottom', labels: { boxWidth: 20 } }}}
+                        });
+                    }
+                     if (subtabId === 'tab4') {
+                        destroyChart('komeitoPerformanceChart');
+                        const ctx = document.getElementById('komeitoPerformanceChart').getContext('2d');
+                        charts['komeitoPerformanceChart'] = new Chart(ctx, {
+                            type: 'bar',
+                            data: reportData.komeitoPerformance,
+                            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: '公明党 参院選比例獲得議席数', font: {size: 14}}, legend: {display: false} }, scales: { y: { beginAtZero: true, max: 10, title: { display: true, text: '議席数' } }}}
+                        });
+                    }
+                });
+            });
+            // Activate the first sub-tab by default if it's not already active
+            if(!document.querySelector('#issues-risks .sub-tab-button.active')) {
+                 document.querySelector('#issues-risks .sub-tab-button[data-subtab="tab1"]').click();
+            }
+        };
+
+        const renderPredictionCharts = (predictionType) => {
+            const isPessimistic = predictionType === 'pessimistic';
+            const results = isPessimistic ? pessimisticResults : baselineResults;
+            const projectedData = isPessimistic ? projectedSeatDataPessimistic : projectedSeatData;
+            const powerBalance = isPessimistic ? powerBalanceDataPessimistic : powerBalanceData;
+            
+            const chartSuffix = isPessimistic ? 'Pessimistic' : '';
+            const powerBalanceChartId = `powerBalanceChart${chartSuffix}`;
+            const powerBalanceDetailsId = `powerBalanceDetails${chartSuffix}`;
+            const postElectionChartId = `postElectionChart${chartSuffix}`;
+            const seatChangeTableBodyId = `seatChangeTableBody${chartSuffix}`;
+
+            // 1. Post Election Seat Change Chart
+            destroyChart(postElectionChartId);
+            const sortedProjectedData = [...projectedData].sort((a,b) => a.projectedTotal - b.projectedTotal);
+            charts[postElectionChartId] = new Chart(document.getElementById(postElectionChartId), {
+                type: 'bar',
+                data: {
+                    labels: sortedProjectedData.map(d => d.party),
+                    datasets: [
+                        { label: '非改選', data: sortedProjectedData.map(d => d.nonReElect), backgroundColor: '#90A4AE' },
+                        { label: '改選後予測', data: sortedProjectedData.map(d => d.total), backgroundColor: '#4DD0E1' }
+                    ]
+                },
+                options: { 
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false, 
+                    scales: { x: { stacked: true, title: { display: true, text: '議席数' } }, y: { stacked: true } }, 
+                    plugins: { legend: { position: 'top' } }
+                }
+            });
+
+            // 2. Seat Change Table
+            const tableBody = document.getElementById(seatChangeTableBodyId);
+            tableBody.innerHTML = projectedData.map(d => {
+                const changeColor = d.change > 0 ? 'text-green-600' : (d.change < 0 ? 'text-red-600' : 'text-gray-600');
+                const changeSign = d.change > 0 ? '+' : '';
+                return `
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-3 border-b text-left font-medium">${d.party}</td>
+                    <td class="py-2 px-3 border-b text-center">${d.currentTotal}</td>
+                    <td class="py-2 px-3 border-b text-center font-bold">${d.projectedTotal}</td>
+                    <td class="py-2 px-3 border-b text-center font-bold ${changeColor}">${changeSign}${d.change}</td>
+                </tr>
+            `}).join('');
+
+            // 3. Power Balance Doughnut Chart
+            destroyChart(powerBalanceChartId);
+            charts[powerBalanceChartId] = new Chart(document.getElementById(powerBalanceChartId), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(powerBalance),
+                    datasets: [{
+                        data: Object.values(powerBalance).map(d => d.seats),
+                        backgroundColor: Object.values(powerBalance).map(d => d.color),
+                        borderColor: '#f9fafb',
+                        borderWidth: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: (c) => ` ${c.label}: ${c.raw}議席` } }
+                    }
+                }
+            });
+
+            // 4. Power Balance Details
+            const detailsContainer = document.getElementById(powerBalanceDetailsId);
+            detailsContainer.innerHTML = Object.entries(powerBalance).map(([group, data]) => {
+                const percentage = ((data.seats / 248) * 100).toFixed(1);
+                return `
+                    <div class="flex items-center p-2 bg-white rounded-lg shadow-sm">
+                        <div class="w-4 h-10 rounded mr-4" style="background-color: ${data.color};"></div>
+                        <div>
+                            <div class="font-bold text-gray-800">${group}</div>
+                            <div class="text-sm text-gray-600">${data.parties.join(', ')}</div>
+                        </div>
+                        <div class="ml-auto text-right">
+                            <div class="text-lg font-bold text-gray-900">${data.seats} <span class="text-sm font-normal">議席</span></div>
+                            <div class="text-xs text-gray-500">${percentage}%</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        const renderSummaryCharts = () => {
+             destroyChart('summaryChart');
+             charts['summaryChart'] = new Chart(document.getElementById('summaryChart'), {
+                type: 'bar',
+                data: {
+                    labels: summaryChartData.map(d => d.seats),
+                    datasets: [
+                        { label: 'S-1: 与党過半数維持', data: summaryChartData.map(d => d.s1), backgroundColor: '#64B5F6' },
+                        { label: 'S-2: 国民民主閣外協力', data: summaryChartData.map(d => d.s2), backgroundColor: '#81C784' },
+                        { label: 'S-3: 野党参院過半数', data: summaryChartData.map(d => d.s3), backgroundColor: '#EF5350' },
+                        { label: 'S-4: 石破退陣', data: summaryChartData.map(d => d.s4), backgroundColor: '#FF8A65' },
+                        { label: 'S-5: 衆院解散・再信任', data: summaryChartData.map(d => d.s5), backgroundColor: '#9575CD' },
+                        { label: 'S-6: 第3極地殻変動', data: summaryChartData.map(d => d.s6), backgroundColor: '#4DB6AC' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { title: { display: false }, legend: { position: 'top' } },
+                    scales: {
+                        x: { stacked: true, title: { display: true, text: '与党獲得議席数' } },
+                        y: { stacked: true, title: { display: true, text: 'シナリオ発生確率(%)' }, min: 0, max: 100 }
+                    },
+                }
+            });
+
+            const summaryBoxesContainer = document.getElementById('summary-boxes');
+            
+            const summaryBoxData = [
+                {
+                    title: '与党（自民・公明）',
+                    groupKey: '与党',
+                    color: 'text-red-600',
+                    desc: '都議選の結果を反映し、予測は大幅減。単独過半数は絶望的。'
+                },
+                {
+                    title: '第3極（国民・維新・他）',
+                    groupKey: '第3極',
+                    color: 'text-teal-600',
+                    desc: '選挙の主役となる勢力。選挙後の政局の鍵を握る。'
+                },
+                {
+                    title: '野党（立憲・共産・れいわ）',
+                    groupKey: '野党',
+                    color: 'text-blue-600',
+                    desc: '自民党への批判を吸収できず、第3極に存在感を奪われる形。'
+                }
+            ];
+            
+            summaryBoxesContainer.innerHTML = summaryBoxData.map(d => {
+                const baseline = powerBalanceData[d.groupKey];
+                const pessimistic = powerBalanceDataPessimistic[d.groupKey];
+                const baselineContested = baseline.seats - baseline.nonReElect;
+                const pessimisticContested = pessimistic.seats - pessimistic.nonReElect;
+
+                return `
+                <div class="p-4 bg-gray-100 rounded-lg shadow-sm text-center">
+                    <h4 class="font-medium mb-3">${d.title}</h4>
+                    <div class="text-5xl font-bold ${d.color} mb-2">${baselineContested}議席</div>
+                    <p class="text-sm text-gray-600">改選前: ${baseline.reElectBefore}議席</p>
+                    <p class="text-xs text-gray-500 mt-1">(非改選: ${baseline.nonReElect}議席 / 総計: ${baseline.seats}議席)</p>
+                    <p class="mt-3 text-sm text-left">${d.desc}</p>
+                    
+                    <div class="mt-4 pt-4 border-t border-dashed border-red-400">
+                        <h5 class="font-semibold text-red-700">悲観シナリオ予測</h5>
+                        <div class="text-4xl font-bold text-red-700 mb-1">${pessimisticContested}議席</div>
+                        <p class="text-xs text-gray-500">(非改選: ${pessimistic.nonReElect}議席 / 総計: ${pessimistic.seats}議席)</p>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        };
+
+        // === AI ANALYSIS LOGIC ===
+        let userApiKey = '';
+
+        const handleAiAnalysis = async () => {
+            const runButton = document.getElementById('run-ai-analysis');
+            const loader = document.getElementById('ai-loader');
+            const outputContainer = document.getElementById('ai-output');
+
+            if (!userApiKey) {
+                outputContainer.innerHTML = '<p class="text-red-500 text-center">APIキーが設定されていません。上でAPIキーを設定してください。</p>';
+                return;
+            }
+            
+            runButton.disabled = true;
+            runButton.classList.add('opacity-50', 'cursor-not-allowed');
+            outputContainer.innerHTML = '';
+            loader.style.display = 'flex';
+
+
+            const prompt = `
+                あなたは日本の選挙を専門とする優秀な政治アナリストです。
+                以下の2025年参議院選挙に関するシミュレーションデータを分析し、総合的なサマリーと戦略的洞察を生成してください。この分析は、直近の都議選で既成政党が苦戦し、第3極が躍進したというトレンドを強く意識してください。
+
+                # データ
+                ## 1. 改選議席予測 (ベースライン)
+                ${JSON.stringify(baselineResults, null, 2)}
+
+                ## 2. 選挙後の全体議席予測
+                ${JSON.stringify(projectedSeatData, null, 2)}
+
+                ## 3. 主要シナリオと発生確率
+                ${JSON.stringify(scenarios, null, 2)}
+
+                ## 4. 主なリスク要因
+                ${JSON.stringify(riskFactors, null, 2)}
+
+                # 指示
+                以下の構成で、洞察に満ちた分析レポートを作成してください。
+                出力はHTML形式とし、<h3>, <h4>, <p>, <ul>, <li>タグのみを使用してください。
+
+                ### 1. 総合評価 (Executive Summary)
+                * 選挙情勢を一言で要約してください。「都議選の結果を受け、参院選は既成政党への不満を背景とした『第3極の地殻変動』が最大の焦点となった」という視点を必ず含めてください。
+                * 最も可能性の高い選挙結果と、その場合の政治的帰結を簡潔に述べてください。
+
+                ### 2. 勢力図の変化
+                * 与党（自民・公明）の苦戦は必至か？ その最大の要因は何か？
+                * 野党第一党の立憲民主党が伸び悩む背景は何か？
+                * 選挙後のキープレイヤーとなる政党はどこか？「国民民主党」と「その他の第3極勢力」の役割についてそれぞれ述べてください。
+
+                ### 3. 戦略的インプリケーション
+                * 自民党がこれ以上の議席減を食い止めるために克服すべき最大のリスクは何か？（保守票の流動化について言及）
+                * 第3極の政党がさらに躍進するための最も効果的な戦略は何か？
+                * 選挙結果がもたらす「多極化時代」の日本の政治・経済への影響について論じてください。
+
+                レポートは、専門的かつ分かりやすい言葉で記述し、単なるデータの羅列ではなく、データから読み取れる「意味」を解説することに重点を置いてください。
+            `;
+
+            try {
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                const payload = { contents: chatHistory };
+                const apiKey = userApiKey;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`APIエラー: ${response.statusText}. 詳細: ${JSON.stringify(errorData.error.message)}`);
+                }
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    // AIが生成したHTMLをそのまま挿入
+                    outputContainer.innerHTML = text;
+                } else {
+                    outputContainer.innerHTML = '<p class="text-red-500">分析結果の取得に失敗しました。レスポンスの形式が正しくありません。</p>';
+                    console.error("Unexpected API response structure:", result);
+                }
+
+            } catch (error) {
+                outputContainer.innerHTML = `<p class="text-red-500">分析中にエラーが発生しました: ${error.message}</p>`;
+                console.error("AI Analysis Error:", error);
+            } finally {
+                loader.style.display = 'none';
+                runButton.disabled = false;
+                runButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        };
+
+
+        // === TAB LOGIC ===
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabs = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            const switchTab = (tabName) => {
+                tabContents.forEach(content => {
+                    if (content.id === tabName) {
+                        content.classList.remove('hidden');
+                        // Call the specific render function for the active tab
+                        if (tabName === 'baseline') renderBaselineCharts();
+                        else if (tabName === 'scenarios') renderScenariosCharts();
+                        else if (tabName === 'risks') renderRisksCharts();
+                        else if (tabName === 'issues-risks') renderIssuesRisksCharts();
+                        else if (tabName === 'prediction') {
+                            renderPredictionCharts('baseline');
+                            renderPredictionCharts('pessimistic');
+                        } 
+                        else if (tabName === 'politics') { /* No chart rendering needed for this tab */ }
+                        else if (tabName === 'summary') renderSummaryCharts();
+                        else if (tabName === 'economic-policies') { /* No chart rendering needed for this tab */ }
+                        else if (tabName === 'results-summary') renderResultsSummaryTab();
+                        else if (tabName === 'ai-analysis') { 
+                            // AI Tab Specific Setup
+                            const apiKeyInput = document.getElementById('api-key-input');
+                            const saveApiKeyButton = document.getElementById('save-api-key');
+                            const runAnalysisButton = document.getElementById('run-ai-analysis');
+                            const apiKeyMessage = document.getElementById('api-key-message');
+                            const aiOutput = document.getElementById('ai-output');
+
+                            const loadApiKey = () => {
+                                userApiKey = localStorage.getItem('googleAiApiKey') || '';
+                                apiKeyInput.value = userApiKey;
+                                if (userApiKey) {
+                                    runAnalysisButton.disabled = false;
+                                    aiOutput.innerHTML = '<p class="text-center text-gray-500">上の「分析実行」ボタンを押して、AIによる分析を開始してください。</p>';
+                                } else {
+                                    runAnalysisButton.disabled = true;
+                                    aiOutput.innerHTML = '<p class="text-center text-gray-500">APIキーを設定してから、「分析実行」ボタンを押してAIによる分析を開始してください。</p>';
+                                }
+                            };
+
+                            saveApiKeyButton.addEventListener('click', () => {
+                                const key = apiKeyInput.value.trim();
+                                if(key) {
+                                    localStorage.setItem('googleAiApiKey', key);
+                                    userApiKey = key;
+                                    apiKeyMessage.textContent = 'APIキーを保存しました。';
+                                    apiKeyMessage.className = 'text-center text-sm h-5 mt-2 text-green-600';
+                                    runAnalysisButton.disabled = false;
+                                    aiOutput.innerHTML = '<p class="text-center text-gray-500">上の「分析実行」ボタンを押して、AIによる分析を開始してください。</p>';
+                                    setTimeout(() => { apiKeyMessage.textContent = ''; }, 3000);
+                                } else {
+                                    apiKeyMessage.textContent = 'APIキーを入力してください。';
+                                    apiKeyMessage.className = 'text-center text-sm h-5 mt-2 text-red-600';
+                                }
+                            });
+
+                            runAnalysisButton.addEventListener('click', handleAiAnalysis);
+                            loadApiKey();
+                        }
+                    } else {
+                        content.classList.add('hidden');
+                    }
+                });
+                tabs.forEach(tab => {
+                    tab.classList.toggle('active', tab.dataset.tab === tabName);
+                });
+            };
+            
+            const renderResultsSummaryTab = () => {
+                const tableBody = document.getElementById('results-comparison-table');
+                tableBody.innerHTML = ''; // Clear previous content
+
+                const allParties = [...new Set([
+                    ...baselineResults.map(p => p.party),
+                    ...pessimisticResults.map(p => p.party),
+                    ...actualElectionResults.map(p => p.party)
+                ])];
+                
+                allParties.forEach(partyName => {
+                    const baseline = baselineResults.find(p => p.party === partyName) || { total: '-' };
+                    const pessimistic = pessimisticResults.find(p => p.party === partyName) || { total: '-' };
+                    const actual = actualElectionResults.find(p => p.party === partyName) || { seats: '-' };
+                    const diff = (actual.seats !== '-' && baseline.total !== '-') ? actual.seats - baseline.total : '-';
+
+                    const diffColor = diff > 0 ? 'text-green-600' : (diff < 0 ? 'text-red-600' : 'text-gray-700');
+                    const diffSign = diff > 0 ? '+' : '';
+
+                    const row = `
+                        <tr class="hover:bg-gray-50 border-b">
+                            <td class="py-2 px-3 font-medium text-gray-900">${partyName}</td>
+                            <td class="py-2 px-3 text-center">${baseline.total}</td>
+                            <td class="py-2 px-3 text-center">${pessimistic.total}</td>
+                            <td class="py-2 px-3 text-center font-bold text-blue-700 bg-blue-50">${actual.seats}</td>
+                            <td class="py-2 px-3 text-center font-bold ${diffColor}">${diff !== '-' ? diffSign + diff : '-'}</td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            };
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+            });
+            
+            switchTab('baseline'); // 初期タブ
+
+            // Add footer date
+            document.getElementById('update-date').textContent = '2025年7月21日';
+        });
+    </script>
+</body>
+</html>
