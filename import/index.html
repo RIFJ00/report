@@ -32,14 +32,31 @@
 </head>
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
 
-    <!-- Firebase設定画面 -->
-    <div id="firebase-config-screen" class="fixed inset-0 bg-gray-200 flex items-center justify-center z-50 p-4">
-        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl">
-            <h2 class="text-2xl font-bold mb-4">Firebase 設定</h2>
-            <p class="mb-4 text-gray-600">
-                Firebaseプロジェクトのウェブアプリ設定（firebaseConfig）を下のテキストエリアに貼り付けてください。設定はブラウザに保存されます。
-            </p>
-            <textarea id="firebase-config-textarea" class="w-full h-64 p-2 border rounded font-mono text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+    <!-- パスワードログイン画面 -->
+    <div id="login-only-screen" class="fixed inset-0 bg-gray-200 flex items-center justify-center z-50 p-4 hidden">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md text-center">
+            <i class="fas fa-lock text-4xl text-blue-500 mb-4"></i>
+            <h2 class="text-2xl font-bold mb-6">ログイン</h2>
+            <input type="password" id="login-password-input" placeholder="パスワードを入力" class="w-full p-3 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 outline-none">
+            <p id="login-error" class="text-red-500 text-sm mb-4 h-4"></p>
+            <button id="login-submit-button" class="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors">
+                認証
+            </button>
+            <button id="reset-config-link" class="mt-4 text-xs text-gray-400 hover:text-gray-600 underline">設定をリセット</button>
+        </div>
+    </div>
+
+    <!-- 初期認証画面 -->
+    <div id="firebase-config-screen" class="fixed inset-0 bg-gray-200 flex items-center justify-center z-50 p-4 hidden">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md text-center">
+            <i class="fas fa-shield-alt text-4xl text-blue-500 mb-4"></i>
+            <h2 class="text-2xl font-bold mb-4">初期設定</h2>
+            <p class="mb-6 text-gray-600">アプリケーションパスワードを入力してください。</p>
+            
+            <div class="mb-4 text-left">
+                <input type="password" id="config-password-input" placeholder="パスワードを入力" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
             <p id="config-error" class="text-red-500 text-sm mt-2 h-4"></p>
             <button id="save-config-button" class="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-400">
                 保存して開始
@@ -234,9 +251,19 @@
         import { getFirestore, collection, getDocs, writeBatch, doc, onSnapshot, updateDoc, query, where, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // --- グローバル変数 ---
+        // --- 定数 & グローバル変数 ---
         const appId = 'default-policy-research-app';
-        
+        const APP_PASSWORD = "miraiken@1";
+        const COLLECTION_NAME = 'policy_data';
+        const METADATA_DOC_ID = 'last_import_metadata';
+        const POINT_METADATA_DOC_ID = 'point_last_import_metadata';
+        const POLICY_METADATA_DOC_ID = 'policy_last_import_metadata';
+        const ITEMS_PER_PAGE = 100;
+        const SYNONYMS = [
+            ["国土交通省", "国交省"], ["経済産業省", "経産省"], ["文部科学省", "文科省"],
+            ["厚生労働省", "厚労省"], ["農林水産省", "農水省"]
+        ];
+
         let db;
         let firebaseConfig = null;
         let currentData = [], filteredAndSortedData = [], currentPage = 1, previewData = [];
@@ -244,10 +271,17 @@
         let currentlyPlayingIcon = null;
         
         // --- DOM要素 ---
+        const loginOnlyScreen = document.getElementById('login-only-screen');
+        const loginPasswordInput = document.getElementById('login-password-input');
+        const loginSubmitButton = document.getElementById('login-submit-button');
+        const loginError = document.getElementById('login-error');
+        const resetConfigLink = document.getElementById('reset-config-link');
+
         const firebaseConfigScreen = document.getElementById('firebase-config-screen');
-        const firebaseConfigTextarea = document.getElementById('firebase-config-textarea');
+        const configPasswordInput = document.getElementById('config-password-input');
         const saveConfigButton = document.getElementById('save-config-button');
         const configError = document.getElementById('config-error');
+
         const appContainer = document.getElementById('app-container');
         const mainScreen = document.getElementById('main-screen');
         const importScreen = document.getElementById('import-screen');
@@ -286,17 +320,7 @@
         const mainAudioIconI = document.getElementById('main-audio-icon-i');
         const bookmarkFilterCheckbox = document.getElementById('bookmark-filter-checkbox');
 
-        // --- 定数 ---
-        const COLLECTION_NAME = 'policy_data';
-        const METADATA_DOC_ID = 'last_import_metadata';
-        const POINT_METADATA_DOC_ID = 'point_last_import_metadata';
-        const POLICY_METADATA_DOC_ID = 'policy_last_import_metadata';
-        const ITEMS_PER_PAGE = 100;
-        const SYNONYMS = [
-            ["国土交通省", "国交省"], ["経済産業省", "経産省"], ["文部科学省", "文科省"],
-            ["厚生労働省", "厚労省"], ["農林水産省", "農水省"]
-        ];
-        // デフォルトのFirebase設定 (デモ用)
+        // デフォルトのFirebase設定
         const defaultConfig = {
             apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04",
             authDomain: "import-b6097.firebaseapp.com",
@@ -309,23 +333,54 @@
         
         // --- 初期化 & 設定 ---
         async function startApp() {
-            firebaseConfigTextarea.value = `const firebaseConfig = ${JSON.stringify(defaultConfig, null, 2)};`;
-            
+            // 保存ボタン (初回設定時)
             saveConfigButton.addEventListener('click', async () => {
+                if (configPasswordInput.value !== APP_PASSWORD) {
+                    configError.textContent = "パスワードが正しくありません。";
+                    return;
+                }
                 saveConfigButton.disabled = true;
                 configError.textContent = '';
                 try {
-                    const configStr = firebaseConfigTextarea.value.substring(firebaseConfigTextarea.value.indexOf('{'), firebaseConfigTextarea.value.lastIndexOf('}') + 1);
-                    firebaseConfig = JSON.parse(configStr);
+                    // Firebase設定は自動的にdefaultConfigを使用
+                    firebaseConfig = defaultConfig;
                     const success = await initializeFirebase();
                     if (success) {
                         localStorage.setItem('firebaseConfig', JSON.stringify(firebaseConfig));
                         launchMainApp();
                     }
                 } catch (e) {
-                    configError.textContent = e.message || "無効なJSON形式です。";
+                    configError.textContent = e.message || "接続に失敗しました。";
                 } finally {
                     saveConfigButton.disabled = false;
+                }
+            });
+
+            // ログイン認証ボタン (2回目以降)
+            loginSubmitButton.addEventListener('click', async () => {
+                if (loginPasswordInput.value === APP_PASSWORD) {
+                    loginSubmitButton.disabled = true;
+                    try {
+                        if (await initializeFirebase()) {
+                            launchMainApp();
+                        } else {
+                            loginError.textContent = "Firebaseの初期化に失敗しました。";
+                        }
+                    } catch (e) {
+                        loginError.textContent = e.message;
+                    } finally {
+                        loginSubmitButton.disabled = false;
+                    }
+                } else {
+                    loginError.textContent = "パスワードが正しくありません。";
+                }
+            });
+
+            // 設定リセット
+            resetConfigLink.addEventListener('click', () => {
+                if(confirm("設定をリセットして初期設定に戻りますか？")) {
+                    localStorage.removeItem('firebaseConfig');
+                    location.reload();
                 }
             });
 
@@ -333,15 +388,14 @@
             if (savedConfig) {
                 try {
                     firebaseConfig = JSON.parse(savedConfig);
-                    if (await initializeFirebase()) {
-                        launchMainApp();
-                        return;
-                    }
+                    loginOnlyScreen.classList.remove('hidden');
                 } catch (e) {
                     localStorage.removeItem('firebaseConfig');
+                    firebaseConfigScreen.classList.remove('hidden');
                 }
+            } else {
+                firebaseConfigScreen.classList.remove('hidden');
             }
-            firebaseConfigScreen.style.display = 'flex';
         }
 
         async function initializeFirebase() {
@@ -357,12 +411,14 @@
                 if (error.code === 'auth/configuration-not-found') {
                     throw new Error("認証エラー: Firebaseコンソールで匿名認証を有効にしてください。");
                 }
-                throw new Error("Firebaseへの接続に失敗しました。設定情報を確認してください。");
+                throw new Error("Firebaseへの接続に失敗しました。");
             }
         }
 
         function launchMainApp() {
-            firebaseConfigScreen.style.display = 'none';
+            loginOnlyScreen.classList.add('hidden');
+            firebaseConfigScreen.classList.add('hidden');
+            appContainer.classList.remove('hidden');
             appContainer.style.display = 'flex';
             setupEventListeners();
             setupFirestoreListener();
@@ -1133,4 +1189,3 @@
     </script>
 </body>
 </html>
-
