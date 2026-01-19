@@ -68,10 +68,18 @@
 
             <!-- Controls Row -->
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
-                <div class="flex items-center space-x-2 shrink-0">
-                    <button id="playPauseBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-full transition shadow flex items-center">
+                <div class="flex items-center space-x-2 shrink-0 flex-wrap">
+                    <button id="playPauseBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-full transition shadow flex items-center mr-2 mb-2 md:mb-0">
                         <span id="playIcon">▶ 再生</span>
                     </button>
+                    
+                    <!-- Loop Mode Select -->
+                    <select id="loopModeSelect" class="bg-gray-100 border border-gray-300 text-gray-700 py-1 px-2 rounded text-sm mr-2">
+                        <option value="loop">ループ再生</option>
+                        <option value="once">一回のみ</option>
+                    </select>
+
+                    <!-- Speed Select -->
                     <select id="speedSelect" class="bg-gray-100 border border-gray-300 text-gray-700 py-1 px-2 rounded text-sm">
                         <option value="50">最速</option>
                         <option value="100">速い</option>
@@ -111,8 +119,8 @@
             <div class="text-sm text-gray-700 space-y-2 mb-6">
                 <p>世界主要地域の領土変遷を表示します。</p>
                 <ul class="list-disc pl-5 space-y-1">
-                    <li>地図上の領域をクリックすると、その時代の国名や詳細が表示されます。</li>
-                    <li>「イラン/イスラム」は、古代ペルシャ帝国、中世イスラム帝国、現代のイラン・イスラム共和国などの変遷を表します。</li>
+                    <li>地図上の領域をクリックすると、その時代の国名や地域名が表示されます。</li>
+                    <li>再生ボタン横のメニューで「ループ再生」か「一回のみ」かを選択できます。</li>
                     <li>スライダーの左側1/3は古代〜1800年、右側2/3は1800年〜現在を表示します。</li>
                 </ul>
             </div>
@@ -133,6 +141,43 @@
             it: { color: '#9333ea', name: 'イタリア' },
             eg: { color: '#0891b2', name: 'エジプト' },
             ir: { color: '#c026d3', name: 'イラン' }
+        };
+
+        // Zone Names for detailed display
+        const ZONE_NAMES = {
+            jp_main: "日本列島（本州・四国・九州）",
+            jp_hokkaido: "北海道・蝦夷地",
+            jp_okinawa: "南西諸島・琉球",
+            jp_korea: "朝鮮半島",
+            jp_taiwan: "台湾",
+            jp_sakhalin_s: "樺太（サハリン）南部",
+            cn_core: "中国本土（中原）",
+            cn_extended_w: "西域（新疆）",
+            cn_manchuria: "満州（東北部）",
+            cn_mongolia: "モンゴル高原",
+            cn_tibet: "チベット高原",
+            cn_taiwan: "台湾",
+            ru_europe: "ヨーロッパ・ロシア",
+            ru_expansion_w: "東欧・バルト海沿岸",
+            ru_siberia_w: "西シベリア",
+            ru_siberia_e: "東シベリア・極東",
+            ru_central_asia: "中央アジア",
+            ru_alaska: "アラスカ",
+            ru_manchuria_outer: "外満州（沿海地方）",
+            in_north: "北インド・ガンジス平野",
+            in_south: "南インド・デカン高原",
+            in_pakistan: "インダス川流域",
+            tr_anatolia: "アナトリア半島",
+            tr_balkans: "バルカン半島",
+            tr_levant: "レバント（シリア・パレスチナ）",
+            it_italy: "イタリア半島",
+            it_europe_w: "西ヨーロッパ",
+            it_med_e: "東地中海沿岸・アフリカ北岸",
+            eg_core: "エジプト（ナイル川流域）",
+            eg_sinai: "シナイ半島",
+            ir_iran: "イラン高原",
+            ir_meso: "メソポタミア（イラク）",
+            ir_arabia: "アラビア半島"
         };
 
         // ZONES Definition (Simplified Polygons)
@@ -539,14 +584,6 @@
                 popupText = `${Math.abs(timelineData.year)}年頃の${def.name}の勢力圏です。`;
             }
 
-            const popupContent = `
-                <div class="p-3 bg-white">
-                    <h3 class="font-bold text-lg text-slate-800 border-b pb-1 mb-2" style="border-color:${color}">${popupTitle}</h3>
-                    <p class="text-sm text-gray-600 font-bold mb-1">${timelineData.era}</p>
-                    <p class="text-sm text-gray-700 leading-relaxed">${popupText}</p>
-                </div>
-            `;
-
             zoneIds.forEach(zoneId => {
                 const coords = ZONES[zoneId];
                 if (coords) {
@@ -557,6 +594,18 @@
                         weight: 1,
                         dashArray: null
                     }).addTo(map);
+                    
+                    // Detailed info with Region Name
+                    const regionName = ZONE_NAMES[zoneId] || "詳細な地域名不明";
+                    
+                    const popupContent = `
+                        <div class="p-3 bg-white">
+                            <h3 class="font-bold text-lg text-slate-800 border-b pb-1 mb-2" style="border-color:${color}">${popupTitle}</h3>
+                            <p class="text-sm text-gray-600 font-bold mb-1">${timelineData.era}</p>
+                            <p class="text-sm text-gray-700 leading-relaxed">${popupText}</p>
+                            <p class="text-xs text-slate-500 mt-2 border-t pt-1">地域: ${regionName}</p>
+                        </div>
+                    `;
                     
                     // Bind Popup
                     polygon.bindPopup(popupContent);
@@ -586,6 +635,7 @@
         const playPauseBtn = document.getElementById('playPauseBtn');
         const playIcon = document.getElementById('playIcon');
         const speedSelect = document.getElementById('speedSelect');
+        const loopModeSelect = document.getElementById('loopModeSelect');
 
         slider.addEventListener('input', (e) => {
             updateVisualization(parseFloat(e.target.value));
@@ -603,7 +653,13 @@
             animationInterval = setInterval(() => {
                 currentVal += step;
                 if (currentVal > maxVal) {
-                    currentVal = parseFloat(slider.min);
+                    // Check Loop Mode
+                    if (loopModeSelect.value === 'loop') {
+                        currentVal = parseFloat(slider.min);
+                    } else {
+                        currentVal = maxVal;
+                        stopAnimation(); // Stop at end
+                    }
                 }
                 slider.value = currentVal;
                 updateVisualization(currentVal);
