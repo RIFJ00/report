@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日中露 領土変遷シミュレーター (3000年史)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; }
+        #map { height: 60vh; width: 100%; z-index: 0; }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #3b82f6;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .legend-item { display: flex; align-items: center; margin-right: 15px; }
+        .color-box { width: 15px; height: 15px; margin-right: 5px; border: 1px solid #fff; opacity: 0.6; }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-slate-800 text-white p-4 shadow-md z-10">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl md:text-2xl font-bold">🌏 日中露 領土変遷シミュレーター</h1>
+            <button id="helpBtn" class="text-sm bg-slate-600 px-3 py-1 rounded hover:bg-slate-500">解説</button>
+        </div>
+    </header>
+
+    <!-- Map Container -->
+    <div id="map" class="flex-grow border-b-4 border-slate-300"></div>
+
+    <!-- Controls & Info Panel -->
+    <div class="bg-white p-4 shadow-lg z-20 h-[35vh] overflow-y-auto">
+        <div class="container mx-auto max-w-4xl">
+            
+            <!-- Timeline Controls -->
+            <div class="mb-4">
+                <div class="flex justify-between items-end mb-2">
+                    <span id="currentYearDisplay" class="text-4xl font-bold text-slate-800">1000 BC</span>
+                    <span id="eraNameDisplay" class="text-xl font-semibold text-slate-600 ml-4">周 / 縄文 / 部族時代</span>
+                </div>
+                
+                <input type="range" id="yearSlider" min="-1000" max="2024" value="-1000" step="1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>1000 BC</span>
+                    <span>0</span>
+                    <span>1000 AD</span>
+                    <span>1500</span>
+                    <span>1900</span>
+                    <span>2024</span>
+                </div>
+            </div>
+
+            <!-- Controls Row -->
+            <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                <div class="flex items-center space-x-2">
+                    <button id="playPauseBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-full transition shadow flex items-center">
+                        <span id="playIcon">▶ 再生</span>
+                    </button>
+                    <select id="speedSelect" class="bg-gray-100 border border-gray-300 text-gray-700 py-1 px-2 rounded text-sm">
+                        <option value="200">速い</option>
+                        <option value="500" selected>普通</option>
+                        <option value="1000">遅い</option>
+                    </select>
+                </div>
+
+                <!-- Legend -->
+                <div class="flex">
+                    <div class="legend-item"><div class="color-box bg-red-600"></div><span class="text-sm">日本</span></div>
+                    <div class="legend-item"><div class="color-box bg-yellow-500"></div><span class="text-sm">中国 (王朝)</span></div>
+                    <div class="legend-item"><div class="color-box bg-blue-600"></div><span class="text-sm">ロシア/ソ連</span></div>
+                </div>
+            </div>
+
+            <!-- Description Box -->
+            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <h3 class="font-bold text-gray-700 mb-1">歴史的背景</h3>
+                <p id="descriptionText" class="text-sm text-gray-600 leading-relaxed">
+                    紀元前1000年頃。中国では周王朝が成立。日本列島は縄文時代晩期。ロシア地域はスラブ系や遊牧民族が居住する部族社会。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Help -->
+    <div id="helpModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg max-w-lg w-full p-6 shadow-xl">
+            <h2 class="text-xl font-bold mb-4">このアプリについて</h2>
+            <div class="text-sm text-gray-700 space-y-2 mb-6">
+                <p>過去3000年間の日本、中国、ロシアの概略的な領土変遷を表示します。</p>
+                <ul class="list-disc pl-5 space-y-1">
+                    <li>地図上の領域は歴史的な「勢力圏」を表す概略図ですが、地形に合わせてより詳細に描画しています。</li>
+                    <li>スライダーを動かすか、再生ボタンを押して歴史の流れをご覧ください。</li>
+                </ul>
+            </div>
+            <button id="closeHelpBtn" class="w-full bg-slate-800 text-white py-2 rounded hover:bg-slate-700">閉じる</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration & Data ---
+
+        // Map colors
+        const COLORS = {
+            jp: '#dc2626', // Red
+            cn: '#eab308', // Yellow/Gold
+            ru: '#2563eb'  // Blue
+        };
+
+        // Improved Polygons (Zones)
+        // More detailed coordinates to reflect geography better than simple boxes.
+        const ZONES = {
+            // --- JAPAN ---
+            // Honshu, Shikoku, Kyushu combined for simplicity but shaped like the archipelago
+            jp_main: [
+                [41.5, 140.9], [40.5, 141.7], [39.0, 142.0], [36.0, 140.8], [35.0, 140.0], // Pacific Coast North
+                [33.5, 135.7], [32.5, 132.0], [31.0, 130.7], [31.2, 129.5], // Kyushu South/West
+                [33.5, 129.5], [34.5, 131.0], [35.5, 133.0], [36.0, 135.5], // Japan Sea West
+                [37.0, 137.0], [38.5, 139.5], [40.5, 140.0], [41.3, 140.3]  // Japan Sea North
+            ],
+            // Hokkaido (Ezo)
+            jp_hokkaido: [
+                [41.4, 140.0], [42.0, 139.5], [45.5, 141.0], [45.5, 142.0], // West/North
+                [44.0, 145.0], [43.0, 145.5], [41.8, 143.0], [42.0, 141.0]  // East/South
+            ],
+            // Ryukyu Islands (Approximated as a polygon chain)
+            jp_okinawa: [
+                [27.0, 128.0], [26.0, 127.5], [24.0, 123.0], [24.5, 125.0], [28.0, 130.0]
+            ],
+            // Korean Peninsula
+            jp_korea: [
+                [43.0, 130.0], [42.5, 128.0], [40.0, 124.5], [38.0, 125.0], // North/West border
+                [34.5, 126.0], [34.0, 128.0], [35.0, 129.5], [38.0, 128.5], [42.0, 130.5] // South/East coast
+            ],
+            // Taiwan
+            jp_taiwan: [
+                [25.3, 121.5], [25.0, 122.0], [22.0, 121.0], [22.0, 120.0], [24.0, 120.0]
+            ],
+            // Karafuto (South Sakhalin) - roughly below 50th parallel
+            jp_sakhalin_s: [
+                [50.0, 142.0], [50.0, 144.5], [46.0, 143.5], [46.0, 142.0]
+            ],
+
+            // --- CHINA ---
+            // China Proper (Core) - South of Great Wall, East of Tibet/deserts
+            cn_core: [
+                [40.0, 119.8], [40.5, 116.0], [38.0, 110.0], [34.0, 108.0], // North border
+                [33.0, 105.0], [30.0, 103.0], [25.0, 100.0], [22.0, 100.0], // West/SouthWest border
+                [20.0, 108.0], [22.0, 114.0], [25.0, 119.0], [30.0, 122.0], [35.0, 120.0], [38.0, 118.0] // Coastline
+            ],
+            // Xinjiang / Western Regions
+            cn_extended_w: [
+                [48.0, 88.0], [45.0, 95.0], [42.0, 96.0], [40.0, 95.0], // East border with Mongolia
+                [36.0, 100.0], [35.0, 90.0], [35.0, 75.0], // South border with Tibet/India
+                [40.0, 75.0], [45.0, 80.0], [49.0, 87.0] // West/North border
+            ],
+            // Manchuria (Northeast)
+            cn_manchuria: [
+                [53.5, 120.0], [53.0, 125.0], [50.0, 128.0], // North (Amur river area)
+                [48.0, 135.0], [42.5, 131.0], [40.0, 124.0], // East border / Korea border
+                [40.0, 120.0], [42.0, 117.0], [45.0, 118.0], [50.0, 116.0] // West border (Mongolia)
+            ],
+            // Mongolia (Inner + Outer historically fluctuating)
+            cn_mongolia: [
+                [50.0, 90.0], [52.0, 100.0], [50.0, 115.0], [45.0, 118.0], // North/East
+                [40.0, 115.0], [38.0, 105.0], [40.0, 95.0], [42.0, 90.0]  // South/West
+            ],
+            // Tibet
+            cn_tibet: [
+                [36.0, 78.0], [36.0, 95.0], [34.0, 102.0], // North
+                [30.0, 100.0], [28.0, 98.0], [27.0, 88.0], [28.0, 82.0] // South (Himalayas)
+            ],
+            cn_taiwan: [
+                [25.3, 121.5], [25.0, 122.0], [22.0, 121.0], [22.0, 120.0], [24.0, 120.0]
+            ],
+
+            // --- RUSSIA ---
+            // European Russia (Core)
+            ru_europe: [
+                [70.0, 40.0], [60.0, 60.0], [50.0, 55.0], [45.0, 48.0], // East (Urals)
+                [44.0, 40.0], [45.0, 30.0], [50.0, 25.0], [60.0, 28.0], [68.0, 32.0] // West/South
+            ],
+            // West Expansion (Poland, Baltics, Finland)
+            ru_expansion_w: [
+                [70.0, 32.0], [60.0, 30.0], [55.0, 20.0], [50.0, 18.0], [48.0, 24.0], [55.0, 30.0]
+            ],
+            // West Siberia
+            ru_siberia_w: [
+                [75.0, 60.0], [75.0, 90.0], // North Coast
+                [55.0, 90.0], [50.0, 80.0], [50.0, 60.0], [60.0, 60.0] // South/West
+            ],
+            // East Siberia
+            ru_siberia_e: [
+                [75.0, 90.0], [70.0, 170.0], [60.0, 170.0], // North/East
+                [50.0, 140.0], [52.0, 120.0], [50.0, 100.0], [55.0, 90.0] // South
+            ],
+            // Central Asia (The Stans)
+            ru_central_asia: [
+                [50.0, 50.0], [50.0, 80.0], [42.0, 75.0], [38.0, 70.0], [36.0, 60.0], [40.0, 50.0]
+            ],
+            // Alaska
+            ru_alaska: [
+                [71.0, -156.0], [70.0, -140.0], [60.0, -139.0], [54.0, -130.0], [52.0, -170.0], [60.0, -165.0]
+            ],
+            // Outer Manchuria (Primorsky Krai) - East of Ussuri/Amur
+            ru_manchuria_outer: [
+                [54.0, 135.0], [55.0, 140.0], [50.0, 141.0], [42.5, 131.0], [48.0, 130.0]
+            ]
+        };
+
+        // Timeline Data: Which zones belong to whom at what time
+        const TIMELINE = [
+            {
+                year: -1000,
+                era: "紀元前1000年: 古代",
+                desc: "周王朝が黄河文明圏を統治。日本は縄文時代。ロシア地域はスキタイなどの遊牧民が活動。",
+                jp: [],
+                cn: ['cn_core'],
+                ru: []
+            },
+            {
+                year: -221,
+                era: "紀元前221年: 秦",
+                desc: "秦の始皇帝が中国を統一。日本は弥生時代へ移行。万里の長城の原型が建設される。",
+                jp: [],
+                cn: ['cn_core'],
+                ru: []
+            },
+            {
+                year: 100,
+                era: "100年: 漢 / 倭",
+                desc: "漢王朝が西域（シルクロード）へ拡大。日本では「倭の奴国」などが中国へ朝貢。",
+                jp: ['jp_main'], // Early Yayoi/Yamato emergence
+                cn: ['cn_core', 'cn_extended_w', 'cn_manchuria'],
+                ru: []
+            },
+            {
+                year: 600,
+                era: "600年: 隋・唐 / 大和",
+                desc: "中国は隋・唐の大帝国時代。日本は大和政権が確立し、遣隋使・遣唐使を派遣。",
+                jp: ['jp_main'],
+                cn: ['cn_core', 'cn_extended_w', 'cn_manchuria', 'cn_mongolia'],
+                ru: [] // Early Slavic tribes
+            },
+            {
+                year: 1000,
+                era: "1000年: 宋 / 平安 / キエフ大公国",
+                desc: "中国は宋（北宋）。日本は平安時代で国風文化。ロシア地域ではキエフ大公国が繁栄。",
+                jp: ['jp_main'],
+                cn: ['cn_core'], // Song lost north
+                ru: ['ru_europe']
+            },
+            {
+                year: 1280,
+                era: "1280年: 元 / 鎌倉",
+                desc: "モンゴル帝国（元）がユーラシアを席巻。中国全土、ロシア地域を支配。日本は元寇を撃退。",
+                jp: ['jp_main'],
+                cn: ['cn_core', 'cn_extended_w', 'cn_manchuria', 'cn_mongolia', 'cn_tibet'], // Yuan definition
+                ru: ['ru_europe'] // Under Mongol Yoke (Golden Horde), technically subjugated but keeping visualization simple
+            },
+            {
+                year: 1500,
+                era: "1500年: 明 / 戦国 / モスクワ大公国",
+                desc: "中国は明。日本は戦国時代で群雄割拠。モスクワ大公国がタタールのくびきを脱し拡大開始。",
+                jp: ['jp_main'],
+                cn: ['cn_core', 'cn_manchuria'],
+                ru: ['ru_europe', 'ru_siberia_w']
+            },
+            {
+                year: 1700,
+                era: "1700年: 清 / 江戸 / ロシア帝国",
+                desc: "清が中国を支配し最大版図へ。ロシアはピョートル大帝の下で帝国化しシベリアへ。日本は江戸時代の鎖国。",
+                jp: ['jp_main', 'jp_hokkaido', 'jp_okinawa'],
+                cn: ['cn_core', 'cn_extended_w', 'cn_manchuria', 'cn_mongolia', 'cn_tibet', 'cn_taiwan'],
+                ru: ['ru_europe', 'ru_siberia_w', 'ru_siberia_e']
+            },
+            {
+                year: 1860,
+                era: "1860年: 列強進出 / 幕末",
+                desc: "ロシアが外満州を獲得（ウラジオストク建設）。清はアヘン戦争等で弱体化。日本は開国へ。",
+                jp: ['jp_main', 'jp_hokkaido', 'jp_okinawa'],
+                cn: ['cn_core', 'cn_extended_w', 'cn_manchuria', 'cn_mongolia', 'cn_tibet', 'cn_taiwan'],
+                ru: ['ru_europe', 'ru_siberia_w', 'ru_siberia_e', 'ru_central_asia', 'ru_alaska', 'ru_manchuria_outer']
+            },
+            {
+                year: 1905,
+                era: "1905年: 日露戦争後",
+                desc: "日本が日露戦争に勝利し、樺太南部や朝鮮半島への影響力を強める。ロシアはアラスカを売却済み。",
+                jp: ['jp_main', 'jp_hokkaido', 'jp_okinawa', 'jp_taiwan', 'jp_sakhalin_s', 'jp_korea'],
+                cn: ['cn_core', 'cn_extended_w', 'cn_manchuria', 'cn_mongolia', 'cn_tibet'],
+                ru: ['ru_europe', 'ru_siberia_w', 'ru_siberia_e', 'ru_central_asia', 'ru_manchuria_outer']
+            },
+            {
+                year: 1942,
+                era: "1942年: 第二次世界大戦",
+                desc: "日本の最大版図（満州、台湾、朝鮮、中国沿岸部）。ソ連は独ソ戦中。中国は日中戦争。",
+                jp: ['jp_main', 'jp_hokkaido', 'jp_okinawa', 'jp_taiwan', 'jp_sakhalin_s', 'jp_korea', 'cn_manchuria', 'cn_core'], // Simplified occupation
+                cn: ['cn_extended_w', 'cn_tibet'], // Interior only
+                ru: ['ru_europe', 'ru_siberia_w', 'ru_siberia_e', 'ru_central_asia', 'ru_manchuria_outer']
+            },
+            {
+                year: 1980,
+                era: "1980年: 冷戦 / ソ連",
+                desc: "ソビエト連邦の超大国時代。中国は改革開放へ。日本は高度経済成長後の安定期。",
+                jp: ['jp_main', 'jp_hokkaido', 'jp_okinawa'],
+                cn: ['cn_core', 'cn_extended_w', 'cn_manchuria', 'cn_tibet', 'cn_mongolia'], // Inner Mongolia is CN, Outer is independent (not visualized as CN)
+                ru: ['ru_europe', 'ru_siberia_w', 'ru_siberia_e', 'ru_central_asia', 'ru_manchuria_outer', 'ru_expansion_w']
+            },
+            {
+                year: 2024,
+                era: "2024年: 現代",
+                desc: "ソ連崩壊後、ロシア連邦に。中国は経済大国化。日本は現状の領土。",
+                jp: ['jp_main', 'jp_hokkaido', 'jp_okinawa'],
+                cn: ['cn_core', 'cn_extended_w', 'cn_manchuria', 'cn_tibet'], // Mongolia independent
+                ru: ['ru_europe', 'ru_siberia_w', 'ru_siberia_e', 'ru_manchuria_outer']
+            }
+        ];
+
+        // --- Application Logic ---
+
+        let map;
+        let layers = { jp: [], cn: [], ru: [] };
+        let isPlaying = false;
+        let animationInterval;
+
+        function initMap() {
+            // Initialize Leaflet centered on East Asia
+            map = L.map('map').setView([45, 110], 3);
+
+            // Add tile layer (OpenStreetMap)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+
+            updateVisualization(-1000);
+        }
+
+        // Helper to draw a country's polygons
+        function drawCountry(countryCode, zoneIds) {
+            // Remove existing layers for this country
+            layers[countryCode].forEach(layer => map.removeLayer(layer));
+            layers[countryCode] = [];
+
+            const color = COLORS[countryCode];
+
+            zoneIds.forEach(zoneId => {
+                const coords = ZONES[zoneId];
+                if (coords) {
+                    const polygon = L.polygon(coords, {
+                        color: color,
+                        fillColor: color,
+                        fillOpacity: 0.4,
+                        weight: 1, // Thinner border for better detail
+                        dashArray: null
+                    }).addTo(map);
+                    layers[countryCode].push(polygon);
+                }
+            });
+        }
+
+        // Find closest data point
+        function getDataForYear(year) {
+            // Find the timeline entry that is closest to or less than the current year
+            // Sort timeline just in case
+            const sorted = TIMELINE.sort((a, b) => a.year - b.year);
+            
+            let selected = sorted[0];
+            for (let i = 0; i < sorted.length; i++) {
+                if (sorted[i].year <= year) {
+                    selected = sorted[i];
+                } else {
+                    break;
+                }
+            }
+            return selected;
+        }
+
+        function updateVisualization(year) {
+            const data = getDataForYear(year);
+            
+            // Update Text
+            const yearText = year < 0 ? `紀元前 ${Math.abs(year)}年` : `${year}年`;
+            document.getElementById('currentYearDisplay').innerText = yearText;
+            document.getElementById('eraNameDisplay').innerText = data.era.split(':')[1] || '';
+            document.getElementById('descriptionText').innerText = data.desc;
+
+            // Draw Map
+            drawCountry('jp', data.jp);
+            drawCountry('cn', data.cn);
+            drawCountry('ru', data.ru);
+        }
+
+        // Controls
+        const slider = document.getElementById('yearSlider');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playIcon = document.getElementById('playIcon');
+        const speedSelect = document.getElementById('speedSelect');
+
+        slider.addEventListener('input', (e) => {
+            updateVisualization(parseInt(e.target.value));
+            if(isPlaying) stopAnimation(); // Stop if user interacts
+        });
+
+        function startAnimation() {
+            isPlaying = true;
+            playIcon.innerText = "⏸ 停止";
+            
+            let currentVal = parseInt(slider.value);
+            const maxVal = parseInt(slider.max);
+            const step = 10; // Year jump per tick
+
+            animationInterval = setInterval(() => {
+                currentVal += step;
+                if (currentVal > maxVal) {
+                    currentVal = parseInt(slider.min); // Loop or stop? Let's loop for now
+                }
+                slider.value = currentVal;
+                updateVisualization(currentVal);
+            }, parseInt(speedSelect.value));
+        }
+
+        function stopAnimation() {
+            isPlaying = false;
+            playIcon.innerText = "▶ 再生";
+            clearInterval(animationInterval);
+        }
+
+        playPauseBtn.addEventListener('click', () => {
+            if (isPlaying) {
+                stopAnimation();
+            } else {
+                startAnimation();
+            }
+        });
+
+        // Help Modal
+        const helpBtn = document.getElementById('helpBtn');
+        const helpModal = document.getElementById('helpModal');
+        const closeHelpBtn = document.getElementById('closeHelpBtn');
+
+        helpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
+        closeHelpBtn.addEventListener('click', () => helpModal.classList.add('hidden'));
+
+        // Initialize
+        window.onload = initMap;
+
+    </script>
+</body>
+</html>
