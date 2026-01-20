@@ -38,7 +38,7 @@
         import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
-        // 指定されたFirebase設定
+        // 指定されたFirebase設定 (データの保存先・読込先)
         const firebaseConfig = {
             apiKey: "AIzaSyCzxK80B7Tl2EoBemiWq2_rKFPHhr1vkVI",
             authDomain: "election-fe317.firebaseapp.com",
@@ -65,6 +65,7 @@
                 const user = auth.currentUser;
                 if (!user) return;
                 try {
+                    // データ保存パス: 指定されたProject内の election_storage コレクションへ保存
                     const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'election_storage');
                     const docRef = doc(colRef, type);
                     await setDoc(docRef, { 
@@ -75,6 +76,7 @@
                 } catch (e) { console.error("Save failed", e); }
             },
             subscribe: (type, callback) => {
+                // データ読込リスナー: 常に最新のデータを監視・取得
                 const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'election_storage');
                 const docRef = doc(colRef, type);
                 return onSnapshot(docRef, (snap) => {
@@ -97,7 +99,7 @@
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie, LineChart, Line } = Recharts;
 
         // --- Configuration ---
-        const IS_READ_ONLY = false; 
+        const IS_READ_ONLY = false; // 編集可能モード (falseならログイン画面経由)
 
         // --- Icons ---
         const IconBase = ({ children, className, ...props }) => (
@@ -262,7 +264,7 @@
         };
 
         const App = () => {
-            const [isLoggedIn, setIsLoggedIn] = useState(true); 
+            const [isLoggedIn, setIsLoggedIn] = useState(IS_READ_ONLY); 
             const [candidates, setCandidates] = useState(() => INITIAL_MOCK_DATA);
             const [voterCounts, setVoterCounts] = useState(() => new Map(INITIAL_VOTER_COUNTS));
             const [lastUpdated, setLastUpdated] = useState("Simulation Data");
@@ -292,8 +294,9 @@
                         } catch (e) { console.error("Firebase init failed:", e); }
                     }
                 };
-                loadData();
-            }, []);
+                
+                if (isLoggedIn) loadData();
+            }, [isLoggedIn]);
 
             // ... (helper functions omitted) ...
             const parseNumber = (val) => { if (typeof val === 'number') return val; if (!val) return null; const clean = String(val).replace(/["',]/g, ''); const num = parseFloat(clean); return isNaN(num) ? null : num; };
