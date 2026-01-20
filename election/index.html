@@ -12,19 +12,20 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
-    <!-- Prop Types -->
+    <!-- Prop Types (Required for some Recharts UMD builds) -->
     <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
 
-    <!-- Recharts -->
+    <!-- Recharts (Fixed version for stability) -->
     <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
     
-    <!-- SheetJS -->
+    <!-- SheetJS (for Excel parsing) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 
-    <!-- Babel -->
+    <!-- Babel (for JSX) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
+        /* Custom scrollbar for better look */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
@@ -48,18 +49,27 @@
             measurementId: "G-B102SLVDK5"
         };
 
+        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
+        
+        // Environment handling
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-election-app';
 
+        // Expose Firebase helpers to window for React component
         window.fb = {
-            initAuth: () => new Promise((resolve) => {
-                onAuthStateChanged(auth, (user) => {
-                    if (user) resolve(user);
-                    else signInAnonymously(auth).catch(console.error);
+            initAuth: () => {
+                return new Promise((resolve) => {
+                    const unsubscribe = onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            resolve(user);
+                        } else {
+                            signInAnonymously(auth).catch(console.error);
+                        }
+                    });
                 });
-            }),
+            },
             saveData: async (type, data) => {
                 const user = auth.currentUser;
                 if (!user) return;
@@ -71,7 +81,11 @@
                         updatedAt: new Date().toISOString(),
                         updatedBy: user.uid
                     });
-                } catch (e) { console.error("Save failed", e); }
+                    return true;
+                } catch (e) {
+                    console.error("Save failed", e);
+                    throw e;
+                }
             },
             subscribe: (type, callback) => {
                 const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'election_storage');
@@ -80,10 +94,15 @@
                     if (snap.exists()) {
                         try {
                             const val = snap.data();
-                            callback(JSON.parse(val.content), val.updatedAt);
-                        } catch (e) { console.error("Parse error", e); }
+                            const parsed = JSON.parse(val.content);
+                            callback(parsed, val.updatedAt);
+                        } catch (e) {
+                            console.error("Parse error", e);
+                        }
                     }
-                }, (error) => console.error("Snapshot error:", error));
+                }, (error) => {
+                    console.error("Snapshot error:", error);
+                });
             }
         };
     </script>
@@ -609,7 +628,7 @@
                 });
             };
 
-            // --- Export Read-Only HTML Logic (Improved for clean single-file output) ---
+            // --- Export Read-Only HTML Logic (Fixed and Improved) ---
             const handleExportReadOnlyHtml = () => {
                 const scriptContent = document.getElementById('app-script').textContent;
                 
