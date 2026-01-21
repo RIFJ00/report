@@ -107,7 +107,11 @@
                 <p id="descriptionText" class="text-sm text-gray-600 leading-relaxed">
                     紀元前1000年頃。各地で古代文明が形成される時期。
                 </p>
-                <p class="text-xs text-blue-600 mt-2">※地図上の領域をクリックすると詳細が表示されます。</p>
+                
+                <!-- Era List Container -->
+                <div id="eraList" class="mt-3 pt-3 border-t border-gray-200 grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <!-- JS will insert era chips here -->
+                </div>
             </div>
         </div>
 
@@ -125,6 +129,7 @@
                 <p>世界主要地域の領土変遷を表示します。</p>
                 <ul class="list-disc pl-5 space-y-1">
                     <li>地図上の領域をクリックすると、その時代の国名や地域名が表示されます。</li>
+                    <li>画面下部には、その時代の主要各国の王朝名などが一覧表示されます。</li>
                     <li>再生ボタン横のメニューで「ループ再生」か「一回のみ」かを選択できます。</li>
                     <li>スライダーの左側1/3は古代〜1800年、右側2/3は1800年〜現在を表示します。</li>
                 </ul>
@@ -576,16 +581,17 @@
             const color = def.color;
             if (!zoneIds) return;
 
-            // Get detail info for popup
-            let popupTitle = def.name;
+            // Get popup info
+            let popupTitle = def.name; // Default Title (Country Name)
             let popupText = "";
+            let eraName = "";
             
             if (timelineData.details && timelineData.details[countryCode]) {
                 const detail = timelineData.details[countryCode];
-                popupTitle = detail.name; // Specific era name (e.g., "Han Dynasty")
+                eraName = detail.name; // Specific era name (e.g., "Han Dynasty")
                 popupText = detail.text;
             } else {
-                // Fallback text
+                // Fallback
                 popupText = `${Math.abs(timelineData.year)}年頃の${def.name}の勢力圏です。`;
             }
 
@@ -600,21 +606,21 @@
                         dashArray: null
                     }).addTo(map);
                     
-                    // Detailed info with Region Name
                     const regionName = ZONE_NAMES[zoneId] || "詳細な地域名不明";
                     
                     const popupContent = `
                         <div class="p-3 bg-white">
-                            <h3 class="font-bold text-lg text-slate-800 border-b pb-1 mb-2" style="border-color:${color}">${popupTitle}</h3>
+                            <h3 class="font-bold text-lg text-slate-800 border-b pb-1 mb-2" style="border-color:${color}">
+                                ${popupTitle}
+                                ${eraName ? `<span class="block text-sm font-normal text-gray-600">時代: ${eraName}</span>` : ''}
+                            </h3>
                             <p class="text-sm text-gray-600 font-bold mb-1">${timelineData.era}</p>
                             <p class="text-sm text-gray-700 leading-relaxed">${popupText}</p>
                             <p class="text-xs text-slate-500 mt-2 border-t pt-1">地域: ${regionName}</p>
                         </div>
                     `;
                     
-                    // Bind Popup
                     polygon.bindPopup(popupContent);
-                    
                     layers[countryCode].push(polygon);
                 }
             });
@@ -628,6 +634,30 @@
             document.getElementById('currentYearDisplay').innerText = yearText;
             document.getElementById('eraNameDisplay').innerText = data.era;
             document.getElementById('descriptionText').innerText = data.desc;
+
+            // Update Era List in description area
+            const eraListEl = document.getElementById('eraList');
+            eraListEl.innerHTML = ''; // Clear existing
+
+            if (data.details) {
+                Object.keys(COUNTRY_DEFS).forEach(code => {
+                     if (data.details[code]) {
+                         const detail = data.details[code];
+                         const def = COUNTRY_DEFS[code];
+                         
+                         const item = document.createElement('div');
+                         item.className = 'flex items-center space-x-2 text-xs md:text-sm bg-gray-50 p-2 rounded border border-gray-100 shadow-sm';
+                         item.innerHTML = `
+                            <div class="w-3 h-3 rounded-full flex-shrink-0" style="background-color:${def.color}"></div>
+                            <div class="flex flex-col overflow-hidden">
+                                <span class="font-bold text-gray-700 truncate">${def.name}</span>
+                                <span class="text-gray-600 text-xs truncate" title="${detail.name}">${detail.name}</span>
+                            </div>
+                         `;
+                         eraListEl.appendChild(item);
+                     }
+                });
+            }
 
             // Draw all countries
             ['jp', 'cn', 'ru', 'in', 'tr', 'it', 'eg', 'ir'].forEach(code => {
@@ -658,12 +688,11 @@
             animationInterval = setInterval(() => {
                 currentVal += step;
                 if (currentVal > maxVal) {
-                    // Check Loop Mode
                     if (loopModeSelect.value === 'loop') {
                         currentVal = parseFloat(slider.min);
                     } else {
                         currentVal = maxVal;
-                        stopAnimation(); // Stop at end
+                        stopAnimation();
                     }
                 }
                 slider.value = currentVal;
