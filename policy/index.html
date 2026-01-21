@@ -285,6 +285,13 @@
             const today = new Date().toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
             let dateClass = date === today ? 'text-red-500 font-bold' : 'text-gray-900';
             
+            // 更新情報のハイライト処理（括弧内に「更新」がある場合全体を赤太字にする）
+            const updateRegex = /([（\(][^）\)]*更新[^）\)]*[）\)])/g;
+            const highlightUpdate = (text) => (text || '').replace(updateRegex, '<span class="text-red-500 font-bold">$1</span>');
+
+            const titleName = highlightUpdate(item['タイトル名'] || 'タイトルなし');
+            const bikou = highlightUpdate(item['備考'] || '');
+
             let titlePrefixHtml = '';
             const url2 = String(item['URL2'] || '');
             if (url2) titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>';
@@ -292,7 +299,7 @@
             row.innerHTML = `
                 <td class="px-2 py-3 text-center"><input type="checkbox" class="bookmark-checkbox" data-id="${item.id}" ${item.isBookmarked ? 'checked' : ''}></td>
                 <td class="px-2 py-3 text-sm"><p class="${dateClass}">${date}</p></td>
-                <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-start">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" class="text-blue-600 hover:underline">${item['タイトル名']}</a></div><p class="text-xs text-gray-500 mt-1">${item['備考'] || ''}</p></div></td>
+                <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-start">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" class="text-blue-600 hover:underline">${titleName}</a></div><p class="text-xs text-gray-500 mt-1">${bikou}</p></div></td>
                 <td class="text-center">${item['YouTube'] ? `<a href="${item['YouTube']}" target="_blank" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : ''}</td>
                 <td class="text-center">${item['URL1'] ? `<span data-src="${item['URL1']}" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : ''}</td>
             `;
@@ -376,26 +383,16 @@
                 else if (e.target.classList.contains('bookmark-checkbox')) toggleBookmark(e.target.dataset.id, e.target.checked);
             });
 
-            // メイン音声ボタンの制御ロジック改善
             mainAudioControl.addEventListener('click', () => {
                 if (!audioPlayer.src || audioPlayer.src === window.location.href) {
-                    // 音声がセットされていない場合は、リストの最初にある再生可能なアイコンを探す
                     const firstIcon = tableBody.querySelector('.audio-icon[data-src]');
-                    if (firstIcon) {
-                        toggleAudioPlayback(firstIcon);
-                    }
+                    if (firstIcon) toggleAudioPlayback(firstIcon);
                     return;
                 }
-                
-                // すでに音声がセットされている場合は、一時停止・再生を切り替える
-                if (audioPlayer.paused) {
-                    audioPlayer.play();
-                } else {
-                    audioPlayer.pause();
-                }
+                if (audioPlayer.paused) audioPlayer.play();
+                else audioPlayer.pause();
             });
 
-            // 音声プレイヤーの状態変更時のUI同期
             audioPlayer.onplay = () => { 
                 setIconState(currentlyPlayingIcon, 'playing'); 
                 mainAudioIconI.className = 'fas fa-pause';
@@ -410,7 +407,6 @@
                 setIconState(currentlyPlayingIcon, 'stopped');
                 mainAudioIconI.className = 'fas fa-volume-up';
                 mainAudioControl.classList.remove('playing');
-                // 次の音声を自動再生
                 const icons = Array.from(tableBody.querySelectorAll('.audio-icon[data-src]'));
                 const next = icons[icons.indexOf(currentlyPlayingIcon) + 1];
                 if (next) setTimeout(() => toggleAudioPlayback(next), 3000);
