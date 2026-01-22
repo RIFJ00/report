@@ -283,15 +283,23 @@
             const [showExplanation, setShowExplanation] = useState(false); // 解説モーダル用
 
             useEffect(() => {
-                // if (IS_READ_ONLY) return; 
-
                 const loadData = async () => {
+                    // window.fb (Firebase) が読み込まれるまで待機するリトライ処理
+                    let retryCount = 0;
+                    while (!window.fb && retryCount < 20) { // 0.5秒 x 20回 = 最大10秒待機
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        retryCount++;
+                    }
+
                     if (window.fb) {
                         try {
                             const user = await window.fb.initAuth();
                             window.fb.subscribe('candidates', (data, time) => { if (data && Array.isArray(data)) { setCandidates(data); if(time) setLastUpdated(new Date(time).toLocaleString('ja-JP')); }});
                             window.fb.subscribe('voters', (data) => { if (data) setVoterCounts(new Map(Object.entries(data))); });
                         } catch (e) { console.error("Firebase init failed:", e); }
+                    } else {
+                        console.error("Firebase loading timed out.");
+                        setAlertMessage("データの読み込みに時間がかかっています。通信環境の良い場所で再読み込みしてください。");
                     }
                 };
                 
