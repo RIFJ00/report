@@ -34,9 +34,9 @@
 
     <!-- Firebase Integration -->
     <script type="module" id="firebase-script">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // 指定されたFirebase設定 (データの保存先・読込先)
         const firebaseConfig = {
@@ -63,7 +63,10 @@
             }),
             saveData: async (type, data) => {
                 const user = auth.currentUser;
-                if (!user) return;
+                if (!user) {
+                    console.error("User not authenticated, cannot save data.");
+                    return;
+                }
                 try {
                     // データ保存パス: 指定されたProject内の election_storage コレクションへ保存
                     const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'election_storage');
@@ -73,6 +76,7 @@
                         updatedAt: new Date().toISOString(),
                         updatedBy: user.uid
                     });
+                    console.log(`Data saved: ${type}`);
                 } catch (e) { console.error("Save failed", e); }
             },
             subscribe: (type, callback) => {
@@ -84,11 +88,16 @@
                         try {
                             const val = snap.data();
                             callback(JSON.parse(val.content), val.updatedAt);
+                            console.log(`Data updated: ${type}`);
                         } catch (e) { console.error("Parse error", e); }
+                    } else {
+                        console.log(`No data found for: ${type}`);
                     }
                 }, (error) => console.error("Snapshot error:", error));
             }
         };
+        // Signal that Firebase is ready
+        window.fbReady = true;
     </script>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -283,10 +292,12 @@
             const [showExplanation, setShowExplanation] = useState(false); // 解説モーダル用
 
             useEffect(() => {
+                // if (IS_READ_ONLY) return; 
+
                 const loadData = async () => {
-                    // window.fb (Firebase) が読み込まれるまで待機するリトライ処理
                     let retryCount = 0;
-                    while (!window.fb && retryCount < 20) { // 0.5秒 x 20回 = 最大10秒待機
+                    // Wait for window.fb to be available
+                    while (!window.fb && retryCount < 10) {
                         await new Promise(resolve => setTimeout(resolve, 500));
                         retryCount++;
                     }
@@ -298,8 +309,7 @@
                             window.fb.subscribe('voters', (data) => { if (data) setVoterCounts(new Map(Object.entries(data))); });
                         } catch (e) { console.error("Firebase init failed:", e); }
                     } else {
-                        console.error("Firebase loading timed out.");
-                        setAlertMessage("データの読み込みに時間がかかっています。通信環境の良い場所で再読み込みしてください。");
+                        console.error("Firebase module not loaded.");
                     }
                 };
                 
