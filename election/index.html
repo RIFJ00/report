@@ -52,6 +52,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
+        // アプリIDは環境変数があればそれを、なければデフォルトを使用
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-election-app';
 
         window.fb = {
@@ -468,8 +469,11 @@
                     if(window.fb) {
                         try {
                             await window.fb.saveData('candidates', newCandidates);
-                            await window.fb.saveData('voters', Object.fromEntries(newVoterCounts));
-                            setAlertMessage(`データを更新し、クラウドに保存しました。\n候補者数: ${newCandidates.length}名`);
+                            // Ensure voter counts are saved if they were updated during candidate processing
+                            // (though they are mainly updated in processVoterData, we keep it consistent)
+                            await window.fb.saveData('voters', Object.fromEntries(newVoterCounts)); 
+                            
+                            setAlertMessage(`データを更新し、クラウドに保存しました。\n候補者数: ${newCandidates.length}名\n画面は自動的に更新されます。`);
                         } catch(e) {
                             setAlertMessage("クラウドへの保存に失敗しました。認証状態を確認してください。");
                         }
@@ -538,9 +542,18 @@
                 }
                 
                 if (count > 0) {
-                    setVoterCounts(newVoterCounts);
-                    if(window.fb) { try { await window.fb.saveData('voters', Object.fromEntries(newVoterCounts)); } catch(e) {} }
-                    setAlertMessage(`有権者数データを更新しました。\n更新件数: ${count}件\n公明比例票データあり: ${komeiCount}件`);
+                    // Update: Logic changed to prioritize Firestore save over local state update when Firebase is available
+                    if(window.fb) { 
+                        try { 
+                            await window.fb.saveData('voters', Object.fromEntries(newVoterCounts)); 
+                            setAlertMessage(`有権者数データを更新し、クラウドに保存しました。\n更新件数: ${count}件\n公明比例票データあり: ${komeiCount}件\n画面は自動的に更新されます。`);
+                        } catch(e) {
+                            setAlertMessage("クラウドへの保存に失敗しました。");
+                        } 
+                    } else {
+                        setVoterCounts(newVoterCounts);
+                        setAlertMessage(`有権者数データを更新しました(ローカル)。\n更新件数: ${count}件`);
+                    }
                 } else {
                     setAlertMessage("有効なデータが見つかりませんでした。");
                 }
