@@ -53,6 +53,7 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         // アプリIDは環境変数があればそれを、なければデフォルトを使用
+        // ※ 複数の環境で区別するため、特定のIDを指定するか環境変数を使用します
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-election-app';
 
         window.fb = {
@@ -293,11 +294,11 @@
             const [showExplanation, setShowExplanation] = useState(false); // 解説モーダル用
 
             useEffect(() => {
-                // if (IS_READ_ONLY) return; 
+                let unsubscribeCandidates = () => {};
+                let unsubscribeVoters = () => {};
 
                 const loadData = async () => {
                     let retryCount = 0;
-                    // Wait for window.fb to be available
                     while (!window.fb && retryCount < 10) {
                         await new Promise(resolve => setTimeout(resolve, 500));
                         retryCount++;
@@ -306,15 +307,27 @@
                     if (window.fb) {
                         try {
                             const user = await window.fb.initAuth();
-                            window.fb.subscribe('candidates', (data, time) => { if (data && Array.isArray(data)) { setCandidates(data); if(time) setLastUpdated(new Date(time).toLocaleString('ja-JP')); }});
-                            window.fb.subscribe('voters', (data) => { if (data) setVoterCounts(new Map(Object.entries(data))); });
+                            // データの購読を開始
+                            unsubscribeCandidates = window.fb.subscribe('candidates', (data, time) => {
+                                if (data && Array.isArray(data)) {
+                                    setCandidates(data);
+                                    if(time) setLastUpdated(new Date(time).toLocaleString('ja-JP'));
+                                }
+                            });
+                            unsubscribeVoters = window.fb.subscribe('voters', (data) => {
+                                if (data) setVoterCounts(new Map(Object.entries(data)));
+                            });
                         } catch (e) { console.error("Firebase init failed:", e); }
-                    } else {
-                        console.error("Firebase module not loaded.");
                     }
                 };
                 
                 if (isLoggedIn) loadData();
+
+                // Cleanup
+                return () => {
+                    unsubscribeCandidates();
+                    unsubscribeVoters();
+                };
             }, [isLoggedIn]);
 
             // ... (helper functions omitted) ...
