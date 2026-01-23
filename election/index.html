@@ -365,10 +365,17 @@
 
                 const districtIdx = findColumnIndex(headerRow, ['小選挙区', '選挙区', '選挙区名', 'District']);
                 const partyIdx = findColumnIndex(headerRow, ['政党', '党派', '会派', 'Party']);
-                // 優先順: 2026候補者 > ... > 候補者名
-                const nameIdx = findColumnIndex(headerRow, ['2026候補者', '2026候補', '今回候補者', '候補者名', '氏名', '名前', '候補', '2024候補者', 'Name', 'Candidate']);
-                // 2024候補者用
-                const name2024Idx = findColumnIndex(headerRow, ['2024候補者', '2024候補', '前回候補者', '24候補', '旧候補者']);
+                
+                // 優先順: 2026候補者（今回の候補者）を探す。この際、2024や前回といった言葉を含む列は除外する
+                let nameIdx = findColumnIndex(headerRow, ['2026候補者', '2026候補', '26候補', '今回候補者', '候補者名', '氏名', '名前', '候補', 'Name', 'Candidate'], ['2024', '24候補', '前回', '旧']);
+                
+                // もし見つからなければ、制約を緩めて探す（2024候補者しかないファイルへの対応）
+                if (nameIdx === -1) {
+                    nameIdx = findColumnIndex(headerRow, ['候補者', '名前', '氏名', '2024候補者', '2024候補']);
+                }
+
+                // 2024候補者（前回の候補者）用
+                const name2024Idx = findColumnIndex(headerRow, ['2024候補者', '2024候補', '24候補', '前回候補者', '旧候補者', '前職']);
 
                 const votesPredIdx = findColumnIndex(headerRow, ['今回予想', '得票予測', '予想', 'Predicted']);
                 const statusIdx = findColumnIndex(headerRow, ['当落', '結果', '2024'], ['得票', '候補', '予想', '基数', 'No', '年齢', '回数']); 
@@ -1036,7 +1043,7 @@
                     <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200 text-center max-w-lg w-full">
                         <div className="mx-auto mb-4 text-blue-500 flex justify-center"><Upload width={48} height={48} /></div>
                         <h3 className="text-xl font-bold text-gray-800 mb-2">1. 分析データをアップロード</h3>
-                        <p className="text-gray-600 text-sm mb-6">「得票予測シュミレーション.csv」などを読み込みます。<br/><span className="text-xs text-gray-400">必須列: 選挙区, 政党, 候補者名<br/>追加: 今回予想, 年齢, 2024/2021/2017...得票数</span></p>
+                        <p className="text-gray-600 text-sm mb-6">「得票予測シュミレーション.csv」などを読み込みます。<br/><span className="text-xs text-gray-400">必須列: 選挙区, 政党, 候補者名<br/>(「2026候補者」「2024候補者」列がある場合は自動判別します)<br/>追加: 今回予想, 年齢, 2024/2021/2017...得票数</span></p>
                         <label className="block w-full cursor-pointer group"><div className="flex items-center justify-center w-full px-6 py-3 bg-blue-600 text-white rounded-lg group-hover:bg-blue-700 transition-colors shadow-md font-bold text-sm"><span className="mr-2"><Upload width={16} height={16} /></span>分析ファイルを選択 (CSV / Excel)</div><input type="file" accept=".csv, .xlsx, .xls" onChange={(e) => handleFileUpload(e, 'analysis')} className="hidden" /></label>
                     </div>
                     <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200 text-center max-w-lg w-full">
