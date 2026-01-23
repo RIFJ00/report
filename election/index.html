@@ -63,10 +63,16 @@
                 });
             }),
             saveData: async (type, data) => {
-                const user = auth.currentUser;
+                let user = auth.currentUser;
                 if (!user) {
-                    console.error("User not authenticated, cannot save data.");
-                    return;
+                    try {
+                        // 認証が切れている場合は再ログインを試みる
+                        const cred = await signInAnonymously(auth);
+                        user = cred.user;
+                    } catch (e) {
+                        console.error("Auth failed during save:", e);
+                        throw new Error("認証に失敗しました。");
+                    }
                 }
                 try {
                     // データ保存パス: 指定されたProject内の election_storage コレクションへ保存
@@ -78,7 +84,10 @@
                         updatedBy: user.uid
                     });
                     console.log(`Data saved: ${type}`);
-                } catch (e) { console.error("Save failed", e); }
+                } catch (e) { 
+                    console.error("Save failed", e); 
+                    throw e;
+                }
             },
             subscribe: (type, callback) => {
                 // データ読込リスナー: 常に最新のデータを監視・取得
@@ -502,21 +511,25 @@
                 newCandidates.push(...candidatesToAdd);
 
                 if (newCandidates.length > 0) {
+                    // ★修正点: まずローカルステートを即時更新して画面に反映させる（楽観的UI更新）
+                    setCandidates(newCandidates);
+                    setVoterCounts(newVoterCounts);
+                    setLastUpdated(new Date().toLocaleString('ja-JP'));
+                    
                     if(window.fb) {
                         try {
+                            // バックグラウンドでクラウド保存
                             await window.fb.saveData('candidates', newCandidates);
                             // Ensure voter counts are saved if they were updated during candidate processing
                             // (though they are mainly updated in processVoterData, we keep it consistent)
                             await window.fb.saveData('voters', Object.fromEntries(newVoterCounts)); 
                             
-                            setAlertMessage(`データを更新し、クラウドに保存しました。\n候補者数: ${newCandidates.length}名\n画面は自動的に更新されます。`);
+                            setAlertMessage(`データを読み込み、画面に反映しました。\n(クラウドへの保存も完了)\n候補者数: ${newCandidates.length}名`);
                         } catch(e) {
-                            setAlertMessage("クラウドへの保存に失敗しました。認証状態を確認してください。");
+                            console.error(e);
+                            setAlertMessage(`画面には反映されましたが、クラウドへの保存に失敗しました。\n通信環境や認証状態を確認してください。\nエラー: ${e.message}`);
                         }
                     } else {
-                        setCandidates(newCandidates);
-                        setVoterCounts(newVoterCounts);
-                        setLastUpdated(new Date().toLocaleString('ja-JP'));
                         setAlertMessage("ローカルプレビューを更新しました(保存機能なし)。");
                     }
                     const singleCount = newCandidates.filter(c => c.type === 'single').length;
@@ -578,16 +591,19 @@
                 }
                 
                 if (count > 0) {
+                    // ★修正点: まずローカルステートを即時更新
+                    setVoterCounts(newVoterCounts);
+                    
                     // Update: Logic changed to prioritize Firestore save over local state update when Firebase is available
                     if(window.fb) { 
                         try { 
                             await window.fb.saveData('voters', Object.fromEntries(newVoterCounts)); 
-                            setAlertMessage(`有権者数データを更新し、クラウドに保存しました。\n更新件数: ${count}件\n公明比例票データあり: ${komeiCount}件\n画面は自動的に更新されます。`);
+                            setAlertMessage(`有権者数データを読み込み、画面に反映しました。\n(クラウドへの保存も完了)\n更新件数: ${count}件\n公明比例票データあり: ${komeiCount}件`);
                         } catch(e) {
-                            setAlertMessage("クラウドへの保存に失敗しました。");
+                            console.error(e);
+                            setAlertMessage(`画面には反映されましたが、クラウドへの保存に失敗しました。\nエラー: ${e.message}`);
                         } 
                     } else {
-                        setVoterCounts(newVoterCounts);
                         setAlertMessage(`有権者数データを更新しました(ローカル)。\n更新件数: ${count}件`);
                     }
                 } else {
