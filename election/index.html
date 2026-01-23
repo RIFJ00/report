@@ -301,8 +301,27 @@
 
         const App = () => {
             const [isLoggedIn, setIsLoggedIn] = useState(IS_READ_ONLY); 
-            const [candidates, setCandidates] = useState(() => INITIAL_MOCK_DATA);
-            const [voterCounts, setVoterCounts] = useState(() => new Map(INITIAL_VOTER_COUNTS));
+            
+            // --- 1. localStorage からの読み込みロジックを追加 ---
+            const [candidates, setCandidates] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('election_candidates');
+                    return saved ? JSON.parse(saved) : INITIAL_MOCK_DATA;
+                } catch (e) {
+                    console.error("Failed to load candidates from localStorage", e);
+                    return INITIAL_MOCK_DATA;
+                }
+            });
+            const [voterCounts, setVoterCounts] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('election_voters');
+                    return saved ? new Map(JSON.parse(saved)) : new Map(INITIAL_VOTER_COUNTS);
+                } catch (e) {
+                    console.error("Failed to load voters from localStorage", e);
+                    return new Map(INITIAL_VOTER_COUNTS);
+                }
+            });
+
             const [lastUpdated, setLastUpdated] = useState("Simulation Data");
             const [simSettings, setSimSettings] = useState({ takaichiEffect: 0, coalitionEffect: 0, newPartyEffect: 0, emergingSurge: 0 });
             const [filterText, setFilterText] = useState("");
@@ -336,11 +355,18 @@
                             unsubscribeCandidates = window.fb.subscribe('candidates', (data, time) => {
                                 if (data && Array.isArray(data)) {
                                     setCandidates(data);
+                                    // --- 2. データ受信時に localStorage へ保存 ---
+                                    localStorage.setItem('election_candidates', JSON.stringify(data));
                                     if(time) setLastUpdated(new Date(time).toLocaleString('ja-JP'));
                                 }
                             });
                             unsubscribeVoters = window.fb.subscribe('voters', (data) => {
-                                if (data) setVoterCounts(new Map(Object.entries(data)));
+                                if (data) {
+                                    setVoterCounts(new Map(Object.entries(data)));
+                                    // --- 2. データ受信時に localStorage へ保存 ---
+                                    // MapをJSON化するために配列に変換
+                                    localStorage.setItem('election_voters', JSON.stringify(Object.entries(data)));
+                                }
                             });
                         } catch (e) { console.error("Firebase init failed:", e); }
                     }
@@ -516,6 +542,10 @@
                     setVoterCounts(newVoterCounts);
                     setLastUpdated(new Date().toLocaleString('ja-JP'));
                     
+                    // --- 3. 手動アップロード時も localStorage へ保存 ---
+                    localStorage.setItem('election_candidates', JSON.stringify(newCandidates));
+                    localStorage.setItem('election_voters', JSON.stringify(Array.from(newVoterCounts.entries())));
+
                     if(window.fb) {
                         try {
                             // バックグラウンドでクラウド保存
@@ -593,6 +623,8 @@
                 if (count > 0) {
                     // ★修正点: まずローカルステートを即時更新
                     setVoterCounts(newVoterCounts);
+                    // --- 3. 手動アップロード時も localStorage へ保存 ---
+                    localStorage.setItem('election_voters', JSON.stringify(Array.from(newVoterCounts.entries())));
                     
                     // Update: Logic changed to prioritize Firestore save over local state update when Firebase is available
                     if(window.fb) { 
@@ -651,6 +683,9 @@
                     onConfirm: () => {
                         setCandidates(INITIAL_MOCK_DATA);
                         setVoterCounts(new Map());
+                        // --- Reset localStorage ---
+                        localStorage.removeItem('election_candidates');
+                        localStorage.removeItem('election_voters');
                         setLastUpdated("Simulation Data");
                         setSimSettings({ takaichiEffect: 0, coalitionEffect: 0, newPartyEffect: 0, emergingSurge: 0 });
                         setAlertMessage("表示をリセットしました。");
@@ -667,6 +702,8 @@
                         if (index !== -1) newCandidates[index] = updated;
                     });
                     if (window.fb) { window.fb.saveData('candidates', newCandidates); }
+                    // Update localStorage
+                    localStorage.setItem('election_candidates', JSON.stringify(newCandidates));
                     return newCandidates;
                 });
             };
