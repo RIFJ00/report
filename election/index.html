@@ -53,7 +53,6 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         // アプリIDは環境変数があればそれを、なければデフォルトを使用
-        // ※ 複数の環境で区別するため、特定のIDを指定するか環境変数を使用します
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-election-app';
 
         window.fb = {
@@ -169,9 +168,26 @@
         const BLOCK_TO_PREFS = {};
         Object.entries(PREF_TO_BLOCK).forEach(([pref, block]) => { if (!BLOCK_TO_PREFS[block]) BLOCK_TO_PREFS[block] = []; BLOCK_TO_PREFS[block].push(pref); });
 
-        // --- Mock Data Generator (Empty for production use) ---
-        const INITIAL_MOCK_DATA = []; 
-        const INITIAL_VOTER_COUNTS = []; 
+        // --- Mock Data Generator (Initial Sample Data to prevent empty state) ---
+        const INITIAL_MOCK_DATA = [
+            // 東京1区 (サンプル)
+            { id: 'sample-t1-1', district: '東京1区', party: '自民', name: '山田 太郎', age: '50歳', incumbentStatus: '前', predictedVotes: 95000, votes2024: 92000, votes2021: 90000, status: '◎', type: 'single' },
+            { id: 'sample-t1-2', district: '東京1区', party: '立憲', name: '鈴木 一郎', age: '45歳', incumbentStatus: '新', predictedVotes: 88000, votes2024: 85000, votes2021: 80000, status: '○', type: 'single' },
+            { id: 'sample-t1-3', district: '東京1区', party: '維新', name: '佐藤 花子', age: '35歳', incumbentStatus: '新', predictedVotes: 25000, votes2024: 20000, votes2021: null, status: '-', type: 'single' },
+            // 大阪1区 (サンプル)
+            { id: 'sample-o1-1', district: '大阪1区', party: '維新', name: '田中 次郎', age: '55歳', incumbentStatus: '前', predictedVotes: 110000, votes2024: 105000, votes2021: 100000, status: '◎', type: 'single' },
+            { id: 'sample-o1-2', district: '大阪1区', party: '自民', name: '高橋 三郎', age: '60歳', incumbentStatus: '元', predictedVotes: 60000, votes2024: 55000, votes2021: 65000, status: '○', type: 'single' },
+            // 神奈川1区 (サンプル)
+            { id: 'sample-k1-1', district: '神奈川1区', party: '立憲', name: '伊藤 四郎', age: '48歳', incumbentStatus: '前', predictedVotes: 90000, votes2024: 88000, votes2021: 85000, status: '◎', type: 'single' },
+            { id: 'sample-k1-2', district: '神奈川1区', party: '自民', name: '渡辺 五郎', age: '52歳', incumbentStatus: '前', predictedVotes: 85000, votes2024: 82000, votes2021: 88000, status: '○', type: 'single' }
+        ]; 
+        
+        const INITIAL_VOTER_COUNTS = [
+            ['東京1区', { voterCount: 400000, komeiProportional: 25000 }],
+            ['大阪1区', { voterCount: 380000, komeiProportional: 30000 }],
+            ['神奈川1区', { voterCount: 350000, komeiProportional: 20000 }],
+            ['National', { voterCount: 105000000, komeiProportional: 6000000 }]
+        ]; 
 
         // --- Logic ---
         const calculateDhondt = (votesObj, totalSeats) => {
@@ -649,14 +665,14 @@
                 // Embed current candidates data
                 const candidatesJson = JSON.stringify(candidates);
                 newScript = newScript.replace(
-                    /const INITIAL_MOCK_DATA = generateInitialData\(\); \/\/ \/\* DATA_PLACEHOLDER \*\//,
+                    /const INITIAL_MOCK_DATA = \[[\s\S]*?\]; \/\/ --- Mock Data Generator/,
                     `const INITIAL_MOCK_DATA = ${candidatesJson}; // Data embedded at export`
                 );
 
                 // Embed current voter counts
                 const votersJson = JSON.stringify(Array.from(voterCounts.entries()));
                 newScript = newScript.replace(
-                    /const INITIAL_VOTER_COUNTS = \[\]; \/\/ \/\* VOTER_PLACEHOLDER \*\//,
+                    /const INITIAL_VOTER_COUNTS = \[[\s\S]*?\];/,
                     `const INITIAL_VOTER_COUNTS = ${votersJson}; // Data embedded at export`
                 );
 
