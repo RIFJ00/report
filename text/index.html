@@ -61,7 +61,8 @@
         body.fullscreen-mode #sidebar { display: none !important; }
         body.fullscreen-mode #main-content { grid-column: span 12 / span 12 !important; width: 100% !important; }
 
-        #modal-overlay {
+        /* General Modal Styles */
+        .modal-base {
             position: fixed;
             inset: 0;
             z-index: 5000;
@@ -71,6 +72,31 @@
             flex-direction: column;
             padding: 1.5rem;
             animation: fadeIn 0.3s ease-out;
+        }
+
+        #modal-overlay {
+            /* Inherits modal-base styles via JS toggle or specialized class if needed, keeping ID for specific logic */
+            position: fixed;
+            inset: 0;
+            z-index: 5000;
+            backdrop-filter: blur(25px);
+            background-color: rgba(15, 23, 42, 0.98);
+            display: none;
+            flex-direction: column;
+            padding: 1.5rem;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        #api-settings-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 6000; /* Higher than other overlays */
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease-out;
         }
 
         #modal-overlay.light-modal { background-color: rgba(255, 255, 255, 0.98); color: #1e293b; }
@@ -172,6 +198,8 @@
             border-radius: 1rem;
             font-weight: 700;
             box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            max-width: 90vw;
+            word-break: break-all;
         }
         
         .citation-box {
@@ -214,6 +242,42 @@
         </div>
     </div>
 
+    <!-- API Settings Modal -->
+    <div id="api-settings-modal">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 border border-slate-100">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-black text-slate-800 flex items-center gap-2">
+                    <i data-lucide="key" class="text-blue-600"></i> API設定
+                </h3>
+                <button id="close-api-modal" class="text-slate-400 hover:text-slate-600 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Google Gemini API Key</label>
+                    <input type="password" id="api-key-input" placeholder="AIzaSy..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition text-slate-700">
+                    <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                        ※キーはブラウザ内にのみ保存され、外部サーバーには送信されません。<br>
+                        ※キーを入力するとAI機能（要約・文脈解析）が有効になります。
+                    </p>
+                </div>
+                
+                <div id="api-status-msg" class="hidden text-xs font-bold py-2"></div>
+
+                <div class="flex gap-3 mt-6">
+                    <button id="save-api-btn" class="flex-grow bg-blue-600 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition shadow-lg shadow-blue-100">
+                        保存して有効化
+                    </button>
+                    <button id="clear-api-btn" class="px-4 py-2.5 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm hover:bg-slate-200 transition">
+                        削除
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-[1600px] mx-auto">
         <!-- Header -->
         <header class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -225,6 +289,9 @@
                 <p class="text-slate-400 mt-1 italic text-sm">プロフェッショナルな文書解析・文脈エクスプローラー v6.7</p>
             </div>
             <div class="flex gap-3">
+                <button id="open-api-settings" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition shadow-sm font-bold text-sm text-slate-600">
+                    <i data-lucide="settings" class="w-4 h-4"></i> API設定
+                </button>
                 <button id="toggle-fullscreen" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition shadow-sm font-bold text-sm text-slate-600">
                     <i data-lucide="layout-template" class="w-4 h-4"></i> パネル切替
                 </button>
@@ -434,12 +501,36 @@
 
         // CONFIG & Engine Constants
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'text-miner-ultra-v6';
-        // Web展開用に指定されたAPIキーを設定
-        const apiKey = "AIzaSyB0ks1letUoqFBAxDgjXe0iWS76i36qp4Y";
+        
+        // --- API Key Logic ---
+        // 1. Check if apiKey is defined via environment (for Canvas)
+        // 2. Check localStorage (for User Setting on deployed site)
+        const apiKey = ""; // MUST be empty for Canvas environment to inject safely.
+        const STORAGE_KEY_API = 'vtm_gemini_api_key';
+        
+        // Anti-Leak: Clear specific leaked key from localStorage if it exists
+        const LEAKED_KEY_HASH = "AIzaSyB0ks1letUoqFBAxDgjXe0iWS76i36qp4Y";
+        if (localStorage.getItem(STORAGE_KEY_API) === LEAKED_KEY_HASH) {
+            localStorage.removeItem(STORAGE_KEY_API);
+            console.log("Removed invalid API key from storage.");
+        }
+
         let firebaseConfig = {};
         try { if (typeof __firebase_config !== 'undefined' && __firebase_config) firebaseConfig = JSON.parse(__firebase_config); } catch (e) {}
 
-        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
+        
+        // Helper to get current effective key
+        function getEffectiveApiKey() {
+            const userKey = localStorage.getItem(STORAGE_KEY_API);
+            return userKey || apiKey;
+        }
+
+        // Helper to get API URL with current key
+        function getApiUrl() {
+            return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${getEffectiveApiKey()}`;
+        }
+        
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
         // GLOBAL State
@@ -519,7 +610,7 @@
                 fontScaleRange: document.getElementById('font-scale'),
                 shareBtn: document.getElementById('share-summary-btn'),
                 refreshBtn: document.getElementById('refresh-btn'),
-                clearBtn: document.getElementById('clear-btn'), // Added
+                clearBtn: document.getElementById('clear-btn'),
                 toggleFullscreen: document.getElementById('toggle-fullscreen'),
                 openModal: document.getElementById('open-modal'),
                 closeModalBtn: document.getElementById('close-modal-btn'),
@@ -542,18 +633,29 @@
                 shapeSelect: document.getElementById('cloud-shape'),
                 fontWeightSelect: document.getElementById('font-weight-select'),
                 messageBox: document.getElementById('message-box'),
-                closeContext: document.getElementById('close-context')
+                closeContext: document.getElementById('close-context'),
+                
+                // API Settings Elements
+                openApiSettingsBtn: document.getElementById('open-api-settings'),
+                apiSettingsModal: document.getElementById('api-settings-modal'),
+                closeApiModalBtn: document.getElementById('close-api-modal'),
+                apiKeyInput: document.getElementById('api-key-input'),
+                saveApiBtn: document.getElementById('save-api-btn'),
+                clearApiBtn: document.getElementById('clear-api-btn'),
+                apiStatusMsg: document.getElementById('api-status-msg')
             };
         }
 
-        function showMessage(text, isError = false) {
+        function showMessage(text, isError = false, duration = 3000) {
             const box = document.getElementById('message-box');
             if(!box) return;
             box.textContent = text;
             box.style.background = isError ? '#ef4444' : '#2563eb';
             box.style.color = '#ffffff';
             box.style.display = 'block';
-            setTimeout(() => { box.style.display = 'none'; }, 3000);
+            if (duration > 0) {
+                setTimeout(() => { box.style.display = 'none'; }, duration);
+            }
         }
 
         function applyTheme() {
@@ -616,6 +718,12 @@
         }
 
         async function fetchWordAiSummary(word) {
+            const key = getEffectiveApiKey();
+            if (!key) {
+                if(elements.wordUsageSummary) elements.wordUsageSummary.innerHTML = "APIキーが設定されていません。ヘッダーの「API設定」からキーを入力してください。";
+                return;
+            }
+
             const summaryEl = elements.wordUsageSummary;
             if (summaryEl) {
                 summaryEl.textContent = "このファイル内での役割を分析中...";
@@ -626,13 +734,19 @@
                 const contextSentences = sentences.filter(s => s.includes(word)).slice(0, 10).join('\n');
                 const prompt = `このファイルにおいて「${word}」という言葉はどのような意図、役割、文脈で使われていますか？専門的な注釈として、ファイル内特有の使われ方を3行程度で端的にサマリーしてください。`;
                 
-                const response = await fetch(GEMINI_API_URL, {
+                const response = await fetch(getApiUrl(), {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         contents: [{ parts: [{ text: prompt + `\n\n対象テキスト引用：\n${contextSentences}` }] }], 
                         systemInstruction: { parts: [{ text: "高度な文章解析AIとして、文書内の具体的な使われ方に特化して日本語で解説してください。" }] } 
                     })
                 });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`API Error: ${response.status} - ${errorBody}`);
+                }
+
                 const res = await response.json();
                 const out = res.candidates?.[0]?.content?.parts?.[0]?.text;
                 if (summaryEl && out) {
@@ -641,7 +755,9 @@
                     lucide.createIcons();
                 }
             } catch (e) { 
-                if(summaryEl) summaryEl.textContent = "文脈分析に失敗しました。";
+                console.error(e);
+                if(summaryEl) summaryEl.textContent = "文脈分析に失敗しました。APIキーを確認してください。";
+                showMessage(`AIエラー: ${e.message}`, true, 10000);
             }
         }
 
@@ -679,20 +795,37 @@
 
         async function fetchSummary(text) {
             if (text.length < 100) return;
+            
+            const key = getEffectiveApiKey();
+            if (!key) {
+                elements.summaryContent.innerHTML = `<p class="text-slate-400 font-bold text-center mt-10">APIキーが設定されていません。<br>ヘッダーの「API設定」ボタンからGoogle Gemini APIキーを入力してください。</p>`;
+                return;
+            }
+
             elements.summaryLoading.classList.remove('hidden');
             elements.summaryContent.innerHTML = "";
             try {
-                const response = await fetch(GEMINI_API_URL, {
+                const response = await fetch(getApiUrl(), {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: `この文書を構造的に要約し、日本語で専門的な視点から解説してください：\n\n${text.substring(0, 15000)}` }] }],
                         systemInstruction: { parts: [{ text: "詳細な構造的要約を作成するプロのアナリストAIです。" }] }
                     })
                 });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`API Error: ${response.status} - ${errorBody}`);
+                }
+
                 const res = await response.json();
                 const out = res.candidates?.[0]?.content?.parts?.[0]?.text;
                 if (out) elements.summaryContent.innerHTML = out.replace(/\*\*(.*?)\*\*/g, '<strong class="text-blue-600 font-black">$1</strong>').replace(/\n/g, '<br>');
-            } catch (e) {}
+            } catch (e) {
+                console.error(e);
+                elements.summaryContent.innerHTML = `<p class="text-red-500 font-bold">要約の生成に失敗しました。</p><p class="text-xs text-slate-500 mt-2">${e.message}</p>`;
+                showMessage(`AIエラー: ${e.message}`, true, 10000);
+            }
             finally { elements.summaryLoading.classList.add('hidden'); lucide.createIcons(); }
         }
 
@@ -720,7 +853,7 @@
                 elements.originalContent.textContent = rawText;
                 drawCloud(); fetchSummary(rawText);
                 showMessage("解析成功");
-            } catch (err) { console.error(err); showMessage("解析失敗", true); }
+            } catch (err) { console.error(err); showMessage("解析失敗: " + err.message, true); }
             finally { elements.loadingOverlay.classList.add('hidden'); }
         }
 
@@ -779,6 +912,47 @@
             lucide.createIcons();
             initFirebase(); 
             initAuth();
+
+            // Load saved API Key on init
+            const savedKey = localStorage.getItem(STORAGE_KEY_API);
+            if (savedKey && elements.apiKeyInput) {
+                elements.apiKeyInput.value = savedKey;
+            }
+
+            // API Settings Modal Logic
+            elements.openApiSettingsBtn?.addEventListener('click', () => {
+                elements.apiSettingsModal.style.display = 'flex';
+                const currentKey = localStorage.getItem(STORAGE_KEY_API);
+                if(currentKey) {
+                    elements.apiStatusMsg.textContent = "APIキーは設定済みです。";
+                    elements.apiStatusMsg.className = "text-xs font-bold py-2 text-green-600 block";
+                } else {
+                    elements.apiStatusMsg.textContent = "APIキーが未設定です。";
+                    elements.apiStatusMsg.className = "text-xs font-bold py-2 text-slate-400 block";
+                }
+            });
+
+            elements.closeApiModalBtn?.addEventListener('click', () => {
+                elements.apiSettingsModal.style.display = 'none';
+            });
+
+            elements.saveApiBtn?.addEventListener('click', () => {
+                const key = elements.apiKeyInput.value.trim();
+                if (!key) {
+                    alert("APIキーを入力してください");
+                    return;
+                }
+                localStorage.setItem(STORAGE_KEY_API, key);
+                showMessage("APIキーを保存しました");
+                elements.apiSettingsModal.style.display = 'none';
+            });
+
+            elements.clearApiBtn?.addEventListener('click', () => {
+                localStorage.removeItem(STORAGE_KEY_API);
+                elements.apiKeyInput.value = "";
+                showMessage("APIキーを削除しました");
+                elements.apiSettingsModal.style.display = 'none';
+            });
 
             if (elements.dropZone) {
                 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(n => elements.dropZone.addEventListener(n, (e) => { e.preventDefault(); e.stopPropagation(); }));
