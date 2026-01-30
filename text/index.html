@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.2/wordcloud2.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
@@ -139,8 +140,11 @@
             width: 480px;
             max-width: 95vw;
             box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+            /* 高さ制限とスクロール設定 */
+            max-height: 70vh;
+            flex-direction: column;
         }
-        #context-panel.open { display: block; }
+        #context-panel.open { display: flex; }
 
         .ai-word-usage-summary {
             font-size: 0.85rem;
@@ -192,6 +196,23 @@
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-6 text-slate-800">
+
+    <!-- Modal Overlay for Fullscreen Cloud -->
+    <div id="modal-overlay">
+        <div class="flex justify-between items-center mb-4 text-white">
+            <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="maximize"></i> 拡大表示</h2>
+            <div class="flex gap-3">
+                <button id="modal-download-btn" class="p-2 bg-white/10 hover:bg-white/20 rounded-full transition" title="画像を保存">
+                    <i data-lucide="download" class="w-6 h-6"></i>
+                </button>
+                <button id="close-modal-btn" class="p-2 bg-white/10 hover:bg-white/20 rounded-full transition"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+        </div>
+        <div id="modal-canvas-container">
+            <canvas id="modal-canvas"></canvas>
+            <div id="modal-tooltip"></div>
+        </div>
+    </div>
 
     <div class="max-w-[1600px] mx-auto">
         <!-- Header -->
@@ -332,8 +353,7 @@
                         <button class="tab-btn px-4 py-3 text-sm font-bold flex items-center gap-2 transition" data-tab="original"><i data-lucide="file-text" class="w-4 h-4"></i> 原文表示</button>
                         <div class="flex-grow"></div>
                         <div class="flex gap-2">
-                            <button id="fit-btn" class="px-3 py-1.5 text-[10px] font-bold border rounded-lg bg-white shadow-sm hover:bg-slate-50 transition">フィット</button>
-                            <button id="download-btn" class="p-2 text-slate-400 hover:text-blue-600 transition" title="画像保存"><i data-lucide="download" class="w-5 h-5"></i></button>
+                            <button id="download-btn" class="p-2 text-slate-400 hover:text-blue-600 transition" title="画像を保存"><i data-lucide="download" class="w-5 h-5"></i></button>
                         </div>
                     </div>
 
@@ -341,7 +361,7 @@
                         <div id="tab-content-cloud" class="tab-pane flex-grow">
                             <div id="cloud-container"><canvas id="cloud-canvas"></canvas></div>
                         </div>
-                        <div id="tab-content-analysis" class="tab-pane hidden flex-grow space-y-6">
+                        <div id="tab-content-analysis" class="tab-pane hidden flex-grow space-y-6 bg-white/40 p-2 rounded-xl">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div class="bg-white/50 p-5 rounded-2xl h-72 relative border border-slate-100 shadow-inner"><canvas id="chart-freq"></canvas></div>
                                 <div class="bg-white/50 p-5 rounded-2xl h-72 relative border border-slate-100 shadow-inner"><canvas id="chart-ratio"></canvas></div>
@@ -384,17 +404,22 @@
     <div id="message-box"></div>
 
     <!-- Context Panel -->
-    <div id="context-panel" class="glass-card shadow-2xl p-6 border-blue-200">
-        <div class="flex justify-between items-center mb-4 text-slate-800">
+    <div id="context-panel" class="glass-card shadow-2xl border-blue-200 overflow-hidden">
+        <!-- Header -->
+        <div class="flex justify-between items-center p-6 pb-2 text-slate-800 flex-shrink-0">
             <h4 class="text-sm font-black text-blue-600 flex items-center gap-2"><i data-lucide="search" class="w-4 h-4"></i>文脈解析</h4>
             <button id="close-context" class="p-1 hover:bg-slate-100 rounded-lg transition text-slate-400"><i data-lucide="x" class="w-4 h-4"></i></button>
         </div>
-        <div class="mb-4 border-b border-slate-100 pb-4">
-            <div id="selected-word-display" class="text-2xl font-black text-blue-600">---</div>
-            <div id="word-usage-summary" class="ai-word-usage-summary">AI注釈を生成中...</div>
+        
+        <!-- Scrollable Content -->
+        <div class="p-6 pt-2 overflow-y-auto custom-scrollbar flex-grow">
+            <div class="mb-4 border-b border-slate-100 pb-4">
+                <div id="selected-word-display" class="text-2xl font-black text-blue-600">---</div>
+                <div id="word-usage-summary" class="ai-word-usage-summary">AI注釈を生成中...</div>
+            </div>
+            <div class="mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">ファイル内での引用</div>
+            <div id="context-results" class="space-y-4 text-slate-700 text-xs"></div>
         </div>
-        <div class="mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">ファイル内での引用</div>
-        <div id="context-results" class="space-y-4 overflow-y-auto max-h-[450px] pr-2 custom-scrollbar text-slate-700 text-xs"></div>
     </div>
 
     <script type="module">
@@ -404,7 +429,8 @@
 
         // CONFIG & Engine Constants
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'text-miner-ultra-v6';
-        const apiKey = "AIzaSyB0ks1letUoqFBAxDgjXe0iWS76i36qp4Y"; 
+        // セキュリティのためAPI Keyを空に設定（環境変数から自動注入されます）
+        const apiKey = ""; 
         let firebaseConfig = {};
         try { if (typeof __firebase_config !== 'undefined' && __firebase_config) firebaseConfig = JSON.parse(__firebase_config); } catch (e) {}
 
@@ -499,7 +525,7 @@
                 countValLabel: document.getElementById('count-val'),
                 scaleValLabel: document.getElementById('scale-val'),
                 downloadBtn: document.getElementById('download-btn'),
-                modalDownload: document.getElementById('modal-download'),
+                modalDownloadBtn: document.getElementById('modal-download-btn'),
                 modalOverlay: document.getElementById('modal-overlay'),
                 modalCanvas: document.getElementById('modal-canvas'),
                 modalCanvasContainer: document.getElementById('modal-canvas-container'),
@@ -584,7 +610,6 @@
         }
 
         async function fetchWordAiSummary(word) {
-            if (!apiKey) return;
             const summaryEl = elements.wordUsageSummary;
             if (summaryEl) {
                 summaryEl.textContent = "このファイル内での役割を分析中...";
@@ -647,7 +672,7 @@
         }
 
         async function fetchSummary(text) {
-            if (!apiKey || text.length < 100) return;
+            if (text.length < 100) return;
             elements.summaryLoading.classList.remove('hidden');
             elements.summaryContent.innerHTML = "";
             try {
@@ -795,6 +820,16 @@
                         const target = document.getElementById(`tab-content-${x}`);
                         if (target) target.classList.toggle('hidden', x !== t);
                     });
+                    
+                    // Update button title based on context
+                    if(elements.downloadBtn) {
+                        if (t === 'summary' || t === 'original') {
+                            elements.downloadBtn.title = "テキストを保存";
+                        } else {
+                            elements.downloadBtn.title = "画像を保存";
+                        }
+                    }
+
                     if (t === 'cloud') setTimeout(drawCloud, 50);
                     if (t === 'analysis') setTimeout(initCharts, 50);
                 });
@@ -817,6 +852,130 @@
                 if (style === 'midnight') { elements.modalOverlay.style.backgroundColor = 'rgba(15, 23, 42, 0.98)'; elements.modalOverlay.classList.add('dark-modal'); }
                 else if (style === 'glass') { elements.modalOverlay.style.backgroundColor = 'rgba(255, 255, 255, 0.95)'; elements.modalOverlay.classList.add('light-modal'); }
                 else if (style === 'black') { elements.modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.99)'; elements.modalOverlay.classList.add('dark-modal'); }
+            });
+
+            // --- IMPROVED DOWNLOAD LOGIC (BLOB BASED + HTML2CANVAS + TEXT) ---
+            const downloadCanvas = (canvas, bgHex, prefix) => {
+                if (!canvas || !currentWords.length) {
+                    showMessage("保存するデータがありません", true);
+                    return;
+                }
+                try {
+                    const composite = document.createElement('canvas');
+                    composite.width = canvas.width;
+                    composite.height = canvas.height;
+                    const ctx = composite.getContext('2d');
+                    ctx.fillStyle = bgHex;
+                    ctx.fillRect(0, 0, composite.width, composite.height);
+                    ctx.drawImage(canvas, 0, 0);
+
+                    composite.toBlob((blob) => {
+                        if(!blob) return showMessage("画像生成に失敗しました", true);
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.download = `${prefix}-${Date.now()}.png`;
+                        link.href = url;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                        showMessage("画像を保存しました");
+                    }, 'image/png');
+                } catch (e) {
+                    console.error(e);
+                    showMessage("保存エラーが発生しました", true);
+                }
+            };
+
+            const downloadText = (text, prefix) => {
+                if (!text || text.trim().length === 0) {
+                    showMessage("保存するテキストがありません", true);
+                    return;
+                }
+                try {
+                    const blob = new Blob([text], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.download = `${prefix}-${Date.now()}.txt`;
+                    link.href = url;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    showMessage("テキストファイルを保存しました");
+                } catch (e) {
+                    console.error(e);
+                    showMessage("保存エラーが発生しました", true);
+                }
+            };
+
+            // Enhanced download handler for multiple tabs
+            elements.downloadBtn?.addEventListener('click', async () => {
+                const activeTabBtn = document.querySelector('.tab-btn.active');
+                const activeTab = activeTabBtn ? activeTabBtn.dataset.tab : 'cloud';
+
+                if (activeTab === 'cloud') {
+                    // Cloud -> Image
+                    const theme = THEMES[activeTheme];
+                    downloadCanvas(elements.cloudCanvas, theme.bg, `text-mining-${activeTheme}`);
+                } 
+                else if (activeTab === 'summary') {
+                    // Summary -> Text
+                    downloadText(elements.summaryContent.innerText, 'ai-summary');
+                }
+                else if (activeTab === 'original') {
+                    // Original -> Text
+                    downloadText(rawText || elements.originalContent.innerText, 'original-text');
+                }
+                else {
+                    // Analysis -> Image (html2canvas)
+                    const targetId = `tab-content-${activeTab}`;
+                    const targetElement = document.getElementById(targetId);
+                    
+                    if (!targetElement || targetElement.classList.contains('hidden')) {
+                        showMessage("保存するコンテンツが見つかりません", true);
+                        return;
+                    }
+
+                    showMessage("画像を生成中...", false);
+
+                    try {
+                        const isDark = document.body.classList.contains('theme-midnight');
+                        const bgColor = isDark ? '#0f172a' : '#f8fafc'; 
+
+                        const canvas = await html2canvas(targetElement, {
+                            backgroundColor: bgColor,
+                            scale: 2, 
+                            logging: false,
+                            useCORS: true,
+                            ignoreElements: (element) => element.id === 'summary-loading'
+                        });
+
+                        canvas.toBlob((blob) => {
+                            if(!blob) return showMessage("画像生成に失敗しました", true);
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.download = `text-mining-${activeTab}-${Date.now()}.png`;
+                            link.href = url;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            URL.revokeObjectURL(url);
+                            showMessage("画像を保存しました");
+                        }, 'image/png');
+                    } catch (e) {
+                        console.error(e);
+                        showMessage("保存エラーが発生しました", true);
+                    }
+                }
+            });
+
+            elements.modalDownloadBtn?.addEventListener('click', () => {
+                const style = elements.modalBgStyleSelect?.value || 'midnight';
+                let bgColor = '#0f172a';
+                if (style === 'glass') bgColor = '#ffffff';
+                if (style === 'black') bgColor = '#000000';
+                downloadCanvas(elements.modalCanvas, bgColor, `text-mining-modal-${style}`);
             });
         }
 
