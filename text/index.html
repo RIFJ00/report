@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Text Miner Ultra</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.2/wordcloud2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Noto+Sans+JP:wght@400;700&display=swap');
+        
+        :root {
+            --bg-main: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --text-main: #1e293b;
+            --accent: #3b82f6;
+        }
+
+        body.theme-midnight {
+            --bg-main: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --text-main: #f1f5f9;
+            --accent: #22d3ee;
+            color: var(--text-main);
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-x: hidden;
+        }
+
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        #cloud-container {
+            width: 100%;
+            height: 65vh;
+            position: relative;
+            background: transparent;
+            border-radius: 1.25rem;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* パネル切り替えモード */
+        body.fullscreen-mode #sidebar { display: none !important; }
+        body.fullscreen-mode #main-content { grid-column: span 12 / span 12 !important; width: 100% !important; max-width: 100% !important; }
+        body.fullscreen-mode #cloud-container { height: 80vh; }
+
+        #modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            backdrop-filter: blur(25px);
+            display: none;
+            flex-direction: column;
+            padding: 1.5rem;
+            animation: fadeIn 0.25s ease-out;
+            transition: background-color 0.4s ease;
+        }
+
+        #modal-overlay.light-modal { color: #1e293b; }
+        #modal-overlay.dark-modal { color: #ffffff; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        #modal-canvas-container {
+            flex-grow: 1;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        #tooltip, #modal-tooltip {
+            position: absolute;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            display: none;
+            z-index: 1100;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        canvas { cursor: pointer; }
+
+        .tab-btn.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+
+        .rainbow-bg { background: linear-gradient(45deg, #f43f5e, #f59e0b, #10b981, #3b82f6, #8b5cf6); }
+
+        #context-panel {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 380px;
+            max-height: 450px;
+            z-index: 50;
+            transform: translateY(150%);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #context-panel.open { transform: translateY(0); }
+
+        .summary-text-container {
+            line-height: 1.8;
+            font-size: 0.95rem;
+        }
+        .summary-text-container p { margin-bottom: 1rem; }
+        .summary-text-container h3 { 
+            font-weight: 800; 
+            color: var(--accent); 
+            margin-top: 1.5rem; 
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .loading-shimmer {
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
+
+    <div class="max-w-[1600px] mx-auto">
+        <!-- Header -->
+        <header class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+            <div>
+                <h1 class="text-3xl font-extrabold tracking-tight flex items-center gap-3 text-slate-900 dark:text-inherit">
+                    <span class="bg-blue-600 text-white p-2 rounded-xl shadow-lg"><i data-lucide="brain-circuit"></i></span>
+                    Visual Miner <span class="text-blue-600">Ultra</span>
+                </h1>
+                <p class="text-slate-500 mt-1 font-medium italic text-sm">AI要約 ＆ 文脈解析対応マイニングツール v3.0</p>
+            </div>
+            <div class="flex gap-3">
+                <button id="toggle-fullscreen" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition shadow-sm font-bold text-sm text-slate-600">
+                    <i data-lucide="layout-template" class="w-4 h-4"></i> パネル切替
+                </button>
+                <button id="open-modal" class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-200 font-bold text-sm">
+                    <i data-lucide="maximize" class="w-4 h-4"></i> 拡大表示
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Sidebar -->
+            <div id="sidebar" class="lg:col-span-4 space-y-6">
+                <div id="drop-zone" class="glass-card p-6 text-center cursor-pointer shadow-sm border-2 border-dashed border-slate-200 group">
+                    <input type="file" id="file-input" class="hidden" accept=".pdf,.docx">
+                    <div class="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition">
+                        <i data-lucide="upload-cloud" class="text-blue-600 w-6 h-6"></i>
+                    </div>
+                    <p class="text-sm font-bold">ファイルをドロップ</p>
+                    <p class="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">PDF / DOCX 分析 ＆ 要約</p>
+                </div>
+
+                <div class="glass-card p-6 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-bold">解析設定</h3>
+                        <span id="file-status" class="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-500 italic max-w-[120px] truncate">待機中</span>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-1 font-bold text-slate-400 uppercase"><span>分野フィルタ</span></div>
+                            <select id="field-filter" class="w-full bg-blue-50/50 border border-blue-100 rounded-lg px-2 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 transition">
+                                <option value="all">すべての単語</option>
+                                <option value="tech">IT・テクノロジー</option>
+                                <option value="business">ビジネス・経済</option>
+                                <option value="politics">政治・行政</option>
+                                <option value="medical">医療・福祉</option>
+                                <option value="academic">学術・科学</option>
+                                <option value="society">社会・教育</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-1 font-bold text-slate-400 uppercase"><span>表示ワード数</span><span id="count-val" class="text-blue-600 font-black">80</span></div>
+                            <input type="range" id="word-count" min="10" max="400" value="80" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1 font-bold text-slate-400 uppercase"><span>配置方向</span></div>
+                                <select id="layout-orientation" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold outline-none">
+                                    <option value="mixed">混合 (斜め含)</option>
+                                    <option value="horizontal">横のみ</option>
+                                    <option value="cross">十字 (縦横のみ)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1 font-bold text-slate-400 uppercase"><span>表示形状</span></div>
+                                <select id="cloud-shape" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold outline-none">
+                                    <option value="square" selected>正方形</option>
+                                    <option value="circle">円形</option>
+                                    <option value="cardioid">ハート</option>
+                                    <option value="diamond">ダイヤ</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1 font-bold text-slate-400 uppercase"><span>太さ</span></div>
+                                <select id="font-weight-select" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold outline-none">
+                                    <option value="normal">標準</option>
+                                    <option value="bold" selected>太字</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1 font-bold text-slate-400 uppercase"><span>拡大率</span><span id="scale-val" class="text-blue-600 font-black ml-1">1.0x</span></div>
+                                <input type="range" id="font-scale" min="0.1" max="3.0" step="0.1" value="1.0" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-2 font-bold text-slate-400 uppercase"><span>ポップアップ背景</span></div>
+                            <select id="modal-bg-style" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 transition">
+                                <option value="midnight">Midnight (暗色)</option>
+                                <option value="glass">Glass White (明色)</option>
+                                <option value="black">Deep Black (漆黒)</option>
+                                <option value="theme">Theme Accent (連動)</option>
+                            </select>
+                        </div>
+
+                        <button id="refresh-btn" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-black transition">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i> 解析再実行
+                        </button>
+                    </div>
+                </div>
+
+                <div class="glass-card p-6 shadow-sm">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">ビジュアル・スタイル</h3>
+                    <div class="grid grid-cols-6 gap-2" id="style-selector">
+                        <div class="style-card active p-1 rounded-lg bg-blue-100" data-style="ocean"><div class="w-full aspect-square rounded-md bg-blue-600"></div></div>
+                        <div class="style-card p-1 rounded-lg bg-slate-800" data-style="midnight"><div class="w-full aspect-square rounded-md bg-cyan-400"></div></div>
+                        <div class="style-card p-1 rounded-lg bg-emerald-100" data-style="organic"><div class="w-full aspect-square rounded-md bg-emerald-600"></div></div>
+                        <div class="style-card p-1 rounded-lg bg-pink-100" data-style="berry"><div class="w-full aspect-square rounded-md bg-pink-500"></div></div>
+                        <div class="style-card p-1 rounded-lg bg-slate-200" data-style="academic"><div class="w-full aspect-square rounded-md bg-slate-900"></div></div>
+                        <div class="style-card p-1 rounded-lg bg-slate-100" data-style="colorful"><div class="w-full aspect-square rounded-md rainbow-bg"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div id="main-content" class="lg:col-span-8 space-y-6">
+                <div class="glass-card shadow-xl overflow-hidden min-h-[720px] flex flex-col">
+                    <div class="flex border-b border-slate-200/50 bg-white/50 px-6 py-1 items-center overflow-x-auto">
+                        <button class="tab-btn active px-4 py-3 text-sm font-bold flex items-center gap-2 whitespace-nowrap" data-tab="cloud"><i data-lucide="cloud" class="w-4 h-4"></i> クラウド</button>
+                        <button class="tab-btn px-4 py-3 text-sm font-bold flex items-center gap-2 whitespace-nowrap" data-tab="analysis"><i data-lucide="database" class="w-4 h-4"></i> 数値分析</button>
+                        <button class="tab-btn px-4 py-3 text-sm font-bold flex items-center gap-2 whitespace-nowrap" data-tab="summary"><i data-lucide="file-text" class="w-4 h-4"></i> AI要約</button>
+                        <div class="flex-grow"></div>
+                        <div class="flex gap-2 p-1">
+                            <button id="fit-btn" class="px-3 py-1.5 text-[10px] font-bold border rounded-lg bg-white shadow-sm hover:bg-slate-50">フィット</button>
+                            <button id="download-btn" class="p-2 text-slate-400 hover:text-blue-600 transition" title="画像保存"><i data-lucide="download" class="w-5 h-5"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="p-6 flex-grow relative flex flex-col">
+                        <!-- Word Cloud View -->
+                        <div id="tab-content-cloud" class="tab-pane flex-grow">
+                            <div id="cloud-container">
+                                <canvas id="cloud-canvas"></canvas>
+                                <div id="tooltip"></div>
+                            </div>
+                        </div>
+                        <!-- Analysis View -->
+                        <div id="tab-content-analysis" class="tab-pane hidden flex-grow space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="bg-white/50 p-5 rounded-2xl h-64 relative shadow-inner"><canvas id="chart-freq"></canvas></div>
+                                <div class="bg-white/50 p-5 rounded-2xl h-64 relative shadow-inner"><canvas id="chart-ratio"></canvas></div>
+                            </div>
+                            <div class="bg-white/50 p-5 rounded-2xl border flex-grow overflow-hidden shadow-sm">
+                                <div class="overflow-y-auto max-h-[350px]">
+                                    <table class="w-full text-xs text-left">
+                                        <thead><tr class="text-slate-400 border-b">
+                                            <th class="py-2">順位</th><th class="py-2">ワード</th><th class="py-2">分野</th><th class="py-2">回数</th>
+                                        </tr></thead>
+                                        <tbody id="data-table-body"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Summary View -->
+                        <div id="tab-content-summary" class="tab-pane hidden flex-grow">
+                            <div id="summary-loading" class="hidden flex flex-col items-center justify-center h-full space-y-4">
+                                <div class="w-16 h-1 bg-slate-100 rounded-full overflow-hidden relative">
+                                    <div class="absolute inset-0 bg-blue-500 loading-shimmer"></div>
+                                </div>
+                                <p class="text-xs font-bold text-slate-400 animate-pulse">AIが文書を読み込んでいます...</p>
+                            </div>
+                            <div id="summary-content" class="bg-white/60 p-8 rounded-3xl min-h-[400px] border border-blue-50/50 shadow-inner summary-text-container overflow-y-auto max-h-[600px]">
+                                <div class="flex flex-col items-center justify-center h-full text-slate-300">
+                                    <i data-lucide="sparkles" class="w-12 h-12 mb-4 opacity-20"></i>
+                                    <p class="font-bold">ファイルを読み込むとここに要約が表示されます</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="loading-overlay" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/95 rounded-2xl">
+                            <div class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                            <p class="mt-4 font-bold text-slate-800 tracking-tight text-sm">ドキュメントを解析中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Panel -->
+    <div id="context-panel" class="glass-card shadow-2xl p-6 border-blue-200">
+        <div class="flex justify-between items-center mb-4">
+            <h4 class="text-sm font-black text-blue-600 flex items-center gap-2">
+                <i data-lucide="search" class="w-4 h-4"></i>文脈エクスプローラー
+            </h4>
+            <button id="close-context" class="p-1 hover:bg-slate-100 rounded-lg"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+        <div class="mb-3 border-b border-slate-100 pb-2">
+            <span class="text-[10px] text-slate-400 font-black uppercase tracking-widest">Selected Keyword</span>
+            <div id="selected-word-display" class="text-xl font-extrabold text-slate-800">---</div>
+        </div>
+        <div id="context-results" class="space-y-3 overflow-y-auto max-h-[250px] pr-2 text-xs leading-relaxed text-slate-600">
+            単語をクリックして文脈を確認してください。
+        </div>
+    </div>
+
+    <!-- Popup Modal -->
+    <div id="modal-overlay" class="dark-modal">
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-3 text-inherit">
+                <h2 class="text-xl font-extrabold tracking-tight text-inherit">FullScreen View</h2>
+                <span id="modal-file-name" class="text-xs opacity-50 italic text-inherit"></span>
+            </div>
+            <div class="flex gap-4">
+                <button id="modal-download" class="px-5 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition text-sm font-bold border border-white/10 text-inherit">画像保存</button>
+                <button id="close-modal" class="px-5 py-2.5 bg-red-500 text-white rounded-xl transition text-sm font-bold shadow-lg">
+                    <i data-lucide="x" class="w-4 h-4"></i> 閉じる
+                </button>
+            </div>
+        </div>
+        <div id="modal-canvas-container">
+            <canvas id="modal-canvas"></canvas>
+            <div id="modal-tooltip"></div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+        lucide.createIcons();
+
+        // Gemini API Configuration
+        const apiKey = "";
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+        // DOM elements cache
+        const elements = {
+            fileInput: document.getElementById('file-input'),
+            dropZone: document.getElementById('drop-zone'),
+            cloudCanvas: document.getElementById('cloud-canvas'),
+            cloudContainer: document.getElementById('cloud-container'),
+            modalOverlay: document.getElementById('modal-overlay'),
+            modalCanvas: document.getElementById('modal-canvas'),
+            modalCanvasContainer: document.getElementById('modal-canvas-container'),
+            tooltip: document.getElementById('tooltip'),
+            modalTooltip: document.getElementById('modal-tooltip'),
+            loadingOverlay: document.getElementById('loading-overlay'),
+            wordCountRange: document.getElementById('word-count'),
+            fontScaleRange: document.getElementById('font-scale'),
+            fieldFilter: document.getElementById('field-filter'),
+            contextPanel: document.getElementById('context-panel'),
+            contextResults: document.getElementById('context-results'),
+            selectedWordDisplay: document.getElementById('selected-word-display'),
+            modalBgStyleSelect: document.getElementById('modal-bg-style'),
+            orientationSelect: document.getElementById('layout-orientation'),
+            shapeSelect: document.getElementById('cloud-shape'),
+            fontWeightSelect: document.getElementById('font-weight-select'),
+            countValLabel: document.getElementById('count-val'),
+            scaleValLabel: document.getElementById('scale-val'),
+            summaryContent: document.getElementById('summary-content'),
+            summaryLoading: document.getElementById('summary-loading'),
+            tabBtns: document.querySelectorAll('.tab-btn'),
+            toggleFullscreen: document.getElementById('toggle-fullscreen'),
+            openModal: document.getElementById('open-modal'),
+            closeModal: document.getElementById('close-modal'),
+            downloadBtn: document.getElementById('download-btn'),
+            modalDownload: document.getElementById('modal-download'),
+            fitBtn: document.getElementById('fit-btn'),
+            refreshBtn: document.getElementById('refresh-btn'),
+            closeContext: document.getElementById('close-context')
+        };
+
+        // State
+        const THEMES = {
+            ocean: { colors: ['#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd'], bg: '#ffffff', bodyClass: '' },
+            midnight: { colors: ['#22d3ee', '#818cf8', '#c084fc', '#fb7185', '#38bdf8'], bg: '#0f172a', bodyClass: 'theme-midnight' },
+            organic: { colors: ['#065f46', '#059669', '#10b981', '#fbbf24', '#d97706'], bg: '#f0fdf4', bodyClass: '' },
+            berry: { colors: ['#db2777', '#c026d3', '#9333ea', '#7c3aed', '#f472b6'], bg: '#fff1f2', bodyClass: '' },
+            academic: { colors: ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8'], bg: '#f8fafc', bodyClass: '' },
+            colorful: { colors: ['#f43f5e', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'], bg: '#ffffff', bodyClass: '' }
+        };
+
+        const FIELD_MAP = {
+            tech: ['システム', 'データ', '開発', 'AI', 'プログラミング', 'ネットワーク', 'サーバー', 'セキュリティ', '技術', 'デジタル', 'クラウド', '機能', 'アプリ', 'ソフトウェア', '実装', '通信', '処理', '基盤'],
+            business: ['ビジネス', '経済', '市場', '投資', '戦略', '顧客', 'サービス', '利益', '経営', 'マーケティング', '売上', '企業', '産業', 'マネジメント', '運営', '事業', '広告', '費用'],
+            politics: ['政治', '行政', '政府', '法律', '法案', '予算', '選挙', '外交', '国会', '地方', '自治', '公的', '政策', '議会', '国際', '条約', '権限', '税制'],
+            medical: ['医療', '福祉', '病院', 'クリニック', '医師', '看護', '介護', '健康', '疾患', '診断', '治療', '薬品', '創薬', '患者', 'リハビリ', '厚生', '予防', '公衆衛生'],
+            academic: ['研究', '理論', '科学', '実験', '解析', '手法', '論文', '証明', '現象', '観察', 'データ', '分析', '仮説', '調査', '検証', '大学', '学会', '定義'],
+            society: ['教育', '社会', '学習', '学校', '文化', '生活', '環境', '地域', '市民', '福祉', '制度', '現状', '共生', '家族', '若者', '高齢者', '活動']
+        };
+
+        let currentWords = [];
+        let sentences = [];
+        let activeTheme = 'ocean';
+        let charts = {};
+        let rawText = "";
+        window.analysisData = { kanjiCount: 0, katakanaCount: 0, totalUnique: 0 };
+
+        // UI Helpers
+        function applyTheme() {
+            const theme = THEMES[activeTheme];
+            document.body.classList.remove('theme-midnight');
+            if (theme.bodyClass) document.body.classList.add(theme.bodyClass);
+            if (elements.cloudContainer) elements.cloudContainer.style.background = theme.bg;
+        }
+
+        // AI Summary Fetch
+        async function fetchSummary(text) {
+            if (!text || text.length < 50 || !elements.summaryContent) return;
+            
+            elements.summaryLoading.classList.remove('hidden');
+            elements.summaryContent.classList.add('opacity-30');
+            
+            const systemPrompt = "あなたは優秀なデータアナリストです。提供されたテキストの内容を分析し、主要な論点を簡潔かつ構造的に要約してください。重要なキーワードについては太字で強調し、箇条書きを活用して読みやすくまとめてください。出力は日本語のみとしてください。";
+            const userPrompt = `以下のテキストを要約してください：\n\n${text.substring(0, 15000)}`;
+
+            const fetchWithRetry = async (retries = 5, delay = 1000) => {
+                try {
+                    const response = await fetch(GEMINI_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: userPrompt }] }],
+                            systemInstruction: { parts: [{ text: systemPrompt }] }
+                        })
+                    });
+                    
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text;
+                } catch (error) {
+                    if (retries > 0) {
+                        await new Promise(res => setTimeout(res, delay));
+                        return fetchWithRetry(retries - 1, delay * 2);
+                    }
+                    throw error;
+                }
+            };
+
+            try {
+                const summaryText = await fetchWithRetry();
+                if (summaryText) {
+                    const formatted = summaryText
+                        .replace(/^### (.*$)/gim, '<h3><i data-lucide="chevron-right" class="w-4 h-4"></i> $1</h3>')
+                        .replace(/^## (.*$)/gim, '<h3>$1</h3>')
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/^\* (.*$)/gim, '<div class="flex gap-2 mb-1"><span class="text-blue-500">•</span><span>$1</span></div>')
+                        .split('\n').map(p => p.trim() ? `<p>${p}</p>` : '').join('');
+                    
+                    elements.summaryContent.innerHTML = formatted;
+                    lucide.createIcons();
+                }
+            } catch (err) {
+                elements.summaryContent.innerHTML = `<p class="text-red-500 font-bold text-center">要約の生成に失敗しました。API設定を確認してください。</p>`;
+            } finally {
+                elements.summaryLoading.classList.add('hidden');
+                elements.summaryContent.classList.remove('opacity-30');
+            }
+        }
+
+        // Drawing Logic
+        function getCommonOptions(canvas, data, container, tipElement, isModal = false) {
+            const theme = THEMES[activeTheme];
+            const orientation = elements.orientationSelect ? elements.orientationSelect.value : 'mixed';
+            const shape = elements.shapeSelect ? elements.shapeSelect.value : 'square';
+            const weight = elements.fontWeightSelect ? elements.fontWeightSelect.value : 'bold';
+            const scale = elements.fontScaleRange ? parseFloat(elements.fontScaleRange.value) : 1.0;
+
+            let rotateRatio = 0.45;
+            let minRotation = -Math.PI / 4;
+            let maxRotation = Math.PI / 4;
+            let rotationSteps = 5;
+
+            if (orientation === 'horizontal') rotateRatio = 0;
+            else if (orientation === 'cross') { rotateRatio = 0.5; minRotation = -Math.PI / 2; maxRotation = 0; rotationSteps = 2; }
+
+            return {
+                list: data,
+                gridSize: isModal ? 12 : 10,
+                weightFactor: (s) => (s / data[0][1]) * (canvas.width / (isModal ? 10 : 9)) * scale,
+                fontFamily: 'Plus Jakarta Sans, Noto Sans JP, sans-serif',
+                fontWeight: weight,
+                color: () => theme.colors[Math.floor(Math.random() * theme.colors.length)],
+                rotateRatio: rotateRatio,
+                minRotation: minRotation,
+                maxRotation: maxRotation,
+                rotationSteps: rotationSteps,
+                shape: shape,
+                backgroundColor: 'transparent',
+                shrinkToFit: true,
+                drawOutOfBound: false,
+                click: (item) => {
+                    showContext(item[0]);
+                    if (isModal && elements.modalOverlay) elements.modalOverlay.style.display = 'none';
+                },
+                hover: (item, dim, event) => {
+                    if (!item) { tipElement.style.display = 'none'; return; }
+                    tipElement.style.display = 'block';
+                    const rect = container.getBoundingClientRect();
+                    tipElement.style.left = (event.pageX - rect.left + 15) + 'px';
+                    tipElement.style.top = (event.pageY - rect.top - 50) + 'px';
+                    tipElement.innerHTML = `<div class="font-bold text-xs mb-1">${item[0]}</div><div class="text-[10px] opacity-80 font-medium">出現: ${item[1]}回</div>`;
+                }
+            };
+        }
+
+        function drawCloud() {
+            const data = getFilteredWords();
+            if (data.length === 0 || !elements.cloudCanvas || !elements.cloudContainer) return;
+            const currentTab = document.querySelector('.tab-btn.active').dataset.tab;
+            if (currentTab !== 'cloud') return;
+
+            elements.cloudCanvas.width = elements.cloudContainer.offsetWidth;
+            elements.cloudCanvas.height = elements.cloudContainer.offsetHeight;
+            WordCloud(elements.cloudCanvas, getCommonOptions(elements.cloudCanvas, data, elements.cloudContainer, elements.tooltip, false));
+        }
+
+        function drawModalCloud() {
+            const data = getFilteredWords();
+            if (data.length === 0 || !elements.modalCanvas || !elements.modalCanvasContainer) return;
+            elements.modalCanvas.width = elements.modalCanvasContainer.offsetWidth;
+            elements.modalCanvas.height = elements.modalCanvasContainer.offsetHeight;
+            WordCloud(elements.modalCanvas, getCommonOptions(elements.modalCanvas, data, elements.modalCanvasContainer, elements.modalTooltip, true));
+        }
+
+        function processText(text) {
+            sentences = text.split(/[。！？\n]/).filter(s => s.trim().length > 4);
+            const stops = new Set(['こと', 'もの', 'それ', 'これ', 'ため', 'よう', 'ところ', 'そう', 'あり', 'なし', 'とき', 'など', 'において', 'について', 'という', 'ます', 'です', 'ある', 'いる', 'なる', 'れる', 'して', 'から', 'まで', 'への', 'より', 'にて', 'および', 'また', 'ない', 'した', 'れる', 'られる', 'いる', 'ある', 'この', 'その', 'あの']);
+            const regex = /[\u4E00-\u9FFF]{2,}|[\u30A0-\u30FF]{2,}/g;
+            const matches = text.match(regex) || [];
+            const freq = {};
+            matches.forEach(w => { if (!stops.has(w)) freq[w] = (freq[w] || 0) + 1; });
+            
+            currentWords = Object.entries(freq).map(([word, count]) => {
+                let field = 'others';
+                for (const [key, list] of Object.entries(FIELD_MAP)) {
+                    if (list.some(keyword => word.includes(keyword) || keyword.includes(word))) {
+                        field = key; break;
+                    }
+                }
+                return { word, count, field };
+            }).sort((a, b) => b.count - a.count);
+
+            window.analysisData = {
+                kanjiCount: (text.match(/[\u4E00-\u9FFF]/g) || []).length,
+                katakanaCount: (text.match(/[\u30A0-\u30FF]/g) || []).length,
+                totalUnique: currentWords.length
+            };
+        }
+
+        function getFilteredWords() {
+            const filter = elements.fieldFilter ? elements.fieldFilter.value : 'all';
+            const count = elements.wordCountRange ? parseInt(elements.wordCountRange.value) : 80;
+            let data = filter === 'all' ? currentWords : currentWords.filter(w => w.field === filter);
+            return data.slice(0, count).map(w => [w.word, w.count]);
+        }
+
+        function showContext(word) {
+            if (!elements.selectedWordDisplay || !elements.contextResults || !elements.contextPanel) return;
+            elements.selectedWordDisplay.textContent = word;
+            elements.contextResults.innerHTML = '';
+            const matches = sentences.filter(s => s.includes(word)).slice(0, 15);
+            if (matches.length === 0) {
+                elements.contextResults.innerHTML = '<p class="text-slate-400 text-center py-4">文脈データが見つかりませんでした。</p>';
+            } else {
+                matches.forEach(s => {
+                    const div = document.createElement('div');
+                    div.className = "bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 text-[11px] leading-relaxed shadow-sm transition hover:bg-blue-50 mt-2";
+                    div.innerHTML = s.trim().replace(new RegExp(word, 'g'), `<mark class="bg-blue-600 text-white font-bold px-1 rounded-sm">${word}</mark>`);
+                    elements.contextResults.appendChild(div);
+                });
+            }
+            elements.contextPanel.classList.add('open');
+        }
+
+        function initCharts() {
+            Object.values(charts).forEach(c => c && c.destroy());
+            const top10 = currentWords.slice(0, 10);
+            const theme = THEMES[activeTheme];
+            
+            const freqCtx = document.getElementById('chart-freq');
+            const ratioCtx = document.getElementById('chart-ratio');
+            if (!freqCtx || !ratioCtx) return;
+
+            charts.freq = new Chart(freqCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: top10.map(d => d.word),
+                    datasets: [{ label: '出現数', data: top10.map(d => d.count), backgroundColor: theme.colors[0], borderRadius: 8 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } } }
+            });
+
+            const fieldStats = currentWords.reduce((acc, w) => { acc[w.field] = (acc[w.field] || 0) + 1; return acc; }, {});
+            charts.ratio = new Chart(ratioCtx.getContext('2d'), {
+                type: 'doughnut',
+                data: { labels: Object.keys(fieldStats).map(k => k === 'politics' ? '政治' : k === 'medical' ? '医療' : k === 'tech' ? 'IT' : k === 'business' ? 'ビジネス' : k === 'academic' ? '学術' : k === 'society' ? '社会' : 'その他'), datasets: [{ data: Object.values(fieldStats), backgroundColor: theme.colors }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } }
+            });
+
+            const tbody = document.getElementById('data-table-body');
+            if (tbody) {
+                tbody.innerHTML = currentWords.slice(0, 50).map((w, i) => `
+                    <tr class="border-b border-slate-50 hover:bg-blue-50 transition cursor-pointer text-[11px]" onclick="showContext('${w.word}')">
+                        <td class="py-2.5 px-2 text-slate-400 font-bold">${i+1}</td>
+                        <td class="py-2.5 font-bold text-slate-700">${w.word}</td>
+                        <td class="py-2.5"><span class="px-2 py-0.5 rounded-full bg-slate-100 text-[9px] font-black uppercase text-slate-500">${w.field}</span></td>
+                        <td class="py-2.5 text-blue-600 font-bold text-right pr-4">${w.count}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        function saveCanvasImage(canvas, filename) {
+            const tempCanvas = document.createElement('canvas');
+            const ctx = tempCanvas.getContext('2d');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            
+            let bgColor = THEMES[activeTheme].bg || '#ffffff';
+            if (elements.modalOverlay && elements.modalOverlay.style.display === 'flex') {
+                bgColor = window.getComputedStyle(elements.modalOverlay).backgroundColor;
+            }
+            
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            ctx.drawImage(canvas, 0, 0);
+
+            tempCanvas.toBlob((blob) => {
+                if (!blob) return alert("画像の生成に失敗しました。");
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url; link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(url); }, 100);
+            }, 'image/png');
+        }
+
+        async function handleFile(file) {
+            if (!file) return;
+            if (elements.loadingOverlay) elements.loadingOverlay.classList.remove('hidden');
+            const status = document.getElementById('file-status');
+            const modalStatus = document.getElementById('modal-file-name');
+            if (status) status.textContent = file.name;
+            if (modalStatus) modalStatus.textContent = file.name;
+
+            const ext = file.name.split('.').pop().toLowerCase();
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                rawText = (ext === 'pdf') ? await extractPDF(arrayBuffer) : await extractDocx(arrayBuffer);
+                processText(rawText);
+                
+                // 最初のタブ（クラウド）にリセット
+                const firstTab = document.querySelector('.tab-btn[data-tab="cloud"]');
+                if (firstTab) firstTab.click(); 
+                
+                drawCloud();
+                fetchSummary(rawText);
+            } catch (err) { alert("解析エラー: " + err.message); }
+            finally { if (elements.loadingOverlay) elements.loadingOverlay.classList.add('hidden'); }
+        }
+
+        async function extractPDF(data) {
+            const pdf = await pdfjsLib.getDocument({ data }).promise;
+            let text = "";
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                text += (await page.getTextContent()).items.map(it => it.str).join(' ') + "\n";
+            }
+            return text;
+        }
+
+        async function extractDocx(arrayBuffer) {
+            return (await mammoth.extractRawText({ arrayBuffer })).value;
+        }
+
+        // Initialize listeners with guards
+        function setupEventListeners() {
+            document.querySelectorAll('.style-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    document.querySelectorAll('.style-card').forEach(c => c.classList.remove('active'));
+                    card.classList.add('active');
+                    activeTheme = card.dataset.style;
+                    applyTheme();
+                    if (currentWords.length > 0) drawCloud();
+                });
+            });
+
+            if (elements.modalBgStyleSelect) {
+                elements.modalBgStyleSelect.addEventListener('change', () => {
+                    const style = elements.modalBgStyleSelect.value;
+                    elements.modalOverlay.classList.remove('light-modal', 'dark-modal');
+                    if (style === 'midnight') { 
+                        elements.modalOverlay.style.backgroundColor = 'rgba(15, 23, 42, 0.98)'; 
+                        elements.modalOverlay.classList.add('dark-modal'); 
+                    } else if (style === 'glass') { 
+                        elements.modalOverlay.style.backgroundColor = 'rgba(255, 255, 255, 0.95)'; 
+                        elements.modalOverlay.classList.add('light-modal'); 
+                    } else if (style === 'black') { 
+                        elements.modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.99)'; 
+                        elements.modalOverlay.classList.add('dark-modal'); 
+                    } else if (style === 'theme') {
+                        const isLight = THEMES[activeTheme].bg === '#ffffff';
+                        elements.modalOverlay.style.backgroundColor = isLight ? 'rgba(255, 255, 255, 0.95)' : 'rgba(15, 23, 42, 0.98)';
+                        elements.modalOverlay.classList.add(isLight ? 'light-modal' : 'dark-modal');
+                    }
+                });
+            }
+
+            elements.tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    elements.tabBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const target = btn.dataset.tab;
+                    document.getElementById('tab-content-cloud').classList.toggle('hidden', target !== 'cloud');
+                    document.getElementById('tab-content-analysis').classList.toggle('hidden', target !== 'analysis');
+                    document.getElementById('tab-content-summary').classList.toggle('hidden', target !== 'summary');
+                    
+                    if(target === 'cloud') setTimeout(drawCloud, 50);
+                    else if(target === 'analysis' && currentWords.length > 0) setTimeout(initCharts, 50);
+                });
+            });
+
+            if (elements.toggleFullscreen) {
+                elements.toggleFullscreen.addEventListener('click', () => {
+                    document.body.classList.toggle('fullscreen-mode');
+                    setTimeout(drawCloud, 500);
+                });
+            }
+
+            if (elements.openModal) {
+                elements.openModal.addEventListener('click', () => {
+                    if (currentWords.length === 0) return alert("まずはファイルを解析してください");
+                    elements.modalOverlay.style.display = 'flex';
+                    if (elements.modalBgStyleSelect) elements.modalBgStyleSelect.dispatchEvent(new Event('change'));
+                    setTimeout(drawModalCloud, 250);
+                });
+            }
+
+            if (elements.closeModal) elements.closeModal.addEventListener('click', () => { elements.modalOverlay.style.display = 'none'; });
+            if (elements.downloadBtn) elements.downloadBtn.addEventListener('click', () => { if (currentWords.length > 0) saveCanvasImage(elements.cloudCanvas, `mining_${Date.now()}.png`); });
+            if (elements.modalDownload) elements.modalDownload.addEventListener('click', () => { saveCanvasImage(elements.modalCanvas, `mining_full_${Date.now()}.png`); });
+            if (elements.closeContext) elements.closeContext.addEventListener('click', () => elements.contextPanel.classList.remove('open'));
+            if (elements.fitBtn) elements.fitBtn.addEventListener('click', drawCloud);
+            if (elements.refreshBtn) elements.refreshBtn.addEventListener('click', () => { if (rawText) { processText(rawText); drawCloud(); } });
+            
+            if (elements.wordCountRange) {
+                elements.wordCountRange.addEventListener('input', (e) => {
+                    if (elements.countValLabel) elements.countValLabel.textContent = e.target.value;
+                });
+            }
+
+            if (elements.fontScaleRange) {
+                elements.fontScaleRange.addEventListener('input', (e) => {
+                    if (elements.scaleValLabel) elements.scaleValLabel.textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+                });
+            }
+
+            if (elements.fieldFilter) elements.fieldFilter.addEventListener('change', drawCloud);
+            if (elements.orientationSelect) elements.orientationSelect.addEventListener('change', drawCloud);
+            if (elements.shapeSelect) elements.shapeSelect.addEventListener('change', drawCloud);
+            if (elements.fontWeightSelect) elements.fontWeightSelect.addEventListener('change', drawCloud);
+
+            if (elements.dropZone) elements.dropZone.addEventListener('click', () => elements.fileInput.click());
+            if (elements.fileInput) elements.fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+            window.addEventListener('resize', () => {
+                if (currentWords.length > 0) {
+                    clearTimeout(window.resizeTimer);
+                    window.resizeTimer = setTimeout(() => {
+                        drawCloud();
+                        if (elements.modalOverlay && elements.modalOverlay.style.display === 'flex') drawModalCloud();
+                    }, 300);
+                }
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') { 
+                    if (elements.modalOverlay) elements.modalOverlay.style.display = 'none'; 
+                    if (elements.contextPanel) elements.contextPanel.classList.remove('open'); 
+                }
+            });
+        }
+
+        // Run setup
+        applyTheme();
+        setupEventListeners();
+
+    </script>
+</body>
+</html>
