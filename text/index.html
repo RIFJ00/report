@@ -164,7 +164,7 @@
                     <span class="bg-blue-600 text-white p-2 rounded-xl shadow-lg"><i data-lucide="brain-circuit"></i></span>
                     Visual Miner <span class="text-blue-600">Ultra Share</span>
                 </h1>
-                <p class="text-slate-500 mt-1 font-medium italic text-sm text-slate-400">プロフェッショナルな文書解析・要約ツール v3.2</p>
+                <p class="text-slate-500 mt-1 font-medium italic text-sm text-slate-400">プロフェッショナルな文書解析・要約ツール v3.3</p>
             </div>
             <div class="flex gap-3">
                 <button id="toggle-fullscreen" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition shadow-sm font-bold text-sm text-slate-600">
@@ -190,9 +190,10 @@
                 </div>
 
                 <div class="glass-card p-6 shadow-sm">
-                    <div class="flex items-center justify-between mb-4 gap-2">
+                    <div class="flex items-center justify-between mb-4 gap-4 overflow-hidden">
                         <h3 class="text-sm font-bold flex-shrink-0">解析設定</h3>
-                        <span id="file-status" class="text-[9px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-500 italic max-w-[240px] truncate cursor-help" title="待機中">待機中</span>
+                        <!-- ファイル名表示を拡張 (max-w-[280px]) -->
+                        <span id="file-status" class="text-[9px] bg-slate-100 px-3 py-1 rounded-full font-bold text-slate-600 italic truncate max-w-[280px] border border-slate-200" title="待機中">待機中</span>
                     </div>
                     
                     <div class="space-y-4">
@@ -247,9 +248,9 @@
                                 </select>
                             </div>
                             <div>
-                                <div class="flex justify-between text-[11px] mb-2 font-bold text-slate-400 uppercase"><span>共有リンク</span></div>
+                                <div class="flex justify-between text-[11px] mb-2 font-bold text-slate-400 uppercase"><span>共有</span></div>
                                 <button id="share-summary-btn" disabled class="w-full bg-blue-50 text-blue-600 border border-blue-100 py-1.5 rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 hover:bg-blue-100 transition disabled:opacity-30">
-                                    <i data-lucide="share" class="w-3 h-3"></i> 公開URL発行
+                                    <i data-lucide="share" class="w-3 h-3"></i> 公開URL
                                 </button>
                             </div>
                         </div>
@@ -324,7 +325,7 @@
                             <div id="summary-content" class="bg-white/60 p-8 md:p-12 rounded-3xl min-h-[700px] border border-blue-50/50 shadow-inner summary-text-container overflow-y-auto max-h-[900px] custom-scrollbar">
                                 <div class="flex flex-col items-center justify-center h-full text-slate-300">
                                     <i data-lucide="sparkles" class="w-16 h-16 mb-4 opacity-20"></i>
-                                    <p class="font-bold">ファイルを解析するとAI要約がここに生成されます</p>
+                                    <p class="font-bold text-center">ファイルを解析するとAI要約がここに生成されます</p>
                                 </div>
                             </div>
                         </div>
@@ -333,7 +334,7 @@
                             <div id="original-content" class="bg-white/60 p-8 md:p-12 rounded-3xl min-h-[700px] border border-slate-100 shadow-inner original-text-container overflow-y-auto max-h-[900px] custom-scrollbar text-slate-700 whitespace-pre-wrap selection:bg-blue-100">
                                 <div class="flex flex-col items-center justify-center h-full text-slate-300">
                                     <i data-lucide="file-text" class="w-16 h-16 mb-4 opacity-20"></i>
-                                    <p class="font-bold">読み込んだファイルの全文がここに表示されます</p>
+                                    <p class="font-bold text-center">読み込んだファイルの全文がここに表示されます</p>
                                 </div>
                             </div>
                         </div>
@@ -384,16 +385,13 @@
                 <span id="modal-file-name" class="text-xs opacity-50 italic text-inherit"></span>
             </div>
             <div class="flex gap-4">
-                <button id="modal-download" class="px-5 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition text-sm font-bold border border-white/10 text-inherit">画像保存</button>
+                <button id="modal-download" class="px-5 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition text-sm font-bold border border-white/10 text-inherit text-white">画像保存</button>
                 <button id="close-modal" class="px-5 py-2.5 bg-red-500 text-white rounded-xl transition text-sm font-bold shadow-lg">
                     <i data-lucide="x" class="w-4 h-4"></i> 閉じる
                 </button>
             </div>
         </div>
-        <div id="modal-canvas-container">
-            <canvas id="modal-canvas"></canvas>
-            <div id="modal-tooltip"></div>
-        </div>
+        <div id="modal-canvas-container"><canvas id="modal-canvas"></canvas><div id="modal-tooltip"></div></div>
     </div>
 
     <script type="module">
@@ -422,48 +420,51 @@
             user = auth.currentUser;
         };
 
-        // DOM Elements Collection
-        const getElements = () => ({
-            fileInput: document.getElementById('file-input'),
-            dropZone: document.getElementById('drop-zone'),
-            cloudCanvas: document.getElementById('cloud-canvas'),
-            cloudContainer: document.getElementById('cloud-container'),
-            loadingOverlay: document.getElementById('loading-overlay'),
-            summaryContent: document.getElementById('summary-content'),
-            summaryLoading: document.getElementById('summary-loading'),
-            originalContent: document.getElementById('original-content'),
-            tabBtns: document.querySelectorAll('.tab-btn'),
-            fieldFilter: document.getElementById('field-filter'),
-            wordCountRange: document.getElementById('word-count'),
-            fontScaleRange: document.getElementById('font-scale'),
-            shareBtn: document.getElementById('share-summary-btn'),
-            shareModal: document.getElementById('share-modal'),
-            shareUrlDisplay: document.getElementById('share-url-display'),
-            copyBtn: document.getElementById('copy-share-url'),
-            orientationSelect: document.getElementById('layout-orientation'),
-            shapeSelect: document.getElementById('cloud-shape'),
-            fontWeightSelect: document.getElementById('font-weight-select'),
-            modalOverlay: document.getElementById('modal-overlay'),
-            modalCanvas: document.getElementById('modal-canvas'),
-            modalCanvasContainer: document.getElementById('modal-canvas-container'),
-            tooltip: document.getElementById('tooltip'),
-            modalTooltip: document.getElementById('modal-tooltip'),
-            contextPanel: document.getElementById('context-panel'),
-            contextResults: document.getElementById('context-results'),
-            selectedWordDisplay: document.getElementById('selected-word-display'),
-            fileStatus: document.getElementById('file-status'),
-            modalFileName: document.getElementById('modal-file-name'),
-            countValLabel: document.getElementById('count-val'),
-            scaleValLabel: document.getElementById('scale-val'),
-            downloadBtn: document.getElementById('download-btn'),
-            modalDownload: document.getElementById('modal-download'),
-            fitBtn: document.getElementById('fit-btn'),
-            refreshBtn: document.getElementById('refresh-btn'),
-            toggleFullscreen: document.getElementById('toggle-fullscreen'),
-            openModal: document.getElementById('open-modal'),
-            closeModal: document.getElementById('close-modal'),
-            closeContext: document.getElementById('close-context')
-        });
+        // DOM Elements Collection - 防護的に取得
+        const getElements = () => {
+            const els = {
+                fileInput: document.getElementById('file-input'),
+                dropZone: document.getElementById('drop-zone'),
+                cloudCanvas: document.getElementById('cloud-canvas'),
+                cloudContainer: document.getElementById('cloud-container'),
+                loadingOverlay: document.getElementById('loading-overlay'),
+                summaryContent: document.getElementById('summary-content'),
+                summaryLoading: document.getElementById('summary-loading'),
+                originalContent: document.getElementById('original-content'),
+                tabBtns: document.querySelectorAll('.tab-btn'),
+                fieldFilter: document.getElementById('field-filter'),
+                wordCountRange: document.getElementById('word-count'),
+                fontScaleRange: document.getElementById('font-scale'),
+                shareBtn: document.getElementById('share-summary-btn'),
+                shareModal: document.getElementById('share-modal'),
+                shareUrlDisplay: document.getElementById('share-url-display'),
+                copyBtn: document.getElementById('copy-share-url'),
+                orientationSelect: document.getElementById('layout-orientation'),
+                shapeSelect: document.getElementById('cloud-shape'),
+                fontWeightSelect: document.getElementById('font-weight-select'),
+                modalOverlay: document.getElementById('modal-overlay'),
+                modalCanvas: document.getElementById('modal-canvas'),
+                modalCanvasContainer: document.getElementById('modal-canvas-container'),
+                tooltip: document.getElementById('tooltip'),
+                modalTooltip: document.getElementById('modal-tooltip'),
+                contextPanel: document.getElementById('context-panel'),
+                contextResults: document.getElementById('context-results'),
+                selectedWordDisplay: document.getElementById('selected-word-display'),
+                fileStatus: document.getElementById('file-status'),
+                modalFileName: document.getElementById('modal-file-name'),
+                countValLabel: document.getElementById('count-val'),
+                scaleValLabel: document.getElementById('scale-val'),
+                downloadBtn: document.getElementById('download-btn'),
+                modalDownload: document.getElementById('modal-download'),
+                fitBtn: document.getElementById('fit-btn'),
+                refreshBtn: document.getElementById('refresh-btn'),
+                toggleFullscreen: document.getElementById('toggle-fullscreen'),
+                openModal: document.getElementById('open-modal'),
+                closeModal: document.getElementById('close-modal'),
+                closeContext: document.getElementById('close-context')
+            };
+            return els;
+        };
 
         let elements = {};
         const THEMES = {
@@ -539,7 +540,7 @@
                     const rect = container.getBoundingClientRect();
                     tip.style.left = (event.pageX - rect.left + 15) + 'px';
                     tip.style.top = (event.pageY - rect.top - 50) + 'px';
-                    tip.innerHTML = `<div class="font-bold text-xs mb-1">${item[0]}</div><div class="text-[10px] opacity-80">出現数: ${item[1]}回</div>`;
+                    tip.innerHTML = `<div class="font-bold text-xs mb-1 text-white">${item[0]}</div><div class="text-[10px] opacity-80 text-white">出現数: ${item[1]}回</div>`;
                 }
             };
         };
@@ -587,10 +588,13 @@
         };
 
         const handleFile = async (file) => {
+            if (!file) return;
             elements.loadingOverlay.classList.remove('hidden');
+            
+            // ファイルステータス表示の更新
             if (elements.fileStatus) {
                 elements.fileStatus.textContent = file.name;
-                elements.fileStatus.title = file.name; // Full name as tooltip
+                elements.fileStatus.title = file.name;
             }
             if (elements.modalFileName) elements.modalFileName.textContent = file.name;
 
@@ -605,15 +609,20 @@
                 elements.tabBtns[0].click(); 
                 drawCloud();
                 fetchSummary(rawText);
-            } catch (e) { alert("解析失敗"); }
+            } catch (e) { 
+                if (elements.fileStatus) elements.fileStatus.textContent = "解析エラー";
+                alert("読み込みに失敗しました。ファイル形式を確認してください。");
+            }
             finally { elements.loadingOverlay.classList.add('hidden'); }
         };
 
         const extractPDF = async (data) => {
-            const pdf = await pdfjsLib.getDocument({ data }).promise;
+            const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(data) }).promise;
             let text = "";
             for (let i = 1; i <= pdf.numPages; i++) {
-                text += (await (await pdf.getPage(i)).getTextContent()).items.map(it => it.str).join(' ') + "\n";
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                text += content.items.map(it => it.str).join(' ') + "\n";
             }
             return text;
         };
@@ -622,10 +631,12 @@
 
         const processText = (text) => {
             sentences = text.split(/[。！？\n]/).filter(s => s.trim().length > 4);
+            const stops = new Set(['こと', 'もの', 'それ', 'これ', 'ため', 'よう', 'ところ', 'そう', 'あり', 'なし', 'とき', 'など', 'において', 'について', 'という', 'ます', 'です', 'ある', 'いる', 'なる', 'れる', 'して', 'から', 'まで', 'への', 'より', 'にて', 'および', 'また', 'ない', 'した', 'れる', 'られる', 'いる', 'ある', 'この', 'その', 'あの']);
             const regex = /[\u4E00-\u9FFF]{2,}|[\u30A0-\u30FF]{2,}/g;
             const matches = text.match(regex) || [];
             const freq = {};
-            matches.forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+            matches.forEach(w => { if (!stops.has(w)) freq[w] = (freq[w] || 0) + 1; });
+
             currentWords = Object.entries(freq).map(([word, count]) => {
                 let f = 'others';
                 for (const [k, v] of Object.entries(FIELD_MAP)) {
@@ -647,7 +658,7 @@
             const theme = THEMES[activeTheme];
             const ctxF = document.getElementById('chart-freq');
             const ctxR = document.getElementById('chart-ratio');
-            if (ctxF) charts.freq = new Chart(ctxF.getContext('2d'), { type: 'bar', data: { labels: top10.map(d => d.word), datasets: [{ label: '出現数', data: top10.map(d => d.count), backgroundColor: theme.colors[0], borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } } } });
+            if (ctxF) charts.freq = new Chart(ctxF.getContext('2d'), { type: 'bar', data: { labels: top10.map(d => d.word), datasets: [{ label: '回数', data: top10.map(d => d.count), backgroundColor: theme.colors[0], borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } } } });
             const fs = currentWords.reduce((acc, w) => { acc[w.field] = (acc[w.field] || 0) + 1; return acc; }, {});
             if (ctxR) charts.ratio = new Chart(ctxR.getContext('2d'), { type: 'doughnut', data: { labels: Object.keys(fs).map(k => k==='tech'?'IT':k==='medical'?'医療':k==='politics'?'政治':k==='business'?'ビジネス':k==='academic'?'学術':k==='society'?'社会':'他'), datasets: [{ data: Object.values(fs), backgroundColor: theme.colors }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } } } });
 
@@ -655,10 +666,10 @@
             if (tbody) {
                 tbody.innerHTML = currentWords.slice(0, 50).map((w, i) => `
                     <tr class="border-b border-slate-50 hover:bg-blue-50 transition cursor-pointer text-[11px]" onclick="showContext('${w.word}')">
-                        <td class="py-3 px-2 text-slate-400 font-bold">${i+1}</td>
+                        <td class="py-3 px-3 text-slate-400 font-bold">${i+1}</td>
                         <td class="py-3 font-bold text-slate-700">${w.word}</td>
                         <td class="py-3"><span class="px-2 py-0.5 rounded-full bg-slate-100 text-[9px] font-black uppercase text-slate-500">${w.field}</span></td>
-                        <td class="py-3 text-blue-600 font-bold text-right pr-4">${w.count}</td>
+                        <td class="py-3 text-blue-600 font-bold text-right pr-6">${w.count}</td>
                     </tr>
                 `).join('');
             }
@@ -670,11 +681,11 @@
             elements.contextResults.innerHTML = '';
             const matches = sentences.filter(s => s.includes(word)).slice(0, 10);
             if (matches.length === 0) {
-                elements.contextResults.innerHTML = '<p class="text-center py-4 text-slate-400">データなし</p>';
+                elements.contextResults.innerHTML = '<p class="text-center py-4 text-slate-400 text-xs">データなし</p>';
             } else {
                 matches.forEach(s => {
                     const div = document.createElement('div');
-                    div.className = "bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 text-[11px] mt-2";
+                    div.className = "bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 text-[11px] mt-2 leading-relaxed";
                     div.innerHTML = s.trim().replace(new RegExp(word, 'g'), `<mark class="bg-blue-600 text-white px-1 rounded">${word}</mark>`);
                     elements.contextResults.appendChild(div);
                 });
@@ -687,7 +698,7 @@
             const ctx = temp.getContext('2d');
             temp.width = canvas.width; temp.height = canvas.height;
             let bg = THEMES[activeTheme].bg;
-            if (elements.modalOverlay.style.display === 'flex') bg = window.getComputedStyle(elements.modalOverlay).backgroundColor;
+            if (elements.modalOverlay && elements.modalOverlay.style.display === 'flex') bg = window.getComputedStyle(elements.modalOverlay).backgroundColor;
             ctx.fillStyle = bg;
             ctx.fillRect(0,0,temp.width,temp.height);
             ctx.drawImage(canvas, 0,0);
@@ -700,6 +711,7 @@
             }, 'image/png');
         };
 
+        // DOM Ready
         document.addEventListener('DOMContentLoaded', async () => {
             await initAuth();
             elements = getElements();
@@ -727,13 +739,13 @@
             
             if (elements.openModal) {
                 elements.openModal.addEventListener('click', () => {
-                    if (currentWords.length === 0) return;
+                    if (currentWords.length === 0) return alert("解析するファイルを選択してください");
                     elements.modalOverlay.style.display = 'flex';
                     setTimeout(() => {
                         elements.modalCanvas.width = elements.modalCanvasContainer.offsetWidth;
                         elements.modalCanvas.height = elements.modalCanvasContainer.offsetHeight;
                         WordCloud(elements.modalCanvas, getCommonOptions(elements.modalCanvas, getFilteredWords(), elements.modalCanvasContainer, elements.modalTooltip, true));
-                    }, 200);
+                    }, 250);
                 });
             }
 
@@ -745,10 +757,12 @@
             if (elements.shareBtn) {
                 elements.shareBtn.addEventListener('click', async () => {
                     if(!elements.summaryContent.innerHTML || elements.summaryContent.innerHTML.length < 50) return;
-                    const id = crypto.randomUUID().substring(0, 8);
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'summaries', id), { content: elements.summaryContent.innerHTML, createdAt: new Date().toISOString() });
-                    elements.shareUrlDisplay.textContent = `${window.location.origin}${window.location.pathname}?summaryId=${id}`;
-                    elements.shareModal.classList.remove('hidden');
+                    try {
+                        const id = crypto.randomUUID().substring(0, 8);
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'summaries', id), { content: elements.summaryContent.innerHTML, createdAt: new Date().toISOString() });
+                        elements.shareUrlDisplay.textContent = `${window.location.origin}${window.location.pathname}?summaryId=${id}`;
+                        elements.shareModal.classList.remove('hidden');
+                    } catch(e) { alert("共有に失敗しました。"); }
                 });
             }
 
@@ -772,16 +786,19 @@
                 });
             });
 
+            // Handle Shared Summary
             const params = new URLSearchParams(window.location.search);
             const sharedId = params.get('summaryId');
             if (sharedId) {
                 elements.summaryLoading.classList.remove('hidden');
-                const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'summaries', sharedId));
-                if (snap.exists()) {
-                    document.querySelector('[data-tab="summary"]').click();
-                    elements.summaryContent.innerHTML = snap.data().content + `<div class="mt-8 pt-4 border-t text-xs text-slate-400 italic">この内容は公開共有リンクから読み込まれました。</div>`;
-                    lucide.createIcons();
-                }
+                try {
+                    const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'summaries', sharedId));
+                    if (snap.exists()) {
+                        document.querySelector('[data-tab="summary"]').click();
+                        elements.summaryContent.innerHTML = snap.data().content + `<div class="mt-8 pt-4 border-t text-[10px] text-slate-400 italic">この内容は公開共有リンクから読み込まれました。</div>`;
+                        lucide.createIcons();
+                    }
+                } catch(e) {}
                 elements.summaryLoading.classList.add('hidden');
             }
 
