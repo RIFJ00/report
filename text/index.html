@@ -324,9 +324,14 @@
                             </div>
                         </div>
 
-                        <button id="refresh-btn" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-black transition shadow-md active:scale-95">
-                            <i data-lucide="refresh-cw" class="w-4 h-4"></i> 解析再実行
-                        </button>
+                        <div class="flex gap-2">
+                            <button id="refresh-btn" class="flex-grow bg-slate-900 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-black transition shadow-md active:scale-95">
+                                <i data-lucide="refresh-cw" class="w-4 h-4"></i> 解析再実行
+                            </button>
+                            <button id="clear-btn" class="px-4 bg-red-50 text-red-500 border border-red-100 rounded-xl font-bold text-sm flex items-center justify-center hover:bg-red-100 transition shadow-sm active:scale-95" title="データをクリア">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -429,8 +434,8 @@
 
         // CONFIG & Engine Constants
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'text-miner-ultra-v6';
-        // セキュリティのためAPI Keyを空に設定（環境変数から自動注入されます）
-        const apiKey = ""; 
+        // Web展開用に指定されたAPIキーを設定
+        const apiKey = "AIzaSyB0ks1letUoqFBAxDgjXe0iWS76i36qp4Y";
         let firebaseConfig = {};
         try { if (typeof __firebase_config !== 'undefined' && __firebase_config) firebaseConfig = JSON.parse(__firebase_config); } catch (e) {}
 
@@ -514,6 +519,7 @@
                 fontScaleRange: document.getElementById('font-scale'),
                 shareBtn: document.getElementById('share-summary-btn'),
                 refreshBtn: document.getElementById('refresh-btn'),
+                clearBtn: document.getElementById('clear-btn'), // Added
                 toggleFullscreen: document.getElementById('toggle-fullscreen'),
                 openModal: document.getElementById('open-modal'),
                 closeModalBtn: document.getElementById('close-modal-btn'),
@@ -787,6 +793,49 @@
 
             elements.fileInput?.addEventListener('change', e => handleFile(e.target.files[0]));
             elements.refreshBtn?.addEventListener('click', () => { if (rawText) { processText(rawText); drawCloud(); if(document.querySelector('.tab-btn[data-tab="analysis"]').classList.contains('active')) initCharts(); } });
+            
+            // Clear Button Logic
+            elements.clearBtn?.addEventListener('click', () => {
+                if (!rawText && currentWords.length === 0) return;
+                
+                if(!confirm("読み込んだデータをクリアしますか？")) return;
+
+                // Reset State
+                rawText = "";
+                currentWords = [];
+                sentences = [];
+                elements.fileInput.value = "";
+                
+                // Reset UI
+                elements.fileStatus.textContent = "待機中";
+                
+                // Clear Cloud Canvas
+                const ctx = elements.cloudCanvas.getContext('2d');
+                ctx.clearRect(0, 0, elements.cloudCanvas.width, elements.cloudCanvas.height);
+                
+                // Clear Analysis Charts
+                if(charts.freq) { charts.freq.destroy(); charts.freq = null; }
+                if(charts.ratio) { charts.ratio.destroy(); charts.ratio = null; }
+                
+                // Clear Table
+                const tbody = document.getElementById('data-table-body');
+                if(tbody) tbody.innerHTML = "";
+                
+                // Clear Text Content
+                elements.summaryContent.innerHTML = "";
+                elements.originalContent.textContent = "";
+                
+                // Close panels and tooltips
+                elements.contextPanel.classList.remove('open');
+                elements.tooltip.style.display = 'none';
+                
+                // Switch to cloud tab default
+                const cloudTab = document.querySelector('.tab-btn[data-tab="cloud"]');
+                if(cloudTab) cloudTab.click();
+
+                showMessage("データをクリアしました");
+            });
+
             elements.toggleFullscreen?.addEventListener('click', () => { document.body.classList.toggle('fullscreen-mode'); setTimeout(drawCloud, 500); });
             
             elements.fieldFilter?.addEventListener('change', () => {
