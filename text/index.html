@@ -307,7 +307,6 @@
     </div>
 
     <!-- Manual Input Modal -->
-    <!-- 初期状態で非表示にするため style="display: none;" を追加 -->
     <div id="manual-input-modal" class="modal-base flex items-center justify-center bg-black/60 z-[6000]" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-2xl w-full mx-4 border border-slate-100 flex flex-col max-h-[85vh]">
             <div class="flex justify-between items-center mb-4">
@@ -550,6 +549,7 @@
                     <div class="flex border-b border-slate-200/50 bg-white/50 px-6 py-1 items-center overflow-x-auto custom-scrollbar">
                         <button class="tab-btn active px-4 py-3 text-sm font-bold flex items-center gap-2 transition" data-tab="cloud"><i data-lucide="cloud" class="w-4 h-4"></i> クラウド</button>
                         <button class="tab-btn px-4 py-3 text-sm font-bold flex items-center gap-2 transition" data-tab="analysis"><i data-lucide="database" class="w-4 h-4"></i> 数値分析</button>
+                        <button class="tab-btn px-4 py-3 text-sm font-bold flex items-center gap-2 transition" data-tab="topics"><i data-lucide="layers" class="w-4 h-4"></i> トピック</button>
                         <button class="tab-btn px-4 py-3 text-sm font-bold flex items-center gap-2 transition" data-tab="summary"><i data-lucide="sparkles" class="w-4 h-4"></i> AI要約</button>
                         <button class="tab-btn px-4 py-3 text-sm font-bold flex items-center gap-2 transition" data-tab="original"><i data-lucide="file-text" class="w-4 h-4"></i> 原文表示</button>
                         <div class="flex-grow"></div>
@@ -578,6 +578,23 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Topics Tab Content -->
+                        <div id="tab-content-topics" class="tab-pane hidden flex-grow">
+                            <div id="topics-loading" class="hidden flex flex-col items-center justify-center h-[500px] space-y-4">
+                                <div class="w-12 h-1 bg-slate-100 rounded-full overflow-hidden relative">
+                                    <div class="absolute inset-0 bg-indigo-500 loading-shimmer"></div>
+                                </div>
+                                <p class="text-xs font-bold text-slate-400 animate-pulse text-center">主要トピックを抽出中...</p>
+                            </div>
+                            <div id="topics-content" class="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto max-h-[900px] custom-scrollbar p-2">
+                                <!-- Cards will be injected here -->
+                                <div class="col-span-1 md:col-span-2 flex items-center justify-center h-64 text-slate-400 text-sm">
+                                    まだ分析結果がありません
+                                </div>
+                            </div>
+                        </div>
+
                         <div id="tab-content-summary" class="tab-pane hidden flex-grow">
                             <div id="summary-loading" class="hidden flex flex-col items-center justify-center h-[500px] space-y-4">
                                 <div class="w-12 h-1 bg-slate-100 rounded-full overflow-hidden relative">
@@ -764,8 +781,15 @@
                 cloudCanvas: document.getElementById('cloud-canvas'),
                 cloudContainer: document.getElementById('cloud-container'),
                 loadingOverlay: document.getElementById('loading-overlay'),
+                
+                // Summary Refs
                 summaryContent: document.getElementById('summary-content'),
                 summaryLoading: document.getElementById('summary-loading'),
+                
+                // Topics Refs
+                topicsContent: document.getElementById('topics-content'),
+                topicsLoading: document.getElementById('topics-loading'),
+
                 originalContent: document.getElementById('original-content'),
                 tabBtns: document.querySelectorAll('.tab-btn'),
                 fieldFilter: document.getElementById('field-filter'),
@@ -1019,8 +1043,7 @@
                         delay = Math.ceil(parseFloat(match[1])) * 1000 + 5000;
                     }
                     
-                    // Safety check: ensure delay is at least 60s if we got a 429 to avoid rapid loops
-                    // unless a specific short time was parsed successfully
+                    // Safety check
                     if (!match && response.status === 429 && delay < 60000) {
                         delay = 60000;
                     }
@@ -1131,7 +1154,7 @@
             try {
                 // Use wrapper
                 const res = await callGeminiApi({
-                    contents: [{ parts: [{ text: `この文書を構造的に要約し、日本語で専門的な視点から解説してください：\n\n${text.substring(0, 100000)}` }] }],
+                    contents: [{ parts: [{ text: `この文書を構造的に要約し、日本語で専門的な視点から解説してください：\n\n${text.substring(0, 1000000)}` }] }],
                     systemInstruction: { parts: [{ text: "詳細な構造的要約を作成するプロのアナリストAIです。" }] }
                 });
 
@@ -1148,6 +1171,76 @@
                 showMessage(msg, true, 10000);
             }
             finally { elements.summaryLoading.classList.add('hidden'); lucide.createIcons(); }
+        }
+
+        async function fetchTopics(text) {
+            if (text.length < 100) return;
+            const key = getEffectiveApiKey();
+            if (!key) {
+                elements.topicsContent.innerHTML = `<div class="col-span-2 text-center text-slate-400 mt-10">APIキーが設定されていません。</div>`;
+                return;
+            }
+
+            elements.topicsLoading.classList.remove('hidden');
+            elements.topicsContent.innerHTML = "";
+
+            try {
+                const prompt = `
+                以下のテキストから、主要なトピックや論点を最大6つ抽出してください。
+                
+                # 制約事項
+                - 出力は純粋なJSON配列のみにしてください。
+                - Markdownのコードブロック（\`\`\`jsonなど）は含めないでください。
+                - 各トピックには、内容に適したアイコン名（lucide-reactのアイコン名）を1つ指定してください。
+                
+                # 出力フォーマット
+                [
+                    {"title": "短いタイトル（20文字以内）", "description": "要約説明（60文字以内）", "icon": "file-text"}
+                ]
+
+                # 対象テキスト
+                ${text.substring(0, 1000000)}
+                `;
+
+                const res = await callGeminiApi({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    systemInstruction: { parts: [{ text: "JSON形式のみを出力するAPIです。余計な会話やMarkdown装飾は一切しません。" }] }
+                });
+
+                let jsonStr = res.candidates?.[0]?.content?.parts?.[0]?.text;
+                // Clean up potential markdown formatting
+                if (jsonStr) {
+                    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
+                }
+                
+                const topics = JSON.parse(jsonStr);
+
+                if (Array.isArray(topics)) {
+                    elements.topicsContent.innerHTML = topics.map(t => `
+                        <div class="bg-white/80 p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition">
+                            <div class="flex items-start gap-3">
+                                <div class="bg-indigo-50 text-indigo-600 p-2.5 rounded-xl shrink-0">
+                                    <i data-lucide="${t.icon || 'hash'}" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-slate-800 text-sm mb-1">${t.title}</h4>
+                                    <p class="text-xs text-slate-500 leading-relaxed">${t.description}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    throw new Error("Invalid JSON format");
+                }
+                
+                lucide.createIcons();
+
+            } catch (e) {
+                console.error("Topics Error:", e);
+                elements.topicsContent.innerHTML = `<div class="col-span-1 md:col-span-2 text-red-400 text-xs text-center p-4">トピック分析に失敗しました: ${e.message}</div>`;
+            } finally {
+                elements.topicsLoading.classList.add('hidden');
+            }
         }
 
         async function performOcr(pdf) {
@@ -1316,84 +1409,32 @@
                 }
 
                 elements.originalContent.textContent = rawText;
+                
+                // --- 【変更点】クラウド表示を最優先で行い、ローディングを即解除 ---
                 drawCloud(); 
-                fetchSummary(rawText);
+                elements.loadingOverlay.classList.add('hidden');
+                showMessage("読み込み完了。AI分析をバックグラウンドで実行中...", false, 4000);
+                
+                // --- AI処理は非同期で続行（UIをブロックしない） ---
+                (async () => {
+                    try {
+                        // AI要約
+                        await fetchSummary(rawText);
+                        
+                        // トピック分析
+                        await fetchTopics(rawText);
+                        
+                        showMessage("全てのAI解析が完了しました", false, 3000);
+                    } catch (bgErr) {
+                        console.error(bgErr);
+                        showMessage("AI解析エラー: " + bgErr.message, true);
+                    }
+                })();
                 
             } catch (err) { 
                 console.error(err); 
                 showMessage("解析失敗: " + err.message, true, 5000); 
-            }
-            finally { elements.loadingOverlay.classList.add('hidden'); }
-        }
-
-        function initCharts() {
-            if (currentWords.length === 0) return;
-            const filteredData = getFilteredWords();
-            const top10 = filteredData.slice(0, 10);
-            Object.values(charts).forEach(c => c && c.destroy());
-            const theme = THEMES[activeTheme];
-            
-            // Bar Chart (Frequency)
-            const ctxF = document.getElementById('chart-freq');
-            if (ctxF) charts.freq = new Chart(ctxF.getContext('2d'), { 
-                type: 'bar', data: { labels: top10.map(d => d[0]), datasets: [{ label: '頻度', data: top10.map(d => d[1]), backgroundColor: theme.colors[0], borderRadius: 6 }] }, 
-                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } 
-            });
-
-            // Doughnut Chart (Ratio)
-            const filterVal = elements.fieldFilter?.value || 'all';
-            let chartLabels = [];
-            let chartDataValues = [];
-
-            if (filterVal === 'all') {
-                const groupCounts = {};
-                const fieldToGroup = {};
-                for (const [grp, fields] of Object.entries(FIELD_GROUPS)) {
-                    fields.forEach(f => fieldToGroup[f] = grp);
-                }
-
-                filteredData.forEach(w => {
-                    const field = w[2];
-                    const grp = fieldToGroup[field] || 'others';
-                    groupCounts[grp] = (groupCounts[grp] || 0) + 1;
-                });
-
-                const othersCount = groupCounts['others'] || 0;
-                delete groupCounts['others'];
-                const sortedGroups = Object.entries(groupCounts).sort((a, b) => b[1] - a[1]);
-                if (othersCount > 0) sortedGroups.push(['others', othersCount]);
-
-                chartLabels = sortedGroups.map(([grp, _]) => GROUP_DISPLAY[grp] || 'その他');
-                chartDataValues = sortedGroups.map(([_, count]) => count);
-
-            } else {
-                const fs = filteredData.reduce((acc, w) => { acc[w[2]] = (acc[w[2]] || 0) + 1; return acc; }, {});
-                const othersCount = fs['others'] || 0;
-                delete fs['others'];
-                const sortedFields = Object.entries(fs).sort((a, b) => b[1] - a[1]);
-                if (othersCount > 0) sortedFields.push(['others', othersCount]);
-
-                chartLabels = sortedFields.map(([k, _]) => FIELD_DISPLAY[k] || 'その他');
-                chartDataValues = sortedFields.map(([_, count]) => count);
-            }
-
-            const ctxR = document.getElementById('chart-ratio');
-            if (ctxR) charts.ratio = new Chart(ctxR.getContext('2d'), {
-                type: 'doughnut', data: { labels: chartLabels, datasets: [{ data: chartDataValues, backgroundColor: theme.colors }] },
-                options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } } }
-            });
-
-            const tbody = document.getElementById('data-table-body');
-            if (tbody) {
-                tbody.innerHTML = filteredData.slice(0, 100).map((w, i) => `
-                    <tr class="border-b border-slate-50 hover:bg-blue-50 transition cursor-pointer text-[11px] text-slate-700 group" data-word="${w[0]}">
-                        <td class="py-3 px-3 text-slate-400 font-bold group-hover:text-blue-500">${i+1}</td>
-                        <td class="py-3 font-bold word-link text-blue-600 underline decoration-blue-200">${w[0]}</td>
-                        <td class="py-3"><span class="px-2 py-0.5 rounded-full bg-slate-100 text-[9px] font-black uppercase text-slate-500">${FIELD_DISPLAY[w[2]] || '他'}</span></td>
-                        <td class="py-3 text-blue-600 font-bold text-right pr-6">${w[1]}</td>
-                    </tr>
-                `).join('');
-                tbody.querySelectorAll('tr').forEach(row => { row.addEventListener('click', () => showContext(row.dataset.word)); });
+                elements.loadingOverlay.classList.add('hidden');
             }
         }
 
@@ -1413,6 +1454,95 @@
                 db = getFirestore(appInstance);
                 auth = getAuth(appInstance);
             } catch (e) {}
+        }
+
+        function initCharts() {
+            if (currentWords.length === 0) return;
+            const filteredData = getFilteredWords();
+            const top10 = filteredData.slice(0, 10);
+            Object.values(charts).forEach(c => c && c.destroy());
+            const theme = THEMES[activeTheme];
+            
+            // Bar Chart (Frequency)
+            const ctxF = document.getElementById('chart-freq');
+            if (ctxF) charts.freq = new Chart(ctxF.getContext('2d'), { 
+                type: 'bar', data: { labels: top10.map(d => d[0]), datasets: [{ label: '頻度', data: top10.map(d => d[1]), backgroundColor: theme.colors[0], borderRadius: 6 }] }, 
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } 
+            });
+
+            // Doughnut Chart (Ratio) - Logic update for Group vs Field
+            const filterVal = elements.fieldFilter?.value || 'all';
+            let chartLabels = [];
+            let chartDataValues = [];
+
+            if (filterVal === 'all') {
+                // 全選択時は「大分類(Group)」で集計する
+                const groupCounts = {};
+                // フィールドIDからグループIDへの逆引きマップを作成
+                const fieldToGroup = {};
+                for (const [grp, fields] of Object.entries(FIELD_GROUPS)) {
+                    fields.forEach(f => fieldToGroup[f] = grp);
+                }
+
+                filteredData.forEach(w => {
+                    const field = w[2];
+                    const grp = fieldToGroup[field] || 'others';
+                    groupCounts[grp] = (groupCounts[grp] || 0) + 1; // 該当グループの単語数をカウント
+                });
+
+                // データセット作成（その他を最後に配置）
+                // 1. othersを一時退避
+                const othersCount = groupCounts['others'] || 0;
+                delete groupCounts['others'];
+
+                // 2. 残りを降順ソート
+                const sortedGroups = Object.entries(groupCounts).sort((a, b) => b[1] - a[1]);
+                
+                // 3. othersがあれば末尾に追加
+                if (othersCount > 0) {
+                    sortedGroups.push(['others', othersCount]);
+                }
+
+                chartLabels = sortedGroups.map(([grp, _]) => GROUP_DISPLAY[grp] || 'その他');
+                chartDataValues = sortedGroups.map(([_, count]) => count);
+
+            } else {
+                // 個別フィルタ時は「小分類(Field)」で集計する
+                const fs = filteredData.reduce((acc, w) => { acc[w[2]] = (acc[w[2]] || 0) + 1; return acc; }, {});
+                
+                // その他を最後に配置する処理
+                const othersCount = fs['others'] || 0;
+                delete fs['others'];
+
+                const sortedFields = Object.entries(fs).sort((a, b) => b[1] - a[1]);
+                
+                if (othersCount > 0) {
+                    sortedFields.push(['others', othersCount]);
+                }
+
+                chartLabels = sortedFields.map(([k, _]) => FIELD_DISPLAY[k] || 'その他');
+                chartDataValues = sortedFields.map(([_, count]) => count);
+            }
+
+            const ctxR = document.getElementById('chart-ratio');
+            if (ctxR) charts.ratio = new Chart(ctxR.getContext('2d'), {
+                type: 'doughnut', data: { labels: chartLabels, datasets: [{ data: chartDataValues, backgroundColor: theme.colors }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } } }
+            });
+
+            // Table update
+            const tbody = document.getElementById('data-table-body');
+            if (tbody) {
+                tbody.innerHTML = filteredData.slice(0, 100).map((w, i) => `
+                    <tr class="border-b border-slate-50 hover:bg-blue-50 transition cursor-pointer text-[11px] text-slate-700 group" data-word="${w[0]}">
+                        <td class="py-3 px-3 text-slate-400 font-bold group-hover:text-blue-500">${i+1}</td>
+                        <td class="py-3 font-bold word-link text-blue-600 underline decoration-blue-200">${w[0]}</td>
+                        <td class="py-3"><span class="px-2 py-0.5 rounded-full bg-slate-100 text-[9px] font-black uppercase text-slate-500">${FIELD_DISPLAY[w[2]] || '他'}</span></td>
+                        <td class="py-3 text-blue-600 font-bold text-right pr-6">${w[1]}</td>
+                    </tr>
+                `).join('');
+                tbody.querySelectorAll('tr').forEach(row => { row.addEventListener('click', () => showContext(row.dataset.word)); });
+            }
         }
 
         function initApp() {
@@ -1493,8 +1623,18 @@
                     processText(rawText);
                     elements.originalContent.textContent = rawText;
                     drawCloud(); 
-                    fetchSummary(rawText);
-                    showMessage("OCR解析完了");
+                    
+                    // Use sequential AI processing like main flow
+                    (async () => {
+                        try {
+                            await fetchSummary(rawText);
+                            await fetchTopics(rawText);
+                            showMessage("OCR解析完了");
+                        } catch (bgErr) {
+                            console.error(bgErr);
+                        }
+                    })();
+
                 } catch (err) {
                     console.error(err);
                     showMessage("OCR解析失敗: " + err.message, true);
@@ -1537,6 +1677,7 @@
                 // Clear Text Content
                 elements.summaryContent.innerHTML = "";
                 elements.originalContent.textContent = "";
+                elements.topicsContent.innerHTML = `<div class="col-span-1 md:col-span-2 flex items-center justify-center h-64 text-slate-400 text-sm">まだ分析結果がありません</div>`;
                 
                 // Close panels and tooltips
                 elements.contextPanel.classList.remove('open');
@@ -1603,7 +1744,8 @@
                     elements.tabBtns.forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                     const t = btn.dataset.tab;
-                    ['cloud', 'analysis', 'summary', 'original'].forEach(x => {
+                    
+                    ['cloud', 'analysis', 'topics', 'summary', 'original'].forEach(x => {
                         const target = document.getElementById(`tab-content-${x}`);
                         if (target) target.classList.toggle('hidden', x !== t);
                     });
@@ -1727,7 +1869,7 @@
                     downloadText(rawText || elements.originalContent.innerText, 'original-text');
                 }
                 else {
-                    // Analysis -> Image (html2canvas)
+                    // Analysis & Topics -> Image (html2canvas)
                     const targetId = `tab-content-${activeTab}`;
                     const targetElement = document.getElementById(targetId);
                     
@@ -1747,7 +1889,7 @@
                             scale: 2, 
                             logging: false,
                             useCORS: true,
-                            ignoreElements: (element) => element.id === 'summary-loading'
+                            ignoreElements: (element) => element.id.includes('loading') // Skip loading indicators
                         });
 
                         canvas.toBlob((blob) => {
@@ -1826,8 +1968,18 @@
                         processText(rawText);
                         elements.originalContent.textContent = rawText;
                         drawCloud();
-                        fetchSummary(rawText);
-                        showMessage("解析成功");
+                        
+                        // Use sequential AI processing like main flow
+                        (async () => {
+                            try {
+                                await fetchSummary(rawText);
+                                await fetchTopics(rawText);
+                                showMessage("解析成功");
+                            } catch (bgErr) {
+                                console.error(bgErr);
+                                showMessage("AI解析エラー: " + bgErr.message, true);
+                            }
+                        })();
                     } catch (e) {
                         console.error(e);
                         showMessage("解析エラー: " + e.message, true);
