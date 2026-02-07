@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+JP:wght@400;700;900&display=swap');
         body {
             font-family: 'Inter', 'Noto Sans JP', sans-serif;
         }
@@ -32,11 +32,23 @@
         .tabular-nums {
             font-variant-numeric: tabular-nums;
         }
+        .stance-map-container {
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 40%, #16213e 100%);
+            border-radius: 1rem;
+            color: #e0e0e0;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease forwards;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
 
-    <div class="max-w-5xl mx-auto px-4 py-8">
+    <div class="max-w-6xl mx-auto px-4 py-8">
         <!-- Header -->
         <header class="mb-10 text-center">
             <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-slate-900 mb-2">
@@ -60,12 +72,15 @@
             <button onclick="switchTab('coalition')" id="tab-coalition" class="px-6 py-3 font-bold text-sm md:text-base whitespace-nowrap text-slate-500 hover:text-indigo-600 transition-colors">
                 連立シミュレーター
             </button>
+            <button onclick="switchTab('stance')" id="tab-stance" class="px-6 py-3 font-bold text-sm md:text-base whitespace-nowrap text-slate-500 hover:text-indigo-600 transition-colors">
+                各政党の政治スタンス
+            </button>
             <button onclick="switchTab('impact')" id="tab-impact" class="px-6 py-3 font-bold text-sm md:text-base whitespace-nowrap text-slate-500 hover:text-indigo-600 transition-colors">
                 連立協力の影響試算
             </button>
         </div>
 
-        <!-- Tab 1: Analysis -->
+        <!-- Tab 1: Analysis (History) -->
         <div id="panel-analysis" class="space-y-8">
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
@@ -74,10 +89,6 @@
                             <span class="w-2 h-6 bg-indigo-600 rounded mr-3"></span>
                             選挙データ分析
                         </h2>
-                        <button onclick="downloadCSV()" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-all">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                            Excel出力
-                        </button>
                     </div>
                     <div class="flex flex-wrap items-center gap-3">
                         <div class="flex bg-slate-100 p-1 rounded-lg">
@@ -99,21 +110,17 @@
                         </select>
                     </div>
                 </div>
-
                 <div id="analysis-content-chart" class="h-[450px] w-full">
                     <canvas id="trendChart"></canvas>
                 </div>
                 <div id="analysis-content-table" class="hidden w-full overflow-x-auto custom-scrollbar border border-slate-200 rounded-xl">
                     <table class="w-full text-[11px] md:text-xs text-left border-collapse">
-                        <thead>
-                            <tr class="bg-slate-50 border-b border-slate-200" id="table-header"></tr>
-                        </thead>
+                        <thead><tr class="bg-slate-50 border-b border-slate-200" id="table-header"></tr></thead>
                         <tbody id="table-body" class="divide-y divide-slate-100"></tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- Reference Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <div class="flex justify-between items-center mb-4">
@@ -161,7 +168,6 @@
                         <div id="sim-shugiin-status" class="text-lg font-bold">会派を選択してください</div>
                     </div>
                 </div>
-
                 <div class="bg-slate-800 text-white p-8 rounded-2xl shadow-xl flex flex-col justify-between border-b-4 border-emerald-400">
                     <div>
                         <h3 class="text-slate-400 font-bold uppercase tracking-wider text-sm mb-2">参議院 (法案可決)</h3>
@@ -180,42 +186,94 @@
             </div>
         </div>
 
-        <!-- Tab 3: Impact Analysis -->
-        <div id="panel-impact" class="hidden space-y-8">
-            <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-                <div class="flex items-center gap-3 mb-6">
-                    <div class="p-2 bg-red-50 text-red-600 rounded-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M4.93 19.07L19.07 4.93"/></svg>
+        <!-- Tab 3: Political Stance -->
+        <div id="panel-stance" class="hidden space-y-8 stance-map-container p-6 md:p-10">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-black text-white mb-1">各党ポジションマップ</h2>
+                <p class="text-slate-400 text-sm italic">保守↔革新 × 大きな政府↔小さな政府</p>
+            </div>
+
+            <div class="flex flex-col lg:flex-row gap-10 items-start justify-center">
+                <div class="relative bg-white/5 p-4 rounded-2xl border border-white/10 shrink-0 mx-auto lg:mx-0">
+                    <svg id="stance-svg" width="550" height="550" viewBox="0 0 550 550" class="overflow-visible"></svg>
+                </div>
+                <div class="w-full max-w-lg space-y-6">
+                    <!-- Default Party Detail (LDP) will be rendered here -->
+                    <div id="party-detail-card" class="bg-white/5 border border-white/10 p-6 rounded-2xl min-h-[300px]">
                     </div>
-                    <h2 class="text-xl font-bold">自公連立解消の影響シミュレーション (2021/2024比較)</h2>
+                    <div class="bg-white/5 border border-white/10 p-5 rounded-2xl">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">消費税スタンス比較</h4>
+                        <div id="tax-stance-list" class="space-y-2 text-xs text-slate-300"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-12 overflow-x-auto bg-black/20 rounded-2xl border border-white/5 p-6">
+                <h3 class="text-sm font-bold text-slate-400 mb-4 tracking-widest uppercase">主要争点の各党スタンス一覧</h3>
+                <table class="w-full text-xs text-left border-collapse min-w-[800px]">
+                    <thead>
+                        <tr class="border-b border-white/10 text-slate-500 font-bold uppercase">
+                            <th class="py-3 px-2">政党</th>
+                            <th class="py-3 px-2">消費税</th>
+                            <th class="py-3 px-2">財政</th>
+                            <th class="py-3 px-2">安全保障</th>
+                            <th class="py-3 px-2">外国人政策</th>
+                            <th class="py-3 px-2">憲法改正</th>
+                            <th class="py-3 px-2">エネルギー</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stance-summary-body" class="divide-y divide-white/5"></tbody>
+                </table>
+            </div>
+
+            <div class="text-center text-[10px] text-slate-500 mt-6 leading-relaxed">
+                ※ 各党のスタンスは2026年の衆議院議員総選挙の公約を参照にした。<br>
+                ※ 各党の位置づけは公約内容・政策傾向に基づく分析であり、厳密な定量的尺度ではない。
+            </div>
+        </div>
+
+        <!-- Tab 4: Impact Analysis -->
+        <div id="panel-impact" class="hidden space-y-8 animate-fade-in">
+            <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-red-50 text-red-600 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M4.93 19.07L19.07 4.93"/></svg>
+                        </div>
+                        <h2 class="text-xl font-bold">自公連立解消の影響シミュレーション</h2>
+                    </div>
+                    <button onclick="resetImpactSliders()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition-colors flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                        デフォルト設定に戻す
+                    </button>
                 </div>
 
                 <div class="bg-slate-50 p-6 rounded-2xl mb-8 border border-slate-100">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                         <div>
                             <div class="flex justify-between mb-2">
-                                <label class="text-sm font-bold text-slate-600">① 公明党票の喪失率 (マイナス要因)</label>
+                                <label class="text-sm font-bold text-slate-600">① 公明党票の喪失率</label>
                                 <span id="val-loss" class="text-red-600 font-bold tabular-nums">80%</span>
                             </div>
                             <input type="range" id="input-loss" min="0" max="100" value="80" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-red-500">
                         </div>
                         <div>
                             <div class="flex justify-between mb-2">
-                                <label class="text-sm font-bold text-slate-600">② 宗教・保守層の回帰率 (プラス要因)</label>
+                                <label class="text-sm font-bold text-slate-600">② 宗教・保守層の回帰率</label>
                                 <span id="val-return" class="text-indigo-600 font-bold tabular-nums">20%</span>
                             </div>
                             <input type="range" id="input-return" min="0" max="100" value="20" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500">
                         </div>
                         <div>
                             <div class="flex justify-between mb-2">
-                                <label class="text-sm font-bold text-slate-600">③ 無党派層の支持獲得率 (プラス要因)</label>
+                                <label class="text-sm font-bold text-slate-600">③ 無党派層の支持獲得率</label>
                                 <span id="val-acquire" class="text-indigo-600 font-bold tabular-nums">15%</span>
                             </div>
                             <input type="range" id="input-acquire" min="0" max="100" value="15" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500">
                         </div>
                         <div>
                             <div class="flex justify-between mb-2">
-                                <label class="text-sm font-bold text-slate-600">④ 党勢拡大による上乗せ (底上げ)</label>
+                                <label class="text-sm font-bold text-slate-600">④ 党勢拡大による上乗せ</label>
                                 <span id="val-leverage" class="text-emerald-600 font-bold tabular-nums">5%</span>
                             </div>
                             <input type="range" id="input-leverage" min="0" max="100" value="5" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-500">
@@ -223,24 +281,36 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 text-center">
                     <div class="bg-slate-900 text-white p-8 rounded-2xl border-t-4 border-blue-500 shadow-xl relative overflow-hidden">
-                        <div class="absolute top-4 right-4 text-[10px] font-bold text-blue-400 bg-blue-900/50 px-2 py-1 rounded">2021年実績ベース</div>
-                        <h3 class="text-slate-400 text-xs font-bold uppercase mb-4 tracking-widest text-center">推定得票数</h3>
-                        <div id="sim-result-2021" class="text-5xl font-black mb-2 tabular-nums text-center">0 <span class="text-xl font-normal text-slate-500">万票</span></div>
-                        <div class="pt-6 mt-6 border-t border-slate-700 flex justify-between items-baseline">
-                            <span class="text-[10px] text-slate-400 font-bold uppercase">vs 2021実績 (2,762万票)</span>
-                            <div id="diff-2021-base" class="text-2xl font-bold tabular-nums">--</div>
+                        <div class="absolute top-4 right-4 text-[10px] font-bold text-blue-400 bg-blue-900/50 px-2 py-1 rounded uppercase">2021年実績比較</div>
+                        <h3 class="text-slate-400 text-xs font-bold uppercase mb-4 tracking-widest">2021ベース 推定得票数</h3>
+                        <div id="sim-result-2021" class="text-5xl font-black mb-2 tabular-nums">0 <span class="text-xl font-normal text-slate-500">万票</span></div>
+                        <div class="pt-6 mt-6 border-t border-slate-700 space-y-4">
+                            <div class="flex justify-between items-baseline">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase">vs 2021衆院実績 (2,762万票)</span>
+                                <div id="diff-2021-base" class="text-xl font-bold tabular-nums">--</div>
+                            </div>
+                            <div class="flex justify-between items-baseline">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase">vs 2025参院実績 (1,447万票)</span>
+                                <div id="diff-2021-vs-2025" class="text-xl font-bold tabular-nums">--</div>
+                            </div>
                         </div>
                     </div>
 
                     <div class="bg-slate-900 text-white p-8 rounded-2xl border-t-4 border-indigo-500 shadow-xl relative overflow-hidden">
-                        <div class="absolute top-4 right-4 text-[10px] font-bold text-indigo-400 bg-indigo-900/50 px-2 py-1 rounded">2024年実績ベース</div>
-                        <h3 class="text-slate-400 text-xs font-bold uppercase mb-4 tracking-widest text-center">推定得票数</h3>
-                        <div id="sim-result-2024" class="text-5xl font-black mb-2 tabular-nums text-center">0 <span class="text-xl font-normal text-slate-500">万票</span></div>
-                        <div class="pt-6 mt-6 border-t border-slate-700 flex justify-between items-baseline">
-                            <span class="text-[10px] text-slate-400 font-bold uppercase">vs 2024実績 (2,087万票)</span>
-                            <div id="diff-2024-base" class="text-2xl font-bold tabular-nums">--</div>
+                        <div class="absolute top-4 right-4 text-[10px] font-bold text-indigo-400 bg-indigo-900/50 px-2 py-1 rounded uppercase">2024年実績比較</div>
+                        <h3 class="text-slate-400 text-xs font-bold uppercase mb-4 tracking-widest">2024ベース 推定得票数</h3>
+                        <div id="sim-result-2024" class="text-5xl font-black mb-2 tabular-nums">0 <span class="text-xl font-normal text-slate-500">万票</span></div>
+                        <div class="pt-6 mt-6 border-t border-slate-700 space-y-4">
+                            <div class="flex justify-between items-baseline">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase">vs 2024衆院実績 (2,087万票)</span>
+                                <div id="diff-2024-base" class="text-xl font-bold tabular-nums">--</div>
+                            </div>
+                            <div class="flex justify-between items-baseline">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase">vs 2025参院実績 (1,447万票)</span>
+                                <div id="diff-2024-vs-2025" class="text-xl font-bold tabular-nums">--</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -253,7 +323,7 @@
     </div>
 
     <script>
-        // 最新政党構成
+        // --- 共通データ ---
         const parties = [
             { id: 'ldp', name: '自由民主党・無所属の会', abbr: '自民', shugiin_dis: 133, shugiin_pro: 63, sangiin: 101, color: '#e60012' },
             { id: 'cdp', name: '立憲民主・無所属', abbr: '立憲', shugiin_dis: 104, shugiin_pro: 44, sangiin: 40, color: '#004098' },
@@ -267,73 +337,110 @@
             { id: 'others', name: '諸派・無所属', abbr: '他', shugiin_dis: 12, shugiin_pro: 0, sangiin: 12, color: '#999999' }
         ];
 
-        // 選挙歴史データ
         const rawHistory = {
             shugiin: {
                 years: ['1996', '2000', '2003', '2005', '2009', '2012', '2014', '2017', '2021', '2024', '2026'],
-                events: ['橋本', '森', '小泉', '郵政', '政権交代', '奪還', 'アベノ', '国難', 'コロナ', '石破', '（予測）'],
-                seats: {
-                    ldp: [239, 233, 237, 296, 119, 294, 291, 284, 259, 196, 196],
-                    cdp: [52, 127, 177, 113, 308, 57, 73, 105, 96, 148, 148],
-                    dpfp: [null, null, null, null, null, null, null, null, 11, 28, 28],
-                    komei: [0, 31, 34, 31, 21, 31, 35, 29, 32, 24, 24],
-                    ishin: [null, null, null, null, null, 54, 41, 11, 41, 34, 34],
-                    sansei: [null, null, null, null, null, null, null, null, null, 3, 3],
-                    jcp: [26, 20, 9, 9, 9, 8, 21, 12, 10, 8, 8],
-                    reiwa: [null, null, null, null, null, null, null, null, 3, 9, 9],
-                    hoshu: [null, null, null, null, null, null, null, null, null, 3, 3],
-                    others: [183, 58, 43, 16, 28, 21, 4, 24, 13, 12, 12]
-                },
-                pro: {
-                    ldp: [1820, 1694, 2066, 2588, 1881, 1662, 1765, 1855, 1991, 1458, 1458],
-                    cdp: [895, 1506, 2209, 2103, 2984, 925, 977, 1108, 1149, 1156, 1156],
-                    dpfp: [null, null, null, null, null, null, null, null, 259, 617, 617],
-                    komei: [null, 776, 873, 898, 805, 711, 731, 697, 711, 596, 596],
+                pro: { 
+                    ldp: [1820, 1694, 2066, 2588, 1881, 1662, 1765, 1855, 1991, 1458, 1458], 
+                    cdp: [895, 1506, 2209, 2103, 2984, 925, 977, 1108, 1149, 1156, 1156], 
+                    dpfp: [null, null, null, null, null, null, null, null, 259, 617, 617], 
+                    komei: [null, 776, 873, 898, 805, 711, 731, 697, 711, 596, 596], 
                     ishin: [null, null, null, null, null, 1226, 831, 338, 805, 510, 510],
-                    sansei: [null, null, null, null, null, null, null, null, null, 187, 187],
                     jcp: [726, 671, 457, 491, 494, 368, 606, 440, 416, 336, 336],
-                    reiwa: [null, null, null, null, null, null, null, 221, 380, 380],
+                    reiwa: [null, null, null, null, null, null, null, null, 221, 380, 380],
+                    sansei: [null, null, null, null, null, null, null, null, null, 187, 187],
                     hoshu: [null, null, null, null, null, null, null, null, null, 114, 114],
-                    others: [null, 112, 15, 23, 153, 370, 141, 131, 20, 2, 2]
+                    others: [112, 15, 23, 153, 370, 141, 131, 20, 10, 2, 2]
                 },
-                dis: {
-                    ldp: [2266, 2494, 2608, 2986, 2730, 2564, 2546, 2671, 2762, 2087, 2087],
+                dis: { 
+                    ldp: [2266, 2494, 2608, 2986, 2730, 2564, 2546, 2671, 2762, 2087, 2087], 
                     cdp: [600, 1681, 2183, 2480, 3547, 1360, 1349, 1615, 1721, 1723, 1723],
                     ishin: [null, null, null, null, null, 648, 476, 331, 480, 510, 510],
                     komei: [77, 123, 160, 144, 112, 102, 144, 125, 123, 73, 73],
-                    dpfp: [null, null, null, null, null, null, null, null, 151, 204, 204]
+                    dpfp: [null, null, null, null, null, null, null, null, 151, 204, 204],
+                    jcp: [null, null, null, null, null, null, null, null, null, 10, 10],
+                    hoshu: [null, null, null, null, null, null, null, null, null, 12, 12],
+                    others: [null, null, null, null, null, null, null, null, null, 10, 10]
+                },
+                seats: { 
+                    ldp: [239, 233, 237, 296, 119, 294, 291, 284, 259, 196, 196], 
+                    cdp: [52, 127, 177, 113, 308, 57, 73, 105, 96, 148, 148],
+                    komei: [0, 31, 34, 31, 21, 31, 35, 29, 32, 24, 24],
+                    ishin: [null, null, null, null, null, 54, 41, 11, 41, 34, 34],
+                    dpfp: [null, null, null, null, null, null, null, null, 11, 28, 28],
+                    jcp: [26, 20, 9, 9, 9, 8, 21, 12, 10, 8, 8],
+                    reiwa: [null, null, null, null, null, null, null, null, 3, 9, 9],
+                    sansei: [null, null, null, null, null, null, null, null, null, 3, 3],
+                    hoshu: [null, null, null, null, null, null, null, null, null, 3, 3],
+                    others: [183, 58, 43, 16, 28, 21, 4, 24, 13, 12, 12]
                 }
             },
             sangiin: {
                 years: ['1998', '2001', '2004', '2007', '2010', '2013', '2016', '2019', '2022', '2025'],
-                events: ['橋本', '小泉', '年金', '消えた', 'ねじれ', '解消', '18歳', '令和初', '事件後', '最新'],
-                pro: {
-                    ldp: [1412, 2111, 1679, 1654, 1407, 1846, 2011, 1771, 1825, 1550],
-                    cdp: [1220, 1014, 2113, 2325, 1845, 713, 1175, 795, 677, 950],
-                    dpfp: [null, null, null, null, null, null, null, null, 315, 480],
-                    komei: [774, 818, 862, 776, 763, 756, 757, 653, 618, 580],
-                    ishin: [null, null, null, null, null, 635, 515, 491, 805, 720],
-                    sansei: [null, null, null, null, null, null, null, null, 176, 340],
-                    jcp: [819, 449, 436, 440, 356, 515, 601, 448, 361, 310],
-                    reiwa: [null, null, null, null, null, null, null, 228, 331, 420]
-                }
+                pro: { ldp: [1412, 2111, 1679, 1654, 1407, 1846, 2011, 1771, 1825, 1550], cdp: [1220, 1014, 2113, 2325, 1845, 713, 1175, 795, 677, 950], ishin: [null, null, null, null, null, 635, 515, 491, 805, 720], komei: [774, 818, 862, 776, 763, 756, 757, 653, 618, 580], dpfp: [null, null, null, null, null, null, null, null, 315, 480], jcp: [819, 449, 436, 440, 356, 515, 601, 448, 361, 310], reiwa: [null, null, null, null, null, null, null, null, 228, 420], sansei: [null, null, null, null, null, null, null, null, 176, 340], hoshu: [null, null, null, null, null, null, null, null, null, 0], others: [null, null, null, null, null, null, null, null, null, 0] }
             }
         };
 
-        let trendChart = null;
-        let viewMode = 'chart';
+        const stanceParties = [
+            { id: "ldp", name: "自由民主党", short: "自民", color: "#E8342E", x: 0.65, y: 0.55, leader: "高市早苗", slogan: "日本列島を、強く豊かに。",
+              policies: ["17の戦略分野への集中投資", "食料品消費税2年間ゼロ", "機動的な財政出動", "防衛力強化、憲法改正", "日本版CFIUS創設"],
+              desc: "高市政権下で積極財政・成長投資路線へ。安全保障でタカ派色が鮮明。",
+              summary: ["食品0%（2年）", "積極財政", "防衛力強化", "管理強化", "推進", "原発活用"] },
+            { id: "cra", name: "中道改革連合", short: "中道", color: "#FF8C00", x: 0.35, y: 0.6, leader: "野田佳彦・斉藤鉄夫", slogan: "暮らしを最優先に",
+              policies: ["食料品消費税恒久ゼロ", "若者向け家賃補助", "同性婚を法制化", "多文化共生・包摂社会", "難民認定期間短縮"],
+              desc: "立憲民主党と公明党が合流。中道リベラル路線で再分配を重視。",
+              summary: ["食品0%（恒久）", "財政健全化", "現実的安保", "共生重視", "慎重", "再エネ推進"] },
+            { id: "ishin", name: "日本維新の会", short: "維新", color: "#3CB371", x: 0.6, y: 0.3, leader: "吉村洋文・藤田文武", slogan: "動かすぞ、日本を。",
+              policies: ["食品消費税2年間ゼロ", "社会保険料引き下げ", "衆院議員定数1割削減", "副首都構想", "憲法改正推進"],
+              desc: "行政・規制改革による「小さな政府」志向。身を切る改革を標榜。",
+              summary: ["食品0%（2年）", "行革で財源", "防衛力強化", "管理強化", "推進", "原発活用"] },
+            { id: "dpfp", name: "国民民主党", short: "国民", color: "#FFD700", x: 0.5, y: 0.45, leader: "玉木雄一郎", slogan: "もっと手取りを増やす。",
+              policies: ["消費税5%へ減税", "社会保険料負担軽減", "所得税減税", "年収の壁撤廃", "同性婚検討推進"],
+              desc: "現役世代の手取り増を最重視。減税を軸に中間層支援を主張。",
+              summary: ["全体5%", "国債活用", "現実的安保", "やや管理", "検討", "原発一部容認"] },
+            { id: "jcp", name: "日本共産党", short: "共産", color: "#DC143C", x: 0.1, y: 0.85, leader: "田村智子", slogan: "くらし 平和 人権",
+              policies: ["消費税廃止目指し5%減税", "大企業・富裕層への課税強化", "原発ゼロ", "安保法制廃止", "平和外交"],
+              desc: "格差反映、再分配と社会保障拡充を主張する左派路線。",
+              summary: ["5%→廃止", "大企業増税", "安保法廃止", "共生重視", "反対（護憲）", "原発ゼロ"] },
+            { id: "reiwa", name: "れいわ新選組", short: "れいわ", color: "#FF69B4", x: 0.2, y: 0.9, leader: "大石晃子", slogan: "戦う野党の再生",
+              policies: ["消費税廃止", "現金10万円一律給付", "大規模財政出動", "最低賃金1500円", "原発即時廃止"],
+              desc: "積極財政路線の急先鋒。国債活用と大型給付金による景気刺激を主張。",
+              summary: ["即廃止", "国債大量発行", "安保見直し", "共生重視", "慎重", "原発即廃止"] },
+            { id: "sansei", name: "参政党", short: "参政", color: "#8B4513", x: 0.8, y: 0.65, leader: "神谷宗幣", slogan: "日本人ファースト",
+              policies: ["消費税段階的廃止", "0-15歳教育給付金", "外国人不動産取得規制", "反グローバリズム", "積極財政"],
+              desc: "国家主権重視の右派ポピュリズム。反グローバリズムを掲げる。",
+              summary: ["段階廃止", "国債活用", "防衛力強化", "厳格規制", "推進", "食料安保優先"] },
+            { id: "hoshu", name: "日本保守党", short: "保守", color: "#191970", x: 0.9, y: 0.35, leader: "百田尚樹", slogan: "日本を豊かに強く",
+              policies: ["飲食品+酒の消費税恒久ゼロ", "行政の適正サイズ化", "移民制限・スパイ防止法", "伝統重視", "経済成長軌道"],
+              desc: "最も保守色が強い。伝統重視。減税と行政スリム化を志向。",
+              summary: ["食品0%（恒久）", "減税・行革", "大幅強化", "厳格規制", "推進", "エネルギー安保"] },
+            { id: "sdp", name: "社会民主党", short: "社民", color: "#4169E1", x: 0.08, y: 0.88, leader: "福島瑞穂", slogan: "いのちと暮らしを守る",
+              policies: ["消費税ゼロ目指す", "社会保障拡充", "脱原発", "多文化共生", "人権擁護"],
+              desc: "護憲・平和主義。社会保障拡充を通じた生活保障を重視する。",
+              summary: ["廃止目標", "社保拡充", "平和外交", "共生重視", "反対（護憲）", "脱原発"] },
+            { id: "mirai", name: "チームみらい", short: "みらい", color: "#20B2AA", x: 0.45, y: 0.4, leader: "（代表）", slogan: "将来への不安を減らす",
+              policies: ["消費税見直しなし", "現役世代負担軽減", "行政改革", "将来不安解消", "デジタル推進"],
+              desc: "テクノロジー活用と現役世代支援に特化した新興勢力。",
+              summary: ["見直しなし", "持続可能型", "―", "―", "―", "デジタル活用"] }
+        ];
 
+        // --- タブ切り替え ---
         function switchTab(tabId) {
-            document.querySelectorAll('.tab-active').forEach(el => el.classList.remove('tab-active'));
-            document.querySelectorAll('button[id^="tab-"]').forEach(el => el.classList.add('text-slate-500'));
-            document.getElementById(`tab-${tabId}`).classList.add('tab-active');
-            document.getElementById(`tab-${tabId}`).classList.remove('text-slate-500');
+            document.querySelectorAll('.tab-active').forEach(el => { el.classList.remove('tab-active'); el.classList.add('text-slate-500'); });
+            const activeTab = document.getElementById(`tab-${tabId}`);
+            activeTab.classList.add('tab-active');
+            activeTab.classList.remove('text-slate-500');
             document.querySelectorAll('[id^="panel-"]').forEach(el => el.classList.add('hidden'));
             document.getElementById(`panel-${tabId}`).classList.remove('hidden');
+
             if (tabId === 'analysis') renderAnalysis();
             if (tabId === 'coalition') initCoalition();
+            if (tabId === 'stance') initStanceMap();
             if (tabId === 'impact') initImpactSim();
         }
+
+        let trendChart = null;
+        let viewMode = 'chart';
 
         function toggleViewMode(mode) {
             viewMode = mode;
@@ -349,41 +456,28 @@
             else updateTable();
         }
 
+        function getCombinedTimeline() {
+            const timeline = [];
+            rawHistory.shugiin.years.forEach((y, i) => {
+                timeline.push({ year: y, type: '衆', data: Object.keys(rawHistory.shugiin.pro).reduce((acc, k) => ({...acc, [k]: rawHistory.shugiin.pro[k][i]}), {}) });
+            });
+            rawHistory.sangiin.years.forEach((y, i) => {
+                timeline.push({ year: y, type: '参', data: Object.keys(rawHistory.sangiin.pro).reduce((acc, k) => ({...acc, [k]: rawHistory.sangiin.pro[k][i]}), {}) });
+            });
+            return timeline.sort((a, b) => parseInt(a.year) - parseInt(b.year));
+        }
+
         function renderAnalysis() {
             const shugiinContainer = document.getElementById('shugiin-bars');
             const sangiinContainer = document.getElementById('sangiin-bars');
             shugiinContainer.innerHTML = ''; sangiinContainer.innerHTML = '';
-
             parties.forEach(p => {
                 const total = p.shugiin_dis + p.shugiin_pro;
-                if (total === 0) return;
-                shugiinContainer.innerHTML += `
-                    <div class="flex items-center text-xs">
-                        <div class="w-12 font-bold text-slate-600">${p.abbr}</div>
-                        <div class="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden flex">
-                            <div class="h-full" style="width: ${(p.shugiin_dis/465)*100}%; background-color: ${p.color}"></div>
-                            <div class="h-full opacity-50 border-l border-white/30" style="width: ${(p.shugiin_pro/465)*100}%; background-color: ${p.color}"></div>
-                        </div>
-                        <div class="flex items-center justify-end w-32 ml-2 tabular-nums text-slate-700">
-                            <span class="font-bold text-sm text-right w-8 mr-1">${total}</span>
-                            <span class="text-[9px] text-slate-400 font-bold w-16 text-left">(${p.shugiin_dis}|${p.shugiin_pro})</span>
-                        </div>
-                    </div>
-                `;
+                shugiinContainer.innerHTML += `<div class="flex items-center text-xs"><div class="w-12 font-bold text-slate-600">${p.abbr}</div><div class="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden flex"><div class="h-full" style="width:${(p.shugiin_dis/465)*100}%; background-color:${p.color}"></div><div class="h-full opacity-50 border-l border-white/30" style="width:${(p.shugiin_pro/465)*100}%; background-color:${p.color}"></div></div><div class="flex items-center justify-end w-32 ml-2 tabular-nums text-slate-700"><span class="font-bold text-sm text-right w-8 mr-1">${total}</span><span class="text-[9px] text-slate-400 font-bold w-16 text-left">(${p.shugiin_dis}|${p.shugiin_pro})</span></div></div>`;
             });
-
             parties.forEach(p => {
                 const width = (p.sangiin / 248) * 100;
-                if (p.sangiin === 0) return;
-                sangiinContainer.innerHTML += `
-                    <div class="flex items-center text-xs">
-                        <div class="w-12 font-bold text-slate-600">${p.abbr}</div>
-                        <div class="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
-                            <div class="h-full" style="width: ${width}%; background-color: ${p.color}"></div>
-                        </div>
-                        <div class="w-10 text-right tabular-nums font-bold ml-2 text-slate-700">${p.sangiin}</div>
-                    </div>
-                `;
+                sangiinContainer.innerHTML += `<div class="flex items-center text-xs"><div class="w-12 font-bold text-slate-600">${p.abbr}</div><div class="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden"><div class="h-full" style="width:${width}%; background-color:${p.color}"></div></div><div class="w-10 text-right tabular-nums font-bold ml-2 text-slate-700">${p.sangiin}</div></div>`;
             });
             updateAnalysisDisplay();
         }
@@ -392,102 +486,73 @@
             const type = document.getElementById('electionType').value;
             const ctx = document.getElementById('trendChart').getContext('2d');
             if (trendChart) trendChart.destroy();
-            
             let datasets = [];
-            let activeParties = parties;
-
-            // 比例vs小選のグラフ（shugiin_comp）のみ主要政党に絞る
-            if (type === 'shugiin_comp') {
-                activeParties = parties.filter(p => ['ldp', 'cdp', 'ishin', 'komei', 'dpfp'].includes(p.id));
-            }
-
             if (type === 'combined_pro') {
-                const timeline = [];
-                rawHistory.shugiin.years.forEach((y, i) => timeline.push({ year: y, type: '衆', data: Object.keys(rawHistory.shugiin.pro).reduce((acc, k) => ({...acc, [k]: rawHistory.shugiin.pro[k][i]}), {}) }));
-                rawHistory.sangiin.years.forEach((y, i) => timeline.push({ year: y, type: '参', data: Object.keys(rawHistory.sangiin.pro).reduce((acc, k) => ({...acc, [k]: rawHistory.sangiin.pro[k][i]}), {}) }));
-                timeline.sort((a, b) => parseInt(a.year) - parseInt(b.year));
-                
-                activeParties.forEach(p => {
+                const timeline = getCombinedTimeline();
+                parties.forEach(p => {
                     const data = timeline.map(t => t.data[p.id] || null);
-                    if (data.some(d => d !== null)) {
-                        datasets.push({ label: p.abbr, data: data, borderColor: p.color, backgroundColor: p.color, tension: 0.1, pointRadius: 4, spanGaps: true });
-                    }
+                    if (data.some(d => d !== null)) datasets.push({ label: p.abbr, data: data, borderColor: p.color, tension: 0.1, pointRadius: 4, spanGaps: true });
                 });
                 renderChart(ctx, timeline.map(t => `${t.year}(${t.type})`), datasets, 'line');
             } else if (type === 'current_seats_bar') {
-                const filtered = activeParties.filter(p => (p.shugiin_dis+p.shugiin_pro+p.sangiin)>0);
-                datasets = [
-                    { label: '衆議院', data: filtered.map(p => p.shugiin_dis + p.shugiin_pro), backgroundColor: filtered.map(p => p.color) },
-                    { label: '参議院', data: filtered.map(p => p.sangiin), backgroundColor: filtered.map(p => p.color + '88') }
-                ];
-                renderChart(ctx, filtered.map(p => p.abbr), datasets, 'bar');
+                datasets = [{ label: '衆議院', data: parties.map(p => p.shugiin_dis + p.shugiin_pro), backgroundColor: parties.map(p => p.color) }, { label: '参議院', data: parties.map(p => p.sangiin), backgroundColor: parties.map(p => p.color + '88') }];
+                renderChart(ctx, parties.map(p => p.abbr), datasets, 'bar');
             } else if (type === 'shugiin_comp') {
-                activeParties.forEach(p => {
-                    datasets.push({ label: `${p.abbr} (小選)`, data: rawHistory.shugiin.dis[p.id] || [], borderColor: p.color, tension: 0.1, pointRadius: 4 });
-                    datasets.push({ label: `${p.abbr} (比例)`, data: rawHistory.shugiin.pro[p.id] || [], borderColor: p.color, borderDash: [5, 5], tension: 0.1, pointRadius: 3 });
+                const major = parties.filter(p => ['ldp', 'cdp', 'ishin', 'komei', 'dpfp'].includes(p.id));
+                major.forEach(p => {
+                    datasets.push({ label: `${p.abbr}(小)`, data: rawHistory.shugiin.dis[p.id] || [], borderColor: p.color, tension: 0.1 });
+                    datasets.push({ label: `${p.abbr}(比)`, data: rawHistory.shugiin.pro[p.id] || [], borderColor: p.color, borderDash: [5, 5], tension: 0.1 });
                 });
                 renderChart(ctx, rawHistory.shugiin.years, datasets, 'line');
             } else {
                 const target = type.startsWith('shugiin') ? 'shugiin' : 'sangiin';
                 const subType = type.endsWith('dis') ? 'dis' : (type.includes('seats') ? 'seats' : 'pro');
-                activeParties.forEach(p => {
-                    const data = rawHistory[target][subType]?.[p.id];
-                    if (data) {
-                        datasets.push({ label: p.abbr, data: data, borderColor: p.color, tension: 0.1, pointRadius: 4 });
-                    }
+                parties.forEach(p => {
+                    if (rawHistory[target][subType]?.[p.id]) datasets.push({ label: p.abbr, data: rawHistory[target][subType][p.id], borderColor: p.color, tension: 0.1, pointRadius: 4 });
                 });
                 renderChart(ctx, rawHistory[target].years, datasets, 'line');
             }
         }
 
         function renderChart(ctx, labels, datasets, type) {
-            trendChart = new Chart(ctx, {
-                type: type,
-                data: { labels: labels, datasets: datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 9 } } } }
-                }
-            });
+            trendChart = new Chart(ctx, { type: type, data: { labels: labels, datasets: datasets }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 9 } } } } } });
         }
 
         function updateTable() {
             const type = document.getElementById('electionType').value;
-            const header = document.getElementById('table-header');
-            const body = document.getElementById('table-body');
-            const activeParties = parties.filter(p => (p.shugiin_dis+p.shugiin_pro+p.sangiin)>0);
-            
-            header.innerHTML = `<th class="px-2 py-3 border-r bg-slate-100 min-w-[80px]">年 / 区分</th>` + 
-                activeParties.map(p => `<th class="px-1 py-3 text-center" style="color:${p.color}">${p.abbr}</th>`).join('');
-            
-            body.innerHTML = '';
             const target = type.startsWith('shugiin') ? 'shugiin' : 'sangiin';
             const subType = type.endsWith('dis') ? 'dis' : (type.includes('seats') ? 'seats' : 'pro');
-
-            rawHistory[target].years.forEach((year, i) => {
-                let row = `<tr class="hover:bg-slate-50"><td class="px-2 py-2 border-r bg-slate-50 font-bold">${year}</td>`;
-                activeParties.forEach(p => {
-                    const val = rawHistory[target][subType]?.[p.id]?.[i] ?? '-';
-                    row += `<td class="text-center tabular-nums">${val}</td>`;
+            document.getElementById('table-header').innerHTML = `<th class="px-2 py-3 border-r bg-slate-100 min-w-[100px]">年 / 区分</th>` + parties.map(p => `<th class="px-1 py-3 text-center" style="color:${p.color}">${p.abbr}</th>`).join('');
+            let html = '';
+            if (type === 'combined_pro') {
+                getCombinedTimeline().forEach(t => {
+                    html += `<tr class="hover:bg-slate-50"><td class="px-2 py-2 border-r bg-slate-50 font-bold">${t.year} (${t.type})</td>`;
+                    parties.forEach(p => html += `<td class="text-center tabular-nums">${t.data[p.id] ?? '-'}</td>`);
+                    html += `</tr>`;
                 });
-                body.innerHTML += row + '</tr>';
-            });
+            } else {
+                rawHistory[target].years.forEach((year, i) => {
+                    html += `<tr class="hover:bg-slate-50"><td class="px-2 py-2 border-r bg-slate-50 font-bold">${year}</td>`;
+                    parties.forEach(p => html += `<td class="text-center tabular-nums">${rawHistory[target][subType]?.[p.id]?.[i] ?? '-'}</td>`);
+                    html += `</tr>`;
+                });
+            }
+            document.getElementById('table-body').innerHTML = html;
         }
 
+        // --- 連立シミュレーター ---
         function initCoalition() {
             const container = document.getElementById('party-selection');
             container.innerHTML = '';
             parties.forEach(p => {
                 const div = document.createElement('div');
-                div.innerHTML = `
-                    <input type="checkbox" id="check-${p.id}" class="party-checkbox hidden" value="${p.id}" ${p.id==='ldp'||p.id==='komei'?'checked':''}>
+                const isDefaultChecked = (p.id === 'ldp' || p.id === 'ishin');
+                div.innerHTML = `<input type="checkbox" id="check-${p.id}" class="party-checkbox hidden" value="${p.id}" ${isDefaultChecked ? 'checked' : ''}>
                     <label for="check-${p.id}" class="flex flex-col items-center justify-center p-3 border-2 border-slate-200 rounded-xl cursor-pointer transition-all hover:bg-slate-50">
-                        <span class="text-[10px] font-bold mb-1 truncate w-full text-center" style="color: ${p.color}">${p.abbr}</span>
+                        <span class="text-[10px] font-bold mb-1 truncate w-full text-center" style="color:${p.color}">${p.abbr}</span>
                         <span class="text-lg font-black tabular-nums">${p.shugiin_dis+p.shugiin_pro}</span>
                         <span class="text-[10px] text-slate-400 tabular-nums">参: ${p.sangiin}</span>
-                    </label>
-                `;
+                    </label>`;
                 container.appendChild(div);
                 div.querySelector('input').addEventListener('change', runCoalitionSim);
             });
@@ -497,35 +562,81 @@
         function runCoalitionSim() {
             const checked = Array.from(document.querySelectorAll('.party-checkbox:checked')).map(el => el.value);
             let sTotal = 0; let cTotal = 0;
-            checked.forEach(id => {
-                const p = parties.find(party => party.id === id);
-                sTotal += (p.shugiin_dis + p.shugiin_pro); cTotal += p.sangiin;
-            });
+            checked.forEach(id => { const p = parties.find(party => party.id === id); sTotal += (p.shugiin_dis+p.shugiin_pro); cTotal += p.sangiin; });
             document.getElementById('sim-shugiin-total').innerText = sTotal;
             document.getElementById('sim-sangiin-total').innerText = cTotal;
             document.getElementById('sim-shugiin-progress').style.width = `${(sTotal/465)*100}%`;
             document.getElementById('sim-sangiin-progress').style.width = `${(cTotal/248)*100}%`;
-            
             const shStatus = document.getElementById('sim-shugiin-status');
             shStatus.innerText = sTotal >= 233 ? '✅ 過半数達成' : `❌ 不足: ${233-sTotal}`;
             if (sTotal >= 310) shStatus.innerText += ' (3分の2超)';
-            
             const saStatus = document.getElementById('sim-sangiin-status');
             saStatus.innerText = cTotal >= 125 ? '✅ 過半数達成' : `⚠️ 不足: ${125-cTotal}`;
             if (cTotal >= 166) saStatus.innerText += ' (3分の2超)';
         }
 
+        // --- 各政党の政治スタンス ---
+        function initStanceMap() {
+            const svg = document.getElementById('stance-svg');
+            const taxList = document.getElementById('tax-stance-list');
+            const summaryBody = document.getElementById('stance-summary-body');
+            const size = 550; const padding = 70; const inner = size - padding * 2;
+            const toPixel = (v, axis) => (axis === 'x') ? padding + v * inner : padding + (1 - v) * inner;
+
+            let html = `<rect x="${padding}" y="${padding}" width="${inner/2}" height="${inner/2}" fill="rgba(65, 105, 225, 0.08)" />
+                <rect x="${padding + inner/2}" y="${padding}" width="${inner/2}" height="${inner/2}" fill="rgba(220, 20, 60, 0.08)" />
+                <rect x="${padding}" y="${padding + inner/2}" width="${inner/2}" height="${inner/2}" fill="rgba(65, 105, 225, 0.05)" />
+                <rect x="${padding + inner/2}" y="${padding + inner/2}" width="${inner/2}" height="${inner/2}" fill="rgba(220, 20, 60, 0.05)" />
+                <line x1="${padding}" y1="${size/2}" x2="${size-padding}" y2="${size/2}" stroke="rgba(255,255,255,0.1)" stroke-width="2" />
+                <line x1="${size/2}" y1="${padding}" x2="${size/2}" y2="${size-padding}" stroke="rgba(255,255,255,0.1)" stroke-width="2" />
+                <text x="${padding-10}" y="${size/2}" fill="#888" font-size="12" font-weight="900" transform="rotate(-90, ${padding-10}, ${size/2})" text-anchor="middle">← 小政府　　大政府 →</text>
+                <text x="${size/2}" y="${size-padding+25}" fill="#888" font-size="12" font-weight="900" text-anchor="middle">← 革新　　　　保守 →</text>`;
+
+            stanceParties.forEach(p => {
+                const cx = toPixel(p.x, 'x'); const cy = toPixel(p.y, 'y');
+                html += `<g class="party-dot cursor-pointer" onclick="showPartyDetail('${p.id}')">
+                    <circle cx="${cx}" cy="${cy}" r="15" fill="${p.color}" opacity="0.2" />
+                    <circle cx="${cx}" cy="${cy}" r="10" fill="${p.color}" stroke="white" stroke-width="2" />
+                    <text x="${cx}" y="${cy-18}" text-anchor="middle" fill="white" font-size="11" font-weight="900" style="text-shadow: 0 1px 3px black">${p.short}</text>
+                </g>`;
+            });
+            svg.innerHTML = html;
+
+            const taxes = [{ label: "廃止", items: ["れいわ", "参政", "社民"], color: "#dc143c" }, { label: "5%へ", items: ["共産", "国民"], color: "#ff6347" }, { label: "食品0%（恒久）", items: ["中道", "保守"], color: "#ffa500" }, { label: "食品0%（2年）", items: ["自民", "維新"], color: "#ffd700" }, { label: "現状維持", items: ["みらい"], color: "#888" }];
+            taxList.innerHTML = taxes.map(t => `<div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full" style="background:${t.color}"></span><span class="w-24 text-slate-500">${t.label}</span><span class="text-white">${t.items.join('、')}</span></div>`).join('');
+            summaryBody.innerHTML = stanceParties.map(p => `<tr class="hover:bg-white/5 cursor-pointer" onclick="showPartyDetail('${p.id}')"><td class="py-2 px-2 font-bold" style="color:${p.color}">${p.short}</td>${p.summary.map(s => `<td class="py-2 px-2 text-slate-400">${s}</td>`).join('')}</tr>`).join('');
+            
+            // デフォルトで自民党の解説を表示
+            showPartyDetail('ldp');
+        }
+
+        window.showPartyDetail = (id) => {
+            const p = stanceParties.find(x => x.id === id);
+            const card = document.getElementById('party-detail-card');
+            card.className = "bg-white/5 border border-white/20 p-6 rounded-2xl animate-fade-in";
+            card.innerHTML = `<div class="flex items-center gap-4 mb-4"><div class="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-xl" style="background:${p.color}">${p.short.slice(0,2)}</div><div><h3 class="text-white font-bold text-lg">${p.name}</h3><p class="text-slate-400 text-xs">${p.leader} ｜ ${p.slogan}</p></div></div><p class="text-slate-300 text-sm leading-relaxed mb-4">${p.desc}</p><div class="bg-black/30 p-4 rounded-xl"><h4 class="text-[10px] font-black text-slate-500 uppercase mb-2">主要公約</h4><ul class="space-y-1 text-xs text-slate-300">${p.policies.map(pol => `<li><span style="color:${p.color}">●</span> ${pol}</li>`).join('')}</ul></div>`;
+        };
+
+        // --- 影響シミュレーション ---
         function initImpactSim() {
             const sliders = ['loss', 'return', 'acquire', 'leverage'];
             sliders.forEach(id => document.getElementById(`input-${id}`).oninput = updateImpactSim);
             updateImpactSim();
         }
 
+        function resetImpactSliders() {
+            document.getElementById('input-loss').value = 80;
+            document.getElementById('input-return').value = 20;
+            document.getElementById('input-acquire').value = 15;
+            document.getElementById('input-leverage').value = 5;
+            updateImpactSim();
+        }
+
         function updateImpactSim() {
             const data2021 = { ldp: 2762, komei: 711 };
             const data2024 = { ldp: 2087, komei: 596 };
+            const data2025 = { ldp: 1447 }; 
             const potential = { return: 600, acquire: 1000 };
-
             const lossRate = document.getElementById('input-loss').value / 100;
             const returnRate = document.getElementById('input-return').value / 100;
             const acquireRate = document.getElementById('input-acquire').value / 100;
@@ -537,24 +648,24 @@
             document.getElementById('val-leverage').innerText = `${Math.round(leverageRate * 100)}%`;
 
             const calc = (baseLDP, baseKM) => Math.round((baseLDP - (baseKM * lossRate) + (potential.return * returnRate) + (potential.acquire * acquireRate)) * (1 + leverageRate));
-
             const res21 = calc(data2021.ldp, data2021.komei);
             const res24 = calc(data2024.ldp, data2024.komei);
 
             document.getElementById('sim-result-2021').innerHTML = `${res21.toLocaleString()} <span class="text-xl font-normal text-slate-500">万票</span>`;
-            const d21 = res21 - data2021.ldp;
-            document.getElementById('diff-2021-base').innerText = `${d21 >= 0 ? '+' : ''}${d21.toLocaleString()} 万`;
-            document.getElementById('diff-2021-base').className = `text-2xl font-bold ${d21 >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
-
+            setDiffUI('diff-2021-base', res21 - data2021.ldp);
+            setDiffUI('diff-2021-vs-2025', res21 - data2025.ldp);
             document.getElementById('sim-result-2024').innerHTML = `${res24.toLocaleString()} <span class="text-xl font-normal text-slate-500">万票</span>`;
-            const d24 = res24 - data2024.ldp;
-            document.getElementById('diff-2024-base').innerText = `${d24 >= 0 ? '+' : ''}${d24.toLocaleString()} 万`;
-            document.getElementById('diff-2024-base').className = `text-2xl font-bold ${d24 >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+            setDiffUI('diff-2024-base', res24 - data2024.ldp);
+            setDiffUI('diff-2024-vs-2025', res24 - data2025.ldp);
         }
 
-        function downloadCSV() { alert("詳細データを出力します"); }
+        function setDiffUI(elementId, value) {
+            const el = document.getElementById(elementId);
+            el.innerText = `${value >= 0 ? '+' : ''}${value.toLocaleString()} 万票`;
+            el.className = `text-xl font-bold ${value >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+        }
 
-        window.onload = () => { renderAnalysis(); initCoalition(); initImpactSim(); };
+        window.onload = () => { renderAnalysis(); initCoalition(); };
     </script>
 </body>
 </html>
