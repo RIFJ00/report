@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>政策リサーチ 会員管理システム</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Babel Standalone -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+        }
+
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fade-in 0.3s ease-out forwards;
+        }
+        
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .7; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div id="root">
+        <div class="min-h-screen flex items-center justify-center flex-col">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+            <p class="text-slate-500">システムを読み込み中...</p>
+        </div>
+    </div>
+
+    <!-- React Application Script -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useMemo } from 'https://esm.sh/react@18.2.0';
+        import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
+        
+        // Lucide Icons
+        import { 
+            Shield, CheckCircle, List, Mail, Search, AlertTriangle, 
+            FileSpreadsheet, Receipt, UserPlus, Trash2, Edit, X, Save,
+            RefreshCw, MailWarning, Eye, CheckSquare, Square, Info, LogOut,
+            Bell, Clock
+        } from 'https://esm.sh/lucide-react@0.292.0';
+
+        // Firebase SDKs
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            onAuthStateChanged
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            collectionGroup, 
+            updateDoc, 
+            deleteDoc, 
+            doc, 
+            query, 
+            onSnapshot, 
+            orderBy 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAAI4aEAVRFCapIScHIsY7CeldYSA0hXHI",
+            authDomain: "member-214a3.firebaseapp.com",
+            projectId: "member-214a3",
+            storageBucket: "member-214a3.firebasestorage.app",
+            messagingSenderId: "596397889206",
+            appId: "1:596397889206:web:8be83a3964ee3618a2f817",
+            measurementId: "G-35V5LFFHHG"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = "default-app-id";
+
+        // --- Helper Functions ---
+        const getOfficialPlanName = (plan, cycle, useCreditCard = false) => {
+            if (plan === 'trial') return 'Navi Plus Trial（10日間無料トライアル）';
+            if (plan === 'corporate') return cycle === 'yearly' ? 'Navi Plus5（Fプラン5 年払）' : 'Navi Plus5（Fプラン5）';
+            if (plan === 'personal') {
+                if (cycle === 'yearly') return 'Navi Plus1（Fプラン1 年払）';
+                if (useCreditCard) return 'Navi All';
+                return 'Navi Plus1（Fプラン1）';
+            }
+            return plan;
+        };
+
+        const getFormattedPrice = (plan, cycle) => {
+            if (plan === 'trial') return '0円';
+            let price = 0;
+            if (plan === 'corporate') price = cycle === 'yearly' ? 1200000 : 100000;
+            if (plan === 'personal') price = cycle === 'yearly' ? 360000 : 30000;
+            
+            if (price === 0) return '-';
+            const taxIncluded = Math.floor(price * 1.1);
+            const unit = cycle === 'yearly' ? '/年' : '/月';
+            return `¥${price.toLocaleString()}（税込 ¥${taxIncluded.toLocaleString()}）${unit}`;
+        };
+
+        const resolveFullName = (data) => {
+            if (data.fullName && data.fullName.trim() !== '') return data.fullName;
+            if (data.lastName || data.firstName) return `${data.lastName || ''} ${data.firstName || ''}`.trim();
+            return 'お客様';
+        };
+
+        const normalizePhoneNumber = (str) => {
+            if (!str) return '';
+            const halfWidth = str.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+            return halfWidth.replace(/[^0-9]/g, '');
+        };
+
+        // 期間判定ロジックを変更
+        const getTimeStatus = (date) => {
+            if (!date) return 'none';
+            const now = new Date();
+            const diffMs = now - date;
+            const hours = diffMs / (1000 * 60 * 60);
+            
+            if (hours < 24) return 'new';      // 24時間以内
+            if (hours < 72) return 'recent';   // 72時間以内
+            return 'none';
+        };
+
+        // --- Modals & Components ---
+
+        function LoginScreen({ onLogin }) {
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (password === 'miraiken@1') {
+                    onLogin();
+                } else {
+                    setError('パスワードが違います');
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+                    <div className="bg-white p-8 rounded-xl shadow-lg max-w-sm w-full animate-fade-in">
+                        <div className="flex flex-col items-center mb-6">
+                            <div className="bg-indigo-100 p-3 rounded-full mb-4">
+                                <Shield className="w-8 h-8 text-indigo-600" />
+                            </div>
+                            <h2 className="text-xl font-bold text-slate-800">政策リサーチ</h2>
+                            <p className="text-sm text-slate-500">管理者ログイン</p>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                placeholder="パスワードを入力"
+                                autoFocus
+                            />
+                            {error && <div className="text-red-500 text-sm text-center font-medium bg-red-50 py-2 rounded flex items-center justify-center gap-1"><AlertTriangle size={14} />{error}</div>}
+                            <button type="submit" className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow transition-colors">
+                                ログイン
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        function MessageModal({ isOpen, onClose, title, message, type = 'info' }) {
+            if (!isOpen) return null;
+            let icon, colorClass, bgClass;
+            if (type === 'success') { icon = <CheckCircle size={32} className="text-green-600" />; bgClass = 'bg-green-50'; }
+            else if (type === 'error') { icon = <AlertTriangle size={32} className="text-red-600" />; bgClass = 'bg-red-50'; }
+            else { icon = <Info size={32} className="text-blue-600" />; bgClass = 'bg-blue-50'; }
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-fade-in">
+                        <div className="flex flex-col items-center text-center space-y-4">
+                            <div className={`p-3 rounded-full ${bgClass}`}>{icon}</div>
+                            <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+                            <p className="text-slate-600 whitespace-pre-wrap text-sm leading-relaxed">{message}</p>
+                            <button onClick={onClose} className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold transition-colors">閉じる</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, confirmText = "OK", cancelText = "キャンセル", isDanger = false }) {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-fade-in">
+                        <h3 className="text-lg font-bold text-slate-800 mb-2">{title}</h3>
+                        <p className="text-slate-600 mb-6">{message}</p>
+                        <div className="flex justify-end gap-3">
+                            <button onClick={onCancel} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50 font-medium">{cancelText}</button>
+                            <button onClick={onConfirm} className={`px-4 py-2 text-white rounded font-bold shadow-sm ${isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>{confirmText}</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function MailStatusModal({ isOpen, onClose, mailData }) {
+            if (!isOpen || !mailData) return null;
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white z-10">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Info size={24} className="text-indigo-600" />メール送信詳細情報</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+                        </div>
+                        <div className="p-6 space-y-4 text-sm">
+                            <div className={`p-4 rounded border ${mailData.mailStatus === 'SUCCESS' ? 'bg-green-50 border-green-200 text-green-800' : mailData.mailStatus === 'ERROR' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-slate-50 border-slate-200 text-slate-800'}`}>
+                                <p className="font-bold text-lg mb-1">Status: {mailData.mailStatus}</p>
+                                {mailData.mailError && <p className="font-mono text-xs mt-2 p-2 bg-white rounded border border-red-100">{mailData.mailError}</p>}
+                            </div>
+                            <div className="grid grid-cols-[100px_1fr] gap-4">
+                                <div className="font-bold text-slate-500">Doc ID</div><div className="font-mono">{mailData.mailDocId || 'N/A'}</div>
+                                <div className="font-bold text-slate-500">Email</div><div>{mailData.email}</div>
+                                <div className="font-bold text-slate-500">Subject</div><div>{mailData.mailSubject || '(不明)'}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function EditMemberModal({ member, onClose, onUpdate }) {
+            const [formData, setFormData] = useState({ ...member });
+            
+            const handleChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleAdditionalChange = (index, field, value) => {
+                const newAdditional = [...(formData.additionalMembers || [])];
+                if (!newAdditional[index]) newAdditional[index] = {};
+                newAdditional[index][field] = value;
+                setFormData(prev => ({ ...prev, additionalMembers: newAdditional }));
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const processedData = { ...formData };
+                if (processedData.phone) processedData.phone = normalizePhoneNumber(processedData.phone);
+                onUpdate(member.id, processedData);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white z-10">
+                            <h3 className="text-xl font-bold text-slate-800">会員情報の編集</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">区分コード</label><input type="text" name="categoryCode" value={formData.categoryCode || 'C00'} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">会社名</label><input type="text" name="companyName" value={formData.companyName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">部署名</label><input type="text" name="department" value={formData.department || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">役職</label><input type="text" name="position" value={formData.position || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">姓</label><input type="text" name="lastName" value={formData.lastName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">名</label><input type="text" name="firstName" value={formData.firstName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">メールアドレス</label><input type="email" name="email" value={formData.email || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">電話番号</label><input type="tel" name="phone" value={formData.phone || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1"><label className="text-sm font-bold text-slate-700">郵便番号</label><input type="text" name="postalCode" value={formData.postalCode || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1 md:col-span-2"><label className="text-sm font-bold text-slate-700">住所</label><input type="text" name="address" value={formData.address || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                <div className="space-y-1 md:col-span-2"><label className="text-sm font-bold text-slate-700">住所2</label><input type="text" name="address2" value={formData.address2 || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                            </div>
+                            
+                            {/* 追加利用者情報は簡略化のため、データが存在する場合のみ表示 */}
+                            {formData.additionalMembers && formData.additionalMembers.length > 0 && (
+                                <div className="border-t pt-4 mt-4">
+                                    <h4 className="font-bold mb-4 text-slate-800">追加利用者情報</h4>
+                                    <div className="space-y-4">
+                                        {formData.additionalMembers.map((mem, i) => (
+                                            <div key={i} className="p-3 bg-slate-50 rounded border border-slate-200">
+                                                <div className="font-bold text-sm mb-2">利用者 {i + 1}</div>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <input placeholder="姓" value={mem.lastName || ''} onChange={(e) => handleAdditionalChange(i, 'lastName', e.target.value)} className="px-2 py-1 border rounded" />
+                                                    <input placeholder="名" value={mem.firstName || ''} onChange={(e) => handleAdditionalChange(i, 'firstName', e.target.value)} className="px-2 py-1 border rounded" />
+                                                    <input placeholder="Email" value={mem.email || ''} onChange={(e) => handleAdditionalChange(i, 'email', e.target.value)} className="px-2 py-1 border rounded col-span-2" />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="border-t pt-4 mt-4">
+                                <h4 className="font-bold mb-4 text-slate-800">プラン情報</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">プラン</label><select name="plan" value={formData.plan} onChange={handleChange} className="w-full px-3 py-2 border rounded"><option value="trial">トライアル</option><option value="corporate">企業プラン</option><option value="personal">個人プラン</option></select></div>
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">支払いサイクル</label><select name="paymentCycle" value={formData.paymentCycle || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded"><option value="">(なし)</option><option value="monthly">月払い</option><option value="yearly">年払い</option></select></div>
+                                </div>
+                            </div>
+                            <div className="border-t pt-4 mt-4">
+                                <h4 className="font-bold mb-4 text-slate-800">請求先情報</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先名</label><input type="text" name="billingName" value={formData.billingName || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先部署</label><input type="text" name="billingDepartment" value={formData.billingDepartment || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先メール</label><input type="email" name="billingEmail" value={formData.billingEmail || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                    <div className="space-y-1"><label className="text-sm font-bold text-slate-700">請求先電話</label><input type="tel" name="billingPhone" value={formData.billingPhone || ''} onChange={handleChange} className="w-full px-3 py-2 border rounded" /></div>
+                                </div>
+                            </div>
+                            <div className="border-t pt-4 mt-4">
+                                <label className="text-sm font-bold text-slate-700 block mb-1">備考</label>
+                                <textarea name="notes" value={formData.notes} onChange={handleChange} rows="3" className="w-full px-3 py-2 border rounded"></textarea>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white">
+                                <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50">キャンセル</button>
+                                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-2"><Save size={18} /> 保存する</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- Main Admin Dashboard ---
+        function AdminDashboard({ user, onLogout }) {
+            const [registrations, setRegistrations] = useState([]);
+            const [mails, setMails] = useState([]);
+            const [selectedIds, setSelectedIds] = useState(new Set());
+            const [loading, setLoading] = useState(true);
+            const [editingMember, setEditingMember] = useState(null);
+            const [deleteConfirmationItem, setDeleteConfirmationItem] = useState(null);
+            const [statusDetailMail, setStatusDetailMail] = useState(null);
+            const [messageModal, setMessageModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
+            const showMessage = (title, message, type = 'info') => {
+                setMessageModal({ isOpen: true, title, message, type });
+            };
+
+            useEffect(() => {
+                if (!user) return;
+                
+                // Fetch Registrations
+                const qReg = query(collectionGroup(db, 'registrations'));
+                const unsubReg = onSnapshot(qReg, (snapshot) => {
+                    const data = snapshot.docs.map(doc => {
+                        const d = doc.data();
+                        return {
+                            id: doc.id,
+                            ...d,
+                            createdAtDate: d.createdAt?.toDate() || new Date(),
+                            refPath: doc.ref.path 
+                        };
+                    });
+                    data.sort((a, b) => b.createdAtDate - a.createdAtDate);
+                    setRegistrations(data);
+                    setLoading(false);
+                }, (error) => {
+                    console.error("Error fetching registrations:", error);
+                    setLoading(false);
+                });
+
+                // Fetch Mail Logs
+                const qMail = query(collection(db, 'mail'), orderBy('delivery.startTime', 'desc')); 
+                const unsubMail = onSnapshot(collection(db, 'mail'), (snapshot) => {
+                    const data = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    setMails(data);
+                });
+
+                return () => {
+                    unsubReg();
+                    unsubMail();
+                };
+            }, [user]);
+
+            const registrationsWithMailStatus = useMemo(() => {
+                return registrations.map(reg => {
+                    let mailLog = mails.find(m => m.metadata?.registrationId === reg.id);
+                    if (!mailLog) {
+                        mailLog = mails.find(m => {
+                            const toAddress = Array.isArray(m.to) ? m.to[0] : m.to;
+                            return toAddress === reg.email;
+                        });
+                    }
+                    // タイムステータス判定
+                    const timeStatus = getTimeStatus(reg.createdAtDate);
+                    
+                    return {
+                        ...reg,
+                        mailStatus: mailLog?.delivery?.state || 'MISSING', 
+                        mailError: mailLog?.delivery?.error || null,
+                        mailDocId: mailLog?.id,
+                        mailSubject: mailLog?.message?.subject,
+                        timeStatus: timeStatus // 'new', 'recent', 'none'
+                    };
+                });
+            }, [registrations, mails]);
+
+            // カウント集計
+            const { newCount, recentCount } = useMemo(() => {
+                return {
+                    newCount: registrationsWithMailStatus.filter(r => r.timeStatus === 'new').length,
+                    recentCount: registrationsWithMailStatus.filter(r => r.timeStatus === 'recent').length
+                };
+            }, [registrationsWithMailStatus]);
+
+            const toggleSelectAll = () => {
+                if (selectedIds.size === registrationsWithMailStatus.length) {
+                    setSelectedIds(new Set());
+                } else {
+                    setSelectedIds(new Set(registrationsWithMailStatus.map(r => r.id)));
+                }
+            };
+
+            const toggleSelect = (id) => {
+                const newSelected = new Set(selectedIds);
+                if (newSelected.has(id)) newSelected.delete(id);
+                else newSelected.add(id);
+                setSelectedIds(newSelected);
+            };
+
+            const getTargetData = () => {
+                if (selectedIds.size > 0) return registrationsWithMailStatus.filter(r => selectedIds.has(r.id));
+                return registrationsWithMailStatus;
+            };
+
+            const handleDeleteClick = (item) => {
+                setDeleteConfirmationItem(item);
+            };
+
+            const confirmDelete = async () => {
+                if (!deleteConfirmationItem) return;
+                try {
+                    await deleteDoc(doc(db, deleteConfirmationItem.refPath)); 
+                    setDeleteConfirmationItem(null);
+                    showMessage("完了", "データを削除しました。", 'success');
+                } catch (e) {
+                    showMessage("エラー", "削除に失敗しました: " + e.message, 'error');
+                }
+            };
+
+            const handleUpdate = async (id, newData) => {
+                const targetItem = registrations.find(r => r.id === id);
+                if (!targetItem) return;
+                try {
+                    const updateData = { ...newData };
+                    // 不要なフィールドを削除
+                    delete updateData.id; delete updateData.createdAtDate; delete updateData.refPath;
+                    delete updateData.mailStatus; delete updateData.mailError; delete updateData.mailDocId; delete updateData.mailSubject;
+                    delete updateData.timeStatus;
+
+                    if (updateData.lastName && updateData.firstName) {
+                        updateData.fullName = `${updateData.lastName} ${updateData.firstName}`;
+                    }
+                    await updateDoc(doc(db, targetItem.refPath), updateData);
+                    setEditingMember(null);
+                    showMessage("完了", "会員情報を更新しました。", 'success');
+                } catch (e) {
+                    showMessage("エラー", "更新に失敗しました: " + e.message, 'error');
+                }
+            };
+
+            const generateCSV = (headers, rows, filename) => {
+                const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a'); link.href = url; link.setAttribute('download', filename); document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            };
+
+            const downloadMemberCSV = () => {
+                const targetData = getTargetData();
+                if (targetData.length === 0) { showMessage("通知", "データがありません。", 'info'); return; }
+                const headers = ["区分", "会社名", "部署", "姓", "名", "役職", "プラン", "メールアドレス", "電話番号", "郵便番号", "住所1", "住所2", "請求先名", "請求先部署", "請求先メール", "請求先電話", "備考", "登録日時"];
+                const rows = targetData.map(reg => [
+                    `"${reg.categoryCode || 'C00'}"`, `"${reg.companyName || ''}"`, `"${reg.department || ''}"`, `"${reg.lastName || ''}"`, `"${reg.firstName || ''}"`, `"${reg.position || ''}"`,
+                    `"${getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}"`, `"${reg.email}"`, `"${reg.phone}"`, `"${reg.postalCode || ''}"`, `"${reg.address}"`, `"${reg.address2 || ''}"`,
+                    `"${reg.billingName || ''}"`, `"${reg.billingDepartment || ''}"`, `"${reg.billingEmail || ''}"`, `"${reg.billingPhone || ''}"`, `"${(reg.notes || '').replace(/\n/g, ' ')}"`,
+                    reg.createdAtDate.toLocaleString('ja-JP')
+                ]);
+                generateCSV(headers, rows, `会員リスト_${new Date().toISOString().slice(0, 10)}.csv`);
+            };
+
+            const downloadBillingCSV = () => {
+                const targetData = getTargetData();
+                if (targetData.length === 0) { showMessage("通知", "データがありません。", 'info'); return; }
+                const headers = ["区分", "請求先名", "請求先部署", "請求先メール", "請求先電話", "プラン", "金額(円)", "登録日時"];
+                const rows = targetData.map(reg => [
+                    `"${reg.categoryCode || 'C00'}"`, `"${reg.billingName || ''}"`, `"${reg.billingDepartment || ''}"`, `"${reg.billingEmail || ''}"`, `"${reg.billingPhone || ''}"`,
+                    `"${getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}"`, `"${getFormattedPrice(reg.plan, reg.paymentCycle)}"`, reg.createdAtDate.toLocaleString('ja-JP')
+                ]);
+                generateCSV(headers, rows, `請求先リスト_${new Date().toISOString().slice(0, 10)}.csv`);
+            };
+
+            const downloadRegistrationCSV = () => {
+                const targetData = getTargetData();
+                if (targetData.length === 0) { showMessage("通知", "データがありません。", 'info'); return; }
+                const headers = ["メールアドレス", "姓", "名", "携帯電話番号", "自宅電話番号", "会社名", "会社電話番号", "郵便番号", "国", "都道府県", "市町村", "番地", "ビル名", "区分", "プラン"];
+                
+                const rows = [];
+                targetData.forEach(reg => {
+                    const address = reg.address || '';
+                    let prefecture = ''; let city = '';
+                    const prefMatch = address.match(/^(.{2,3}[都道府県])(.*)/);
+                    if (prefMatch) { prefecture = prefMatch[1]; city = prefMatch[2]; } else { city = address; }
+                    
+                    // 代表者
+                    rows.push([
+                        `"${reg.email}"`, `"${reg.lastName || ''}"`, `"${reg.firstName || ''}"`, `"${reg.phone}"`, `""`, `"${reg.companyName || ''}"`, `""`, `"${reg.postalCode || ''}"`, `"日本"`, `"${prefecture}"`, `"${city}"`, `""`, `"${reg.address2 || ''}"`, `"${reg.categoryCode || 'C00'}"`, `"${getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}"`
+                    ]);
+
+                    // 追加メンバー
+                    if (reg.plan === 'corporate' && reg.additionalMembers) {
+                        reg.additionalMembers.forEach(mem => {
+                            if (mem.lastName || mem.email) {
+                                rows.push([
+                                    `"${mem.email}"`, `"${mem.lastName || ''}"`, `"${mem.firstName || ''}"`, `"${mem.phone}"`, `""`, `"${reg.companyName || ''}"`, `""`, `"${reg.postalCode || ''}"`, `"日本"`, `"${prefecture}"`, `"${city}"`, `""`, `"${reg.address2 || ''}"`, `"${reg.categoryCode || 'C00'}"`, `"${getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}"`
+                                ]);
+                            }
+                        });
+                    }
+                });
+                
+                generateCSV(headers, rows, `システム登録用リスト_${new Date().toISOString().slice(0, 10)}.csv`);
+            };
+
+            if (loading) return <div className="text-center py-10 text-slate-500">データを読み込み中...</div>;
+
+            return (
+                <div className="space-y-6">
+                    {/* Modals */}
+                    {editingMember && <EditMemberModal member={editingMember} onClose={() => setEditingMember(null)} onUpdate={handleUpdate} />}
+                    {deleteConfirmationItem && <ConfirmModal isOpen={true} title="削除の確認" message="本当にこのデータを削除しますか？この操作は取り消せません。" confirmText="削除する" isDanger={true} onConfirm={confirmDelete} onCancel={() => setDeleteConfirmationItem(null)} />}
+                    {statusDetailMail && <MailStatusModal isOpen={true} mailData={statusDetailMail} onClose={() => setStatusDetailMail(null)} />}
+                    {messageModal.isOpen && <MessageModal isOpen={true} onClose={() => setMessageModal(prev => ({ ...prev, isOpen: false }))} title={messageModal.title} message={messageModal.message} type={messageModal.type} />}
+                    
+                    {/* Notification Alert */}
+                    {(newCount > 0 || recentCount > 0) && (
+                        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm animate-fade-in space-y-3">
+                            {newCount > 0 && (
+                                <div className="flex items-center gap-3 text-yellow-800 bg-yellow-50 p-3 rounded border border-yellow-100">
+                                    <div className="bg-yellow-100 p-2 rounded-full">
+                                        <Bell className="w-5 h-5 text-yellow-600 animate-pulse-slow" />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold">新規の登録があります</p>
+                                        <p className="text-sm text-yellow-700">24時間以内に <span className="font-bold text-lg text-yellow-900">{newCount}</span> 件の申し込みがありました。</p>
+                                    </div>
+                                </div>
+                            )}
+                            {recentCount > 0 && (
+                                <div className="flex items-center gap-3 text-orange-800 bg-orange-50 p-3 rounded border border-orange-100">
+                                    <div className="bg-orange-100 p-2 rounded-full">
+                                        <Info className="w-5 h-5 text-orange-600" />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold">72時間以内の登録があります</p>
+                                        <p className="text-sm text-orange-700">24時間を超え72時間以内の申し込みが <span className="font-bold text-lg text-orange-900">{recentCount}</span> 件あります。対応状況を確認してください。</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Header Controls */}
+                    <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-800">申し込み一覧</h2>
+                            <p className="text-slate-500 text-sm">
+                                {selectedIds.size > 0 ? <span className="text-indigo-600 font-bold">{selectedIds.size} 件選択中</span> : `全 ${registrationsWithMailStatus.length} 件`}
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button onClick={downloadMemberCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><FileSpreadsheet size={16} /><span>会員リスト出力</span></button>
+                            <button onClick={downloadBillingCSV} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><Receipt size={16} /><span>請求先リスト出力</span></button>
+                            <button onClick={downloadRegistrationCSV} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors text-sm"><UserPlus size={16} /><span>システム登録用出力</span></button>
+                        </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse whitespace-nowrap">
+                                <thead>
+                                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm uppercase tracking-wider">
+                                        <th className="p-4 w-10">
+                                            <button onClick={toggleSelectAll} className="flex items-center text-slate-400 hover:text-slate-600">
+                                                {registrationsWithMailStatus.length > 0 && selectedIds.size === registrationsWithMailStatus.length ? <CheckSquare size={20} className="text-indigo-600" /> : <Square size={20} />}
+                                            </button>
+                                        </th>
+                                        <th className="p-4 font-semibold">操作</th>
+                                        <th className="p-4 font-semibold text-center">メール</th>
+                                        <th className="p-4 font-semibold">日時</th>
+                                        <th className="p-4 font-semibold">区分</th>
+                                        <th className="p-4 font-semibold">会社・部署</th>
+                                        <th className="p-4 font-semibold">氏名・役職</th>
+                                        <th className="p-4 font-semibold">プラン</th>
+                                        <th className="p-4 font-semibold">連絡先</th>
+                                        <th className="p-4 font-semibold border-l border-slate-100 bg-slate-50/50">請求先情報</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {registrationsWithMailStatus.length === 0 ? (
+                                        <tr><td colSpan="10" className="p-8 text-center text-slate-400">データがありません。</td></tr>
+                                    ) : (
+                                        registrationsWithMailStatus.map((reg) => (
+                                            <tr 
+                                                key={reg.id} 
+                                                className={`
+                                                    hover:bg-indigo-50/30 transition-colors 
+                                                    ${selectedIds.has(reg.id) ? 'bg-indigo-50/50' : 
+                                                      reg.timeStatus === 'new' ? 'bg-yellow-100 border-l-4 border-yellow-400' : 
+                                                      reg.timeStatus === 'recent' ? 'bg-orange-50' : ''} 
+                                                    ${reg.useCreditCard ? 'text-red-600' : ''}
+                                                `}
+                                            >
+                                                <td className="p-4">
+                                                    <button onClick={() => toggleSelect(reg.id)} className="flex items-center text-slate-400 hover:text-slate-600">
+                                                        {selectedIds.has(reg.id) ? <CheckSquare size={20} className="text-indigo-600" /> : <Square size={20} />}
+                                                    </button>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={() => setEditingMember(reg)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 hover:border-indigo-400 transition-colors" title="編集"><Edit size={16} /></button>
+                                                        <button onClick={() => handleDeleteClick(reg)} className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 hover:border-red-400 transition-colors" title="削除"><Trash2 size={16} /></button>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <button onClick={() => setStatusDetailMail(reg)} className="hover:opacity-70 transition-opacity">
+                                                        {reg.mailStatus === 'SUCCESS' && <span className="text-green-600" title="送信成功"><CheckCircle size={20} /></span>}
+                                                        {reg.mailStatus === 'ERROR' && <span className="text-red-500" title="送信エラー"><MailWarning size={20} /></span>}
+                                                        {(reg.mailStatus === 'PENDING' || reg.mailStatus === 'PROCESSING') && <span className="text-amber-500 animate-pulse" title="送信処理中..."><RefreshCw size={20} /></span>}
+                                                        {reg.mailStatus === 'MISSING' && <span className="text-slate-300" title="送信記録なし"><Eye size={20} /></span>}
+                                                    </button>
+                                                </td>
+                                                <td className="p-4 text-sm relative">
+                                                    {reg.timeStatus === 'new' && (
+                                                        <span className="absolute top-2 right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5 animate-pulse-slow">
+                                                            NEW
+                                                        </span>
+                                                    )}
+                                                    {reg.createdAtDate.toLocaleDateString('ja-JP')}
+                                                    <div className="text-xs opacity-70 flex items-center gap-1">
+                                                        <Clock size={10} />
+                                                        {reg.createdAtDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-sm">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">{reg.categoryCode || 'C00'}</span>
+                                                </td>
+                                                <td className="p-4 text-sm">
+                                                    <div className="font-bold">{reg.companyName}</div>
+                                                    <div className="opacity-70 text-xs">{reg.department}</div>
+                                                </td>
+                                                <td className="p-4 text-sm">
+                                                    <div className="font-medium">{resolveFullName(reg)}</div>
+                                                    {reg.position && <div className="text-xs opacity-70">{reg.position}</div>}
+                                                </td>
+                                                <td className="p-4">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${reg.plan === 'corporate' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : reg.plan === 'personal' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                                                        {getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4 text-sm">
+                                                    <div className="font-mono text-xs truncate max-w-[200px]" title={reg.email}>{reg.email}</div>
+                                                    <div className="text-xs opacity-70 mt-0.5">{reg.phone}</div>
+                                                </td>
+                                                <td className="p-4 text-sm border-l border-slate-100 bg-slate-50/30">
+                                                    <div className="font-medium truncate max-w-[150px]" title={reg.billingName}>{reg.billingName}</div>
+                                                    {!reg.useCreditCard && <div className="text-xs opacity-70 mt-1">{reg.billingPhone}</div>}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- App Entry Point ---
+        function App() {
+            const [user, setUser] = useState(null);
+            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [authError, setAuthError] = useState(null);
+
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        await signInAnonymously(auth);
+                    } catch (error) {
+                        console.error("Auth error:", error);
+                        setAuthError(error.message);
+                    }
+                };
+                initAuth();
+                const unsubscribe = onAuthStateChanged(auth, setUser);
+                return () => unsubscribe();
+            }, []);
+
+            if (authError) return <div className="p-4 text-red-600 bg-red-50">System Error: {authError}</div>;
+            if (!user) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>;
+
+            if (!isAuthenticated) return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
+
+            return (
+                <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
+                    <header className="bg-indigo-800 text-white shadow-lg print:hidden">
+                        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <Shield className="w-8 h-8 text-indigo-200" />
+                                <h1 className="text-xl font-bold tracking-wide">会員管理システム</h1>
+                            </div>
+                            <button onClick={() => window.location.reload()} className="text-indigo-200 hover:text-white flex items-center gap-1 text-sm font-bold"><LogOut size={16} /> ログアウト</button>
+                        </div>
+                    </header>
+                    <main className="max-w-7xl mx-auto px-4 py-8 w-full flex-grow">
+                        <AdminDashboard user={user} />
+                    </main>
+                    <footer className="bg-slate-100 border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+                        &copy; 2025 Policy Research Portal. Secure Admin System.
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
