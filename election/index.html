@@ -49,71 +49,76 @@
             measurementId: "G-B102SLVDK5"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        // アプリIDは環境変数があればそれを、なければデフォルトを使用
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-election-app';
+        try {
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            const auth = getAuth(app);
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-election-app';
 
-        window.fb = {
-            initAuth: () => new Promise((resolve) => {
-                onAuthStateChanged(auth, (user) => {
-                    if (user) resolve(user);
-                    else signInAnonymously(auth).catch(console.error);
-                });
-            }),
-            saveData: async (type, data) => {
-                let user = auth.currentUser;
-                if (!user) {
-                    try {
-                        // 認証が切れている場合は再ログインを試みる
-                        const cred = await signInAnonymously(auth);
-                        user = cred.user;
-                    } catch (e) {
-                        console.error("Auth failed during save:", e);
-                        throw new Error("認証に失敗しました。");
+            window.fb = {
+                initAuth: () => new Promise((resolve) => {
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) resolve(user);
+                        else signInAnonymously(auth).catch(console.error);
+                    });
+                }),
+                saveData: async (type, data) => {
+                    let user = auth.currentUser;
+                    if (!user) {
+                        try {
+                            const cred = await signInAnonymously(auth);
+                            user = cred.user;
+                        } catch (e) {
+                            console.error("Auth failed during save:", e);
+                            throw new Error("認証に失敗しました。");
+                        }
                     }
-                }
-                try {
-                    // データ保存パス: 指定されたProject内の election_storage コレクションへ保存
+                    try {
+                        const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'election_storage');
+                        const docRef = doc(colRef, type);
+                        await setDoc(docRef, { 
+                            content: JSON.stringify(data), 
+                            updatedAt: new Date().toISOString(),
+                            updatedBy: user.uid
+                        });
+                        console.log(`Data saved: ${type}`);
+                    } catch (e) { 
+                        console.error("Save failed", e); 
+                        throw e;
+                    }
+                },
+                subscribe: (type, callback) => {
                     const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'election_storage');
                     const docRef = doc(colRef, type);
-                    await setDoc(docRef, { 
-                        content: JSON.stringify(data), 
-                        updatedAt: new Date().toISOString(),
-                        updatedBy: user.uid
-                    });
-                    console.log(`Data saved: ${type}`);
-                } catch (e) { 
-                    console.error("Save failed", e); 
-                    throw e;
+                    return onSnapshot(docRef, (snap) => {
+                        if (snap.exists()) {
+                            try {
+                                const val = snap.data();
+                                callback(JSON.parse(val.content), val.updatedAt);
+                                console.log(`Data updated: ${type}`);
+                            } catch (e) { console.error("Parse error", e); }
+                        } else {
+                            console.log(`No data found for: ${type}`);
+                        }
+                    }, (error) => console.error("Snapshot error:", error));
                 }
-            },
-            subscribe: (type, callback) => {
-                // データ読込リスナー: 常に最新のデータを監視・取得
-                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'election_storage');
-                const docRef = doc(colRef, type);
-                return onSnapshot(docRef, (snap) => {
-                    if (snap.exists()) {
-                        try {
-                            const val = snap.data();
-                            callback(JSON.parse(val.content), val.updatedAt);
-                            console.log(`Data updated: ${type}`);
-                        } catch (e) { console.error("Parse error", e); }
-                    } else {
-                        console.log(`No data found for: ${type}`);
-                    }
-                }, (error) => console.error("Snapshot error:", error));
-            }
-        };
-        // Signal that Firebase is ready
-        window.fbReady = true;
+            };
+            window.fbReady = true;
+        } catch (e) {
+            console.error("Firebase init error:", e);
+        }
     </script>
 </head>
 <body class="bg-gray-100 text-gray-800">
     <div id="root"></div>
 
     <script type="text/babel" id="app-script">
+        // Safety check for libraries
+        if (typeof React === 'undefined' || typeof ReactDOM === 'undefined' || typeof Recharts === 'undefined') {
+            document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red;">エラー: 必要なライブラリ(React, Recharts等)の読み込みに失敗しました。ネットワーク接続を確認してリロードしてください。</div>';
+            throw new Error("Libraries not loaded");
+        }
+
         const { useState, useEffect, useMemo, useRef, memo } = React;
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie, LineChart, Line } = Recharts;
 
@@ -184,27 +189,27 @@
             "福岡": "九州ブロック", "佐賀": "九州ブロック", "長崎": "九州ブロック", "熊本": "九州ブロック", "大分": "九州ブロック", "宮崎": "九州ブロック", "鹿児島": "九州ブロック", "沖縄": "九州ブロック"
         };
         const BLOCK_TO_PREFS = {};
-        Object.entries(PREF_TO_BLOCK).forEach(([pref, block]) => { if (!BLOCK_TO_PREFS[block]) BLOCK_TO_PREFS[block] = []; BLOCK_TO_PREFS[block].push(pref); });
+        Object.entries(PREF_TO_BLOCK).forEach(([pref, block]) => { if (!BLOCK_TO_PREFS[block]) BLOCK_TO_PREFS[block] = []; BLOCK_TO_PREFS[block] = BLOCK_TO_PREFS[block].concat(pref); }); // Concat fix
 
         // --- Mock Data Generator (Initial Sample Data to prevent empty state) ---
         const INITIAL_MOCK_DATA = [
             // 東京1区 (サンプル)
-            { id: 'sample-t1-1', district: '東京1区', party: '自民', name: '山田 太郎', age: '50歳', incumbentStatus: '前', predictedVotes: 95000, votes2024: 92000, votes2021: 90000, status: '◎', type: 'single', candidateIndex: 1.0 },
-            { id: 'sample-t1-2', district: '東京1区', party: '中道', name: '鈴木 一郎', age: '45歳', incumbentStatus: '新', predictedVotes: 88000, votes2024: 85000, votes2021: 80000, status: '○', type: 'single', candidateIndex: 1.0 },
-            { id: 'sample-t1-3', district: '東京1区', party: '維新', name: '佐藤 花子', age: '35歳', incumbentStatus: '新', predictedVotes: 25000, votes2024: 20000, votes2021: null, status: '-', type: 'single', candidateIndex: 1.0 },
+            { id: 'sample-t1-1', district: '東京1区', party: '自民', name: '山田 太郎', age: '50歳', incumbentStatus: '前', rank: '', predictedVotes: 95000, votes2024: 92000, votes2026: 0, votes2021: 90000, status: '◎', status2026: '◎', type: 'single', candidateIndex: 1.0 },
+            { id: 'sample-t1-2', district: '東京1区', party: '中道', name: '鈴木 一郎', age: '45歳', incumbentStatus: '新', rank: '', predictedVotes: 88000, votes2024: 85000, votes2026: 0, votes2021: 80000, status: '○', status2026: '○', type: 'single', candidateIndex: 1.0 },
+            { id: 'sample-t1-3', district: '東京1区', party: '維新', name: '佐藤 花子', age: '35歳', incumbentStatus: '新', rank: '', predictedVotes: 25000, votes2024: 20000, votes2026: 0, votes2021: null, status: '-', status2026: '-', type: 'single', candidateIndex: 1.0 },
             // 大阪1区 (サンプル)
-            { id: 'sample-o1-1', district: '大阪1区', party: '維新', name: '田中 次郎', age: '55歳', incumbentStatus: '前', predictedVotes: 110000, votes2024: 105000, votes2021: 100000, status: '◎', type: 'single', candidateIndex: 1.0 },
-            { id: 'sample-o1-2', district: '大阪1区', party: '自民', name: '高橋 三郎', age: '60歳', incumbentStatus: '元', predictedVotes: 60000, votes2024: 55000, votes2021: 65000, status: '○', type: 'single', candidateIndex: 1.0 },
+            { id: 'sample-o1-1', district: '大阪1区', party: '維新', name: '田中 次郎', age: '55歳', incumbentStatus: '前', rank: '', predictedVotes: 110000, votes2024: 105000, votes2026: 0, votes2021: 100000, status: '◎', status2026: '◎', type: 'single', candidateIndex: 1.0 },
+            { id: 'sample-o1-2', district: '大阪1区', party: '自民', name: '高橋 三郎', age: '60歳', incumbentStatus: '元', rank: '', predictedVotes: 60000, votes2024: 55000, votes2026: 0, votes2021: 65000, status: '○', status2026: '○', type: 'single', candidateIndex: 1.0 },
             // 神奈川1区 (サンプル)
-            { id: 'sample-k1-1', district: '神奈川1区', party: '中道', name: '伊藤 四郎', age: '48歳', incumbentStatus: '前', predictedVotes: 90000, votes2024: 88000, votes2021: 85000, status: '◎', type: 'single', candidateIndex: 1.0 },
-            { id: 'sample-k1-2', district: '神奈川1区', party: '自民', name: '渡辺 五郎', age: '52歳', incumbentStatus: '前', predictedVotes: 85000, votes2024: 82000, votes2021: 88000, status: '○', type: 'single', candidateIndex: 1.0 }
+            { id: 'sample-k1-1', district: '神奈川1区', party: '中道', name: '伊藤 四郎', age: '48歳', incumbentStatus: '前', rank: '', predictedVotes: 90000, votes2024: 88000, votes2026: 0, votes2021: 85000, status: '◎', status2026: '◎', type: 'single', candidateIndex: 1.0 },
+            { id: 'sample-k1-2', district: '神奈川1区', party: '自民', name: '渡辺 五郎', age: '52歳', incumbentStatus: '前', rank: '', predictedVotes: 85000, votes2024: 82000, votes2026: 0, votes2021: 88000, status: '○', status2026: '○', type: 'single', candidateIndex: 1.0 }
         ]; 
         
         const INITIAL_VOTER_COUNTS = [
-            ['東京1区', { voterCount: 400000, komeiProportional: 25000, referenceTurnout: 0.5543 }],
-            ['大阪1区', { voterCount: 380000, komeiProportional: 30000, referenceTurnout: 0.5321 }],
-            ['神奈川1区', { voterCount: 350000, komeiProportional: 20000, referenceTurnout: 0.5412 }],
-            ['National', { voterCount: 105000000, komeiProportional: 6000000, referenceTurnout: 0.55 }]
+            ['東京1区', { voterCount: 400000, komeiProportional: 25000, referenceTurnout: 0.5543, turnout2026: null }],
+            ['大阪1区', { voterCount: 380000, komeiProportional: 30000, referenceTurnout: 0.5321, turnout2026: null }],
+            ['神奈川1区', { voterCount: 350000, komeiProportional: 20000, referenceTurnout: 0.5412, turnout2026: null }],
+            ['National', { voterCount: 105000000, komeiProportional: 6000000, referenceTurnout: 0.55, turnout2026: null }]
         ]; 
 
         // --- Logic ---
@@ -372,24 +377,43 @@
             const handleSave = () => { onUpdate(editedCandidates); setIsEditing(false); onClose(); };
             const handleChange = (id, field, value) => { setEditedCandidates(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c)); };
             const handleVoteChange = (id, value) => { const num = parseInt(value, 10); handleChange(id, 'predictedVotes', isNaN(num) ? 0 : num); };
+            const handleVote2026Change = (id, value) => { const num = parseInt(value, 10); handleChange(id, 'votes2026', isNaN(num) ? 0 : num); }; // 追加
             const totalPredicted = editedCandidates.reduce((sum, c) => sum + (c.predictedVotes || 0), 0);
             const currentTurnout = district.voterCount ? (totalPredicted / district.voterCount) : null;
             const sortedByVotes = [...editedCandidates].sort((a, b) => b.predictedVotes - a.predictedVotes);
             const winnerId = sortedByVotes.length > 0 ? sortedByVotes[0].id : null;
             const historyYears = [2005, 2009, 2012, 2014, 2017, 2021, 2024];
             
+            // ★追加: 2026年得票数の最大値を計算（ハイライト用）
+            const maxVotes2026 = Math.max(...editedCandidates.map(c => c.votes2026 || 0));
+
             return (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}><div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}><div className="px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-50 gap-4"><div><h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">{district.name} {district.isCloseRace && <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full border border-red-200">接戦</span>}</h2><div className="text-sm text-gray-600 mt-1 flex flex-wrap gap-4"><span className="font-mono"><span className="font-bold">予想総票数:</span> {totalPredicted.toLocaleString()}</span>{district.voterCount > 0 && <span className="flex items-center gap-1"><Users className="w-3 h-3" /> 有権者数: {district.voterCount.toLocaleString()}</span>}{currentTurnout && <span className="font-bold text-blue-700">予想投票率: {(currentTurnout * 100).toFixed(2)}%</span>}{district.referenceTurnout != null && <span className="text-gray-500 font-mono text-xs">過去の投票率: {(district.referenceTurnout*100).toFixed(1)}%</span>}{district.type !== 'proportional' && district.komeiProportional > 0 && <span>直近の公明比例分: ({district.komeiProportional.toLocaleString()})</span>}
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}><div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}><div className="px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-50 gap-4"><div><h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">{district.name} {district.isCloseRace && <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full border border-red-200">接戦</span>}</h2><div className="text-sm text-gray-600 mt-1 flex flex-wrap gap-4"><span className="font-mono"><span className="font-bold">予想総票数:</span> {totalPredicted.toLocaleString()}</span>{district.voterCount > 0 && <span className="flex items-center gap-1"><Users className="w-3 h-3" /> 有権者数: {district.voterCount.toLocaleString()}</span>}{currentTurnout && <span className="font-bold text-blue-700">予想投票率: {(currentTurnout * 100).toFixed(2)}%</span>}{district.referenceTurnout != null && <span className="text-gray-500 font-mono text-xs">過去の投票率: {(district.referenceTurnout*100).toFixed(1)}%</span>}
+                {/* ★修正: 2026投票率を確実に表示 */}
+                {district.turnout2026 != null && <span className="text-blue-600 font-bold font-mono text-xs ml-2">2026投票率: {(district.turnout2026 * (district.turnout2026 > 1 ? 1 : 100)).toFixed(2)}%</span>}
+                {district.type !== 'proportional' && district.komeiProportional > 0 && <span>直近の公明比例分: ({district.komeiProportional.toLocaleString()})</span>}
                 {/* ★追加: 定数表示 */}
                 {isPR && <span className="bg-blue-50 text-blue-800 px-2 py-0.5 rounded font-bold border border-blue-200">定数: {blockSeats}</span>}
-                </div></div><div className="flex gap-2 self-end md:self-auto">{!IS_READ_ONLY && (!isEditing ? <button onClick={() => setIsEditing(true)} className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-bold text-sm transition-colors"><Edit className="w-4 h-4" /> 編集</button> : <><button onClick={() => setIsEditing(false)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-bold text-sm transition-colors">キャンセル</button><button onClick={handleSave} className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm transition-colors"><Save className="w-4 h-4" /> 保存</button></>)}<button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-6 h-6 text-gray-500" /></button></div></div><div className="p-6 overflow-y-auto"><div className="space-y-6">{editedCandidates.map((cand, idx) => { const percentage = totalPredicted > 0 ? (cand.predictedVotes / totalPredicted) * 100 : 0; const partyColor = Object.entries(PARTY_COLORS).find(([k]) => cand.party.includes(k))?.[1] || DEFAULT_COLOR; const isPredictedWinner = cand.id === winnerId;
+                </div></div><div className="flex gap-2 self-end md:self-auto">{!IS_READ_ONLY && (!isEditing ? <button onClick={() => setIsEditing(true)} className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-bold text-sm transition-colors"><Edit className="w-4 h-4" /> 編集</button> : <><button onClick={() => setIsEditing(false)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-bold text-sm transition-colors">キャンセル</button><button onClick={handleSave} className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm transition-colors"><Save className="w-4 h-4" /> 保存</button></>)}<button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-6 h-6 text-gray-500" /></button></div></div><div className="p-6 overflow-y-auto"><div className="space-y-6">{editedCandidates.map((cand, idx) => { 
+                // ★追加: 比例代表で候補者名が(名称なし)の場合は表示しない (判定強化)
+                if (isPR && (cand.name === '(名称なし)' || cand.name === '')) return null;
+
+                const percentage = totalPredicted > 0 ? (cand.predictedVotes / totalPredicted) * 100 : 0; const partyColor = Object.entries(PARTY_COLORS).find(([k]) => cand.party.includes(k))?.[1] || DEFAULT_COLOR; const isPredictedWinner = cand.id === winnerId;
                 // ★修正: 議席数表示 (計算済みのrowIdToSeatsから取得)
                 const allocatedSeats = isPR ? rowIdToSeats[cand.id] : null;
                 
+                // ★追加: 2026得票数が最大かどうか判定
+                const isMaxVotes2026 = cand.votes2026 > 0 && cand.votes2026 === maxVotes2026;
+
                 return (<div key={cand.id} className={`p-4 rounded-lg border ${isPredictedWinner ? 'border-l-4 border-l-red-500 border-gray-200 bg-red-50/10' : 'border-gray-100'} ${isEditing ? 'border-blue-200 ring-1 ring-blue-100' : ''}`}><div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2"><div className="flex items-center gap-3 w-full sm:w-auto">{isPredictedWinner && !isEditing && <div className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded shadow-sm whitespace-nowrap">{district.type === 'proportional' ? 'トップ予測' : '当選予測'}</div>}<div className="flex-1"><div className="flex items-center gap-2 flex-wrap">{isEditing ? <input type="text" value={cand.name} onChange={(e) => handleChange(cand.id, 'name', e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-lg font-bold w-full sm:w-48" /> : <h3 className="text-lg font-bold text-gray-900">{cand.name}</h3>}<Badge color={partyColor}>{cand.party}</Badge>
                 {/* ★修正: 議席数表示 */}
                 {isPR && allocatedSeats !== undefined && allocatedSeats !== null && <span className="text-sm font-bold text-gray-700 ml-1">({allocatedSeats}議席)</span>}
-                <span className="text-sm text-gray-600">({cand.age})</span><span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">{cand.incumbentStatus}</span></div></div></div><div className="text-right self-end sm:self-auto">{isEditing ? <div className="flex flex-col items-end"><label className="text-xs text-gray-500 font-bold">予測得票数</label><input type="number" value={cand.predictedVotes} onChange={(e) => handleVoteChange(cand.id, e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-right font-mono font-bold w-32" /></div> : <><div className="text-xl font-mono font-bold text-gray-800">{cand.predictedVotes.toLocaleString()}</div><div className="text-xs text-gray-500">予測得票率 {percentage.toFixed(1)}%</div></>}</div></div><div className="flex items-center gap-4 text-xs text-gray-600 mb-3 bg-gray-50 p-2 rounded"><div className="flex items-center gap-2"><span className="font-bold">2024結果:</span>{isEditing ? <select value={cand.status} onChange={(e) => handleChange(cand.id, 'status', e.target.value)} className="border border-gray-300 rounded px-1 py-0.5"><option value="">-</option><option value="◎">◎</option><option value="○">○</option><option value="⚪︎">⚪︎</option><option value="△">△</option><option value="▲">▲</option></select> : <span className={`font-bold ${cand.status?.includes('◎') ? 'text-red-600' : ''}`}>{cand.status || '-'}</span>}</div><div className="flex items-center gap-2"><span className="font-bold">2021結果:</span>{isEditing ? <select value={cand.status2021} onChange={(e) => handleChange(cand.id, 'status2021', e.target.value)} className="border border-gray-300 rounded px-1 py-0.5"><option value="">-</option><option value="◎">◎</option><option value="○">○</option><option value="⚪︎">⚪︎</option><option value="△">△</option><option value="▲">▲</option></select> : <span className={`font-bold ${cand.status2021?.includes('◎') ? 'text-red-600' : ''}`}>{cand.status2021 || '-'}</span>}</div><div className="flex items-center gap-2 ml-auto"><span className="font-bold">当落予測:</span>{isEditing ? <input type="text" value={cand.winningStatus} onChange={(e) => handleChange(cand.id, 'winningStatus', e.target.value)} className="border border-gray-300 rounded px-2 py-0.5 w-16" /> : <span>{cand.winningStatus || '-'}</span>}</div><div className="flex items-center gap-2 border-l pl-2"><span className="font-bold">指数:</span>{isEditing ? <input type="number" step="0.01" value={cand.candidateIndex} onChange={(e) => handleChange(cand.id, 'candidateIndex', parseFloat(e.target.value))} className="border border-gray-300 rounded px-2 py-0.5 w-16 bg-yellow-50" /> : <span className="font-mono bg-yellow-50 px-1 rounded">{cand.candidateIndex}</span>}</div></div><div className="w-full bg-gray-100 rounded-full h-3 mb-4"><div className="h-3 rounded-full transition-all duration-500" style={{ width: `${percentage}%`, backgroundColor: partyColor }}></div></div><div className="mt-2 bg-white rounded border border-gray-100 overflow-hidden cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all" onClick={() => setShowHistoryGraph(true)} title="クリックして推移グラフを表示"><div className="bg-gray-50 px-3 py-1 text-xs font-bold text-gray-500 flex items-center justify-between border-b border-gray-100"><span className="flex items-center gap-1"><History className="w-3 h-3" /> 過去の実績 (得票数)</span><span className="text-blue-500 flex items-center gap-1 hover:underline"><TrendingUp className="w-3 h-3"/> グラフで見る</span></div><div className="overflow-x-auto"><table className="w-full text-xs text-left"><thead><tr className="text-gray-400 border-b border-gray-50">{historyYears.map(y => <th key={y} className="py-1 px-2 font-normal whitespace-nowrap text-center">{y}</th>)}</tr></thead><tbody><tr>{historyYears.map(y => { const val = cand[`votes${y}`]; return (<td key={y} className={`py-1 px-2 font-mono whitespace-nowrap text-center ${y===2024 ? 'bg-yellow-50 font-bold' : ''}`}><div className="flex flex-col items-center"><span>{val ? val.toLocaleString() : '-'}</span>{y===2024 && cand.name2024 && <span className="text-[10px] text-gray-400 mt-0.5 whitespace-nowrap">({cand.name2024})</span>}</div></td>); })}</tr></tbody></table></div></div></div>); })}</div><div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-500"><h4 className="font-bold mb-2 flex items-center gap-2"><Info className="w-4 h-4" /> 分析メモ</h4><p>{district.isCloseRace ? `${editedCandidates[0].name} と ${editedCandidates[1].name} の票差が10%未満の激戦区です。` : `${editedCandidates[0].name} がリードしています。`}</p></div></div></div>{showHistoryGraph && <HistoryGraphModal candidates={editedCandidates} onClose={() => setShowHistoryGraph(false)} />}</div>);
+                <span className="text-sm text-gray-600">({cand.age})</span>
+                {/* ★修正: 比例なら順位、小選挙区なら当選回数 */}
+                <span className="text-sm text-gray-600 ml-1 font-bold">
+                    {isPR ? (cand.rank || cand.incumbentStatus) : cand.incumbentStatus}
+                </span>
+                </div></div></div><div className="text-right self-end sm:self-auto">{isEditing ? <div className="flex flex-col items-end"><label className="text-xs text-gray-500 font-bold">2026得票</label><input type="number" value={cand.votes2026 || 0} onChange={(e) => handleVote2026Change(cand.id, e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-right font-mono font-bold w-32 mb-1" /><label className="text-xs text-blue-500 font-bold">予想票</label><input type="number" value={cand.predictedVotes} onChange={(e) => handleVoteChange(cand.id, e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-right font-mono font-bold w-32 bg-blue-50" /></div> : <><div className={`text-xl font-mono font-bold ${isMaxVotes2026 ? 'text-red-600' : 'text-gray-800'}`}><span className="text-xs text-gray-500 font-bold mr-2">2026年得票数:</span>{cand.votes2026 ? cand.votes2026.toLocaleString() : '-'}</div><div className="text-sm font-mono font-bold text-blue-600">予想票: {cand.predictedVotes.toLocaleString()}</div><div className="text-xs text-gray-500">予測得票率 {percentage.toFixed(1)}%</div></>}</div></div><div className="flex items-center gap-4 text-xs text-gray-600 mb-3 bg-gray-50 p-2 rounded"><div className="flex items-center gap-2"><span className="font-bold">2026結果:</span>{isEditing ? <input type="text" value={cand.status2026} onChange={(e) => handleChange(cand.id, 'status2026', e.target.value)} className="border border-gray-300 rounded px-1 py-0.5 w-16" /> : <span className={`font-bold ${cand.status2026?.includes('◎') ? 'text-red-600' : ''}`}>{cand.status2026 || '-'}</span>}</div><div className="flex items-center gap-2"><span className="font-bold">2024結果:</span>{isEditing ? <select value={cand.status} onChange={(e) => handleChange(cand.id, 'status', e.target.value)} className="border border-gray-300 rounded px-1 py-0.5"><option value="">-</option><option value="◎">◎</option><option value="○">○</option><option value="⚪︎">⚪︎</option><option value="△">△</option><option value="▲">▲</option></select> : <span className={`font-bold ${cand.status?.includes('◎') ? 'text-red-600' : ''}`}>{cand.status || '-'}</span>}</div><div className="flex items-center gap-2"><span className="font-bold">2021結果:</span>{isEditing ? <select value={cand.status2021} onChange={(e) => handleChange(cand.id, 'status2021', e.target.value)} className="border border-gray-300 rounded px-1 py-0.5"><option value="">-</option><option value="◎">◎</option><option value="○">○</option><option value="⚪︎">⚪︎</option><option value="△">△</option><option value="▲">▲</option></select> : <span className={`font-bold ${cand.status2021?.includes('◎') ? 'text-red-600' : ''}`}>{cand.status2021 || '-'}</span>}</div><div className="flex items-center gap-2 ml-auto"><span className="font-bold">当落予測:</span>{isEditing ? <input type="text" value={cand.winningStatus} onChange={(e) => handleChange(cand.id, 'winningStatus', e.target.value)} className="border border-gray-300 rounded px-2 py-0.5 w-16" /> : <span>{cand.winningStatus || '-'}</span>}</div><div className="flex items-center gap-2 border-l pl-2"><span className="font-bold">指数:</span>{isEditing ? <input type="number" step="0.01" value={cand.candidateIndex} onChange={(e) => handleChange(cand.id, 'candidateIndex', parseFloat(e.target.value))} className="border border-gray-300 rounded px-2 py-0.5 w-16 bg-yellow-50" /> : <span className="font-mono bg-yellow-50 px-1 rounded">{cand.candidateIndex}</span>}</div></div><div className="w-full bg-gray-100 rounded-full h-3 mb-4"><div className="h-3 rounded-full transition-all duration-500" style={{ width: `${percentage}%`, backgroundColor: partyColor }}></div></div><div className="mt-2 bg-white rounded border border-gray-100 overflow-hidden cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all" onClick={() => setShowHistoryGraph(true)} title="クリックして推移グラフを表示"><div className="bg-gray-50 px-3 py-1 text-xs font-bold text-gray-500 flex items-center justify-between border-b border-gray-100"><span className="flex items-center gap-1"><History className="w-3 h-3" /> 過去の実績 (得票数)</span><span className="text-blue-500 flex items-center gap-1 hover:underline"><TrendingUp className="w-3 h-3"/> グラフで見る</span></div><div className="overflow-x-auto"><table className="w-full text-xs text-left"><thead><tr className="text-gray-400 border-b border-gray-50">{historyYears.map(y => <th key={y} className="py-1 px-2 font-normal whitespace-nowrap text-center">{y}</th>)}</tr></thead><tbody><tr>{historyYears.map(y => { const val = cand[`votes${y}`]; return (<td key={y} className={`py-1 px-2 font-mono whitespace-nowrap text-center ${y===2024 ? 'bg-yellow-50 font-bold' : ''}`}><div className="flex flex-col items-center"><span>{val ? val.toLocaleString() : '-'}</span>{y===2024 && cand.name2024 && <span className="text-[10px] text-gray-400 mt-0.5 whitespace-nowrap">({cand.name2024})</span>}</div></td>); })}</tr></tbody></table></div></div></div>); })}</div><div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-500"><h4 className="font-bold mb-2 flex items-center gap-2"><Info className="w-4 h-4" /> 分析メモ</h4><p>{district.isCloseRace ? `${editedCandidates[0].name} と ${editedCandidates[1].name} の票差が10%未満の激戦区です。` : `${editedCandidates[0].name} がリードしています。`}</p></div></div></div>{showHistoryGraph && <HistoryGraphModal candidates={editedCandidates} onClose={() => setShowHistoryGraph(false)} />}</div>);
         };
 
         const TurnoutControlBar = ({ settings, setSettings, baseTurnout, rawNationalTurnout }) => {
@@ -449,11 +473,21 @@
         const App = () => {
             const [isLoggedIn, setIsLoggedIn] = useState(IS_READ_ONLY); 
             
-            // --- 1. localStorage からの読み込みロジックを追加 ---
+            // --- 1. localStorage からの読み込みロジック (マイグレーション付き) ---
             const [candidates, setCandidates] = useState(() => {
                 try {
                     const saved = localStorage.getItem('election_candidates');
-                    return saved ? JSON.parse(saved) : INITIAL_MOCK_DATA;
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        // Migration: 古いデータに新しいフィールドがない場合、デフォルト値を追加
+                        return parsed.map(c => ({
+                            ...c,
+                            votes2026: c.votes2026 !== undefined ? c.votes2026 : 0,
+                            status2026: c.status2026 !== undefined ? c.status2026 : '',
+                            rank: c.rank !== undefined ? c.rank : '', // 追加
+                        }));
+                    }
+                    return INITIAL_MOCK_DATA;
                 } catch (e) {
                     console.error("Failed to load candidates from localStorage", e);
                     return INITIAL_MOCK_DATA;
@@ -498,6 +532,18 @@
             const [confirmConfig, setConfirmConfig] = useState(null);
             const [exportCode, setExportCode] = useState(null);
             const [showExplanation, setShowExplanation] = useState(false); // 解説モーダル用
+
+            // ★追加: 最新の基準設定を適用する関数
+            const applyLatestSettings = () => {
+                setSimSettings({
+                    turnoutChange: 4.5,
+                    takaichiEffect: 5,
+                    coalitionEffect: 2,
+                    newPartyEffect: -4,
+                    emergingSurge: 2
+                });
+                setAlertMessage("最新の基準設定を適用しました。\n\n・投票率: +4.5% (約59%前後)\n・高市効果: +5% (自民増)\n・連立効果: +2% (維新増)\n・新党効果: -4% (中道減)\n・新興躍進: +2% (国民・参政増)");
+            };
 
             useEffect(() => {
                 let unsubscribeCandidates = () => {};
@@ -597,14 +643,27 @@
                 // 修正後: "候補者指数" をピンポイントで指定
                 const indexIdx = findColumnIndex(headerRow, ['候補者指数', 'CandidateIndex']);
 
-                const statusIdx = findColumnIndex(headerRow, ['当落', '結果', '2024'], ['得票', '候補', '予想', '基数', 'No', '年齢', '回数']); 
+                // ★修正: 2024当落の読み込みロジックを強化
+                // 2026という文字が含まれる列は除外リストに追加し、2024当落を優先して探す
+                const statusIdx = findColumnIndex(headerRow, ['2024当落', '24当落', '前回当落', '当落', '結果', '2024'], ['得票', '候補', '予想', '予測', '予', '基数', 'No', '年齢', '回数', '2026']); 
+                // ★追加: 2026当落の読み込みロジック
+                const status2026Idx = findColumnIndex(headerRow, ['2026当落', '26当落', '今回当落']);
+
                 const status2021Idx = findColumnIndex(headerRow, ['2021当落', '2021結果', '21当落']); 
-                const winStatusIdx = findColumnIndex(headerRow, ['当落予想', '判断', '判定']);
+                
+                // 当落予想列の検索キーワードも拡充
+                const winStatusIdx = findColumnIndex(headerRow, ['当落予想', '判断', '判定', '2026当落', '26当落']);
+                
                 const ageIdx = findColumnIndex(headerRow, ['年齢', 'Age']);
                 const dobIdx = findColumnIndex(headerRow, ['生年月日', '誕生日']);
                 const incStatusIdx = findColumnIndex(headerRow, ['回数', '現新']);
+                // ★追加: 順位列の読み込み
+                const rankIdx = findColumnIndex(headerRow, ['順位', '名簿順位', 'Rank']);
+
                 const voterCountIdx = findColumnIndex(headerRow, ['有権者数', '直近有権者数']);
                 const typeIdx = findColumnIndex(headerRow, ['区分', 'Type']);
+                // ★追加: 2026得票数
+                const votes2026Idx = findColumnIndex(headerRow, ['2026得票数', '2026得票', '今回得票']);
                 const votes2024Idx = findColumnIndex(headerRow, ['2024得票数', '2024得票', '2024年得票', 'R6得票']);
                 const votes2021Idx = findColumnIndex(headerRow, ['2021得票数', '2021得票', '2021年得票', 'R3得票']);
                 const votes2017Idx = findColumnIndex(headerRow, ['2017得票数', '2017得票', '2017年得票', 'H29得票']);
@@ -655,10 +714,17 @@
                         else if (typeVal.includes('選挙区') || typeVal.includes('1')) { type = 'single'; typeFound = true; }
                     } 
                     if (!typeFound) { if (districtName.includes('比例') || districtName.includes('ブロック')) type = 'proportional'; }
+                    
+                    // ★修正: 既存データをマージしながら更新
                     if (voterCountIdx !== -1) {
                         const vCount = parseNumber(row[voterCountIdx]);
-                        if (vCount) newVoterCounts.set(districtName.replace(/\s+/g, ''), { voterCount: vCount, komeiProportional: 0 }); // Init with 0
+                        if (vCount) {
+                            const key = districtName.replace(/\s+/g, '');
+                            const existing = newVoterCounts.get(key) || {};
+                            newVoterCounts.set(key, { ...existing, voterCount: vCount, komeiProportional: existing.komeiProportional || 0 });
+                        }
                     }
+
                     let displayAge = '';
                     const dobRaw = dobIdx !== -1 ? getStr(row[dobIdx]) : '';
                     if (dobRaw) {
@@ -670,6 +736,9 @@
                     }
                     const getVotes = (idx) => idx !== -1 ? parseNumber(row[idx]) : null;
                     const v2024 = getVotes(votes2024Idx);
+                    // ★追加: 2026得票数
+                    const v2026 = getVotes(votes2026Idx) || 0;
+                    
                     let predictedVotes = votesPredIdx !== -1 ? parseNumber(row[votesPredIdx]) : 0;
 
                     // 正規化: 日本保守 -> 保守
@@ -700,7 +769,9 @@
                         candidateIndex: cIndex !== null ? cIndex : 1.0, // 追加: 候補者指数 (デフォルト1.0)
                         age: displayAge,
                         incumbentStatus: incStatusIdx !== -1 ? getStr(row[incStatusIdx]).replace(/"/g, '') : '',
+                        rank: rankIdx !== -1 ? getStr(row[rankIdx]).replace(/"/g, '') : '', // 追加
                         predictedVotes: predictedVotes || 0,
+                        votes2026: v2026, // 追加
                         votes2024: v2024,
                         votes2021: getVotes(votes2021Idx),
                         votes2017: getVotes(votes2017Idx),
@@ -709,6 +780,7 @@
                         votes2009: getVotes(votes2009Idx),
                         votes2005: getVotes(votes2005Idx),
                         status: statusIdx !== -1 ? getStr(row[statusIdx]).replace(/"/g, '') : '',
+                        status2026: status2026Idx !== -1 ? getStr(row[status2026Idx]).replace(/"/g, '') : '', // 追加
                         status2021: status2021Idx !== -1 ? getStr(row[status2021Idx]).replace(/"/g, '') : '',
                         winningStatus: winStatusIdx !== -1 ? getStr(row[winStatusIdx]).replace(/"/g, '') : '',
                         type: type
@@ -731,9 +803,11 @@
                                 district: districtName,
                                 party: '自民', name: '(自民党)', age: '-', incumbentStatus: '-',
                                 predictedVotes: transferVotes,
+                                votes2026: 0,
                                 votes2024: null, votes2021: null, votes2017: null, votes2014: null, votes2012: null, votes2009: null, votes2005: null,
-                                status: '', status2021: '', winningStatus: '-', type: 'single',
-                                candidateIndex: 1.0 // 自動生成分の指数は1.0
+                                status: '', status2026: '', status2021: '', winningStatus: '-', type: 'single',
+                                candidateIndex: 1.0, // 自動生成分の指数は1.0
+                                rank: '' // 追加
                             });
                         }
                     }
@@ -787,7 +861,9 @@
                     return s.includes('公明') && (s.includes('比例') || s.includes('得票') || s === '公明' || s === '公明党');
                 });
                 // 投票率列 (キーワード拡充)
-                const turnoutIdx = findColumnIndex(headerRow, ['投票率', '参考投票率', 'Turnout', 'VotingRate']);
+                const turnoutIdx = findColumnIndex(headerRow, ['参考投票率', '過去投票率', 'ReferenceTurnout']); // 既存の turnoutIdx は過去のものとする
+                // ★追加: 2026投票率 (キーワード拡充)
+                const turnout2026Idx = findColumnIndex(headerRow, ['2026投票率', '26投票率', '今回投票率', '2026年投票率', '26年投票率']);
 
                 if (districtIdx === -1) { setAlertMessage("必須列「選挙区」が見つかりません。"); return; }
                 if (voterCountIdx === -1) { setAlertMessage("必須列「有権者数」が見つかりません。"); return; }
@@ -803,6 +879,7 @@
                     const voterVal = parseNumber(row[voterCountIdx]);
                     const komeiVal = komeiPropIdx !== -1 ? parseNumber(row[komeiPropIdx]) : 0;
                     const turnoutVal = turnoutIdx !== -1 ? parseNumber(row[turnoutIdx]) : null;
+                    const turnout2026Val = turnout2026Idx !== -1 ? parseNumber(row[turnout2026Idx]) : null; // ★追加
 
                     if (districtRaw) { 
                         // 特別処理: 全国合計の保存
@@ -815,7 +892,8 @@
                             newVoterCounts.set('National', { 
                                 voterCount: voterVal || currentNat.voterCount || 0, 
                                 komeiProportional: 0, 
-                                referenceTurnout: natTurnout !== null ? natTurnout : (currentNat.referenceTurnout || 0.55)
+                                referenceTurnout: natTurnout !== null ? natTurnout : (currentNat.referenceTurnout || 0.55),
+                                turnout2026: turnout2026Val // ★追加: 2026投票率をセット
                             });
                         }
 
@@ -827,10 +905,14 @@
                         
                         const finalVoterCount = voterVal !== null ? voterVal : currentVoterCount;
                         
+                        // ★修正: 既存データをマージしながら更新
+                        const existing = newVoterCounts.get(key) || {};
                         newVoterCounts.set(key, {
+                            ...existing,
                             voterCount: finalVoterCount,
-                            komeiProportional: komeiVal || 0,
-                            referenceTurnout: turnoutVal
+                            komeiProportional: komeiVal || existing.komeiProportional || 0,
+                            referenceTurnout: turnoutVal !== null ? turnoutVal : existing.referenceTurnout,
+                            turnout2026: turnout2026Val !== null ? turnout2026Val : existing.turnout2026 // ★追加
                         }); 
                         count++;
                         if (komeiVal > 0) komeiCount++;
@@ -964,8 +1046,8 @@
             };
 
             const handleExportData = () => { /* ... same ... */
-                const headers = ["選挙区", "政党", "候補者名", "年齢", "回数/現新", "今回予想", "当落", "当落予想", "2024年得票数", "2021年得票数", "2017年得票数", "2014年得票数", "2012年得票数", "2009年得票数", "2005年得票数", "候補者指数"];
-                const csvContent = [headers.join(','), ...candidates.map(c => [c.district, c.party, c.name, c.age, c.incumbentStatus, c.predictedVotes, c.status, c.winningStatus, c.votes2024, c.votes2021, c.votes2017, c.votes2014, c.votes2012, c.votes2009, c.votes2005, c.candidateIndex].map(val => `"${val !== null && val !== undefined ? val : ''}"`).join(','))].join('\n');
+                const headers = ["選挙区", "政党", "候補者名", "年齢", "回数/現新", "今回予想", "当落", "当落予想", "2026年得票数", "2024年得票数", "2021年得票数", "2017年得票数", "2014年得票数", "2012年得票数", "2009年得票数", "2005年得票数", "候補者指数"]; // 2026追加
+                const csvContent = [headers.join(','), ...candidates.map(c => [c.district, c.party, c.name, c.age, c.incumbentStatus, c.predictedVotes, c.status, c.winningStatus, c.votes2026, c.votes2024, c.votes2021, c.votes2017, c.votes2014, c.votes2012, c.votes2009, c.votes2005, c.candidateIndex].map(val => `"${val !== null && val !== undefined ? val : ''}"`).join(','))].join('\n');
                 const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement("a");
                 const url = URL.createObjectURL(blob);
@@ -1332,6 +1414,7 @@
                     let voters = 0;
                     let komeiProportional = 0;
                     let referenceTurnout = null;
+                    let turnout2026 = null; // ★追加
                     
                     // Try to get data from map
                     const vData = voterCounts.get(key);
@@ -1341,6 +1424,7 @@
                         const natData = voterCounts.get('National');
                         voters = natData.voterCount;
                         referenceTurnout = natData.referenceTurnout; // 全国データの投票率も反映
+                        turnout2026 = natData.turnout2026;
                     } 
                     // Normal handling
                     else if (typeof vData === 'number') {
@@ -1349,35 +1433,36 @@
                         voters = vData.voterCount;
                         komeiProportional = vData.komeiProportional || 0;
                         referenceTurnout = vData.referenceTurnout;
+                        turnout2026 = vData.turnout2026; // ★追加
                     }
 
                     const type = cands.length > 0 ? cands[0].type : 'single';
 
                     if (type === 'proportional') {
-                         const targetPrefs = BLOCK_TO_PREFS[key]; 
-                         if (targetPrefs) {
-                             let totalVotersInBlock = 0;
-                             let totalVotesInBlock = 0;
+                          const targetPrefs = BLOCK_TO_PREFS[key]; 
+                          if (targetPrefs) {
+                              let totalVotersInBlock = 0;
+                              let totalVotesInBlock = 0;
 
-                             voterCounts.forEach((val, dKey) => {
-                                 if (targetPrefs.some(pref => dKey.startsWith(pref))) {
-                                     const vCount = (typeof val === 'number' ? val : val.voterCount);
-                                     voters += vCount;
-                                     if(typeof val === 'object') komeiProportional += (val.komeiProportional || 0);
+                              voterCounts.forEach((val, dKey) => {
+                                  if (targetPrefs.some(pref => dKey.startsWith(pref))) {
+                                      const vCount = (typeof val === 'number' ? val : val.voterCount);
+                                      voters += vCount;
+                                      if(typeof val === 'object') komeiProportional += (val.komeiProportional || 0);
 
-                                     // 参考投票率の加重平均用計算
-                                     if (typeof val === 'object' && val.referenceTurnout != null) {
-                                         totalVotersInBlock += vCount;
-                                         totalVotesInBlock += vCount * val.referenceTurnout;
-                                     }
-                                 }
-                             });
+                                      // 参考投票率の加重平均用計算
+                                      if (typeof val === 'object' && val.referenceTurnout != null) {
+                                          totalVotersInBlock += vCount;
+                                          totalVotesInBlock += vCount * val.referenceTurnout;
+                                      }
+                                  }
+                              });
 
-                             // 全国の場合は個別ブロック計算ではなくNationalデータを優先しているので、ここではその他ブロック用
-                             if (totalVotersInBlock > 0 && !key.includes('全国')) {
-                                 referenceTurnout = totalVotesInBlock / totalVotersInBlock;
-                             }
-                         }
+                              // 全国の場合は個別ブロック計算ではなくNationalデータを優先しているので、ここではその他ブロック用
+                              if (totalVotersInBlock > 0 && !key.includes('全国')) {
+                                  referenceTurnout = totalVotesInBlock / totalVotersInBlock;
+                              }
+                          }
                     }
 
                     let turnout = null;
@@ -1392,7 +1477,8 @@
                         turnout, 
                         type,
                         komeiProportional,
-                        referenceTurnout // 追加
+                        referenceTurnout, // 追加
+                        turnout2026 // ★追加
                     });
                 });
                 const getBlockIndex = (name) => PR_BLOCKS.indexOf(name);
@@ -1423,12 +1509,19 @@
                     // Logic fix: For 2026 mode (default), we want summary LEFT column to show 2024 results.
                     // c.status contains 2024 results. c.status2021 contains 2021.
                     // If displayYear is 2026 or 2024, use c.status.
-                    const statusVal = (displayYear === '2024' || displayYear === '2026') ? c.status : c.status2021;
+                    const statusVal = (displayYear === '2024' || displayYear === '2026') ? c.status : (displayYear === '2026Result' ? c.status2026 : c.status2021);
                     if (statusVal) {
                         const partyKey = getAggregatedParty(c.party);
                         if (!stats[partyKey]) stats[partyKey] = { name: partyKey, color: DEFAULT_COLOR, singleWinsResult: 0, prWinsResult: 0, singleWinsPred: 0, prWinsPred: 0 };
-                        if (statusVal.includes('◎')) stats[partyKey].singleWinsResult++;
-                        else if (statusVal.includes('○') || statusVal.includes('⚪︎')) stats[partyKey].prWinsResult++;
+                        
+                        // ★修正: 当落マークの判定を厳密に行い、かつ表記ゆれに対応
+                        // データベース(CSV)の「2024当落」列の値を直接参照してカウント
+                        if (statusVal.match(/◎/)) { 
+                            stats[partyKey].singleWinsResult++; 
+                        }
+                        else if (statusVal.match(/[○⚪︎〇]/)) { // 比例復活のマーク (丸印のバリエーションに対応)
+                            stats[partyKey].prWinsResult++; 
+                        }
                     }
                 });
                 districtsData.forEach(d => {
@@ -1586,13 +1679,14 @@
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-lg font-bold text-gray-800">政党別 実績・予測詳細</h3>
                                 <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                                    <button onClick={() => setDisplayYear('2026Result')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${displayYear === '2026Result' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>2026当選</button>
                                     <button onClick={() => setDisplayYear('2024')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${(displayYear === '2024' || displayYear === '2026') ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>2024当選</button>
                                     <button onClick={() => setDisplayYear('2021')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${displayYear === '2021' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>2021当選</button>
                                 </div>
                             </div>
                             <div className="w-full">
                                 <table className="w-full text-sm">
-                                    <thead className="bg-gray-50"><tr><th className="p-3 text-left bg-gray-50">政党</th><th className="p-3 text-right bg-gray-50">{displayYear === '2026' ? '2024' : displayYear}当選<br/><span className="text-xs font-normal">(小+比)</span></th><th className="p-3 text-right bg-gray-50">2026予測<br/><span className="text-xs font-normal">(小+比)</span></th></tr></thead>
+                                    <thead className="bg-gray-50"><tr><th className="p-3 text-left bg-gray-50">政党</th><th className="p-3 text-right bg-gray-50">{displayYear === '2026' ? '2024' : (displayYear === '2026Result' ? '2026' : displayYear)}当選<br/><span className="text-xs font-normal">(小+比)</span></th><th className="p-3 text-right bg-gray-50">2026予測<br/><span className="text-xs font-normal">(小+比)</span></th></tr></thead>
                                     <tbody>
                                         {partyStats.map((p) => (
                                             <tr key={p.name} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => handleSummaryClick(p)}>
@@ -1717,6 +1811,7 @@
                         <div className="w-full md:w-48"><div className="relative"><select className="w-full p-2 border border-gray-300 rounded-md outline-none appearance-none" value={selectedParty} onChange={(e) => setSelectedParty(e.target.value)}><option value="All">全政党</option>{Object.keys(PARTY_COLORS).map(p => <option key={p} value={p}>{p}</option>)}</select><div className="absolute right-3 top-3 text-gray-400 pointer-events-none"><ChevronDown width={16} height={16} /></div></div></div>
                         <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg self-end md:self-auto h-[42px]">
                             <button className={`px-3 h-full rounded-md text-xs font-bold transition-all ${displayYear === '2026' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} onClick={() => setDisplayYear('2026')}>2026予想</button>
+                            <button className={`px-3 h-full rounded-md text-xs font-bold transition-all ${displayYear === '2026Result' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} onClick={() => setDisplayYear('2026Result')}>2026当選</button>
                             <button className={`px-3 h-full rounded-md text-xs font-bold transition-all ${displayYear === '2024' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} onClick={() => setDisplayYear('2024')}>2024当選</button>
                             <button className={`px-3 h-full rounded-md text-xs font-bold transition-all ${displayYear === '2021' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} onClick={() => setDisplayYear('2021')}>2021当選</button>
                         </div>
@@ -1746,10 +1841,12 @@
                 };
                 const isSingleWinner = (candidate, districtCandidates) => {
                      if (displayYear === '2026') { const winnerId = getWinnerId2026(districtCandidates); return candidate.id === winnerId; } 
+                     else if (displayYear === '2026Result') { return candidate.status2026?.includes('◎'); }
                      else { const status = displayYear === '2024' ? candidate.status : candidate.status2021; return status && status.includes('◎'); }
                 };
                 const isPrWinner = (candidate) => {
                     if (displayYear === '2026') return false; 
+                    if (displayYear === '2026Result') { return candidate.status2026?.match(/[○⚪︎〇]/); }
                     const status = displayYear === '2024' ? candidate.status : candidate.status2021;
                     return status && (status.includes('○') || status.includes('⚪︎'));
                 };
@@ -1771,6 +1868,8 @@
                                                     {district.voterCount > 0 && <span>有権者: {district.voterCount.toLocaleString()}</span>}
                                                     {district.turnout && <span>(率: {(district.turnout*100).toFixed(1)}%)</span>}
                                                     {district.referenceTurnout != null && <span className="text-gray-500 font-mono text-xs">過去の投票率: {(district.referenceTurnout*100).toFixed(1)}%</span>}
+                                                    {/* ★修正: 2026投票率 (referenceTurnoutの隣に表示) - キーワード強化後 */}
+                                                    {district.turnout2026 != null && <span className="text-blue-600 font-bold font-mono text-xs ml-2">2026投票率: {(district.turnout2026 * (district.turnout2026 > 1 ? 1 : 100)).toFixed(2)}%</span>}
                                                 </div>
                                             </div>
                                         </div>
@@ -1778,8 +1877,8 @@
                                             {district.candidates.map((cand, idx) => {
                                                 let match = true;
                                                 const getWinnerId = (cands) => { const sorted = [...cands].sort((a,b)=>b.predictedVotes-a.predictedVotes); return sorted[0]?.id; };
-                                                const isSingleW = (c, dCands) => (displayYear === '2026' ? c.id === getWinnerId(dCands) : (displayYear==='2024'?c.status:c.status2021)?.includes('◎'));
-                                                const isPrW = (c) => displayYear !== '2026' && (displayYear==='2024'?c.status:c.status2021)?.match(/[○⚪︎]/);
+                                                const isSingleW = (c, dCands) => (displayYear === '2026' ? c.id === getWinnerId(dCands) : (displayYear === '2026Result' ? c.status2026 : (displayYear==='2024'?c.status:c.status2021))?.includes('◎'));
+                                                const isPrW = (c) => displayYear !== '2026' && (displayYear === '2026Result' ? c.status2026 : (displayYear==='2024'?c.status:c.status2021))?.match(/[○⚪︎〇]/);
                                                 const isW = (c, dCands) => isSingleW(c, dCands) || isPrW(c);
 
                                                 if (filterType === 'winner_all') match = isW(cand, district.candidates);
@@ -1797,7 +1896,7 @@
                                                         displayStatus = district.type === 'proportional' ? "トップ予測" : "当選予測";
                                                     }
                                                 } 
-                                                else { displayStatus = displayYear === '2024' ? cand.status : cand.status2021; }
+                                                else { displayStatus = displayYear === '2026Result' ? cand.status2026 : (displayYear === '2024' ? cand.status : cand.status2021); }
 
                                                 return (
                                                     <div key={cand.id} className="relative">
@@ -1810,7 +1909,7 @@
                                                 );
                                             })}
                                             {filterType === 'all' && district.candidates.length > (activeTab === 'single' ? 2 : 5) && <div className="text-xs text-center text-gray-400 mt-2">他 {district.candidates.length - (activeTab === 'single' ? 2 : 5)} {activeTab === 'single' ? '名' : '政党'}...</div>}
-                                            {filterType !== 'all' && district.candidates.filter(c => { const getWinnerId=(cs)=>cs.sort((a,b)=>b.predictedVotes-a.predictedVotes)[0]?.id; const isW=(cc,dcs)=> (displayYear==='2026'?cc.id===getWinnerId(dcs):(displayYear==='2024'?cc.status:cc.status2021)?.match(/[◎○⚪︎]/)); return isW(c, district.candidates); }).length === 0 && <div className="text-xs text-center text-gray-400 mt-2">該当なし</div>}
+                                            {filterType !== 'all' && district.candidates.filter(c => { const getWinnerId=(cs)=>cs.sort((a,b)=>b.predictedVotes-a.predictedVotes)[0]?.id; const isW=(cc,dcs)=> (displayYear==='2026'?cc.id===getWinnerId(dcs):(displayYear === '2026Result' ? cc.status2026 : (displayYear==='2024'?cc.status:cc.status2021))?.match(/[◎○⚪︎]/)); return isW(c, district.candidates); }).length === 0 && <div className="text-xs text-center text-gray-400 mt-2">該当なし</div>}
                                         </div>
                                     </Card>
                                 ))}
@@ -1849,7 +1948,11 @@
                                 <button onClick={() => setActiveTab('proportional')} className={`py-3 px-1 flex items-center gap-2 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'proportional' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><Layers width={16} height={16} />比例代表</button>
                                 {!IS_READ_ONLY && <button onClick={() => setActiveTab('upload')} className={`py-3 px-1 flex items-center gap-2 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'upload' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><Upload width={16} height={16} />データ管理・読込</button>}
                             </div>
-                            <div className="py-2 pl-4 flex-none">
+                            <div className="py-2 pl-4 flex-none flex items-center gap-2">
+                                <button onClick={applyLatestSettings} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-full hover:bg-emerald-700 transition-colors shadow-sm whitespace-nowrap" title="最新の情勢分析に基づく設定を一括適用します">
+                                    <Sliders width={16} height={16} />
+                                    最新の基準設定
+                                </button>
                                 <button onClick={() => setShowExplanation(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-full hover:bg-indigo-700 transition-colors shadow-sm whitespace-nowrap">
                                     <Info width={16} height={16} />
                                     シミュレーションの解説
