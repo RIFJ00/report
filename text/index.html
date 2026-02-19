@@ -677,7 +677,8 @@
         let firebaseConfig = {};
         try { if (typeof __firebase_config !== 'undefined' && __firebase_config) firebaseConfig = JSON.parse(__firebase_config); } catch (e) {}
 
-        const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
+        // 【修正】プレビュー版(2.5)は制限がきついため、安定版(1.5)に戻す
+        const GEMINI_MODEL = "gemini-1.5-flash"; 
         
         // Helper to get current effective key
         function getEffectiveApiKey() {
@@ -1450,8 +1451,8 @@
                         // AI要約
                         await fetchSummary(rawText);
                         
-                        // バッファ時間を設ける
-                        await new Promise(r => setTimeout(r, 2000));
+                        // 【修正】APIレート制限回避のため待機時間を延長 (2000ms -> 5000ms)
+                        await new Promise(r => setTimeout(r, 5000));
 
                         // トピック分析
                         await fetchTopics(rawText);
@@ -2001,12 +2002,15 @@
                         processText(rawText);
                         elements.originalContent.textContent = rawText;
                         drawCloud();
+                        elements.loadingOverlay.classList.add('hidden');
+                        showMessage("解析完了。AI分析をバックグラウンドで実行中...", false, 3000);
                         
                         // Use sequential AI processing like main flow
                         (async () => {
                             try {
                                 await fetchSummary(rawText);
-                                await new Promise(r => setTimeout(r, 2000));
+                                // 【修正】待機時間を延長
+                                await new Promise(r => setTimeout(r, 5000));
                                 await fetchTopics(rawText);
                                 showMessage("解析成功");
                             } catch (bgErr) {
@@ -2017,7 +2021,6 @@
                     } catch (e) {
                         console.error(e);
                         showMessage("解析エラー: " + e.message, true);
-                    } finally {
                         elements.loadingOverlay.classList.add('hidden');
                     }
                 }, 100);
