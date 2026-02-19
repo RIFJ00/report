@@ -64,7 +64,7 @@
         </div>
     </div>
 
-    <!-- メインコンテンツ (最初は非表示) -->
+    <!-- メインコンテンツ -->
     <div id="app-container" class="hidden flex-grow">
         <div class="container mx-auto px-4 py-8 flex-grow flex flex-col">
             <!-- メイン画面 -->
@@ -333,7 +333,7 @@
         
         // --- 初期化 & 設定 ---
         async function startApp() {
-            // 保存ボタン (初回設定時)
+            // 初回設定時の保存ボタン
             saveConfigButton.addEventListener('click', async () => {
                 if (configPasswordInput.value !== APP_PASSWORD) {
                     configError.textContent = "パスワードが正しくありません。";
@@ -342,7 +342,6 @@
                 saveConfigButton.disabled = true;
                 configError.textContent = '';
                 try {
-                    // Firebase設定は自動的にdefaultConfigを使用
                     firebaseConfig = defaultConfig;
                     const success = await initializeFirebase();
                     if (success) {
@@ -432,7 +431,7 @@
             });
         }
 
-        // --- Firestore & レンダリング (データ一覧) ---
+        // --- Firestore & レンダリング ---
         function setupFirestoreListener() {
             const dataCollection = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
             onSnapshot(dataCollection, (snapshot) => {
@@ -468,7 +467,12 @@
 
         function getFilteredAndSortedData() {
             const localBookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
-            let data = [...currentData].map(item => ({...item, isBookmarked: localBookmarks.has(item.id)}));
+            
+            // タイトル名がない、または空白のデータを一括で除外
+            let data = currentData.filter(item => item['タイトル名'] && String(item['タイトル名']).trim() !== '');
+
+            data = data.map(item => ({...item, isBookmarked: localBookmarks.has(item.id)}));
+            
             if (bookmarkFilterCheckbox.checked) {
                 data = data.filter(item => item.isBookmarked);
             }
@@ -541,13 +545,13 @@
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50 transition-colors duration-150';
             const date = item['日付'] || '';
-            let displayTitle = (item['タイトル名'] || 'タイトルなし')
+            let displayTitle = (item['タイトル名'] || '')
                 .replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>')
                 .replace(/(\[会議日: [^\]]+\])/g, '<span class="text-gray-500 font-normal ml-2">$1</span>');
 
             let bikou = (item['備考'] || '').replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>');
             
-            // --- Date Color Logic ---
+            // --- 日付カラーロジック ---
             const getFormattedDate = (d) => d.toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
             const today = new Date();
             const todayStr = getFormattedDate(today);
@@ -613,10 +617,11 @@
                  return Array.from(searchTerms).some(term => content.includes(term));
              });
         }
+
         function sortData(data) {
             const getKaigiDate = (title) => {
                 const match = (title || '').match(/\[会議日: (.*?)\]/);
-                return match && match[1] ? new Date(match[1]) : new Date(0); // Use epoch for non-dates
+                return match && match[1] ? new Date(match[1]) : new Date(0);
             };
 
             data.sort((a, b) => {
@@ -653,6 +658,7 @@
                 return valA.localeCompare(valB, 'ja') * modifier;
             });
         }
+
         function toggleBookmark(id, checked) { 
             const bookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
             if(checked) {
@@ -663,6 +669,7 @@
             localStorage.setItem(`bookmarks_${appId}`, JSON.stringify(Array.from(bookmarks)));
             render();
         }
+
         function updateDeleteButtonState() {
              const selected = document.querySelectorAll('#data-table-body .select-row-checkbox:checked');
              deleteSelectedButton.classList.toggle('hidden', selected.length === 0);
@@ -670,10 +677,12 @@
              const allCheckboxes = document.querySelectorAll('#data-table-body .select-row-checkbox');
              selectAllCheckbox.checked = allCheckboxes.length > 0 && selected.length === allCheckboxes.length;
         }
+
         function toggleSelectAll() {
             document.querySelectorAll('#data-table-body .select-row-checkbox').forEach(cb => cb.checked = selectAllCheckbox.checked);
             updateDeleteButtonState();
         }
+
         async function deleteSelectedItems() {
             const selectedIds = Array.from(document.querySelectorAll('#data-table-body .select-row-checkbox:checked')).map(cb => cb.dataset.id);
             if (selectedIds.length === 0) return;
@@ -685,7 +694,7 @@
             deleteSelectedButton.disabled = false;
         }
         
-        // --- 音声再生関連 ---
+        // --- 音声再生 ---
         function handleAudioEnded() {
             const currentIcon = currentlyPlayingIcon;
             setIconState(currentIcon, 'stopped');
@@ -755,7 +764,7 @@
             }
         }
         
-        // --- データインポート関連 ---
+        // --- データインポート ---
         async function handleFileSelect(file) {
             if (!file) { importStatus.textContent = 'ファイルが選択されていません。'; return; }
             importStatus.textContent = 'ファイルを解析中...';
@@ -772,7 +781,6 @@
                     const existing = new Set(existingDocs.docs.map(d => `${d.data()['日付']}_${d.data()['タイトル名']}`));
                     
                     previewData = jsonData
-                        // タイトル名が空のデータ（「タイトルなし」となるもの）をここで除外
                         .filter(row => row['タイトル名'] && String(row['タイトル名']).trim() !== '')
                         .map(row => {
                             let title = row['タイトル名'];
@@ -791,7 +799,7 @@
                     renderImportPreview(previewData);
                     importPreviewContainer.classList.remove('hidden');
                     const newItemsCount = previewData.filter(d => !d.isDuplicate).length;
-                    importStatus.textContent = `プレビュー: ${jsonData.length}件中 ${newItemsCount}件の新規データをインポートできます（タイトルなしは自動除外済み）。`;
+                    importStatus.textContent = `プレビュー: ${jsonData.length}件中 ${newItemsCount}件の新規データをインポートできます（タイトルなし除外済み）。`;
                     confirmImportButton.disabled = newItemsCount === 0;
 
                 } catch (err) {
@@ -824,10 +832,7 @@
 
         async function saveImportedData() {
             const dataToSave = previewData.filter(d => !d.isDuplicate);
-            if (dataToSave.length === 0) {
-                importStatus.textContent = "保存する新規データがありません。";
-                return;
-            }
+            if (dataToSave.length === 0) return;
 
             confirmImportButton.disabled = true;
             const buttonText = confirmImportButton.querySelector('span');
@@ -841,13 +846,11 @@
                 let importedPolicyData = false;
 
                 for (const row of dataToSave) {
-                    if (row['区分'] === '会議') {
-                        importedPointData = true;
-                    } else {
-                        importedPolicyData = true;
-                    }
+                    if (row['区分'] === '会議') importedPointData = true;
+                    else importedPolicyData = true;
+
                     const { isDuplicate, ...finalData } = row;
-                    delete finalData['開催日']; // 元の開催日フィールドは不要
+                    delete finalData['開催日'];
                     batch.set(doc(collRef), finalData);
                     count++;
                     if (count % 499 === 0) {
@@ -855,9 +858,7 @@
                         batch = writeBatch(db);
                     }
                 }
-                if (count > 0 && count % 499 !== 0) {
-                    await batch.commit();
-                }
+                if (count > 0 && count % 499 !== 0) await batch.commit();
 
                 const now = new Date();
                 if (dataToSave.length > 0) {
@@ -877,7 +878,6 @@
                 setTimeout(() => showScreen(mainScreen), 2000);
             } catch (err) {
                 importStatus.textContent = 'エラー: データベースへの保存に失敗しました。';
-                console.error(err);
                 confirmImportButton.disabled = false;
                 buttonText.textContent = 'データベースに保存';
             }
@@ -1041,7 +1041,7 @@
             ${firestoreListenerScript.trim()}
         }
         
-        // --- ALL THE RENDERING AND LOGIC FUNCTIONS COPIED HERE ---
+        // --- 共通ロジックの埋め込み ---
         ${setupMetadataListener.toString()}
         ${render.toString()}
         ${getFilteredAndSortedData.toString()}
@@ -1116,15 +1116,13 @@
             setTimeout(() => codeModal.classList.add('hidden'), 300);
         }
 
-        // --- イベントリスナー設定 ---
+        // --- イベントリスナー ---
         function setupEventListeners() {
-            // Screen Navigation
             openDataViewButton.addEventListener('click', () => showScreen(dataViewScreen));
             showImportScreenButton.addEventListener('click', () => showScreen(importScreen));
             backToMainButton.addEventListener('click', () => showScreen(mainScreen));
             backToMainFromImportButton.addEventListener('click', () => showScreen(mainScreen));
             
-            // Import Screen
             fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
             fileDropZone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); fileDropZone.classList.add('dragover'); });
             fileDropZone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); fileDropZone.classList.remove('dragover'); });
@@ -1135,13 +1133,11 @@
             });
             confirmImportButton.addEventListener('click', saveImportedData);
 
-            // Main Screen Public Page Buttons
             previewPointButton.addEventListener('click', () => previewPublicPage('point'));
             exportPointButton.addEventListener('click', () => showCodeModal('point'));
             previewPolicyButton.addEventListener('click', () => previewPublicPage('policy'));
             exportPolicyButton.addEventListener('click', () => showCodeModal('policy'));
 
-            // Data View Screen
             clearSearchButton.addEventListener('click', () => { searchInput.value = ''; render(); });
             let timeout;
             searchInput.addEventListener('keyup', () => { clearTimeout(timeout); timeout = setTimeout(render, 200); });
@@ -1157,13 +1153,9 @@
             tableBody.addEventListener('click', e => {
                 const target = e.target;
                 const audioIcon = target.closest('.audio-icon');
-                if (audioIcon) {
-                    toggleAudioPlayback(audioIcon);
-                } else if (target.classList.contains('bookmark-checkbox')) {
-                    toggleBookmark(target.dataset.id, target.checked);
-                } else if (target.classList.contains('select-row-checkbox')) {
-                    updateDeleteButtonState();
-                }
+                if (audioIcon) toggleAudioPlayback(audioIcon);
+                else if (target.classList.contains('bookmark-checkbox')) toggleBookmark(target.dataset.id, target.checked);
+                else if (target.classList.contains('select-row-checkbox')) updateDeleteButtonState();
             });
 
             mainAudioControl.addEventListener('click', () => {
@@ -1177,7 +1169,6 @@
             audioPlayer.addEventListener('ended', handleAudioEnded);
             bookmarkFilterCheckbox.addEventListener('change', render);
             
-            // Modal
             closeModalButton.addEventListener('click', hideCodeModal);
             copyCodeButton.addEventListener('click', () => { 
                 generatedCodeTextarea.select();
