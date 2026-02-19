@@ -201,7 +201,15 @@
             const dataCollection = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
             const q = query(dataCollection);
             onSnapshot(q, (snapshot) => {
-                currentData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(item => item['区分'] !== '会議');
+                currentData = snapshot.docs
+                    .map(doc => ({ id: doc.id, ...doc.data() }))
+                    // 1. 区分が「会議」のものを除外
+                    // 2. タイトル名が空、あるいは「タイトルなし」のものを除外
+                    .filter(item => {
+                        const kubun = String(item['区分'] || '').trim();
+                        const title = String(item['タイトル名'] || '').trim();
+                        return kubun !== '会議' && title !== '' && title !== 'タイトルなし';
+                    });
                 render();
             }, (error) => {
                 loading.textContent = "データの取得に失敗しました。";
@@ -307,7 +315,7 @@
             const updateRegex = /([（\(][^）\)]*更新[^）\)]*[）\)])/g;
             const highlightUpdate = (text) => (text || '').replace(updateRegex, '<span class="text-red-500 font-bold">$1</span>');
 
-            const titleName = highlightUpdate(item['タイトル名'] || 'タイトルなし');
+            const titleName = highlightUpdate(item['タイトル名'] || '');
             const bikou = highlightUpdate(item['備考'] || '');
 
             let titlePrefixHtml = '';
