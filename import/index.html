@@ -771,24 +771,27 @@
                     const existingDocs = await getDocs(collection(db, "artifacts", appId, "public/data", COLLECTION_NAME));
                     const existing = new Set(existingDocs.docs.map(d => `${d.data()['日付']}_${d.data()['タイトル名']}`));
                     
-                    previewData = jsonData.map(row => {
-                        let title = row['タイトル名'] || '';
-                        const kaigiDate = formatDate(row['開催日']);
-                        if(kaigiDate){
-                            title += ` [会議日: ${kaigiDate}]`;
-                        }
-                        const date = formatDate(row['日付']);
-                        const isDuplicate = existing.has(`${date}_${title}`);
-                        
-                        return { ...row, '日付': date, 'タイトル名': title, isDuplicate };
-                    });
+                    previewData = jsonData
+                        // タイトル名が空のデータ（「タイトルなし」となるもの）をここで除外
+                        .filter(row => row['タイトル名'] && String(row['タイトル名']).trim() !== '')
+                        .map(row => {
+                            let title = row['タイトル名'];
+                            const kaigiDate = formatDate(row['開催日']);
+                            if(kaigiDate){
+                                title += ` [会議日: ${kaigiDate}]`;
+                            }
+                            const date = formatDate(row['日付']);
+                            const isDuplicate = existing.has(`${date}_${title}`);
+                            
+                            return { ...row, '日付': date, 'タイトル名': title, isDuplicate };
+                        });
                     
                     previewData.sort((a, b) => new Date(b['日付'] || 0) - new Date(a['日付'] || 0));
 
                     renderImportPreview(previewData);
                     importPreviewContainer.classList.remove('hidden');
                     const newItemsCount = previewData.filter(d => !d.isDuplicate).length;
-                    importStatus.textContent = `プレビュー: ${jsonData.length}件中 ${newItemsCount}件の新規データをインポートできます。`;
+                    importStatus.textContent = `プレビュー: ${jsonData.length}件中 ${newItemsCount}件の新規データをインポートできます（タイトルなしは自動除外済み）。`;
                     confirmImportButton.disabled = newItemsCount === 0;
 
                 } catch (err) {
