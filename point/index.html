@@ -217,7 +217,15 @@
 
         function getFilteredAndSortedData() {
             const localBookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
-            let data = [...currentData].map(item => ({...item, isBookmarked: localBookmarks.has(item.id)}));
+            
+            // 全体データから「タイトルなし」または「空のタイトル」を除外
+            let data = currentData
+                .filter(item => {
+                    const title = (item['タイトル名'] || '').trim();
+                    return title !== '' && title !== 'タイトルなし';
+                })
+                .map(item => ({...item, isBookmarked: localBookmarks.has(item.id)}));
+
             if (bookmarkFilterCheckbox.checked) {
                 data = data.filter(item => item.isBookmarked);
             }
@@ -281,7 +289,7 @@
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50 transition-colors duration-150';
             const date = item['日付'] || '';
-            let displayTitle = (item['タイトル名'] || 'タイトルなし')
+            let displayTitle = (item['タイトル名'] || '')
                 .replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>')
                 .replace(/(\[会議日: [^\]]+\])/g, '<span class="text-gray-500 font-normal ml-2">$1</span>');
             let bikou = (item['備考'] || '').replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>');
@@ -317,11 +325,10 @@
             return row;
         }
 
-        // --- 修正された検索ロジック ---
+        // --- 検索ロジック ---
         function filterData(data, query) {
             if (!query || !query.trim()) return data;
             
-            // 半角・全角スペースの両方で分割し、空要素を除去
             const queryWords = query.toLowerCase().trim().split(/[\s　]+/).filter(w => w !== '');
             
             return data.filter(item => {
@@ -332,7 +339,6 @@
                 
                 const content = `${item['タイトル名'] || ''} ${item['備考'] || ''} ${labelText}`.toLowerCase();
                 
-                // 全ての単語がヒットするかチェック（AND検索）
                 return queryWords.every(word => {
                     const termsToMatch = new Set([word]);
                     SYNONYMS.forEach(group => {
@@ -452,7 +458,6 @@
             });
             
             let timeout;
-            // 'input'イベントを使用することでIME確定時やスマホ入力を確実に検知
             searchInput.addEventListener('input', () => { 
                 clearTimeout(timeout); 
                 timeout = setTimeout(render, 300); 
