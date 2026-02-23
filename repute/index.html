@@ -31,65 +31,54 @@
 
         const App = () => {
             // データの最終更新日時を固定で設定（今日の日付）
-            const lastUpdatedDate = '2026年2月3日';
+            const lastUpdatedDate = '2026年2月24日';
             const surveyPeriodText = `各社平均（${lastUpdatedDate}）`;
 
             // === 最新のデータ (添付画像のデータ) ===
             const currentData = {
                 '調査期間': surveyPeriodText,
+                '内閣支持率': 66.6,
+                '内閣不支持率': 22.9,
+                '自民党': 36.8,
+                '中道改革連合': 7.9,
+                '国民民主党': 5.3,
+                '維新': 4.2,
+                '公明党（参考）': 0.8,
+                '共産党': 2.4,
+                'れいわ': 1.3,
+                '社民党': 0.6,
+                '保守党': 1.1,
+                '参政党': 4.0,
+                'みらい': 4.6,
+                '支持なし': 30.2, // 無党派層
+            };
+
+            // === 直前のデータ（比較用） ===
+            const previousData = { 
                 '内閣支持率': 65.3,
                 '内閣不支持率': 22.9,
                 '自民党': 31.9,
-                '立憲民主党': 8.5,
+                '中道改革連合': 8.5,
                 '国民民主党': 5.8,
                 '維新': 4.1,
-                '公明党': 2.1,
+                '公明党（参考）': 2.1,
                 '共産党': 1.9,
                 'れいわ': 1.2,
                 '社民党': 0.5,
                 '保守党': 0.9,
                 '参政党': 4.0,
-                '支持なし': 35.2, // 無党派層
-            };
-
-            // === 直前のデータ（比較用） ===
-            // ※ここでは以前のデータをそのまま維持していますが、
-            // 必要であれば前回の「最新データ」をこちらに移動してください。
-            const previousData = { 
-                '内閣支持率': 70.5,
-                '内閣不支持率': 16.7,
-                '自民党': 30.2,
-                '立憲民主党': 6.2,
-                '国民民主党': 4.9,
-                '公明党': 3.3,
-                '共産党': 2.3,
-                '維新': 4.8,
-                'れいわ': 1.9,
-                '参政党': 5.2,
-                '社民党': 0.4,
-                '保守党': 0.9,
-                '支持なし': 36.5,
+                'みらい': 3.9, // 以前の「その他」の計算値
+                '支持なし': 35.2,
             };
             
             // 差分を計算してデータに含める
-            const dataWithDiff = { ...currentData };
+            const staticSupportData = { ...currentData };
             for (const key in previousData) {
                 if (currentData[key] !== undefined && previousData[key] !== undefined) {
                     const diff = (currentData[key] - previousData[key]);
-                    dataWithDiff[`${key}_diff`] = diff.toFixed(2); // 小数点第2位まで表示
+                    staticSupportData[`${key}_diff`] = diff.toFixed(2); // 小数点第2位まで表示
                 }
             }
-            
-            // 「その他」の値を計算 (100% - 明示された政党の合計)
-            const partiesToSum = ['自民党', '立憲民主党', '維新', '公明党', '国民民主党', '共産党', 'れいわ', '参政党', '社民党', '保守党', '支持なし'];
-            const totalSupport = partiesToSum.reduce((sum, key) => sum + (currentData[key] || 0), 0);
-            const otherSupport = (100 - totalSupport).toFixed(2); // その他を自動計算
-
-            // 最終的なデータオブジェクトを作成
-            const staticSupportData = {
-                ...dataWithDiff,
-                'その他': parseFloat(otherSupport) > 0 ? parseFloat(otherSupport) : 0, 
-            };
             
             const [supportData] = useState(staticSupportData);
             const [view, setView] = useState('dashboard');
@@ -97,16 +86,16 @@
             // 表示する政党のリストと表示順を調整
             const partyData = [
                 { displayName: '自民党', dataKey: '自民党', color: 'bg-blue-600' }, 
-                { displayName: '中道連合', dataKey: '立憲民主党', color: 'bg-green-600' },
+                { displayName: '中道改革連合', dataKey: '中道改革連合', color: 'bg-green-600' },
                 { displayName: '国民民主党', dataKey: '国民民主党', color: 'bg-indigo-500' },
                 { displayName: '維新', dataKey: '維新', color: 'bg-yellow-500' },
-                { displayName: '（公明党）', dataKey: '公明党', color: 'bg-red-600' },
+                { displayName: '公明党（参考）', dataKey: '公明党（参考）', color: 'bg-red-600' },
                 { displayName: '共産党', dataKey: '共産党', color: 'bg-pink-600' },
                 { displayName: 'れいわ', dataKey: 'れいわ', color: 'bg-purple-600' },
                 { displayName: '参政党', dataKey: '参政党', color: 'bg-teal-500' },
                 { displayName: '社民党', dataKey: '社民党', color: 'bg-pink-800' },
                 { displayName: '保守党', dataKey: '保守党', color: 'bg-blue-800' },
-                { displayName: 'その他', dataKey: 'その他', color: 'bg-gray-400' },
+                { displayName: 'みらい', dataKey: 'みらい', color: 'bg-cyan-600' },
                 { displayName: '無党派', dataKey: '支持なし', color: 'bg-gray-700' },
             ];
             
