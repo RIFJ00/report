@@ -584,7 +584,7 @@
                                 <div class="overflow-y-auto max-h-[500px] custom-scrollbar">
                                     <table class="w-full text-xs text-left text-slate-700">
                                         <thead><tr class="text-slate-400 border-b">
-                                            <th class="py-3 px-3">順位</th><th class="py-3">ワード</th><th class="py-3">分野</th><th class="py-3 text-right pr-6">回数</th>
+                                            <th class="py-3 px-3 w-12">順位</th><th class="py-3">ワード</th><th class="py-3">分野</th><th class="py-3 text-right pr-4">回数</th><th class="py-3 w-10"></th>
                                         </tr></thead>
                                         <tbody id="data-table-body"></tbody>
                                     </table>
@@ -645,7 +645,12 @@
         <!-- Scrollable Content -->
         <div class="p-6 pt-2 overflow-y-auto custom-scrollbar flex-grow">
             <div class="mb-4 border-b border-slate-100 pb-4">
-                <div id="selected-word-display" class="text-2xl font-black text-blue-600">---</div>
+                <div class="flex justify-between items-start">
+                    <div id="selected-word-display" class="text-2xl font-black text-blue-600">---</div>
+                    <button id="exclude-word-btn" class="text-[10px] bg-red-50 text-red-500 hover:bg-red-100 px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition shadow-sm border border-red-100" title="このワードを解析対象から除外します">
+                        <i data-lucide="ban" class="w-3 h-3"></i> 除外する
+                    </button>
+                </div>
                 <div id="word-usage-summary" class="ai-word-usage-summary">AI注釈を生成中...</div>
             </div>
             <div class="mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">ファイル内での引用</div>
@@ -662,12 +667,10 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'text-miner-ultra-v6';
         
         // --- API Key Logic ---
-        // 1. Check if apiKey is defined via environment (for Canvas)
-        // 2. Check localStorage (for User Setting on deployed site)
-        const apiKey = ""; // MUST be empty for Canvas environment to inject safely.
+        const apiKey = ""; // MUST be empty for Canvas environment
         const STORAGE_KEY_API = 'vtm_gemini_api_key';
         
-        // Anti-Leak: Clear specific leaked key from localStorage if it exists
+        // Anti-Leak
         const LEAKED_KEY_HASH = "AIzaSyB0ks1letUoqFBAxDgjXe0iWS76i36qp4Y";
         if (localStorage.getItem(STORAGE_KEY_API) === LEAKED_KEY_HASH) {
             localStorage.removeItem(STORAGE_KEY_API);
@@ -679,7 +682,6 @@
 
         const GEMINI_MODEL = "gemini-2.5-flash"; 
         
-        // Helper to get current effective key
         function getEffectiveApiKey() {
             const userKey = localStorage.getItem(STORAGE_KEY_API);
             if (userKey && userKey.trim().length > 0) return userKey.trim();
@@ -687,7 +689,6 @@
             return "";
         }
 
-        // Helper to get API URL with current key
         function getApiUrl() {
             return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${getEffectiveApiKey()}`;
         }
@@ -700,10 +701,11 @@
         let sentences = [];
         let activeTheme = 'ocean';
         let rawText = "";
-        let currentPdf = null; // Store PDF object for manual OCR
+        let currentPdf = null;
         let charts = {};
         let db, auth, user;
 
+        // 除外ワードのリスト (初期ストップワードを含む)
         const stops = new Set(['こと', 'もの', 'それ', 'これ', 'ため', 'よう', 'ところ', 'そう', 'あり', 'なし', 'とき', 'など', 'において', 'について', 'という', 'ます', 'です', 'ある', 'いる', 'なる', 'れる', 'して', 'から', 'まで', 'への', 'より', 'にて', 'および', 'また', 'ない', 'した', 'れる', 'られる', 'いる', 'ある', 'この', 'その', 'あの']);
 
         const THEMES = {
@@ -716,40 +718,29 @@
         };
 
         const FIELD_MAP = {
-            // Business & Career
             business: ['ビジネス', '経営', '戦略', '顧客', 'サービス', '利益', '売上', '企業', '産業', 'マネジメント', '運営', '事業', '会社', '組織'],
             economy: ['経済', '市場', '投資', '金融', '株式', '取引', '税', '財政', '景気', 'インフレ', '為替', '資産', '物価', '通貨'],
             marketing: ['マーケティング', '広告', '広報', 'PR', 'ブランディング', '販促', 'キャンペーン', 'ターゲット', 'SNS', 'トレンド', '消費者', '需要'],
             career: ['キャリア', '就職', '転職', '採用', '面接', 'スキル', '職場', '労働', '人事', '給与', '働き方', '副業', 'リモートワーク', '雇用'],
-
-            // IT & Tech
             tech: ['システム', 'データ', '開発', 'AI', 'プログラミング', 'ネットワーク', '技術', 'デジタル', 'クラウド', 'ソフトウェア', '実装', '処理', '基盤', 'アプリ', 'IT'],
             science: ['研究', '理論', '解析', '手法', '科学', '実験', '物理', '生物', '化学', '検証', '仮説', '論文', '学会', '研究所'],
             gadget: ['スマホ', 'PC', 'デバイス', 'カメラ', 'バッテリー', '充電', 'スペック', '機能', 'ハードウェア', '機器', '家電', 'センサー'],
             security: ['セキュリティ', '認証', 'パスワード', '暗号', '脆弱性', '攻撃', 'ウイルス', 'プライバシー', '個人情報', '監視', '防御', 'ハッキング'],
             media: ['メディア', '通信', '放送', '情報', 'ニュース', '記事', '番組', '配信', 'ジャーナリズム', '報道', '出版', 'マスコミ'],
-
-            // Society & Politics
             politics: ['政治', '行政', '政府', '予算', '選挙', '国会', '地方', '自治', '公的', '政策', '議会', '内閣', '大臣', '政党'],
             international: ['国際', '外交', '海外', '世界', '交流', '貿易', '協力', '平和', '国連', '条約', 'グローバル', '多文化'],
             legal: ['法律', '裁判', '権利', '義務', '契約', '訴訟', '判決', '著作権', 'コンプライアンス', '法規', '弁護士', '法廷', '規制'],
             society: ['一般社会', '市民', 'コミュニティ', '人間関係', '現状', '課題', '共生', '少子化', '高齢化', '格差', '貧困', 'ジェンダー'],
-
-            // Life & Culture
             life: ['生活', '暮らし', '家事', '料理', '掃除', '育児', '住まい', '住宅', '買い物', '節約', 'レシピ', '家族', '日常'],
             culture: ['文化', '芸術', '伝統', '遺産', 'デザイン', 'ファッション', '地域', '習慣', '風習', '宗教', '祭り', 'アート'],
             entertainment: ['エンタメ', 'ゲーム', '音楽', '映画', 'アニメ', '漫画', '小説', 'ライブ', 'イベント', '動画', 'YouTube', 'アイドル'],
             history: ['歴史', '過去', '年表', '事跡', '文化遺産', '時代', '背景', '考古学', '史跡', '人物', '伝記'],
             sports: ['スポーツ', '運動', '大会', '競技', 'オリンピック', 'チーム', '選手', '試合', 'トレーニング', '筋トレ', '観戦', '優勝'],
-
-            // Medical & Health
             medical: ['医療', '病院', 'クリニック', '医師', '看護師', '疾患', '診断', '治療', '薬品', '手術', '患者', '救急', '検診'],
             health: ['健康', 'ヘルスケア', '予防', 'ダイエット', '栄養', '睡眠', 'ストレス', 'サプリ', '運動', '美容', 'メンタルヘルス', '体調'],
             welfare: ['福祉', '介護', '障がい', '高齢者', '生活保護', 'ボランティア', '支援', '年金', '社会保障', 'ケア', 'バリアフリー'],
             edu: ['教育', '学習', '学校', '大学', '授業', '先生', '生徒', '学術', '知識', '能力', '資格', '試験', '成績'],
             psych: ['心理', '心', '感情', '精神', '哲学', '思考', '意識', '人間性', '性格', '悩み', 'カウンセリング'],
-
-            // Industry & Infrastructure
             industry: ['産業', '製造', '生産', '工場', '機械', 'ロボット', '資材', 'メーカー', '製品', '品質', '工程'],
             construction: ['建設', '建築', '設計', '工事', '施工', '都市', '空間', '整備', 'インフラ', 'ビル', 'マンション'],
             transport: ['交通', '物流', '鉄道', '道路', '空港', '港湾', '配送', '運転', '車両', '移動', '渋滞', '航空'],
@@ -786,31 +777,22 @@
             others: 'その他'
         };
 
-        // --- HOISTED CORE FUNCTIONS ---
-
         function getElementsRefs() {
             return {
                 fileInput: document.getElementById('file-input'),
-                // ... existing refs ...
                 dropZone: document.getElementById('drop-zone'),
                 cloudCanvas: document.getElementById('cloud-canvas'),
                 cloudContainer: document.getElementById('cloud-container'),
                 loadingOverlay: document.getElementById('loading-overlay'),
-                
-                // Summary Refs
                 summaryContent: document.getElementById('summary-content'),
                 summaryLoading: document.getElementById('summary-loading'),
-                
-                // Topics Refs
                 topicsContent: document.getElementById('topics-content'),
                 topicsLoading: document.getElementById('topics-loading'),
-
                 originalContent: document.getElementById('original-content'),
                 tabBtns: document.querySelectorAll('.tab-btn'),
                 fieldFilter: document.getElementById('field-filter'),
                 wordCountRange: document.getElementById('word-count'),
                 fontScaleRange: document.getElementById('font-scale'),
-                shareBtn: document.getElementById('share-summary-btn'),
                 refreshBtn: document.getElementById('refresh-btn'),
                 clearBtn: document.getElementById('clear-btn'),
                 resetSettingsBtn: document.getElementById('reset-settings-btn'), 
@@ -822,6 +804,7 @@
                 contextResults: document.getElementById('context-results'),
                 selectedWordDisplay: document.getElementById('selected-word-display'),
                 wordUsageSummary: document.getElementById('word-usage-summary'),
+                excludeWordBtn: document.getElementById('exclude-word-btn'), // Added exclude button
                 fileStatus: document.getElementById('file-status'),
                 countValLabel: document.getElementById('count-val'),
                 scaleValLabel: document.getElementById('scale-val'),
@@ -838,8 +821,6 @@
                 fontWeightSelect: document.getElementById('font-weight-select'),
                 messageBox: document.getElementById('message-box'),
                 closeContext: document.getElementById('close-context'),
-                
-                // API Settings Elements
                 openApiSettingsBtn: document.getElementById('open-api-settings'),
                 apiSettingsModal: document.getElementById('api-settings-modal'),
                 closeApiModalBtn: document.getElementById('close-api-modal'),
@@ -847,8 +828,6 @@
                 saveApiBtn: document.getElementById('save-api-btn'),
                 clearApiBtn: document.getElementById('clear-api-btn'),
                 apiStatusMsg: document.getElementById('api-status-msg'),
-
-                // Manual Input Elements
                 openManualInputBtn: document.getElementById('open-manual-input'),
                 manualInputModal: document.getElementById('manual-input-modal'),
                 closeManualModalBtn: document.getElementById('close-manual-modal'),
@@ -861,7 +840,6 @@
             const box = document.getElementById('message-box');
             if(!box) return;
             
-            // エラー時、手動入力への誘導ボタンを追加
             if (isError) {
                 box.innerHTML = `
                     <div class="flex flex-col gap-2">
@@ -913,79 +891,35 @@
             const weight = elements.fontWeightSelect?.value || 'bold';
             const scale = parseFloat(elements.fontScaleRange?.value || 1.0);
             
-            // Rotation Logic configuration
             let rotateRatio = 0.5;
             let rotationSteps = 2;
             let minRotation = -Math.PI / 2;
             let maxRotation = Math.PI / 2;
 
             switch (orient) {
-                case 'horizontal':
-                    rotateRatio = 0;
-                    break;
-                case 'vertical':
-                    rotateRatio = 1;
-                    minRotation = -Math.PI / 2;
-                    maxRotation = -Math.PI / 2;
-                    break;
-                case 'mixed':
-                    // 縦(-90), 右上がり(-45), 横(0), 右下がり(45) を混ぜる設定
-                    rotateRatio = 0.8; // 80%の確率で回転計算に参加
-                    rotationSteps = 4;
-                    minRotation = -Math.PI / 2;
-                    maxRotation = Math.PI / 4;
-                    break;
-                case 'random':
-                    rotateRatio = 1;
-                    rotationSteps = 0; // Free rotation
-                    minRotation = -Math.PI / 2;
-                    maxRotation = Math.PI / 2;
-                    break;
-                case 'stair': // Right Up
-                    rotateRatio = 1;
-                    minRotation = -Math.PI / 4; 
-                    maxRotation = -Math.PI / 4;
-                    break;
-                case 'diagonal': // 45 deg or -45 deg
-                    rotateRatio = 1;
-                    rotationSteps = 2;
-                    minRotation = -Math.PI / 4;
-                    maxRotation = Math.PI / 4;
-                    break;
-                case 'orthogonal': // 0 or 90
-                    rotateRatio = 0.5;
-                    rotationSteps = 2;
-                    minRotation = -Math.PI / 2;
-                    maxRotation = 0;
-                    break;
-                case 'cross': // Standard
-                    rotateRatio = 1;
-                    rotationSteps = 2;
-                    break;
+                case 'horizontal': rotateRatio = 0; break;
+                case 'vertical': rotateRatio = 1; minRotation = -Math.PI / 2; maxRotation = -Math.PI / 2; break;
+                case 'mixed': rotateRatio = 0.8; rotationSteps = 4; minRotation = -Math.PI / 2; maxRotation = Math.PI / 4; break;
+                case 'random': rotateRatio = 1; rotationSteps = 0; minRotation = -Math.PI / 2; maxRotation = Math.PI / 2; break;
+                case 'stair': rotateRatio = 1; minRotation = -Math.PI / 4; maxRotation = -Math.PI / 4; break;
+                case 'diagonal': rotateRatio = 1; rotationSteps = 2; minRotation = -Math.PI / 4; maxRotation = Math.PI / 4; break;
+                case 'orthogonal': rotateRatio = 0.5; rotationSteps = 2; minRotation = -Math.PI / 2; maxRotation = 0; break;
+                case 'cross': rotateRatio = 1; rotationSteps = 2; break;
             }
 
-            // Shape Logic
             let finalShape = shape;
             if (shape === 'hexagon') {
                 finalShape = function(theta) {
-                    var n = 6;
-                    var m = theta % (2 * Math.PI / n);
+                    var n = 6; var m = theta % (2 * Math.PI / n);
                     if (m > Math.PI / n) m = (2 * Math.PI / n) - m;
-                    var r = Math.cos(Math.PI / n) / Math.cos(m);
-                    return r;
+                    return Math.cos(Math.PI / n) / Math.cos(m);
                 };
             } else if (shape === 'kite') {
-                finalShape = function(theta) {
-                     return Math.abs(Math.sin(theta)) + 0.5 * Math.abs(Math.cos(theta));
-                };
+                finalShape = function(theta) { return Math.abs(Math.sin(theta)) + 0.5 * Math.abs(Math.cos(theta)); };
             } else if (shape === 'burst') {
-                finalShape = function(theta) {
-                    return 1 + 0.2 * Math.sin(8 * theta);
-                }
+                finalShape = function(theta) { return 1 + 0.2 * Math.sin(8 * theta); }
             } else if (shape === 'ellipse') {
-                finalShape = function(theta) {
-                    return 1 / Math.sqrt(Math.pow(Math.cos(theta), 2) + 4 * Math.pow(Math.sin(theta), 2));
-                }
+                finalShape = function(theta) { return 1 / Math.sqrt(Math.pow(Math.cos(theta), 2) + 4 * Math.pow(Math.sin(theta), 2)); }
             }
 
             return {
@@ -995,13 +929,10 @@
                 fontFamily: 'Noto Sans JP, sans-serif', 
                 fontWeight: weight,
                 color: () => theme.colors[Math.floor(Math.random() * theme.colors.length)],
-                
-                // Rotation
                 rotateRatio: rotateRatio, 
                 rotationSteps: rotationSteps,
                 minRotation: minRotation,
                 maxRotation: maxRotation,
-
                 shape: finalShape,
                 backgroundColor: 'transparent', 
                 shrinkToFit: true, 
@@ -1026,19 +957,33 @@
             WordCloud(elements.cloudCanvas, getCommonOptions(elements.cloudCanvas, data, elements.cloudContainer, elements.tooltip));
         }
 
-        // --- GEMINI API CALL WRAPPER WITH RETRY LOGIC ---
+        // --- NEW: Exclude Word Logic ---
+        function excludeWord(word) {
+            if (!word) return;
+            
+            // ストップワードリストに追加
+            stops.add(word);
+            
+            // 現在の解析結果から該当ワードを削除
+            currentWords = currentWords.filter(w => w.word !== word);
+            
+            // UIの再描画
+            drawCloud();
+            if(document.querySelector('.tab-btn[data-tab="analysis"]').classList.contains('active')) {
+                initCharts();
+            }
+            
+            // コンテキストパネルが開いていて、対象が除外したワードなら閉じる
+            if (elements.selectedWordDisplay && elements.selectedWordDisplay.textContent === word) {
+                elements.contextPanel.classList.remove('open');
+            }
+            
+            showMessage(`「${word}」を解析対象から除外しました`, false, 2000);
+        }
+
         async function callGeminiApi(payload, retryCount = 0) {
-            // Check API Key before making request
             const key = getEffectiveApiKey();
             if (!key) {
-                if (elements.apiSettingsModal) {
-                    elements.apiSettingsModal.style.display = 'flex';
-                    if(elements.apiStatusMsg) {
-                         elements.apiStatusMsg.textContent = "APIを利用するにはキーの設定が必要です。";
-                         elements.apiStatusMsg.className = "text-xs font-bold py-2 text-red-500 block";
-                         elements.apiStatusMsg.classList.remove('hidden');
-                    }
-                }
                 throw new Error("API key is missing");
             }
 
@@ -1051,7 +996,6 @@
                     body: JSON.stringify(payload)
                 });
 
-                // Read body once to prevent "Body is disturbed or locked" error
                 const responseText = await response.text();
                 let responseJson;
                 try {
@@ -1062,23 +1006,13 @@
 
                 if (response.status === 429 || response.status === 503) {
                     const errorMessage = responseJson?.error?.message || "";
-                    
-                    // Default exponential backoff fallback
                     let delay = [10000, 30000, 60000, 90000, 120000][retryCount] || 60000; 
-                    
-                    // Extract retry delay from message
                     const match = errorMessage.match(/retry in ([0-9.]+)/);
                     if (match && match[1]) {
-                        // Add buffer time
                         delay = Math.ceil(parseFloat(match[1])) * 1000 + 5000;
                     }
-                    
-                    // Safety check
-                    if (!match && response.status === 429 && delay < 60000) {
-                        delay = 60000;
-                    }
+                    if (!match && response.status === 429 && delay < 60000) delay = 60000;
 
-                    // Increased retry limit to 10
                     if (retryCount < 10) {
                         console.warn(`Rate limit ${response.status} hit. Retrying in ${delay}ms...`);
                         showMessage(`AIアクセス集中により待機中... (${retryCount + 1}/10回) 残り約${Math.ceil(delay/1000)}秒`, false, delay);
@@ -1090,7 +1024,6 @@
                 if (!response.ok) {
                     throw new Error(`API Error: ${response.status} - ${responseText}`);
                 }
-
                 return responseJson;
             } catch (e) {
                 throw e;
@@ -1098,6 +1031,15 @@
         }
 
         async function fetchWordAiSummary(word) {
+            const key = getEffectiveApiKey();
+            if (!key) {
+                if (elements.wordUsageSummary) {
+                    elements.wordUsageSummary.innerHTML = "APIキーが設定されていません。ヘッダーの「API設定」からキーを入力してください。";
+                }
+                if (elements.apiSettingsModal) elements.apiSettingsModal.style.display = 'flex';
+                return;
+            }
+
             const summaryEl = elements.wordUsageSummary;
             if (summaryEl) {
                 summaryEl.textContent = "このファイル内での役割を分析中...";
@@ -1108,7 +1050,6 @@
                 const contextSentences = sentences.filter(s => s.includes(word)).slice(0, 10).join('\n');
                 const prompt = `このファイルにおいて「${word}」という言葉はどのような意図、役割、文脈で使われていますか？専門的な注釈として、ファイル内特有の使われ方を3行程度で端的にサマリーしてください。`;
                 
-                // Use wrapper
                 const res = await callGeminiApi({ 
                     contents: [{ parts: [{ text: prompt + `\n\n対象テキスト引用：\n${contextSentences}` }] }], 
                     systemInstruction: { parts: [{ text: "高度な文章解析AIとして、文書内の具体的な使われ方に特化して日本語で解説してください。" }] } 
@@ -1123,7 +1064,7 @@
             } catch (e) { 
                 console.error(e);
                 let msg = `AIエラー: ${e.message}`;
-                if (e.message.includes('400') || e.message.includes('API key not valid') || e.message.includes('API key is missing')) {
+                if (e.message.includes('400') || e.message.includes('API key not valid')) {
                     msg = "APIキーが無効です。右上の「API設定」から正しいキーを入力してください。";
                     if(elements.apiSettingsModal) elements.apiSettingsModal.style.display = 'flex';
                 }
@@ -1137,7 +1078,6 @@
             elements.selectedWordDisplay.textContent = word;
             elements.contextResults.innerHTML = '';
             
-            // AI注釈を取得
             fetchWordAiSummary(word);
 
             const matches = sentences.filter(s => s.includes(word)).slice(0, 15);
@@ -1177,7 +1117,6 @@
             elements.summaryLoading.classList.remove('hidden');
             elements.summaryContent.innerHTML = "";
             try {
-                // Use wrapper
                 const res = await callGeminiApi({
                     contents: [{ parts: [{ text: `この文書を構造的に要約し、日本語で専門的な視点から解説してください：\n\n${text.substring(0, 1000000)}` }] }],
                     systemInstruction: { parts: [{ text: "詳細な構造的要約を作成するプロのアナリストAIです。" }] }
@@ -1234,7 +1173,6 @@
                 });
 
                 let jsonStr = res.candidates?.[0]?.content?.parts?.[0]?.text;
-                // Clean up potential markdown formatting
                 if (jsonStr) {
                     jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
                 }
@@ -1276,7 +1214,6 @@
             let fullText = "";
             const total = pdf.numPages;
             
-            // UI更新用ヘルパー
             const updateStatus = (msg) => {
                 const p = elements.loadingOverlay.querySelector('p');
                 if (p) p.textContent = msg;
@@ -1287,50 +1224,31 @@
 
                 const worker = await Tesseract.createWorker(['jpn', 'eng'], 1, {
                     logger: m => {
-                        // console.log(m); // ログが多すぎる場合はコメントアウト
-                        if (m.status === 'loading tesseract core') {
-                            updateStatus("エンジンコアをロード中...");
-                        } else if (m.status === 'loading language traineddata') {
-                            const prog = m.progress ? ` ${(m.progress * 100).toFixed(0)}%` : '';
-                            updateStatus(`辞書データをダウンロード中...${prog}`);
-                        } else if (m.status === 'initializing api') {
-                            updateStatus("APIを初期化中...");
-                        } else if (m.status === 'recognizing text') {
-                            const prog = (m.progress * 100).toFixed(0);
-                            updateStatus(`文字認識処理中... ${prog}%`);
-                        }
+                        if (m.status === 'loading tesseract core') updateStatus("エンジンコアをロード中...");
+                        else if (m.status === 'loading language traineddata') updateStatus(`辞書データをダウンロード中...${m.progress ? ` ${(m.progress * 100).toFixed(0)}%` : ''}`);
+                        else if (m.status === 'initializing api') updateStatus("APIを初期化中...");
+                        else if (m.status === 'recognizing text') updateStatus(`文字認識処理中... ${(m.progress * 100).toFixed(0)}%`);
                     }
                 });
 
                 for (let i = 1; i <= total; i++) {
                     updateStatus(`ページ画像を解析中... (${i}/${total}ページ)`);
-                    
                     const page = await pdf.getPage(i);
-                    // 認識精度向上のためスケールを上げる
                     const viewport = page.getViewport({ scale: 3.0 }); 
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     canvas.width = viewport.width;
                     canvas.height = viewport.height;
-
                     ctx.fillStyle = "#ffffff";
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
                     await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-
                     const { data: { text } } = await worker.recognize(canvas);
-                    
-                    // 日本語文字の間の不要なスペースを除去
                     const cleanedText = text.replace(/([^\x01-\x7E])\s+([^\x01-\x7E])/g, '$1$2');
                     fullText += cleanedText + "\n";
                 }
                 
                 await worker.terminate();
-                
-                if (!fullText.trim()) {
-                    return "（文字情報を認識できませんでした。画質の良いPDFを使用するか、手動でテキストを入力してください。）";
-                }
-
+                if (!fullText.trim()) return "（文字情報を認識できませんでした。画質の良いPDFを使用するか、手動でテキストを入力してください。）";
                 return fullText;
             } catch (e) {
                 console.error("OCR Error Detail:", e);
@@ -1348,9 +1266,8 @@
             elements.fileStatus.textContent = file.name;
             const ext = file.name.split('.').pop().toLowerCase();
             
-            // Save PDF object for manual OCR if needed
             currentPdf = null;
-            elements.forceOcrBtn.classList.add('hidden'); // Hide manual OCR button initially
+            elements.forceOcrBtn.classList.add('hidden');
 
             let extractedText = "";
 
@@ -1365,43 +1282,30 @@
                 } else {
                     const ab = await file.arrayBuffer();
                     if (ext === 'pdf') {
-                        // CMapを指定して日本語認識率を向上
                         const loadingTask = pdfjsLib.getDocument({
                             data: new Uint8Array(ab),
                             cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/cmaps/',
                             cMapPacked: true,
                         });
-                        
                         const pdf = await loadingTask.promise;
-                        currentPdf = pdf; // Save for manual OCR
-                        elements.forceOcrBtn.classList.remove('hidden'); // Show manual OCR button
+                        currentPdf = pdf;
+                        elements.forceOcrBtn.classList.remove('hidden');
 
-                        // 1. 通常のテキスト抽出を試みる
                         for (let i = 1; i <= pdf.numPages; i++) {
                             const page = await pdf.getPage(i);
                             const content = await page.getTextContent();
                             extractedText += content.items.map(it => it.str).join('') + "\n";
                         }
                         
-                        // 判定ロジックの強化
                         const cleanTextLen = extractedText.replace(/\s/g, '').length;
                         const avgCharsPerPage = cleanTextLen / (pdf.numPages || 1);
                         const validWordMatches = extractedText.match(/[\u4E00-\u9FFF]{2,}|[\u30A0-\u30FF]{2,}/g) || [];
                         const validWordCount = validWordMatches.length;
 
-                        // 条件に合致する場合、自動的にOCR実行
                         if (cleanTextLen === 0 || avgCharsPerPage < 50 || validWordCount < 5) {
-                            let reason = "テキストデータが不十分です";
-                            if (cleanTextLen > 50 && validWordCount < 5) {
-                                reason = "文字コードを正しく認識できませんでした(文字化け検知)";
-                            }
-                            
-                            if (elements.loadingOverlay.querySelector('p')) {
-                                elements.loadingOverlay.querySelector('p').textContent = 
-                                    `${reason}。\nOCR(画像認識)解析を開始します...`;
-                            }
-                            
-                            await new Promise(r => setTimeout(r, 100)); // UI更新待ち
+                            let reason = cleanTextLen > 50 && validWordCount < 5 ? "文字コードを正しく認識できませんでした(文字化け検知)" : "テキストデータが不十分です";
+                            if (elements.loadingOverlay.querySelector('p')) elements.loadingOverlay.querySelector('p').textContent = `${reason}。\nOCR(画像認識)解析を開始します...`;
+                            await new Promise(r => setTimeout(r, 100));
                             extractedText = await performOcr(pdf);
                         }
                     } else if (ext === 'docx') {
@@ -1414,53 +1318,34 @@
                 
                 if (!extractedText || extractedText.length < 5) throw new Error("Empty content");
                 
-                // Success path
                 rawText = extractedText;
                 processText(rawText);
 
-                // もし自動OCRチェックをすり抜けたが、結果として単語が0だった場合
                 if (currentWords.length === 0 && ext === 'pdf' && currentPdf) {
-                    // 自動リカバリー：強制OCR実行
-                    if (elements.loadingOverlay.querySelector('p')) {
-                        elements.loadingOverlay.querySelector('p').textContent = 
-                            "有効な単語が見つかりませんでした。\nOCR(画像認識)モードで再解析します...";
-                    }
+                    if (elements.loadingOverlay.querySelector('p')) elements.loadingOverlay.querySelector('p').textContent = "有効な単語が見つかりませんでした。\nOCR(画像認識)モードで再解析します...";
                     await new Promise(r => setTimeout(r, 500));
                     extractedText = await performOcr(currentPdf);
                     rawText = extractedText;
                     processText(rawText);
                 }
 
-                if (currentWords.length === 0) {
-                    showMessage("有効な単語を抽出できませんでした。", true, 5000);
-                } else {
-                    showMessage("解析成功");
-                }
+                if (currentWords.length === 0) showMessage("有効な単語を抽出できませんでした。", true, 5000);
+                else showMessage("解析成功");
 
                 elements.originalContent.textContent = rawText;
                 
-                // --- 【変更点】クラウド表示を最優先で行い、ローディングを即解除 ---
                 drawCloud(); 
                 elements.loadingOverlay.classList.add('hidden');
                 showMessage("読み込み完了。AI分析をバックグラウンドで実行中...", false, 4000);
                 
-                // --- AI処理は非同期で続行（UIをブロックしない） ---
                 (async () => {
                     try {
-                        // AI要約
                         await fetchSummary(rawText);
-                        
-                        // 【修正】APIレート制限回避のため待機時間を延長 (2000ms -> 5000ms)
                         await new Promise(r => setTimeout(r, 5000));
-
-                        // トピック分析
                         await fetchTopics(rawText);
-                        
                         showMessage("全てのAI解析が完了しました", false, 3000);
                     } catch (bgErr) {
                         console.error(bgErr);
-                        // callGeminiApi内でエラー表示はされているが、念の為ここでもキャッチ
-                        // showMessage("AI解析エラー: " + bgErr.message, true); // 重複するので抑制
                     }
                 })();
                 
@@ -1496,22 +1381,18 @@
             Object.values(charts).forEach(c => c && c.destroy());
             const theme = THEMES[activeTheme];
             
-            // Bar Chart (Frequency)
             const ctxF = document.getElementById('chart-freq');
             if (ctxF) charts.freq = new Chart(ctxF.getContext('2d'), { 
                 type: 'bar', data: { labels: top10.map(d => d[0]), datasets: [{ label: '頻度', data: top10.map(d => d[1]), backgroundColor: theme.colors[0], borderRadius: 6 }] }, 
                 options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } 
             });
 
-            // Doughnut Chart (Ratio) - Logic update for Group vs Field
             const filterVal = elements.fieldFilter?.value || 'all';
             let chartLabels = [];
             let chartDataValues = [];
 
             if (filterVal === 'all') {
-                // 全選択時は「大分類(Group)」で集計する
                 const groupCounts = {};
-                // フィールドIDからグループIDへの逆引きマップを作成
                 const fieldToGroup = {};
                 for (const [grp, fields] of Object.entries(FIELD_GROUPS)) {
                     fields.forEach(f => fieldToGroup[f] = grp);
@@ -1520,38 +1401,24 @@
                 filteredData.forEach(w => {
                     const field = w[2];
                     const grp = fieldToGroup[field] || 'others';
-                    groupCounts[grp] = (groupCounts[grp] || 0) + 1; // 該当グループの単語数をカウント
+                    groupCounts[grp] = (groupCounts[grp] || 0) + 1;
                 });
 
-                // データセット作成（その他を最後に配置）
-                // 1. othersを一時退避
                 const othersCount = groupCounts['others'] || 0;
                 delete groupCounts['others'];
 
-                // 2. 残りを降順ソート
                 const sortedGroups = Object.entries(groupCounts).sort((a, b) => b[1] - a[1]);
-                
-                // 3. othersがあれば末尾に追加
-                if (othersCount > 0) {
-                    sortedGroups.push(['others', othersCount]);
-                }
+                if (othersCount > 0) sortedGroups.push(['others', othersCount]);
 
                 chartLabels = sortedGroups.map(([grp, _]) => GROUP_DISPLAY[grp] || 'その他');
                 chartDataValues = sortedGroups.map(([_, count]) => count);
-
             } else {
-                // 個別フィルタ時は「小分類(Field)」で集計する
                 const fs = filteredData.reduce((acc, w) => { acc[w[2]] = (acc[w[2]] || 0) + 1; return acc; }, {});
-                
-                // その他を最後に配置する処理
                 const othersCount = fs['others'] || 0;
                 delete fs['others'];
 
                 const sortedFields = Object.entries(fs).sort((a, b) => b[1] - a[1]);
-                
-                if (othersCount > 0) {
-                    sortedFields.push(['others', othersCount]);
-                }
+                if (othersCount > 0) sortedFields.push(['others', othersCount]);
 
                 chartLabels = sortedFields.map(([k, _]) => FIELD_DISPLAY[k] || 'その他');
                 chartDataValues = sortedFields.map(([_, count]) => count);
@@ -1563,18 +1430,38 @@
                 options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } } }
             });
 
-            // Table update
+            // Table update with exclude button
             const tbody = document.getElementById('data-table-body');
             if (tbody) {
                 tbody.innerHTML = filteredData.slice(0, 100).map((w, i) => `
-                    <tr class="border-b border-slate-50 hover:bg-blue-50 transition cursor-pointer text-[11px] text-slate-700 group" data-word="${w[0]}">
-                        <td class="py-3 px-3 text-slate-400 font-bold group-hover:text-blue-500">${i+1}</td>
-                        <td class="py-3 font-bold word-link text-blue-600 underline decoration-blue-200">${w[0]}</td>
-                        <td class="py-3"><span class="px-2 py-0.5 rounded-full bg-slate-100 text-[9px] font-black uppercase text-slate-500">${FIELD_DISPLAY[w[2]] || '他'}</span></td>
-                        <td class="py-3 text-blue-600 font-bold text-right pr-6">${w[1]}</td>
+                    <tr class="border-b border-slate-50 hover:bg-blue-50 transition text-[11px] text-slate-700 group" data-word="${w[0]}">
+                        <td class="py-3 px-3 text-slate-400 font-bold group-hover:text-blue-500 cursor-pointer context-trigger">${i+1}</td>
+                        <td class="py-3 font-bold word-link text-blue-600 underline decoration-blue-200 cursor-pointer context-trigger">${w[0]}</td>
+                        <td class="py-3 cursor-pointer context-trigger"><span class="px-2 py-0.5 rounded-full bg-slate-100 text-[9px] font-black uppercase text-slate-500">${FIELD_DISPLAY[w[2]] || '他'}</span></td>
+                        <td class="py-3 text-blue-600 font-bold text-right pr-4 cursor-pointer context-trigger">${w[1]}</td>
+                        <td class="py-3 pr-3 text-right">
+                            <button class="exclude-btn text-slate-300 hover:text-red-500 transition p-1.5 rounded-lg hover:bg-red-50 opacity-0 group-hover:opacity-100" data-word="${w[0]}" title="除外する">
+                                <i data-lucide="ban" class="w-3 h-3"></i>
+                            </button>
+                        </td>
                     </tr>
                 `).join('');
-                tbody.querySelectorAll('tr').forEach(row => { row.addEventListener('click', () => showContext(row.dataset.word)); });
+                
+                lucide.createIcons();
+
+                tbody.querySelectorAll('tr').forEach(row => { 
+                    const word = row.dataset.word;
+                    row.querySelectorAll('.context-trigger').forEach(td => {
+                        td.addEventListener('click', () => showContext(word));
+                    });
+                    const excludeBtn = row.querySelector('.exclude-btn');
+                    if(excludeBtn) {
+                        excludeBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            excludeWord(word);
+                        });
+                    }
+                });
             }
         }
 
@@ -1585,13 +1472,17 @@
             initFirebase(); 
             initAuth();
 
-            // Load saved API Key on init
-            const savedKey = localStorage.getItem(STORAGE_KEY_API);
-            if (savedKey && elements.apiKeyInput) {
-                elements.apiKeyInput.value = savedKey;
-            }
+            // Exclude Word Button in Context Panel
+            elements.excludeWordBtn?.addEventListener('click', () => {
+                const word = elements.selectedWordDisplay?.textContent;
+                if (word && word !== '---') {
+                    excludeWord(word);
+                }
+            });
 
-            // API Settings Modal Logic
+            const savedKey = localStorage.getItem(STORAGE_KEY_API);
+            if (savedKey && elements.apiKeyInput) elements.apiKeyInput.value = savedKey;
+
             elements.openApiSettingsBtn?.addEventListener('click', () => {
                 elements.apiSettingsModal.style.display = 'flex';
                 const currentKey = localStorage.getItem(STORAGE_KEY_API);
@@ -1604,16 +1495,11 @@
                 }
             });
 
-            elements.closeApiModalBtn?.addEventListener('click', () => {
-                elements.apiSettingsModal.style.display = 'none';
-            });
+            elements.closeApiModalBtn?.addEventListener('click', () => { elements.apiSettingsModal.style.display = 'none'; });
 
             elements.saveApiBtn?.addEventListener('click', () => {
                 const key = elements.apiKeyInput.value.trim();
-                if (!key) {
-                    alert("APIキーを入力してください");
-                    return;
-                }
+                if (!key) { alert("APIキーを入力してください"); return; }
                 localStorage.setItem(STORAGE_KEY_API, key);
                 showMessage("APIキーを保存しました");
                 elements.apiSettingsModal.style.display = 'none';
@@ -1640,34 +1526,24 @@
             elements.fileInput?.addEventListener('change', e => handleFile(e.target.files[0]));
             elements.refreshBtn?.addEventListener('click', () => { if (rawText) { processText(rawText); drawCloud(); if(document.querySelector('.tab-btn[data-tab="analysis"]').classList.contains('active')) initCharts(); } });
             
-            // Manual OCR Button
             elements.forceOcrBtn?.addEventListener('click', async () => {
                 if (!currentPdf) return;
                 if (!confirm("現在のファイルを画像として再解析（OCR）しますか？\nページ数が多い場合、時間がかかります。")) return;
-                
                 elements.loadingOverlay.classList.remove('hidden');
-                if (elements.loadingOverlay.querySelector('p')) {
-                    elements.loadingOverlay.querySelector('p').textContent = "OCR解析を開始します...";
-                }
-
+                if (elements.loadingOverlay.querySelector('p')) elements.loadingOverlay.querySelector('p').textContent = "OCR解析を開始します...";
                 try {
                     const extractedText = await performOcr(currentPdf);
                     rawText = extractedText;
                     processText(rawText);
                     elements.originalContent.textContent = rawText;
                     drawCloud(); 
-                    
-                    // Use sequential AI processing like main flow
                     (async () => {
                         try {
                             await fetchSummary(rawText);
                             await fetchTopics(rawText);
                             showMessage("OCR解析完了");
-                        } catch (bgErr) {
-                            console.error(bgErr);
-                        }
+                        } catch (bgErr) { console.error(bgErr); }
                     })();
-
                 } catch (err) {
                     console.error(err);
                     showMessage("OCR解析失敗: " + err.message, true);
@@ -1676,54 +1552,22 @@
                 }
             });
 
-            // Clear Button Logic
             elements.clearBtn?.addEventListener('click', () => {
-                if (rawText || currentWords.length > 0) {
-                    if(!confirm("読み込んだデータをクリアしますか？")) return;
-                }
-
-                // Reset State
-                rawText = "";
-                currentWords = [];
-                sentences = [];
-                currentPdf = null;
-                elements.fileInput.value = "";
-                
-                // Hide manual OCR btn
-                elements.forceOcrBtn.classList.add('hidden');
-
-                // Reset UI
+                if (rawText || currentWords.length > 0) { if(!confirm("読み込んだデータをクリアしますか？")) return; }
+                rawText = ""; currentWords = []; sentences = []; currentPdf = null;
+                elements.fileInput.value = ""; elements.forceOcrBtn.classList.add('hidden');
                 elements.fileStatus.textContent = "待機中";
-                
-                // Clear Cloud Canvas
-                const ctx = elements.cloudCanvas.getContext('2d');
-                ctx.clearRect(0, 0, elements.cloudCanvas.width, elements.cloudCanvas.height);
-                
-                // Clear Analysis Charts
+                const ctx = elements.cloudCanvas.getContext('2d'); ctx.clearRect(0, 0, elements.cloudCanvas.width, elements.cloudCanvas.height);
                 if(charts.freq) { charts.freq.destroy(); charts.freq = null; }
                 if(charts.ratio) { charts.ratio.destroy(); charts.ratio = null; }
-                
-                // Clear Table
-                const tbody = document.getElementById('data-table-body');
-                if(tbody) tbody.innerHTML = "";
-                
-                // Clear Text Content
-                elements.summaryContent.innerHTML = "";
-                elements.originalContent.textContent = "";
+                const tbody = document.getElementById('data-table-body'); if(tbody) tbody.innerHTML = "";
+                elements.summaryContent.innerHTML = ""; elements.originalContent.textContent = "";
                 elements.topicsContent.innerHTML = `<div class="col-span-1 md:col-span-2 flex items-center justify-center h-64 text-slate-400 text-sm">まだ分析結果がありません</div>`;
-                
-                // Close panels and tooltips
-                elements.contextPanel.classList.remove('open');
-                elements.tooltip.style.display = 'none';
-                
-                // Switch to cloud tab default
-                const cloudTab = document.querySelector('.tab-btn[data-tab="cloud"]');
-                if(cloudTab) cloudTab.click();
-
+                elements.contextPanel.classList.remove('open'); elements.tooltip.style.display = 'none';
+                const cloudTab = document.querySelector('.tab-btn[data-tab="cloud"]'); if(cloudTab) cloudTab.click();
                 showMessage("データをクリアしました");
             });
 
-            // Reset Settings Logic
             elements.resetSettingsBtn?.addEventListener('click', () => {
                 if(elements.fieldFilter) elements.fieldFilter.value = 'all';
                 if(elements.wordCountRange) elements.wordCountRange.value = 80;
@@ -1732,31 +1576,15 @@
                 if(elements.shapeSelect) elements.shapeSelect.value = 'square';
                 if(elements.fontWeightSelect) elements.fontWeightSelect.value = 'bold';
                 if(elements.modalBgStyleSelect) elements.modalBgStyleSelect.value = 'midnight';
-
-                // Update Labels
                 if(elements.countValLabel) elements.countValLabel.textContent = '80';
                 if(elements.scaleValLabel) elements.scaleValLabel.textContent = '1.0x';
-
-                // Update Modal BG UI
                 elements.modalBgStyleSelect?.dispatchEvent(new Event('change'));
-
-                // Redraw if data exists
-                if (currentWords.length > 0) {
-                    drawCloud();
-                }
-                
+                if (currentWords.length > 0) drawCloud();
                 showMessage("設定をデフォルトに戻しました");
             });
 
             elements.toggleFullscreen?.addEventListener('click', () => { document.body.classList.toggle('fullscreen-mode'); setTimeout(drawCloud, 500); });
-            
-            elements.fieldFilter?.addEventListener('change', () => {
-                drawCloud();
-                if(document.querySelector('.tab-btn[data-tab="analysis"]').classList.contains('active')) {
-                    initCharts();
-                }
-            });
-
+            elements.fieldFilter?.addEventListener('change', () => { drawCloud(); if(document.querySelector('.tab-btn[data-tab="analysis"]').classList.contains('active')) initCharts(); });
             elements.openModal?.addEventListener('click', () => {
                 if (currentWords.length === 0) return showMessage("解析するファイルを選択してください", true);
                 elements.modalOverlay.style.display = 'flex';
@@ -1777,21 +1605,11 @@
                     elements.tabBtns.forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                     const t = btn.dataset.tab;
-                    
                     ['cloud', 'analysis', 'topics', 'summary', 'original'].forEach(x => {
                         const target = document.getElementById(`tab-content-${x}`);
                         if (target) target.classList.toggle('hidden', x !== t);
                     });
-                    
-                    // Update button title based on context
-                    if(elements.downloadBtn) {
-                        if (t === 'summary' || t === 'original') {
-                            elements.downloadBtn.title = "テキストを保存";
-                        } else {
-                            elements.downloadBtn.title = "画像を保存";
-                        }
-                    }
-
+                    if(elements.downloadBtn) { elements.downloadBtn.title = (t === 'summary' || t === 'original') ? "テキストを保存" : "画像を保存"; }
                     if (t === 'cloud') setTimeout(drawCloud, 50);
                     if (t === 'analysis') setTimeout(initCharts, 50);
                 });
@@ -1819,208 +1637,91 @@
                 else if (style === 'forest') { elements.modalOverlay.style.backgroundColor = 'rgba(2, 44, 34, 0.98)'; elements.modalOverlay.classList.add('dark-modal'); }
             });
 
-            // --- IMPROVED DOWNLOAD LOGIC (BLOB BASED + HTML2CANVAS + TEXT) ---
             const downloadCanvas = (canvas, bgHex, prefix) => {
-                if (!canvas || !currentWords.length) {
-                    showMessage("保存するデータがありません", true);
-                    return;
-                }
+                if (!canvas || !currentWords.length) return showMessage("保存するデータがありません", true);
                 try {
-                    const composite = document.createElement('canvas');
-                    composite.width = canvas.width;
-                    composite.height = canvas.height;
-                    const ctx = composite.getContext('2d');
-                    ctx.fillStyle = bgHex;
-                    ctx.fillRect(0, 0, composite.width, composite.height);
-                    ctx.drawImage(canvas, 0, 0);
-
+                    const composite = document.createElement('canvas'); composite.width = canvas.width; composite.height = canvas.height;
+                    const ctx = composite.getContext('2d'); ctx.fillStyle = bgHex; ctx.fillRect(0, 0, composite.width, composite.height); ctx.drawImage(canvas, 0, 0);
                     composite.toBlob((blob) => {
                         try {
                             if(!blob) throw new Error("Blob generation failed");
-                            const url = URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.download = `${prefix}-${Date.now()}.png`;
-                            link.href = url;
-                            document.body.appendChild(link);
-                            link.click();
-                            if (document.body.contains(link)) {
-                                document.body.removeChild(link);
-                            }
-                            URL.revokeObjectURL(url);
-                            showMessage("画像を保存しました");
-                        } catch (blobError) {
-                            console.error("Blob callback error:", blobError);
-                            showMessage("保存中にエラーが発生しました", true);
-                        }
+                            const url = URL.createObjectURL(blob); const link = document.createElement('a');
+                            link.download = `${prefix}-${Date.now()}.png`; link.href = url; document.body.appendChild(link); link.click();
+                            if (document.body.contains(link)) document.body.removeChild(link);
+                            URL.revokeObjectURL(url); showMessage("画像を保存しました");
+                        } catch (blobError) { console.error(blobError); showMessage("保存中にエラーが発生しました", true); }
                     }, 'image/png');
-                } catch (e) {
-                    console.error(e);
-                    showMessage("保存エラーが発生しました", true);
-                }
+                } catch (e) { console.error(e); showMessage("保存エラーが発生しました", true); }
             };
 
             const downloadText = (text, prefix) => {
-                if (!text || text.trim().length === 0) {
-                    showMessage("保存するテキストがありません", true);
-                    return;
-                }
+                if (!text || text.trim().length === 0) return showMessage("保存するテキストがありません", true);
                 try {
-                    const blob = new Blob([text], { type: 'text/plain' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.download = `${prefix}-${Date.now()}.txt`;
-                    link.href = url;
-                    document.body.appendChild(link);
-                    link.click();
-                    if (document.body.contains(link)) {
-                        document.body.removeChild(link);
-                    }
-                    URL.revokeObjectURL(url);
-                    showMessage("テキストファイルを保存しました");
-                } catch (e) {
-                    console.error(e);
-                    showMessage("保存エラーが発生しました", true);
-                }
+                    const blob = new Blob([text], { type: 'text/plain' }); const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a'); link.download = `${prefix}-${Date.now()}.txt`; link.href = url;
+                    document.body.appendChild(link); link.click(); if (document.body.contains(link)) document.body.removeChild(link);
+                    URL.revokeObjectURL(url); showMessage("テキストファイルを保存しました");
+                } catch (e) { console.error(e); showMessage("保存エラーが発生しました", true); }
             };
 
-            // Enhanced download handler for multiple tabs
             elements.downloadBtn?.addEventListener('click', async () => {
                 const activeTabBtn = document.querySelector('.tab-btn.active');
                 const activeTab = activeTabBtn ? activeTabBtn.dataset.tab : 'cloud';
 
-                if (activeTab === 'cloud') {
-                    // Cloud -> Image
-                    const theme = THEMES[activeTheme];
-                    downloadCanvas(elements.cloudCanvas, theme.bg, `text-mining-${activeTheme}`);
-                } 
-                else if (activeTab === 'summary') {
-                    // Summary -> Text
-                    downloadText(elements.summaryContent.innerText, 'ai-summary');
-                }
-                else if (activeTab === 'original') {
-                    // Original -> Text
-                    downloadText(rawText || elements.originalContent.innerText, 'original-text');
-                }
+                if (activeTab === 'cloud') downloadCanvas(elements.cloudCanvas, THEMES[activeTheme].bg, `text-mining-${activeTheme}`);
+                else if (activeTab === 'summary') downloadText(elements.summaryContent.innerText, 'ai-summary');
+                else if (activeTab === 'original') downloadText(rawText || elements.originalContent.innerText, 'original-text');
                 else {
-                    // Analysis & Topics -> Image (html2canvas)
-                    const targetId = `tab-content-${activeTab}`;
-                    const targetElement = document.getElementById(targetId);
-                    
-                    if (!targetElement || targetElement.classList.contains('hidden')) {
-                        showMessage("保存するコンテンツが見つかりません", true);
-                        return;
-                    }
-
+                    const targetElement = document.getElementById(`tab-content-${activeTab}`);
+                    if (!targetElement || targetElement.classList.contains('hidden')) return showMessage("保存するコンテンツが見つかりません", true);
                     showMessage("画像を生成中...", false);
-
                     try {
                         const isDark = document.body.classList.contains('theme-midnight');
                         const bgColor = isDark ? '#0f172a' : '#f8fafc'; 
-
-                        const canvas = await html2canvas(targetElement, {
-                            backgroundColor: bgColor,
-                            scale: 2, 
-                            logging: false,
-                            useCORS: true,
-                            ignoreElements: (element) => element.id.includes('loading') // Skip loading indicators
-                        });
-
+                        const canvas = await html2canvas(targetElement, { backgroundColor: bgColor, scale: 2, logging: false, useCORS: true, ignoreElements: (element) => element.id.includes('loading') });
                         canvas.toBlob((blob) => {
                             try {
                                 if(!blob) throw new Error("Blob generation failed");
-                                const url = URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.download = `text-mining-${activeTab}-${Date.now()}.png`;
-                                link.href = url;
-                                document.body.appendChild(link);
-                                link.click();
-                                if (document.body.contains(link)) {
-                                    document.body.removeChild(link);
-                                }
-                                URL.revokeObjectURL(url);
-                                showMessage("画像を保存しました");
-                            } catch (blobError) {
-                                console.error("Blob callback error:", blobError);
-                                showMessage("保存中にエラーが発生しました", true);
-                            }
+                                const url = URL.createObjectURL(blob); const link = document.createElement('a');
+                                link.download = `text-mining-${activeTab}-${Date.now()}.png`; link.href = url;
+                                document.body.appendChild(link); link.click(); if (document.body.contains(link)) document.body.removeChild(link);
+                                URL.revokeObjectURL(url); showMessage("画像を保存しました");
+                            } catch (blobError) { console.error(blobError); showMessage("保存中にエラーが発生しました", true); }
                         }, 'image/png');
-                    } catch (e) {
-                        console.error(e);
-                        showMessage("保存エラーが発生しました", true);
-                    }
+                    } catch (e) { console.error(e); showMessage("保存エラーが発生しました", true); }
                 }
             });
 
             elements.modalDownloadBtn?.addEventListener('click', () => {
                 const style = elements.modalBgStyleSelect?.value || 'midnight';
                 let bgColor = '#0f172a';
-                if (style === 'glass') bgColor = '#ffffff';
-                if (style === 'black') bgColor = '#000000';
-                if (style === 'cream') bgColor = 'rgba(255, 253, 240, 0.98)';
-                if (style === 'sakura') bgColor = 'rgba(255, 241, 242, 0.98)';
-                if (style === 'forest') bgColor = 'rgba(2, 44, 34, 0.98)';
+                if (style === 'glass') bgColor = '#ffffff'; else if (style === 'black') bgColor = '#000000'; else if (style === 'cream') bgColor = 'rgba(255, 253, 240, 0.98)'; else if (style === 'sakura') bgColor = 'rgba(255, 241, 242, 0.98)'; else if (style === 'forest') bgColor = 'rgba(2, 44, 34, 0.98)';
                 downloadCanvas(elements.modalCanvas, bgColor, `text-mining-modal-${style}`);
             });
 
-            // --- Manual Input Logic ---
-            elements.openManualInputBtn?.addEventListener('click', () => {
-                elements.manualInputModal.style.display = 'flex';
-                elements.manualTextarea.focus();
-            });
-
-            elements.closeManualModalBtn?.addEventListener('click', () => {
-                elements.manualInputModal.style.display = 'none';
-            });
+            elements.openManualInputBtn?.addEventListener('click', () => { elements.manualInputModal.style.display = 'flex'; elements.manualTextarea.focus(); });
+            elements.closeManualModalBtn?.addEventListener('click', () => { elements.manualInputModal.style.display = 'none'; });
 
             elements.analyzeManualBtn?.addEventListener('click', () => {
                 const text = elements.manualTextarea.value.trim();
-                if (text.length < 10) {
-                    alert("テキストが短すぎます。");
-                    return;
-                }
+                if (text.length < 10) return alert("テキストが短すぎます。");
                 
-                // Close modal
-                elements.manualInputModal.style.display = 'none';
-                
-                // Clear file state
-                currentPdf = null;
-                elements.fileInput.value = "";
-                elements.forceOcrBtn.classList.add('hidden');
-                
-                // Update status
-                elements.fileStatus.textContent = "手動入力テキスト";
-                elements.loadingOverlay.classList.remove('hidden');
-                if (elements.loadingOverlay.querySelector('p')) {
-                    elements.loadingOverlay.querySelector('p').textContent = "テキストを解析中...";
-                }
+                elements.manualInputModal.style.display = 'none'; currentPdf = null; elements.fileInput.value = ""; elements.forceOcrBtn.classList.add('hidden');
+                elements.fileStatus.textContent = "手動入力テキスト"; elements.loadingOverlay.classList.remove('hidden');
+                if (elements.loadingOverlay.querySelector('p')) elements.loadingOverlay.querySelector('p').textContent = "テキストを解析中...";
 
-                // Process
                 setTimeout(() => {
                     try {
-                        rawText = text;
-                        processText(rawText);
-                        elements.originalContent.textContent = rawText;
-                        drawCloud();
-                        elements.loadingOverlay.classList.add('hidden');
+                        rawText = text; processText(rawText); elements.originalContent.textContent = rawText; drawCloud(); elements.loadingOverlay.classList.add('hidden');
                         showMessage("解析完了。AI分析をバックグラウンドで実行中...", false, 3000);
-                        
-                        // Use sequential AI processing like main flow
                         (async () => {
                             try {
-                                await fetchSummary(rawText);
-                                // 【修正】待機時間を延長
-                                await new Promise(r => setTimeout(r, 5000));
-                                await fetchTopics(rawText);
+                                await fetchSummary(rawText); await new Promise(r => setTimeout(r, 5000)); await fetchTopics(rawText);
                                 showMessage("解析成功");
-                            } catch (bgErr) {
-                                console.error(bgErr);
-                                showMessage("AI解析エラー: " + bgErr.message, true);
-                            }
+                            } catch (bgErr) { console.error(bgErr); showMessage("AI解析エラー: " + bgErr.message, true); }
                         })();
                     } catch (e) {
-                        console.error(e);
-                        showMessage("解析エラー: " + e.message, true);
-                        elements.loadingOverlay.classList.add('hidden');
+                        console.error(e); showMessage("解析エラー: " + e.message, true); elements.loadingOverlay.classList.add('hidden');
                     }
                 }, 100);
             });
