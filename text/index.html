@@ -1006,23 +1006,27 @@
 
                 if (response.status === 429 || response.status === 503) {
                     const errorMessage = responseJson?.error?.message || "";
-                    let delay = [10000, 30000, 60000, 90000, 120000][retryCount] || 60000; 
+                    let delay = [10000, 30000, 60000][retryCount] || 60000; 
                     const match = errorMessage.match(/retry in ([0-9.]+)/);
                     if (match && match[1]) {
                         delay = Math.ceil(parseFloat(match[1])) * 1000 + 5000;
                     }
                     if (!match && response.status === 429 && delay < 60000) delay = 60000;
 
-                    if (retryCount < 10) {
+                    if (retryCount < 2) {
                         console.warn(`Rate limit ${response.status} hit. Retrying in ${delay}ms...`);
-                        showMessage(`AIアクセス集中により待機中... (${retryCount + 1}/10回) 残り約${Math.ceil(delay/1000)}秒`, false, delay);
+                        showMessage(`APIの制限により待機中... (${retryCount + 1}/3回) 残り約${Math.ceil(delay/1000)}秒`, false, delay);
                         await new Promise(r => setTimeout(r, delay));
                         return callGeminiApi(payload, retryCount + 1);
                     }
                 }
 
                 if (!response.ok) {
-                    throw new Error(`API Error: ${response.status} - ${responseText}`);
+                    const errorMsg = responseJson?.error?.message || responseText;
+                    if (response.status === 429) {
+                        throw new Error(`APIの利用制限（無料枠の上限）に達しました。数十秒〜数分待ってから再度お試しください。\n(${errorMsg})`);
+                    }
+                    throw new Error(`API Error: ${response.status} - ${errorMsg}`);
                 }
                 return responseJson;
             } catch (e) {
@@ -1067,9 +1071,12 @@
                 if (e.message.includes('400') || e.message.includes('API key not valid')) {
                     msg = "APIキーが無効です。右上の「API設定」から正しいキーを入力してください。";
                     if(elements.apiSettingsModal) elements.apiSettingsModal.style.display = 'flex';
+                } else if (e.message.includes('利用制限')) {
+                    msg = "APIの無料枠利用制限に達しました。しばらく待ってから再度お試しください。";
                 }
                 if(summaryEl) summaryEl.textContent = "文脈分析に失敗しました。";
-                showMessage(msg, true, 10000);
+                // 単語単位でのポップアップエラーはうるさいので、大きな通知は出さない
+                console.warn(msg);
             }
         }
 
@@ -1116,25 +1123,53 @@
 
             elements.summaryLoading.classList.remove('hidden');
             elements.summaryContent.innerHTML = "";
-            try {
-                const res = await callGeminiApi({
-                    contents: [{ parts: [{ text: `この文書を構造的に要約し、日本語で専門的な視点から解説してください：\n\n${text.substring(0, 1000000)}` }] }],
-                    systemInstruction: { parts: [{ text: "詳細な構造的要約を作成するプロのアナリストAIです。" }] }
-                });
+            
+            const trySummary = async (charLimit, attemptName) => {
+                try {
+                    const res = await callGeminiApi({
+                        contents: [{ parts: [{ text: `この文書を構造的に要約し、日本語で専門的な視点から解説してください：\n\n${text.substring(0, charLimit)}` }] }],
+                        systemInstruction: { parts: [{ text: "詳細な構造的要約を作成するプロのアナリストAIです。" }] }
+                    });
 
-                const out = res.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (out) elements.summaryContent.innerHTML = out.replace(/\*\*(.*?)\*\*/g, '<strong class="text-blue-600 font-black">$1</strong>').replace(/\n/g, '<br>');
-            } catch (e) {
-                console.error(e);
-                let msg = `AIエラー: ${e.message}`;
-                if (e.message.includes('400') || e.message.includes('API key not valid') || e.message.includes('API key is missing')) {
-                    msg = "APIキーが無効です。右上の「API設定」から正しいキーを入力してください。";
-                    if(elements.apiSettingsModal) elements.apiSettingsModal.style.display = 'flex';
+                    const out = res.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (out) {
+                        elements.summaryContent.innerHTML = out.replace(/\*\*(.*?)\*\*/g, '<strong class="text-blue-600 font-black">$1</strong>').replace(/\n/g, '<br>');
+                        return true;
+                    }
+                    return false;
+                } catch (e) {
+                    console.warn(`Summary failed at ${charLimit} chars:`, e);
+                    if (e.message.includes('利用制限') || e.message.includes('429')) {
+                        throw e; // 429エラーの場合はフォールバックを止めて上位に投げる
+                    }
+                    return false;
                 }
-                elements.summaryContent.innerHTML = `<p class="text-red-500 font-bold">要約の生成に失敗しました。</p><p class="text-xs text-slate-500 mt-2">${msg}</p>`;
-                showMessage(msg, true, 10000);
+            };
+
+            let success = false;
+            try {
+                success = await trySummary(100000, "標準"); 
+                if (!success) {
+                    showMessage("解析に時間がかかっています。範囲を調整して再試行します...", false, 3000);
+                    success = await trySummary(30000, "軽量");
+                }
+                if (!success) {
+                    showMessage("再試行中...さらに範囲を絞って解析します", false, 3000);
+                    success = await trySummary(10000, "高速");
+                }
+            } catch (quotaError) {
+                elements.summaryContent.innerHTML = `<p class="text-red-500 font-bold">要約の生成に失敗しました。</p><p class="text-xs text-slate-500 mt-2">${quotaError.message}</p>`;
+                elements.summaryLoading.classList.add('hidden');
+                lucide.createIcons();
+                return;
             }
-            finally { elements.summaryLoading.classList.add('hidden'); lucide.createIcons(); }
+
+            if (!success) {
+                elements.summaryContent.innerHTML = `<p class="text-red-500 font-bold">要約の生成に失敗しました。</p><p class="text-xs text-slate-500 mt-2">テキストが長すぎるか、APIからの応答がありませんでした。</p>`;
+            }
+            
+            elements.summaryLoading.classList.add('hidden');
+            lucide.createIcons();
         }
 
         async function fetchTopics(text) {
@@ -1149,65 +1184,89 @@
             elements.topicsLoading.classList.remove('hidden');
             elements.topicsContent.innerHTML = "";
 
-            try {
-                const prompt = `
-                以下のテキストから、主要なトピックや論点を最大6つ抽出してください。
-                
-                # 制約事項
-                - 出力は純粋なJSON配列のみにしてください。
-                - Markdownのコードブロック（\`\`\`jsonなど）は含めないでください。
-                - 各トピックには、内容に適したアイコン名（lucide-reactのアイコン名）を1つ指定してください。
-                
-                # 出力フォーマット
-                [
-                    {"title": "短いタイトル（20文字以内）", "description": "要約説明（60文字以内）", "icon": "file-text"}
-                ]
+            const tryTopics = async (charLimit, attemptName) => {
+                try {
+                    const prompt = `
+                    以下のテキストから、主要なトピックや論点を最大6つ抽出してください。
+                    
+                    # 制約事項
+                    - 出力は純粋なJSON配列のみにしてください。
+                    - Markdownのコードブロック（\`\`\`jsonなど）は含めないでください。
+                    - 各トピックには、内容に適したアイコン名（lucide-reactのアイコン名）を1つ指定してください。
+                    
+                    # 出力フォーマット
+                    [
+                        {"title": "短いタイトル（20文字以内）", "description": "要約説明（60文字以内）", "icon": "file-text"}
+                    ]
 
-                # 対象テキスト
-                ${text.substring(0, 1000000)}
-                `;
+                    # 対象テキスト
+                    ${text.substring(0, charLimit)}
+                    `;
 
-                const res = await callGeminiApi({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    systemInstruction: { parts: [{ text: "JSON形式のみを出力するAPIです。余計な会話やMarkdown装飾は一切しません。" }] }
-                });
+                    const res = await callGeminiApi({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        systemInstruction: { parts: [{ text: "JSON形式のみを出力するAPIです。余計な会話やMarkdown装飾は一切しません。" }] }
+                    });
 
-                let jsonStr = res.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (jsonStr) {
-                    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
-                }
-                
-                const topics = JSON.parse(jsonStr);
+                    let jsonStr = res.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (jsonStr) {
+                        jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
+                        const start = jsonStr.indexOf('[');
+                        const end = jsonStr.lastIndexOf(']');
+                        if (start !== -1 && end !== -1) {
+                            jsonStr = jsonStr.substring(start, end + 1);
+                        }
+                    }
+                    
+                    const topics = JSON.parse(jsonStr);
 
-                if (Array.isArray(topics)) {
-                    elements.topicsContent.innerHTML = topics.map(t => `
-                        <div class="bg-white/80 p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition">
-                            <div class="flex items-start gap-3">
-                                <div class="bg-indigo-50 text-indigo-600 p-2.5 rounded-xl shrink-0">
-                                    <i data-lucide="${t.icon || 'hash'}" class="w-5 h-5"></i>
-                                </div>
-                                <div>
-                                    <h4 class="font-bold text-slate-800 text-sm mb-1">${t.title}</h4>
-                                    <p class="text-xs text-slate-500 leading-relaxed">${t.description}</p>
+                    if (Array.isArray(topics) && topics.length > 0) {
+                        elements.topicsContent.innerHTML = topics.map(t => `
+                            <div class="bg-white/80 p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition">
+                                <div class="flex items-start gap-3">
+                                    <div class="bg-indigo-50 text-indigo-600 p-2.5 rounded-xl shrink-0">
+                                        <i data-lucide="${t.icon || 'hash'}" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 text-sm mb-1">${t.title}</h4>
+                                        <p class="text-xs text-slate-500 leading-relaxed">${t.description}</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    `).join('');
-                } else {
-                    throw new Error("Invalid JSON format");
+                        `).join('');
+                        lucide.createIcons();
+                        return true;
+                    }
+                    return false;
+                } catch (e) {
+                    console.warn(`Topics failed at ${charLimit} chars:`, e);
+                    if (e.message.includes('利用制限') || e.message.includes('429')) {
+                        throw e; // 429エラーの場合はフォールバックを止めて上位に投げる
+                    }
+                    return false;
                 }
-                
-                lucide.createIcons();
+            };
 
-            } catch (e) {
-                console.error("Topics Error:", e);
-                elements.topicsContent.innerHTML = `<div class="col-span-1 md:col-span-2 text-red-400 text-xs text-center p-4">トピック分析に失敗しました: ${e.message}</div>`;
-                if (e.message.includes('400') || e.message.includes('API key not valid') || e.message.includes('API key is missing')) {
-                    if(elements.apiSettingsModal) elements.apiSettingsModal.style.display = 'flex';
+            let success = false;
+            try {
+                success = await tryTopics(100000, "標準"); 
+                if (!success) {
+                    success = await tryTopics(30000, "軽量");
                 }
-            } finally {
+                if (!success) {
+                    success = await tryTopics(10000, "高速");
+                }
+            } catch (quotaError) {
+                elements.topicsContent.innerHTML = `<div class="col-span-1 md:col-span-2 text-red-400 text-xs text-center p-4">トピック分析に失敗しました:<br>${quotaError.message}</div>`;
                 elements.topicsLoading.classList.add('hidden');
+                return;
             }
+
+            if (!success) {
+                elements.topicsContent.innerHTML = `<div class="col-span-1 md:col-span-2 text-red-400 text-xs text-center p-4">トピックの抽出に失敗しました。</div>`;
+            }
+            
+            elements.topicsLoading.classList.add('hidden');
         }
 
         async function performOcr(pdf) {
@@ -1343,7 +1402,7 @@
                         await fetchSummary(rawText);
                         await new Promise(r => setTimeout(r, 5000));
                         await fetchTopics(rawText);
-                        showMessage("全てのAI解析が完了しました", false, 3000);
+                        // showMessage("全てのAI解析が完了しました", false, 3000);
                     } catch (bgErr) {
                         console.error(bgErr);
                     }
@@ -1718,7 +1777,7 @@
                             try {
                                 await fetchSummary(rawText); await new Promise(r => setTimeout(r, 5000)); await fetchTopics(rawText);
                                 showMessage("解析成功");
-                            } catch (bgErr) { console.error(bgErr); showMessage("AI解析エラー: " + bgErr.message, true); }
+                            } catch (bgErr) { console.error(bgErr); }
                         })();
                     } catch (e) {
                         console.error(e); showMessage("解析エラー: " + e.message, true); elements.loadingOverlay.classList.add('hidden');
