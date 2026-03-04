@@ -49,9 +49,15 @@
   <!-- Info Bar -->
   <div class="bg-white border-b border-slate-200 shadow-sm sticky top-[76px] sm:top-[88px] z-10 hidden sm:block">
     <div class="max-w-7xl mx-auto px-6 py-2 flex items-center justify-between text-sm text-slate-500">
-      <div class="flex items-center gap-2">
-        <i data-lucide="info" class="w-4 h-4 text-blue-500"></i>
-        <span id="session-info-display">対象: 全ての回次</span>
+      <div class="flex items-center gap-1">
+        <i data-lucide="info" class="w-4 h-4 text-blue-500 mr-1"></i>
+        <span>対象:</span>
+        <div class="relative">
+          <select id="session-select-header" class="pl-2 pr-7 py-1 bg-transparent font-bold text-slate-700 text-base appearance-none outline-none cursor-pointer hover:bg-slate-100 rounded transition-colors disabled:opacity-50" disabled>
+            <option value="all">全ての回次</option>
+          </select>
+          <i data-lucide="chevron-down" class="absolute right-1 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none"></i>
+        </div>
       </div>
       <div class="flex items-center gap-2">
         <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
@@ -317,9 +323,7 @@
     const db = getFirestore(app);
 
     // グローバルデータ
-    // ALL_DATAは結合された全データを持つ
     let ALL_DATA = [];
-    // セッションメタデータ管理用
     let SESSION_METADATA = { sessions: [] }; 
     let isDataLoaded = false;
     
@@ -327,7 +331,7 @@
       filterText: "",
       selectedHouse: "all",
       selectedCategory: "all",
-      selectedSession: null, // "all"から変更（初期データ取得後に最新をセットするため）
+      selectedSession: null, 
       sortKey: null,
       sortDirection: 'asc',
       viewMode: "table"
@@ -342,19 +346,15 @@
         await signInAnonymously(auth);
       } catch (e) {
         console.warn("Firebase Auth Error (Anonymous):", e);
-        // 認証に失敗しても後続の処理を止めない（フォールバックで動かす）
       }
       
       await refreshAllData();
     });
 
     // --- データ取得ロジック ---
-
-    // 全データを再取得して表示更新
     async function refreshAllData() {
       renderLoading("データを読み込んでいます...");
       try {
-        // 1. 設定(メタデータ)を取得
         const configRef = doc(db, "dashboard_data", "config");
         const configSnap = await getDoc(configRef);
         
@@ -365,7 +365,6 @@
           SESSION_METADATA = { sessions: [] };
         }
 
-        // 2. 各セッションのデータを並列取得
         const promises = SESSION_METADATA.sessions.map(s => getDoc(doc(db, "dashboard_data", `data_${s.id}`)));
         const snapshots = await Promise.all(promises);
 
@@ -379,7 +378,6 @@
             const sessionName = sessionInfo.name;
             const items = JSON.parse(dataObj.json_string || "[]");
             
-            // データにセッション情報を付与
             items.forEach(item => {
               item._session_id = sessionInfo.id;
               item._session_name = sessionName;
@@ -387,7 +385,6 @@
             
             combinedData = combinedData.concat(items);
 
-            // 最新更新日時の判定
             const upDate = new Date(sessionInfo.updatedAt);
             if (!latestUpdate || upDate > latestUpdate) {
               latestUpdate = upDate;
@@ -397,7 +394,6 @@
 
         ALL_DATA = combinedData;
 
-        // UI更新
         if (latestUpdate) {
           document.getElementById('load-date-display').textContent = `データ読込日: ${formatDate(latestUpdate)}`;
         } else {
@@ -406,20 +402,18 @@
 
       } catch (e) {
         console.error("Data Load Error:", e);
-        // エラー時でも画面を復旧させる
         document.getElementById('load-date-display').textContent = `オフライン (Firebase未接続)`;
       } finally {
         isDataLoaded = true;
         enableUI();
         initFilterOptions();
         renderDashboard();
-        renderSessionListInModal(); // 管理モーダルのリストも更新
+        renderSessionListInModal(); 
       }
     }
 
     // --- 管理機能ロジック ---
 
-    // カスタムダイアログの実装
     window.showCustomDialog = function(options) {
       return new Promise((resolve) => {
         const overlay = document.getElementById('custom-dialog-overlay');
@@ -462,7 +456,7 @@
 
         btnOk.onclick = () => {
           if (options.type === 'password') {
-            if (inputEl.value === 'shitsumon') { // パスワード設定
+            if (inputEl.value === 'shitsumon') { 
               closeDialog();
               resolve(true);
             } else {
@@ -492,7 +486,6 @@
       return showCustomDialog({ type: 'confirm', title, message, okText: '実行' });
     };
 
-    // パスワード認証を要求してから管理モーダルを開く関数
     window.requirePasswordAndOpenAdmin = async function() {
       const isAuthenticated = await showCustomDialog({
         type: 'password',
@@ -505,7 +498,6 @@
     };
 
 
-    // アップロード実行
     document.getElementById('btn-execute-upload').addEventListener('click', async function() {
       const fileInput = document.getElementById('file-upload');
       const file = fileInput.files[0];
@@ -517,7 +509,6 @@
       const mode = document.querySelector('input[name="upload-mode"]:checked').value;
       const fileName = file.name;
 
-      // ファイル名からセッション名を抽出 (例: "第219回" or "219")
       let sessionId = "";
       let sessionName = "";
       
@@ -549,7 +540,6 @@
             return;
           }
 
-          // アップロード中表示
           const btn = document.getElementById('btn-execute-upload');
           const originalText = btn.innerHTML;
           btn.disabled = true;
@@ -559,15 +549,11 @@
           let finalItems = newItems;
           let isFirebaseSuccess = true;
 
-          // 追加モードの処理（ローカルデータの状態を優先して結合）
           if (mode === 'append') {
             try {
               const existingLocal = ALL_DATA.filter(d => String(d._session_id) === String(sessionId));
-              
-              // 同じ回次の同一IDは追加登録しない（重複排除）
               const existingIds = new Set(existingLocal.map(item => String(item.id)));
               const itemsToAdd = newItems.filter(item => !existingIds.has(String(item.id)));
-              
               finalItems = existingLocal.concat(itemsToAdd);
               
               if (itemsToAdd.length === 0) {
@@ -578,7 +564,6 @@
             }
           }
 
-          // メタデータ生成
           let sessions = SESSION_METADATA.sessions || [];
           const existingIndex = sessions.findIndex(s => s.id === String(sessionId));
           const sessionInfo = {
@@ -600,12 +585,10 @@
             });
           }
 
-          // 1. 実データとメタデータをFirebaseに保存
           try {
             const dataDocRef = doc(db, "dashboard_data", `data_${sessionId}`);
             const configRef = doc(db, "dashboard_data", "config");
             
-            // 同期保存
             await setDoc(dataDocRef, {
               json_string: JSON.stringify(finalItems),
               updatedAt: new Date().toISOString()
@@ -614,13 +597,11 @@
               sessions: sessions,
               lastUpdatedAt: new Date().toISOString()
             });
-
           } catch (fbError) {
              console.error("Firebase save error:", fbError);
              isFirebaseSuccess = false;
           }
 
-          // 2. ローカルデータの更新（Firebase保存失敗時でもUIに反映させるため）
           SESSION_METADATA.sessions = sessions;
           
           ALL_DATA = ALL_DATA.filter(d => String(d._session_id) !== String(sessionId));
@@ -636,13 +617,12 @@
             await customAlert("Firebaseへの保存に失敗しました。\n(Firestoreのセキュリティルールや認証設定を確認してください。)\n\n※リロードするまでは一時的に画面に表示されます。", "警告");
           }
           
-          fileInput.value = ""; // クリア
+          fileInput.value = ""; 
           
-          // ステータスのリセット
           state.filterText = "";
           state.selectedHouse = "all";
           state.selectedCategory = "all";
-          state.selectedSession = String(sessionId); // アップロードした回次をデフォルトに
+          state.selectedSession = String(sessionId); 
           state.sortKey = null;
           state.sortDirection = "asc";
           document.getElementById('search-input').value = "";
@@ -656,12 +636,10 @@
           renderSessionListInModal();
           renderDashboard();
           
-          // ボタン復帰
           btn.disabled = false;
           btn.innerHTML = originalText;
           lucide.createIcons();
 
-          // アップロード完了後に管理モーダルを閉じる
           window.closeAdminModal();
 
         } catch (error) {
@@ -676,7 +654,6 @@
       reader.readAsArrayBuffer(file);
     });
 
-    // 削除機能（グローバル公開）
     window.deleteSession = async function(sessionId) {
       const conf = await customConfirm("この国会回次のデータを削除しますか？");
       if (!conf) return;
@@ -685,7 +662,6 @@
       let sessions = SESSION_METADATA.sessions.filter(s => s.id !== String(sessionId));
 
       try {
-        // 1. 実データ削除とメタデータ更新
         await deleteDoc(doc(db, "dashboard_data", `data_${sessionId}`));
         await setDoc(doc(db, "dashboard_data", "config"), {
           sessions: sessions,
@@ -696,7 +672,6 @@
         isFirebaseSuccess = false;
       }
 
-      // ローカルデータを更新
       SESSION_METADATA.sessions = sessions;
       ALL_DATA = ALL_DATA.filter(d => String(d._session_id) !== String(sessionId));
 
@@ -710,7 +685,6 @@
         await customAlert("Firebaseのデータ削除に失敗しました。\n画面上からは一時的に消去されました。", "警告");
       }
       
-      // 削除完了後に管理モーダルを閉じる
       window.closeAdminModal();
     };
 
@@ -721,11 +695,9 @@
       let isFirebaseSuccess = true;
 
       try {
-        // 全てのセッションデータドキュメントを削除
         const promises = SESSION_METADATA.sessions.map(s => deleteDoc(doc(db, "dashboard_data", `data_${s.id}`)));
         await Promise.all(promises);
 
-        // configも初期化
         await setDoc(doc(db, "dashboard_data", "config"), {
           sessions: [],
           lastUpdatedAt: new Date().toISOString()
@@ -735,7 +707,6 @@
         isFirebaseSuccess = false;
       }
 
-      // ローカルデータをクリア
       SESSION_METADATA.sessions = [];
       ALL_DATA = [];
 
@@ -749,7 +720,6 @@
         await customAlert("Firebaseの全データ削除に失敗しました。\n画面上からは一時的に消去されました。", "警告");
       }
       
-      // 全削除完了後に管理モーダルを閉じる
       window.closeAdminModal();
     };
 
@@ -761,7 +731,6 @@
     // --- UI/表示関連 ---
 
     function initFilterOptions() {
-      // 分野
       const cats = new Set(ALL_DATA.map(d => d.category).filter(Boolean));
       const sortedCats = Array.from(cats).sort((a, b) => {
         if (a === "その他" || a === "その他・不明") return 1;
@@ -777,25 +746,25 @@
         catSelect.appendChild(option);
       });
 
-      // 国会回次
       const sessionSelect = document.getElementById('session-select');
+      const sessionSelectHeader = document.getElementById('session-select-header');
       sessionSelect.innerHTML = '';
+      sessionSelectHeader.innerHTML = '';
       
-      // メタデータからセッションリストを作成（最新が上になるように）
       SESSION_METADATA.sessions.forEach(s => {
         const option = document.createElement('option');
         option.value = s.id;
         option.textContent = s.name;
-        sessionSelect.appendChild(option);
+        sessionSelect.appendChild(option.cloneNode(true));
+        sessionSelectHeader.appendChild(option.cloneNode(true));
       });
 
-      // 全ての回次を最後に追加
       const allOption = document.createElement('option');
       allOption.value = "all";
       allOption.textContent = "全ての回次";
-      sessionSelect.appendChild(allOption);
+      sessionSelect.appendChild(allOption.cloneNode(true));
+      sessionSelectHeader.appendChild(allOption.cloneNode(true));
       
-      // 初回ロード時等で未設定の場合は最新の回次をデフォルトにする
       if (state.selectedSession === null) {
         if (SESSION_METADATA.sessions.length > 0) {
           state.selectedSession = SESSION_METADATA.sessions[0].id;
@@ -804,8 +773,8 @@
         }
       }
       
-      // 既存の選択状態を復元
       sessionSelect.value = state.selectedSession;
+      sessionSelectHeader.value = state.selectedSession;
       catSelect.value = state.selectedCategory;
     }
 
@@ -874,11 +843,10 @@
       });
     }
 
-    // グローバル公開関数
     window.openAdminModal = function() {
       document.getElementById('admin-modal').classList.remove('hidden');
       document.body.classList.add('modal-active');
-      renderSessionListInModal(); // 最新状態で表示
+      renderSessionListInModal(); 
     };
 
     window.closeAdminModal = function(event) {
@@ -887,18 +855,21 @@
       document.body.classList.remove('modal-active');
     };
 
-    // フィルタ変更時のハンドラ
-    window.handleSessionChange = function(e) {
-      state.selectedSession = e.target.value;
-      renderDashboard();
-    };
-
-    // 既存のハンドラと統合
     function setupEventListeners() {
       document.getElementById('search-input').addEventListener('input', (e) => { state.filterText = e.target.value; renderDashboard(); });
       document.getElementById('house-select').addEventListener('change', (e) => { state.selectedHouse = e.target.value; renderDashboard(); });
       document.getElementById('category-select').addEventListener('change', (e) => { state.selectedCategory = e.target.value; renderDashboard(); });
-      document.getElementById('session-select').addEventListener('change', (e) => { state.selectedSession = e.target.value; renderDashboard(); });
+      
+      document.getElementById('session-select-header').addEventListener('change', (e) => { 
+        state.selectedSession = e.target.value; 
+        document.getElementById('session-select').value = e.target.value;
+        renderDashboard(); 
+      });
+      document.getElementById('session-select').addEventListener('change', (e) => { 
+        state.selectedSession = e.target.value; 
+        document.getElementById('session-select-header').value = e.target.value;
+        renderDashboard(); 
+      });
       
       document.getElementById('view-table').addEventListener('click', () => { state.viewMode = 'table'; renderDashboard(); });
       document.getElementById('view-card').addEventListener('click', () => { state.viewMode = 'card'; renderDashboard(); });
@@ -906,7 +877,6 @@
       document.getElementById('clear-all-filters').addEventListener('click', () => {
         state.filterText = ""; state.selectedHouse = "all"; state.selectedCategory = "all";
         
-        // クリア時は最新の回次に戻す
         if (SESSION_METADATA.sessions.length > 0) {
           state.selectedSession = SESSION_METADATA.sessions[0].id;
         } else {
@@ -919,6 +889,7 @@
         document.getElementById('house-select').value = "all";
         document.getElementById('category-select').value = "all";
         document.getElementById('session-select').value = state.selectedSession;
+        document.getElementById('session-select-header').value = state.selectedSession;
         renderDashboard();
       });
       
@@ -928,8 +899,6 @@
         renderDashboard(); 
       });
     }
-
-    // 以下、表示用ヘルパー関数群（ソート、統計、リスト表示など）は既存ロジックを流用・調整
     
     window.filterByCategory = function(category) {
       state.selectedCategory = category;
@@ -1033,7 +1002,6 @@
       const total = data.length;
       const parts = [];
       
-      // 1. 分野の傾向
       if (stats.sortedCategories.length > 0) {
         const [topCat, topCount] = stats.sortedCategories[0];
         const ratio = Math.round((topCount / total) * 100);
@@ -1044,7 +1012,6 @@
         }
       }
       
-      // 2. 院の傾向
       const houseRatio = (stats.houseCount['衆議院'] || 0) / total;
       if (houseRatio > 0.7) {
         parts.push("主に**衆議院**からの提出が中心となっています。");
@@ -1052,7 +1019,6 @@
         parts.push("主に**参議院**からの提出が中心となっています。");
       }
       
-      // 3. 提出者の傾向
       if (stats.sortedQuestioners.length > 0) {
         const [topName, topCount] = stats.sortedQuestioners[0];
         if (topCount > 1 && (topCount / total) > 0.15) {
@@ -1060,7 +1026,6 @@
         }
       }
       
-      // 4. 答弁の傾向分析
       let counts = { consideration: 0, difficulty: 0, statusQuo: 0 };
       data.forEach(d => {
         const s = (d.answer_point_summary || d.answer_point || d.question_point || "").replace(/\s+/g, '');
@@ -1096,7 +1061,7 @@
             <p class="text-sm text-slate-500 max-w-md mx-auto mb-4">
               画面右上の「データ管理」ボタンから、エクセル（.xlsx）またはCSVファイルをアップロードしてください。
             </p>
-            <button onclick="openAdminModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors">データ管理を開く</button>
+            <button onclick="requirePasswordAndOpenAdmin()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors">データ管理を開く</button>
           </div>`;
         return;
       }
@@ -1159,6 +1124,7 @@
       document.getElementById('house-select').disabled = false;
       document.getElementById('category-select').disabled = false;
       document.getElementById('session-select').disabled = false;
+      document.getElementById('session-select-header').disabled = false;
       document.getElementById('view-table').disabled = false;
       document.getElementById('view-card').disabled = false;
     }
@@ -1180,13 +1146,9 @@
       document.getElementById('clear-all-filters').classList.toggle('hidden', !isFilterActive);
       document.getElementById('clear-search').classList.toggle('hidden', !state.filterText);
       
-      // 対象: 表示更新
-      const infoDisplay = document.getElementById('session-info-display');
-      if (state.selectedSession && state.selectedSession !== 'all') {
-        const sName = SESSION_METADATA.sessions.find(s => s.id === String(state.selectedSession))?.name || '';
-        infoDisplay.innerHTML = `対象: <span class="font-bold text-slate-700 text-base">${sName}</span>`;
-      } else {
-        infoDisplay.innerHTML = `対象: <span class="font-bold text-slate-700 text-base">全ての回次</span>`;
+      const headerSelect = document.getElementById('session-select-header');
+      if (headerSelect) {
+        headerSelect.value = state.selectedSession || 'all';
       }
     }
 
@@ -1197,7 +1159,6 @@
 
     // Modal
     window.openModal = function(id, sessionId) {
-      // sessionIDも考慮して検索 (ID重複対策)
       const item = ALL_DATA.find(d => String(d.id) === String(id) && String(d._session_id) === String(sessionId));
       if (!item) return;
 
