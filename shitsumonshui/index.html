@@ -152,6 +152,1152 @@
   </footer>
 
   <!-- Admin Modal -->
+  <div id="admin-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4 backdrop-blur-sm modal" onclick="closeAdminModal(event)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col fade-in" onclick="event.stopPropagation()">
+      <div class="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
+        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+          <i data-lucide="database" class="w-6 h-6 text-blue-600"></i>
+          データ管理
+        </h2>
+        <button onclick="closeAdminModal()" class="text-slate-400 hover:text-slate-600 p-1 bg-slate-100 rounded-full transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      
+      <div class="p-6 space-y-8">
+        
+        <!-- Section 1: Upload -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-bold text-slate-700 border-l-4 border-blue-500 pl-3">データのアップロード</h3>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-slate-700 mb-2">1. ファイルを選択 (CSV / Excel)</label>
+              <input type="file" id="file-upload" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+              <p class="text-xs text-slate-500 mt-1">※ ファイル名に「第〇〇回」や数字を含めると、自動で国会回次として認識します（例: 質問主意書_第219回.xlsx）。</p>
+            </div>
+            
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-slate-700 mb-2">2. 登録方法を選択</label>
+              <div class="flex gap-4">
+                <label class="flex items-center">
+                  <input type="radio" name="upload-mode" value="replace" checked class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300">
+                  <span class="ml-2 text-sm text-slate-700">上書き登録 <span class="text-xs text-slate-400">（この回次の既存データを消して登録）</span></span>
+                </label>
+                <label class="flex items-center">
+                  <input type="radio" name="upload-mode" value="append" class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300">
+                  <span class="ml-2 text-sm text-slate-700">追加登録 <span class="text-xs text-slate-400">（この回次の既存データに追加）</span></span>
+                </label>
+              </div>
+            </div>
+
+            <button id="btn-execute-upload" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+              <i data-lucide="upload" class="w-4 h-4"></i> アップロード実行
+            </button>
+          </div>
+        </div>
+
+        <!-- Section 2: Session List -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-bold text-slate-700 border-l-4 border-green-500 pl-3">登録済みデータ一覧</h3>
+          <div class="overflow-hidden border border-slate-200 rounded-lg">
+            <table class="min-w-full divide-y divide-slate-200">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">国会回次</th>
+                  <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">データ件数</th>
+                  <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">更新日時</th>
+                  <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">操作</th>
+                </tr>
+              </thead>
+              <tbody id="session-list-body" class="bg-white divide-y divide-slate-200">
+                <tr><td colspan="4" class="px-4 py-4 text-center text-sm text-slate-500">データを読み込み中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 3: Danger Zone -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-bold text-red-700 border-l-4 border-red-500 pl-3">全データ削除</h3>
+          <div class="bg-red-50 p-4 rounded-xl border border-red-200 flex items-center justify-between">
+            <p class="text-sm text-red-600">全ての国会回次のデータを削除します。この操作は取り消せません。</p>
+            <button onclick="deleteAllData()" class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-2 px-4 rounded-lg transition-colors whitespace-nowrap">
+              全削除実行
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail Modal -->
+  <div id="modal-overlay" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4 backdrop-blur-sm" onclick="closeModal(event)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col fade-in" onclick="event.stopPropagation()">
+      <div class="p-6 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white z-10">
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <span id="modal-session-badge" class="px-2 py-0.5 rounded text-xs font-bold text-white bg-slate-500"></span>
+            <span id="modal-house-badge" class="px-2 py-0.5 rounded text-xs font-bold text-white"></span>
+            <span id="modal-id" class="text-slate-400 text-sm font-mono"></span>
+          </div>
+          <h2 id="modal-title" class="text-xl font-bold text-slate-800 leading-snug"></h2>
+        </div>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1 bg-slate-100 rounded-full transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="p-6 space-y-6">
+        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg text-sm border border-slate-100">
+          <div>
+            <span class="block text-xs text-slate-500 mb-1">提出者</span>
+            <span id="modal-questioner" class="font-medium text-slate-800"></span>
+          </div>
+          <div>
+            <span class="block text-xs text-slate-500 mb-1">分野</span>
+            <span id="modal-category" class="font-medium text-slate-800"></span>
+          </div>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wide mb-2 flex items-center gap-2">
+            <i data-lucide="file-text" class="w-4 h-4 text-blue-500"></i>
+            答弁要約
+          </h3>
+          <div id="modal-summary" class="bg-blue-50/50 p-5 rounded-lg border border-blue-100 text-slate-700 leading-relaxed text-sm shadow-sm"></div>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wide mb-3">公式リンク</h3>
+          <div id="modal-links" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        </div>
+      </div>
+      <div class="p-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+        <button onclick="closeModal()" class="w-full py-2 bg-white border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors">
+          閉じる
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Dialog (Password / Alert / Confirm) -->
+  <div id="custom-dialog-overlay" class="fixed inset-0 bg-black/50 z-[100] hidden items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col fade-in">
+      <div class="p-6">
+        <h3 class="text-lg font-bold text-slate-800 mb-2" id="custom-dialog-title">確認</h3>
+        <p class="text-sm text-slate-600 mb-4" id="custom-dialog-msg"></p>
+        
+        <div id="custom-dialog-input-container" class="hidden">
+          <input type="password" id="custom-dialog-input" class="w-full pl-3 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="パスワードを入力">
+          <p id="custom-dialog-error" class="text-xs text-red-500 mt-1 hidden">パスワードが間違っています</p>
+        </div>
+      </div>
+      
+      <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+        <button id="custom-dialog-cancel" class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+          キャンセル
+        </button>
+        <button id="custom-dialog-ok" class="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+          確認
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // ユーザー指定のFirebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs",
+      authDomain: "user-9b981.firebaseapp.com",
+      projectId: "user-9b981",
+      storageBucket: "user-9b981.firebasestorage.app",
+      messagingSenderId: "774702274914",
+      appId: "1:774702274914:web:d1cc06c0d191b77878743b",
+      measurementId: "G-X653ZLYV5V"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // グローバルデータ
+    let ALL_DATA = [];
+    let SESSION_METADATA = { sessions: [] }; 
+    let isDataLoaded = false;
+    
+    let state = {
+      filterText: "",
+      selectedHouse: "all",
+      selectedCategory: "all",
+      selectedSession: null, 
+      sortKey: null,
+      sortDirection: 'asc',
+      viewMode: "table"
+    };
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      renderLoading();
+      setupEventListeners();
+
+      try {
+        await signInAnonymously(auth);
+      } catch (e) {
+        console.warn("Firebase Auth Error (Anonymous):", e);
+      }
+      
+      await refreshAllData();
+    });
+
+    // --- データ取得ロジック ---
+    async function refreshAllData() {
+      renderLoading("データを読み込んでいます...");
+      try {
+        const configRef = doc(db, "dashboard_data", "config");
+        const configSnap = await getDoc(configRef);
+        
+        if (configSnap.exists()) {
+          SESSION_METADATA = configSnap.data();
+          if (!SESSION_METADATA.sessions) SESSION_METADATA.sessions = [];
+        } else {
+          SESSION_METADATA = { sessions: [] };
+        }
+
+        const promises = SESSION_METADATA.sessions.map(s => getDoc(doc(db, "dashboard_data", `data_${s.id}`)));
+        const snapshots = await Promise.all(promises);
+
+        let combinedData = [];
+        let latestUpdate = null;
+
+        snapshots.forEach((snap, index) => {
+          if (snap.exists()) {
+            const dataObj = snap.data();
+            const sessionInfo = SESSION_METADATA.sessions[index];
+            const sessionName = sessionInfo.name;
+            const items = JSON.parse(dataObj.json_string || "[]");
+            
+            items.forEach(item => {
+              item._session_id = sessionInfo.id;
+              item._session_name = sessionName;
+            });
+            
+            combinedData = combinedData.concat(items);
+
+            const upDate = new Date(sessionInfo.updatedAt);
+            if (!latestUpdate || upDate > latestUpdate) {
+              latestUpdate = upDate;
+            }
+          }
+        });
+
+        ALL_DATA = combinedData;
+
+        if (latestUpdate) {
+          document.getElementById('load-date-display').textContent = `データ読込日: ${formatDate(latestUpdate)}`;
+        } else {
+          document.getElementById('load-date-display').textContent = `データ未登録`;
+        }
+
+      } catch (e) {
+        console.error("Data Load Error:", e);
+        document.getElementById('load-date-display').textContent = `オフライン (Firebase未接続)`;
+      } finally {
+        isDataLoaded = true;
+        enableUI();
+        initFilterOptions();
+        renderDashboard();
+        renderSessionListInModal(); 
+      }
+    }
+
+    // --- 管理機能ロジック ---
+
+    window.showCustomDialog = function(options) {
+      return new Promise((resolve) => {
+        const overlay = document.getElementById('custom-dialog-overlay');
+        const titleEl = document.getElementById('custom-dialog-title');
+        const msgEl = document.getElementById('custom-dialog-msg');
+        const inputContainer = document.getElementById('custom-dialog-input-container');
+        const inputEl = document.getElementById('custom-dialog-input');
+        const errorEl = document.getElementById('custom-dialog-error');
+        const btnCancel = document.getElementById('custom-dialog-cancel');
+        const btnOk = document.getElementById('custom-dialog-ok');
+
+        titleEl.textContent = options.title || '確認';
+        msgEl.innerHTML = (options.message || '').replace(/\n/g, '<br>');
+        
+        if (options.type === 'password') {
+          inputContainer.classList.remove('hidden');
+          inputEl.value = '';
+          errorEl.classList.add('hidden');
+          setTimeout(() => inputEl.focus(), 100);
+        } else {
+          inputContainer.classList.add('hidden');
+        }
+
+        if (options.type === 'alert') {
+          btnCancel.classList.add('hidden');
+          btnOk.textContent = 'OK';
+        } else {
+          btnCancel.classList.remove('hidden');
+          btnOk.textContent = options.okText || '確認';
+        }
+
+        const closeDialog = () => {
+          overlay.classList.add('hidden');
+          overlay.classList.remove('flex');
+        };
+
+        btnCancel.onclick = () => {
+          closeDialog();
+          resolve(false);
+        };
+
+        btnOk.onclick = () => {
+          if (options.type === 'password') {
+            if (inputEl.value === 'shitsumon') { 
+              closeDialog();
+              resolve(true);
+            } else {
+              errorEl.classList.remove('hidden');
+            }
+          } else {
+            closeDialog();
+            resolve(true);
+          }
+        };
+
+        inputEl.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            btnOk.click();
+          }
+        };
+
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+      });
+    };
+
+    window.customAlert = (message, title = "お知らせ") => {
+      return showCustomDialog({ type: 'alert', title, message });
+    };
+
+    window.customConfirm = (message, title = "確認") => {
+      return showCustomDialog({ type: 'confirm', title, message, okText: '実行' });
+    };
+
+    window.requirePasswordAndOpenAdmin = async function() {
+      const isAuthenticated = await showCustomDialog({
+        type: 'password',
+        title: '認証',
+        message: 'データ管理画面にアクセスするには、\nパスワードを入力してください。'
+      });
+      if (isAuthenticated) {
+        openAdminModal();
+      }
+    };
+
+
+    document.getElementById('btn-execute-upload').addEventListener('click', async function() {
+      const fileInput = document.getElementById('file-upload');
+      const file = fileInput.files[0];
+      if (!file) {
+        await customAlert("ファイルを選択してください。");
+        return;
+      }
+
+      const mode = document.querySelector('input[name="upload-mode"]:checked').value;
+      const fileName = file.name;
+
+      let sessionId = "";
+      let sessionName = "";
+      
+      const match = fileName.match(/第(\d+)回/);
+      const matchNum = fileName.match(/(\d+)/);
+
+      if (match) {
+        sessionId = match[1];
+        sessionName = `第${sessionId}回国会`;
+      } else if (matchNum) {
+        sessionId = matchNum[1];
+        sessionName = `第${sessionId}回国会`;
+      } else {
+        sessionId = "other_" + new Date().getTime();
+        sessionName = "その他データ (" + fileName + ")";
+      }
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, {type: 'array'});
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const newItems = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+          if (newItems.length === 0) {
+            await customAlert("データが含まれていません。");
+            return;
+          }
+
+          const btn = document.getElementById('btn-execute-upload');
+          const originalText = btn.innerHTML;
+          btn.disabled = true;
+          btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> 処理中...`;
+          lucide.createIcons();
+
+          let finalItems = newItems;
+          let isFirebaseSuccess = true;
+
+          if (mode === 'append') {
+            try {
+              const existingLocal = ALL_DATA.filter(d => String(d._session_id) === String(sessionId));
+              const existingIds = new Set(existingLocal.map(item => String(item.id)));
+              const itemsToAdd = newItems.filter(item => !existingIds.has(String(item.id)));
+              finalItems = existingLocal.concat(itemsToAdd);
+              
+              if (itemsToAdd.length === 0) {
+                console.log("追加する新しいIDのデータがありませんでした。");
+              }
+            } catch(e) {
+              console.warn("Append Error:", e);
+            }
+          }
+
+          let sessions = SESSION_METADATA.sessions || [];
+          const existingIndex = sessions.findIndex(s => s.id === String(sessionId));
+          const sessionInfo = {
+            id: String(sessionId),
+            name: sessionName,
+            count: finalItems.length,
+            updatedAt: new Date().toISOString(),
+            fileName: fileName
+          };
+
+          if (existingIndex >= 0) {
+            sessions[existingIndex] = sessionInfo;
+          } else {
+            sessions.push(sessionInfo);
+            sessions.sort((a, b) => {
+              const aNum = parseInt(a.id) || 0;
+              const bNum = parseInt(b.id) || 0;
+              return bNum - aNum;
+            });
+          }
+
+          try {
+            const dataDocRef = doc(db, "dashboard_data", `data_${sessionId}`);
+            const configRef = doc(db, "dashboard_data", "config");
+            
+            await setDoc(dataDocRef, {
+              json_string: JSON.stringify(finalItems),
+              updatedAt: new Date().toISOString()
+            });
+            await setDoc(configRef, { 
+              sessions: sessions,
+              lastUpdatedAt: new Date().toISOString()
+            });
+          } catch (fbError) {
+             console.error("Firebase save error:", fbError);
+             isFirebaseSuccess = false;
+          }
+
+          SESSION_METADATA.sessions = sessions;
+          
+          ALL_DATA = ALL_DATA.filter(d => String(d._session_id) !== String(sessionId));
+          finalItems.forEach(item => {
+            item._session_id = String(sessionId);
+            item._session_name = sessionName;
+          });
+          ALL_DATA = ALL_DATA.concat(finalItems);
+
+          if (isFirebaseSuccess) {
+            await customAlert("データの保存が完了しました。");
+          } else {
+            await customAlert("Firebaseへの保存に失敗しました。\n(Firestoreのセキュリティルールや認証設定を確認してください。)\n\n※リロードするまでは一時的に画面に表示されます。", "警告");
+          }
+          
+          fileInput.value = ""; 
+          
+          state.filterText = "";
+          state.selectedHouse = "all";
+          state.selectedCategory = "all";
+          state.selectedSession = String(sessionId); 
+          state.sortKey = null;
+          state.sortDirection = "asc";
+          document.getElementById('search-input').value = "";
+          document.getElementById('house-select').value = "all";
+          
+          const today = new Date();
+          document.getElementById('load-date-display').textContent = `データ読込日: ${formatDate(today)}`;
+          
+          enableUI();
+          initFilterOptions();
+          renderSessionListInModal();
+          renderDashboard();
+          
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+          lucide.createIcons();
+
+          window.closeAdminModal();
+
+        } catch (error) {
+          console.error("Upload Error:", error);
+          await customAlert("エラーが発生しました: " + error.message, "エラー");
+          const btn = document.getElementById('btn-execute-upload');
+          btn.disabled = false;
+          btn.innerHTML = `<i data-lucide="upload" class="w-4 h-4"></i> アップロード実行`;
+          lucide.createIcons();
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    window.deleteSession = async function(sessionId) {
+      const conf = await customConfirm("この国会回次のデータを削除しますか？");
+      if (!conf) return;
+
+      let isFirebaseSuccess = true;
+      let sessions = SESSION_METADATA.sessions.filter(s => s.id !== String(sessionId));
+
+      try {
+        await deleteDoc(doc(db, "dashboard_data", `data_${sessionId}`));
+        await setDoc(doc(db, "dashboard_data", "config"), {
+          sessions: sessions,
+          lastUpdatedAt: new Date().toISOString()
+        });
+      } catch (e) {
+        console.error("Delete Error:", e);
+        isFirebaseSuccess = false;
+      }
+
+      SESSION_METADATA.sessions = sessions;
+      ALL_DATA = ALL_DATA.filter(d => String(d._session_id) !== String(sessionId));
+
+      initFilterOptions();
+      renderSessionListInModal();
+      renderDashboard();
+
+      if (isFirebaseSuccess) {
+        await customAlert("削除しました。");
+      } else {
+        await customAlert("Firebaseのデータ削除に失敗しました。\n画面上からは一時的に消去されました。", "警告");
+      }
+      
+      window.closeAdminModal();
+    };
+
+    window.deleteAllData = async function() {
+      const conf = await customConfirm("本当に全てのデータを削除しますか？\nこの操作は元に戻せません。");
+      if (!conf) return;
+
+      let isFirebaseSuccess = true;
+
+      try {
+        const promises = SESSION_METADATA.sessions.map(s => deleteDoc(doc(db, "dashboard_data", `data_${s.id}`)));
+        await Promise.all(promises);
+
+        await setDoc(doc(db, "dashboard_data", "config"), {
+          sessions: [],
+          lastUpdatedAt: new Date().toISOString()
+        });
+      } catch (e) {
+        console.error("Delete All Error:", e);
+        isFirebaseSuccess = false;
+      }
+
+      SESSION_METADATA.sessions = [];
+      ALL_DATA = [];
+
+      initFilterOptions();
+      renderSessionListInModal();
+      renderDashboard();
+
+      if (isFirebaseSuccess) {
+        await customAlert("全データを削除しました。");
+      } else {
+        await customAlert("Firebaseの全データ削除に失敗しました。\n画面上からは一時的に消去されました。", "警告");
+      }
+      
+      window.closeAdminModal();
+    };
+
+    // --- ユーティリティ ---
+    function formatDate(date) {
+      return `${date.getFullYear()}/${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+    }
+
+    // --- UI/表示関連 ---
+
+    function initFilterOptions() {
+      const cats = new Set(ALL_DATA.map(d => d.category).filter(Boolean));
+      const sortedCats = Array.from(cats).sort((a, b) => {
+        if (a === "その他" || a === "その他・不明") return 1;
+        if (b === "その他" || b === "その他・不明") return -1;
+        return a.localeCompare(b, "ja");
+      });
+      const catSelect = document.getElementById('category-select');
+      catSelect.innerHTML = '<option value="all">全ての分野</option>';
+      sortedCats.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        catSelect.appendChild(option);
+      });
+
+      const sessionSelect = document.getElementById('session-select');
+      const sessionSelectHeader = document.getElementById('session-select-header');
+      sessionSelect.innerHTML = '';
+      sessionSelectHeader.innerHTML = '';
+      
+      SESSION_METADATA.sessions.forEach(s => {
+        const option = document.createElement('option');
+        option.value = s.id;
+        option.textContent = s.name;
+        sessionSelect.appendChild(option.cloneNode(true));
+        sessionSelectHeader.appendChild(option.cloneNode(true));
+      });
+
+      const allOption = document.createElement('option');
+      allOption.value = "all";
+      allOption.textContent = "全ての回次";
+      sessionSelect.appendChild(allOption.cloneNode(true));
+      sessionSelectHeader.appendChild(allOption.cloneNode(true));
+      
+      if (state.selectedSession === null) {
+        if (SESSION_METADATA.sessions.length > 0) {
+          state.selectedSession = SESSION_METADATA.sessions[0].id;
+        } else {
+          state.selectedSession = "all";
+        }
+      }
+      
+      sessionSelect.value = state.selectedSession;
+      sessionSelectHeader.value = state.selectedSession;
+      catSelect.value = state.selectedCategory;
+    }
+
+    function renderSessionListInModal() {
+      const tbody = document.getElementById('session-list-body');
+      if (SESSION_METADATA.sessions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-slate-500">登録されたデータはありません</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = SESSION_METADATA.sessions.map(s => `
+        <tr>
+          <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-900">${s.name}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500">${s.count} 件</td>
+          <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500">${formatDate(new Date(s.updatedAt))}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+            <button onclick="deleteSession('${s.id}')" class="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded transition-colors">削除</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderDashboard() {
+      if (!isDataLoaded) return;
+
+      if (ALL_DATA.length === 0) {
+        document.getElementById('stats-container').innerHTML = '';
+        document.getElementById('analysis-container').innerHTML = '';
+        renderDataList([]);
+        updateUIState(0);
+        lucide.createIcons();
+        return;
+      }
+
+      const filteredData = filterData();
+      const sortedData = sortData(filteredData);
+      const stats = calculateStats(sortedData);
+      
+      renderStats(stats, sortedData.length);
+      renderAnalysis(sortedData, stats);
+      renderDataList(sortedData);
+      updateUIState(sortedData.length);
+      
+      lucide.createIcons();
+    }
+
+    function filterData() {
+      const searchKeywords = state.filterText.replace(/　/g, ' ').trim().split(' ').filter(k => k !== '');
+      return ALL_DATA.filter(item => {
+        const qName = item.questioner || "";
+        const title = item.title || "";
+        const sum = item.answer_point_summary || "";
+        const pnt = item.question_point || "";
+        const id = item.id || "";
+        const cat = item.category || "";
+
+        const questionerFormatted = qName.replace(/[ 　]/g, '');
+        const targetText = [title, qName, questionerFormatted, sum, pnt, id, cat].join(' ');
+        
+        const matchesText = searchKeywords.length === 0 || searchKeywords.every(keyword => targetText.includes(keyword));
+        const matchesHouse = state.selectedHouse === "all" || item.house === state.selectedHouse;
+        const matchesCategory = state.selectedCategory === "all" || item.category === state.selectedCategory;
+        const matchesSession = state.selectedSession === "all" || String(item._session_id) === String(state.selectedSession);
+        
+        return matchesText && matchesHouse && matchesCategory && matchesSession;
+      });
+    }
+
+    window.openAdminModal = function() {
+      const modal = document.getElementById('admin-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.classList.add('modal-active');
+      renderSessionListInModal(); 
+    };
+
+    window.closeAdminModal = function(event) {
+      if (event && event.target.id !== 'admin-modal') return;
+      const modal = document.getElementById('admin-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.body.classList.remove('modal-active');
+    };
+
+    function setupEventListeners() {
+      document.getElementById('search-input').addEventListener('input', (e) => { state.filterText = e.target.value; renderDashboard(); });
+      document.getElementById('house-select').addEventListener('change', (e) => { state.selectedHouse = e.target.value; renderDashboard(); });
+      document.getElementById('category-select').addEventListener('change', (e) => { state.selectedCategory = e.target.value; renderDashboard(); });
+      
+      document.getElementById('session-select-header').addEventListener('change', (e) => { 
+        state.selectedSession = e.target.value; 
+        document.getElementById('session-select').value = e.target.value;
+        renderDashboard(); 
+      });
+      document.getElementById('session-select').addEventListener('change', (e) => { 
+        state.selectedSession = e.target.value; 
+        document.getElementById('session-select-header').value = e.target.value;
+        renderDashboard(); 
+      });
+      
+      document.getElementById('view-table').addEventListener('click', () => { state.viewMode = 'table'; renderDashboard(); });
+      document.getElementById('view-card').addEventListener('click', () => { state.viewMode = 'card'; renderDashboard(); });
+      
+      document.getElementById('clear-all-filters').addEventListener('click', () => {
+        state.filterText = ""; state.selectedHouse = "all"; state.selectedCategory = "all";
+        
+        if (SESSION_METADATA.sessions.length > 0) {
+          state.selectedSession = SESSION_METADATA.sessions[0].id;
+        } else {
+          state.selectedSession = "all";
+        }
+        
+        state.sortKey = null; state.sortDirection = "asc";
+        
+        document.getElementById('search-input').value = "";
+        document.getElementById('house-select').value = "all";
+        document.getElementById('category-select').value = "all";
+        document.getElementById('session-select').value = state.selectedSession;
+        document.getElementById('session-select-header').value = state.selectedSession;
+        renderDashboard();
+      });
+      
+      document.getElementById('clear-search').addEventListener('click', () => { 
+        state.filterText = ""; 
+        document.getElementById('search-input').value = ""; 
+        renderDashboard(); 
+      });
+    }
+    
+    window.filterByCategory = function(category) {
+      state.selectedCategory = category;
+      document.getElementById('category-select').value = category;
+      renderDashboard();
+    };
+
+    window.filterByQuestioner = function(name) {
+      state.filterText = name;
+      document.getElementById('search-input').value = name;
+      renderDashboard();
+    };
+
+    window.filterByHouse = function(house) {
+      state.selectedHouse = house;
+      document.getElementById('house-select').value = house;
+      renderDashboard();
+    };
+
+    window.handleSort = function(key) {
+      let direction = 'asc';
+      if (state.sortKey === key && state.sortDirection === 'asc') direction = 'desc';
+      else if (state.sortKey === key && state.sortDirection === 'desc') {
+        state.sortKey = null; state.sortDirection = 'asc'; renderDashboard(); return;
+      }
+      state.sortKey = key; state.sortDirection = direction; renderDashboard();
+    };
+
+    function sortData(data) {
+      if (!state.sortKey) return data;
+      return [...data].sort((a, b) => {
+        let aValue, bValue;
+        if (state.sortKey === 'house_questioner') {
+          if (a.house !== b.house) { aValue = a.house || ''; bValue = b.house || ''; } 
+          else { aValue = a.questioner || ''; bValue = b.questioner || ''; }
+        } else if (state.sortKey === 'title') { aValue = a.title || ''; bValue = b.title || ''; } 
+        else if (state.sortKey === 'category') { aValue = a.category || ''; bValue = b.category || ''; } 
+        else { aValue = a[state.sortKey] || ''; bValue = b[state.sortKey] || ''; }
+        const cmp = String(aValue).localeCompare(String(bValue), 'ja');
+        return state.sortDirection === 'asc' ? cmp : -cmp;
+      });
+    }
+
+    function calculateStats(data) {
+      const houseCount = { '衆議院': 0, '参議院': 0 };
+      const categoryCount = {};
+      const questionerCount = {};
+      data.forEach(item => {
+        if (item.house) houseCount[item.house] = (houseCount[item.house] || 0) + 1;
+        if (item.category) categoryCount[item.category] = (categoryCount[item.category] || 0) + 1;
+        if (item.questioner) {
+          const name = formatQuestioner(item.questioner);
+          questionerCount[name] = (questionerCount[name] || 0) + 1;
+        }
+      });
+      return {
+        houseCount,
+        sortedCategories: Object.entries(categoryCount).sort(([, a], [, b]) => b - a).slice(0, 5),
+        sortedQuestioners: Object.entries(questionerCount).sort(([, a], [, b]) => b - a).slice(0, 5)
+      };
+    }
+
+    function renderStats(stats, totalCount) {
+      const container = document.getElementById('stats-container');
+      const totalDataCount = ALL_DATA.length;
+      const houseBar = (count, color) => `<div class="w-full bg-slate-100 rounded-full h-2"><div class="${color} h-2 rounded-full" style="width: ${(count / totalCount) * 100 || 0}%"></div></div>`;
+      const listHTML = (list, colorClass, bgClass, type) => list.length > 0 ? list.slice(0,3).map(([k, v]) => {
+        const clickAction = type === 'category' ? `onclick="filterByCategory('${k}')"` : `onclick="filterByQuestioner('${k}')"`;
+        return `<div class="flex items-center justify-between text-sm mb-2 cursor-pointer hover:bg-slate-50 rounded p-1 transition-colors" ${clickAction} title="クリックして絞り込み"><span class="truncate text-slate-600 w-2/3">${k || "未分類"}</span><span class="font-semibold ${bgClass} ${colorClass} px-2 py-0.5 rounded-full text-xs">${v}</span></div>`;
+      }).join('') : '<span class="text-sm text-slate-400">データなし</span>';
+
+      container.innerHTML = `
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between"><div class="flex justify-between items-start mb-2"><h3 class="text-sm font-medium text-slate-500">表示中の質問総数</h3><i data-lucide="file-text" class="w-5 h-5 text-blue-500"></i></div><div class="text-3xl font-bold text-slate-800">${totalCount} <span class="text-sm font-normal text-slate-500">件</span></div><div class="mt-2 text-xs text-slate-400">全 ${totalDataCount} 件中</div></div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+          <div class="flex justify-between items-start mb-4"><h3 class="text-sm font-medium text-slate-500">院別内訳</h3><i data-lucide="pie-chart" class="w-5 h-5 text-purple-500"></i></div>
+          <div class="flex gap-4 items-end">
+            <div class="flex-1 cursor-pointer hover:opacity-80 transition-opacity" onclick="filterByHouse('衆議院')" title="衆議院で絞り込み">
+              <div class="flex justify-between text-sm mb-1"><span>衆議院</span><span class="font-bold">${stats.houseCount['衆議院'] || 0}</span></div>
+              ${houseBar(stats.houseCount['衆議院'] || 0, 'bg-purple-500')}
+            </div>
+            <div class="flex-1 cursor-pointer hover:opacity-80 transition-opacity" onclick="filterByHouse('参議院')" title="参議院で絞り込み">
+              <div class="flex justify-between text-sm mb-1"><span>参議院</span><span class="font-bold">${stats.houseCount['参議院'] || 0}</span></div>
+              ${houseBar(stats.houseCount['参議院'] || 0, 'bg-indigo-500')}
+            </div>
+          </div>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between items-start mb-2"><h3 class="text-sm font-medium text-slate-500">主要分野 (Top 3)</h3><i data-lucide="bar-chart" class="w-5 h-5 text-green-500"></i></div><div class="mt-2">${listHTML(stats.sortedCategories, 'text-green-700', 'bg-green-50', 'category')}</div></div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between items-start mb-2"><h3 class="text-sm font-medium text-slate-500">主要質問者 (Top 3)</h3><i data-lucide="users" class="w-5 h-5 text-orange-500"></i></div><div class="mt-2">${listHTML(stats.sortedQuestioners, 'text-orange-700', 'bg-orange-50', 'questioner')}</div></div>`;
+    }
+
+    function renderAnalysis(data, stats) {
+      const container = document.getElementById('analysis-container');
+      if (data.length === 0) { container.innerHTML = ''; return; }
+      
+      let title = "データ分析インサイト";
+      if (state.selectedSession !== "all") {
+        const sessionName = SESSION_METADATA.sessions.find(s => s.id === state.selectedSession)?.name || "";
+        title = `${sessionName} の傾向分析`;
+      } else if (state.filterText) title = `「${state.filterText}」に関する検索分析`;
+      
+      const total = data.length;
+      const parts = [];
+      
+      if (stats.sortedCategories.length > 0) {
+        const [topCat, topCount] = stats.sortedCategories[0];
+        const ratio = Math.round((topCount / total) * 100);
+        if (ratio >= 40) {
+          parts.push(`分野別では**「${topCat}」**に関する質問が特に多く、全体の約${ratio}%を占めており、このテーマへの関心の高さがうかがえます。`);
+        } else {
+          parts.push(`分野別では**「${topCat}」**が最多ですが、特定の分野に偏りすぎず幅広いテーマで質問が提出されています。`);
+        }
+      }
+      
+      const houseRatio = (stats.houseCount['衆議院'] || 0) / total;
+      if (houseRatio > 0.7) {
+        parts.push("主に**衆議院**からの提出が中心となっています。");
+      } else if (houseRatio < 0.3) {
+        parts.push("主に**参議院**からの提出が中心となっています。");
+      }
+      
+      if (stats.sortedQuestioners.length > 0) {
+        const [topName, topCount] = stats.sortedQuestioners[0];
+        if (topCount > 1 && (topCount / total) > 0.15) {
+          parts.push(`提出者としては、**${topName}議員**による質問が目立ちます（${topCount}件）。`);
+        }
+      }
+      
+      let counts = { consideration: 0, difficulty: 0, statusQuo: 0 };
+      data.forEach(d => {
+        const s = (d.answer_point_summary || d.answer_point || d.question_point || "").replace(/\s+/g, '');
+        if (s.includes("検討") || s.includes("調査") || s.includes("進める") || s.includes("対応する")) counts.consideration++;
+        if (s.includes("困難") || s.includes("できない") || s.includes("慎重") || s.includes("差し控え")) counts.difficulty++;
+        if (s.includes("現行") || s.includes("枠内") || s.includes("理解") || s.includes("適切に")) counts.statusQuo++;
+      });
+      
+      const maxK = Math.max(counts.consideration, counts.difficulty, counts.statusQuo);
+      if (maxK > 0 && total > 0) {
+        if (maxK === counts.consideration && (counts.consideration / total) > 0.2) {
+          parts.push("政府答弁では、**今後の検討や調査を示唆する姿勢**が比較的多く見受けられます。");
+        } else if (maxK === counts.difficulty && (counts.difficulty / total) > 0.2) {
+          parts.push("政府答弁では、制度上の課題や実施の**困難性を指摘する慎重な回答**が目立ちます。");
+        } else if (maxK === counts.statusQuo && (counts.statusQuo / total) > 0.2) {
+          parts.push("政府答弁では、**現行制度の枠内での対応や理解を求める**回答が多くなっています。");
+        }
+      }
+      
+      const formattedText = parts.join(" ").replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-800">$1</strong>');
+      
+      container.innerHTML = `<div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 shadow-sm flex items-start gap-4 mb-6"><div class="bg-white p-2 rounded-full shadow-sm border border-amber-100 hidden sm:block mt-1"><i data-lucide="lightbulb" class="w-5 h-5 text-amber-500"></i></div><div class="flex-1"><h3 class="text-sm font-bold text-amber-800 mb-1 flex items-center gap-2"><i data-lucide="trending-up" class="w-4 h-4"></i>${title}</h3><p class="text-sm text-slate-700 leading-relaxed">${formattedText}</p></div></div>`;
+    }
+
+    function renderDataList(data) {
+      const container = document.getElementById('data-container');
+      
+      if (ALL_DATA.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white p-12 rounded-xl shadow-sm border border-slate-200 text-center">
+            <i data-lucide="database" class="w-16 h-16 text-slate-300 mx-auto mb-4 block"></i>
+            <h3 class="text-xl font-bold text-slate-700 mb-2">データが登録されていません</h3>
+            <p class="text-sm text-slate-500 max-w-md mx-auto mb-4">
+              画面右上の「データ管理」ボタンから、エクセル（.xlsx）またはCSVファイルをアップロードしてください。
+            </p>
+            <button onclick="requirePasswordAndOpenAdmin()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors">データ管理を開く</button>
+          </div>`;
+        return;
+      }
+      
+      if (data.length === 0) {
+        container.innerHTML = `<div class="bg-white p-12 rounded-xl shadow-sm border border-slate-200 text-center"><i data-lucide="search-x" class="w-12 h-12 text-slate-300 mx-auto mb-4 block"></i><h3 class="text-lg font-medium text-slate-700 mb-1">条件に一致するデータがありません</h3></div>`;
+        return;
+      }
+
+      const getClickAttr = (item) => `onclick="openModal('${String(item.id).replace(/'/g, "\'")}', '${item._session_id}')"`;
+      const getSortIcon = (key) => (state.sortKey !== key) ? '<i data-lucide="arrow-up-down" class="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"></i>' : (state.sortDirection === 'asc' ? '<i data-lucide="arrow-up" class="w-4 h-4 text-blue-500"></i>' : '<i data-lucide="arrow-down" class="w-4 h-4 text-blue-500"></i>');
+
+      if (state.viewMode === 'table') {
+        const rows = data.map(item => `
+          <tr class="hover:bg-blue-50/50 transition-colors border-b border-slate-100 last:border-0 group">
+            <td class="p-4 align-top">
+              <div class="text-xs text-slate-400 mb-1">${item._session_name || ''}</div>
+              <span class="inline-block px-2 py-1 rounded bg-slate-100 text-slate-600 text-xs font-mono font-bold whitespace-nowrap">${item.id || item.number || '-'}</span>
+            </td>
+            <td class="p-4 align-top text-sm"><div class="font-medium text-slate-700">${item.house || '-'}</div><div class="text-slate-500 text-xs mt-1 whitespace-nowrap">${formatQuestioner(item.questioner)}</div></td>
+            <td class="p-4 align-top"><div class="font-bold text-blue-700 mb-1 cursor-pointer hover:underline" ${getClickAttr(item)}>${item.title || 'タイトルなし'}</div><div class="text-sm text-slate-600 line-clamp-2">${item.answer_point_summary || item.question_point || "要約なし"}</div></td>
+            <td class="p-4 align-top hidden md:table-cell">${item.category ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">${item.category}</span>` : ''}</td>
+            <td class="p-4 align-top text-center"><button ${getClickAttr(item)} class="text-slate-400 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-100" title="詳細を表示"><i data-lucide="external-link" class="w-5 h-5"></i></button></td>
+          </tr>`).join('');
+        container.innerHTML = `<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider"><th class="p-4 w-24">ID/回次</th><th class="p-4 w-32 whitespace-nowrap sort-header group" onclick="handleSort('house_questioner')"><div class="flex items-center gap-1">院 / 提出者 ${getSortIcon('house_questioner')}</div></th><th class="p-4 sort-header group" onclick="handleSort('title')"><div class="flex items-center gap-1">件名 / 概要 ${getSortIcon('title')}</div></th><th class="p-4 w-32 hidden md:table-cell sort-header group" onclick="handleSort('category')"><div class="flex items-center gap-1">分野 ${getSortIcon('category')}</div></th><th class="p-4 w-16 text-center">操作</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+      } else {
+        const cards = data.map(item => `
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden group hover:shadow-md transition-all cursor-pointer" ${getClickAttr(item)}>
+            <div class="p-5 flex-1 flex flex-col">
+              <div class="flex justify-between items-start mb-3">
+                <div class="flex flex-col gap-1">
+                  <span class="text-[10px] text-slate-400 font-medium">${item._session_name || ''}</span>
+                  <div class="flex gap-2 items-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold text-white ${item.house === '参議院' ? 'bg-indigo-500' : 'bg-purple-500'}">${item.house || '不明'}</span><span class="text-xs font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">${item.id || '-'}</span></div>
+                </div>
+                ${item.category ? `<span class="text-[10px] font-medium bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full truncate max-w-[100px]">${item.category}</span>` : ''}
+              </div>
+              <h3 class="font-bold text-slate-800 mb-3 line-clamp-3 group-hover:text-blue-600 transition-colors">${item.title || 'タイトルなし'}</h3>
+              <div class="mt-auto"><div class="flex items-center text-xs text-slate-500 mb-2"><span class="font-medium mr-2">提出:</span>${formatQuestioner(item.questioner)}</div><div class="bg-slate-50 p-3 rounded-lg text-xs text-slate-600 leading-relaxed line-clamp-4 border border-slate-100">${item.answer_point_summary || item.question_point || '<span class="text-slate-400 italic">要約なし</span>'}</div></div>
+            </div>
+            <div class="p-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500"><span>詳細を見る</span><i data-lucide="external-link" class="w-4 h-4 text-slate-400 group-hover:text-blue-500"></i></div>
+          </div>`).join('');
+        container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${cards}</div>`;
+      }
+    }
+
+    function renderLoading(msg = "Firebaseに接続・データ読み込み中...") {
+      const container = document.getElementById('data-container');
+      container.innerHTML = `<div class="bg-white p-12 rounded-xl shadow-sm border border-slate-200 text-center flex flex-col items-center justify-center"><i data-lucide="loader-2" class="w-12 h-12 text-blue-500 animate-spin mb-4"></i><h3 class="text-lg font-medium text-slate-700">${msg}</h3></div>`;
+      lucide.createIcons();
+    }
+
+    function renderError(msg) {
+      const container = document.getElementById('data-container');
+      container.innerHTML = `<div class="bg-white p-12 rounded-xl shadow-sm border border-slate-200 text-center"><i data-lucide="alert-triangle" class="w-12 h-12 text-red-500 mx-auto mb-4 block"></i><h3 class="text-lg font-medium text-slate-700 mb-1">${msg}</h3></div>`;
+      lucide.createIcons();
+    }
+
+    function enableUI() {
+      document.getElementById('search-input').disabled = false;
+      document.getElementById('house-select').disabled = false;
+      document.getElementById('category-select').disabled = false;
+      document.getElementById('session-select').disabled = false;
+      document.getElementById('session-select-header').disabled = false;
+      document.getElementById('view-table').disabled = false;
+      document.getElementById('view-card').disabled = false;
+    }
+
+    function updateUIState(count) {
+      document.getElementById('footer-info').textContent = ALL_DATA.length > 0 ? `${count} 件表示中 (全 ${ALL_DATA.length} 件)` : `データ未登録`;
+      const btnTable = document.getElementById('view-table');
+      const btnCard = document.getElementById('view-card');
+      const activeClass = ['bg-white', 'shadow', 'text-blue-600'];
+      const inactiveClass = ['text-slate-500', 'hover:text-slate-700'];
+      if (state.viewMode === 'table') {
+        btnTable.classList.add(...activeClass); btnTable.classList.remove(...inactiveClass);
+        btnCard.classList.remove(...activeClass); btnCard.classList.add(...inactiveClass);
+      } else {
+        btnCard.classList.add(...activeClass); btnCard.classList.remove(...inactiveClass);
+        btnTable.classList.remove(...activeClass); btnTable.classList.add(...inactiveClass);
+      }
+      const isFilterActive = state.filterText !== "" || state.selectedHouse !== "all" || state.selectedCategory !== "all" || state.selectedSession !== "all" || state.sortKey !== null;
+      document.getElementById('clear-all-filters').classList.toggle('hidden', !isFilterActive);
+      document.getElementById('clear-search').classList.toggle('hidden', !state.filterText);
+      
+      const headerSelect = document.getElementById('session-select-header');
+      if (headerSelect) {
+        headerSelect.value = state.selectedSession || 'all';
+      }
+    }
+
+    function formatQuestioner(name) {
+      if (!name) return "";
+      return name.replace(/君/g, '').replace(/[ 　]/g, '');
+    }
+
+    // Modal
+    window.openModal = function(id, sessionId) {
+      const item = ALL_DATA.find(d => String(d.id) === String(id) && String(d._session_id) === String(sessionId));
+      if (!item) return;
+
+      document.getElementById('modal-house-badge').textContent = item.house || '不明';
+      document.getElementById('modal-house-badge').className = `px-2 py-0.5 rounded text-xs font-bold text-white ${item.house === '参議院' ? 'bg-indigo-500' : 'bg-purple-500'}`;
+      document.getElementById('modal-session-badge').textContent = item._session_name || '';
+      document.getElementById('modal-id').textContent = item.id || '';
+      document.getElementById('modal-title').textContent = item.title || 'タイトルなし';
+      document.getElementById('modal-questioner').textContent = formatQuestioner(item.questioner);
+      document.getElementById('modal-category').textContent = item.category || 'なし';
+      document.getElementById('modal-summary').textContent = item.answer_point_summary || '要約情報は登録されていません。';
+
+      const linksContainer = document.getElementById('modal-links');
+      linksContainer.innerHTML = '';
+      
+      const createLink = (url, text, color, iconClass) => {
+        if (!url) return '';
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:border-${color}-400 hover:bg-${color}-50 transition-all group text-sm"><span class="font-medium text-slate-600 group-hover:text-${color}-700">${text}</span><i data-lucide="${iconClass}" class="w-4 h-4 text-slate-400 group-hover:text-${color}-500"></i></a>`;
+      };
+
+      let linksHtml = '';
+      linksHtml += createLink(item.q_html_url, '質問本文 (HTML)', 'blue', 'external-link');
+      linksHtml += createLink(item.a_html_url, '答弁本文 (HTML)', 'green', 'external-link');
+      linksHtml += createLink(item.q_pdf_url, '質問本文 (PDF)', 'red', 'file-text');
+      linksHtml += createLink(item.a_pdf_url, '答弁本文 (PDF)', 'red', 'file-text');
+      linksContainer.innerHTML = linksHtml;
+
+      const modal = document.getElementById('modal-overlay');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      lucide.createIcons();
+    };
+
+    window.closeModal = function(event) {
+      if (event && event.target.id !== 'modal-overlay') return;
+      const modal = document.getElementById('modal-overlay');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    };
+  </script>
+</body>
+</html>        <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+        <span id="load-date-display">データ読込中...</span>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto p-4 md:p-6 space-y-6 flex-grow w-full">
+    
+    <!-- Stats Cards Container -->
+    <div id="stats-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+    <!-- Filters & View Toggle -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col lg:flex-row gap-4 items-center sticky top-[130px] sm:top-[128px] z-10 shadow-md">
+      <div class="relative flex-1 w-full">
+        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+        <input 
+          type="text" 
+          id="search-input"
+          placeholder="キーワード検索（スペース区切りで複数指定可）..." 
+          class="w-full pl-10 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:bg-slate-50 disabled:cursor-not-allowed"
+          disabled
+        />
+        <button id="clear-search" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition-colors hidden">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      
+      <div class="flex gap-2 w-full lg:w-auto overflow-x-auto pb-1 md:pb-0 items-center">
+        <!-- 国会回次フィルタ -->
+        <div class="relative min-w-[140px]">
+           <i data-lucide="library" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none"></i>
+           <select id="session-select" class="w-full pl-9 pr-8 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer disabled:bg-slate-50 disabled:cursor-not-allowed" disabled>
+             <option value="all">全ての回次</option>
+           </select>
+           <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
+        </div>
+
+        <div class="relative min-w-[120px]">
+           <i data-lucide="filter" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none"></i>
+           <select id="house-select" class="w-full pl-9 pr-8 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer disabled:bg-slate-50 disabled:cursor-not-allowed" disabled>
+             <option value="all">全ての院</option>
+             <option value="衆議院">衆議院</option>
+             <option value="参議院">参議院</option>
+           </select>
+           <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
+        </div>
+
+        <div class="relative min-w-[160px]">
+           <i data-lucide="layout-dashboard" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none"></i>
+           <select id="category-select" class="w-full pl-9 pr-8 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer disabled:bg-slate-50 disabled:cursor-not-allowed" disabled>
+             <option value="all">全ての分野</option>
+           </select>
+           <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
+        </div>
+
+        <button
+          id="clear-all-filters"
+          class="flex items-center px-3 py-2 text-sm text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors whitespace-nowrap ml-1 hidden"
+          title="全ての検索・絞り込み条件をクリア"
+        >
+          <i data-lucide="rotate-ccw" class="w-4 h-4 mr-1.5"></i>
+          <span class="hidden sm:inline">クリア</span>
+        </button>
+
+        <div class="border-l pl-2 ml-2 flex bg-slate-100 p-1 rounded-lg">
+          <button id="view-table" class="p-1.5 rounded-md transition-all bg-white shadow text-blue-600 disabled:opacity-50" title="リスト表示" disabled>
+            <i data-lucide="list" class="w-5 h-5"></i>
+          </button>
+          <button id="view-card" class="p-1.5 rounded-md transition-all text-slate-500 hover:text-slate-700 disabled:opacity-50" title="カード表示" disabled>
+            <i data-lucide="grid" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analysis Container -->
+    <div id="analysis-container"></div>
+
+    <!-- Data List Container -->
+    <div id="data-container"></div>
+
+    <div id="footer-info" class="text-center text-xs text-slate-400 mt-8"></div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900 text-slate-400 py-6 text-center text-sm mt-auto">
+    <div class="max-w-7xl mx-auto px-4">
+      <p>&copy; 2025 一般社団法人日本みらい研作成</p>
+    </div>
+  </footer>
+
+  <!-- Admin Modal -->
   <div id="admin-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm modal" onclick="closeAdminModal(event)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col fade-in" onclick="event.stopPropagation()">
       <div class="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
