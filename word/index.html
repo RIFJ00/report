@@ -1,520 +1,1060 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Search, Loader2, AlertCircle, X, Globe, ExternalLink, Presentation, Download, XCircle, PlusCircle, Bookmark, Trash2, Library, RefreshCw, FileText, ChevronRight, ChevronLeft, FileCode, Palette, ChevronDown, Paperclip, FileCheck } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Word Search</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* カスタムアニメーション */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: fadeIn 0.5s ease-out forwards; }
+    /* スクロールバー非表示（スライドテーマ選択用） */
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body class="min-h-screen bg-white text-gray-900 font-sans dark:bg-[#202124] dark:text-gray-100 transition-colors duration-200">
 
-const apiKey = ""; // 実行環境が実行時にAPIキーを提供します
+  <!-- 設定モーダル -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+    <div class="bg-white dark:bg-[#303134] rounded-2xl shadow-xl w-full max-w-md p-6 border border-gray-200 dark:border-gray-700">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold flex items-center"><i data-lucide="settings" class="mr-2 h-5 w-5"></i>設定</h2>
+        <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Gemini API キー</label>
+        <input type="password" id="api-key-input" class="w-full px-4 py-2 bg-gray-50 dark:bg-[#202124] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" placeholder="AIzaSy...">
+        <p class="text-xs text-gray-500 mt-2">Google AI Studioで取得したAPIキーを入力してください。キーはブラウザにのみ保存されます。</p>
+      </div>
+      <div class="flex justify-end">
+        <button onclick="saveApiKey()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">保存して閉じる</button>
+      </div>
+    </div>
+  </div>
 
-const getDomain = (url) => {
-  try { return new URL(url).hostname; } catch { return url; }
-};
-
-// 検索用の分野カテゴリ（外交・安全保障、国際情勢を追加）
-const CATEGORIES = [
-  "外交・安全保障", "国際情勢", "成長戦略", "気候変動・脱炭素", "宇宙産業", "AI・人工知能", "少子高齢化", 
-  "SDGs・サステナビリティ", "地方創生", "自動運転・モビリティ", "サイバーセキュリティ", "金融・FinTech",
-  "バイオテクノロジー", "IT・テクノロジー", "ビジネス・経済", "政治・社会", "科学・学問", 
-  "医療・健康", "教育・学習", "芸術・文化", "歴史・地理", "エンターテインメント", 
-  "ライフスタイル", "旅行・観光", "環境・エコ", "法律・法務", "哲学・思想"
-];
-
-// スライドのカラーテーマ定義
-const slideThemes = [
-  { id: 'blue', name: 'ブルー', bg: ['#f8f9fa', '#e9ecef'], text: '#202124', accent: '#1a73e8', subText: '#5f6368' },
-  { id: 'green', name: 'グリーン', bg: ['#f4fdf8', '#e6f6ec'], text: '#1b2e22', accent: '#0f9d58', subText: '#4d5156' },
-  { id: 'dark', name: 'ダーク', bg: ['#202124', '#303134'], text: '#e8eaed', accent: '#8ab4f8', subText: '#9aa0a6' },
-  { id: 'purple', name: 'パープル', bg: ['#fdf8ff', '#f3e8fa'], text: '#2a1b38', accent: '#9333ea', subText: '#6b5a7a' },
-  { id: 'orange', name: 'オレンジ', bg: ['#fff8f3', '#faebe1'], text: '#382216', accent: '#ea580c', subText: '#7a5a4a' },
-  { id: 'navy-yellow', name: 'ネイビー＆イエロー', bg: ['#0f2027', '#203a43'], text: '#ffffff', accent: '#f2c94c', subText: '#b0bec5' },
-  { id: 'pink-blue', name: 'ピンク＆ブルー', bg: ['#ff9a9e', '#fecfef'], text: '#2c3e50', accent: '#3498db', subText: '#34495e' },
-  { id: 'black-red', name: 'ブラック＆レッド', bg: ['#121212', '#1a1a1a'], text: '#f5f5f5', accent: '#e50914', subText: '#9e9e9e' },
-  { id: 'teal-coral', name: 'ティール＆コーラル', bg: ['#0083b0', '#00b4db'], text: '#ffffff', accent: '#ff7e67', subText: '#e0f7fa' },
-  { id: 'mint-choco', name: 'ミント＆チョコ', bg: ['#e0f2f1', '#b2dfdb'], text: '#3e2723', accent: '#d84315', subText: '#5d4037' }
-];
-
-export default function App() {
-  const [query, setQuery] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedFile, setSelectedFile] = useState(null); // ファイル状態管理
-  const [results, setResults] = useState([]);
-  const [aiSummary, setAiSummary] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [hasSearched, setHasSearched] = useState(false);
-  
-  // スライド生成用の状態
-  const [isGeneratingSlide, setIsGeneratingSlide] = useState(false);
-  const [slideData, setSlideData] = useState([]); 
-  const [showSlideView, setShowSlideView] = useState(false);
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const [currentThemeId, setCurrentThemeId] = useState('blue');
-
-  const [isElaborating, setIsElaborating] = useState(false);
-  const [savedItems, setSavedItems] = useState([]);
-  const [showSavedView, setShowSavedView] = useState(false);
-
-  const inputRef = useRef(null);
-
-  useEffect(() => {
-    const loadedData = localStorage.getItem('ai_search_saved_items');
-    if (loadedData) {
-      try { setSavedItems(JSON.parse(loadedData)); } catch (e) { console.error(e); }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!hasSearched && !showSavedView && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [hasSearched, showSavedView]);
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (!showSlideView || slideData.length === 0 || document.activeElement.isContentEditable) return;
-      if (e.key === 'ArrowRight') nextSlide();
-      if (e.key === 'ArrowLeft') prevSlide();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showSlideView, currentSlideIndex, slideData]);
-
-  // ファイル読み込み処理
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const getMimeTypeFromExt = (filename) => {
-      const lower = filename.toLowerCase();
-      if (lower.endsWith('.pdf')) return 'application/pdf';
-      if (lower.endsWith('.txt')) return 'text/plain';
-      if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'text/html';
-      if (lower.endsWith('.pptx')) return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-      return 'text/plain';
-    };
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Data = event.target.result.split(',')[1];
-      setSelectedFile({
-        name: file.name,
-        mimeType: file.type || getMimeTypeFromExt(file.name),
-        data: base64Data
-      });
-    };
-    reader.readAsDataURL(file);
-    e.target.value = null; // 同じファイルを再度選択できるようにリセット
-  };
-
-  const removeFile = () => {
-    setSelectedFile(null);
-  };
-
-  const autoSaveItem = () => {
-    if (!query || !aiSummary) return;
-    if (savedItems.some(item => item.query === query && item.aiSummary === aiSummary)) return;
-
-    const newItem = {
-      id: Date.now().toString(),
-      query,
-      rawQuery: searchInput, 
-      category: selectedCategory, 
-      fileName: selectedFile ? selectedFile.name : null, // ファイル名を記録
-      aiSummary, results,
-      date: new Date().toLocaleString('ja-JP')
-    };
-    const updatedItems = [newItem, ...savedItems];
-    setSavedItems(updatedItems);
-    localStorage.setItem('ai_search_saved_items', JSON.stringify(updatedItems));
-  };
-
-  const handleSaveItem = () => {
-    autoSaveItem();
-    alert("回答を保存しました！「保存済みデータ一覧」から確認できます。");
-  };
-
-  const handleUpdateSearch = () => {
-    autoSaveItem();
-    searchWeb(searchInput); 
-  };
-
-  const handleExportText = () => {
-    if (!aiSummary) return;
-    let content = `■ 検索キーワード: ${query}\n`;
-    content += `■ 生成日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
-    content += `■ AIによる回答\n${aiSummary}\n\n`;
-    if (results && results.length > 0) {
-      content += `■ 参考となったWEBサイト一覧\n`;
-      results.forEach((r, i) => { 
-        content += `[${i + 1}] ${r.title}\n    URL: ${r.url}\n`; 
-        if (r.description) content += `    概要: ${r.description}\n`;
-        content += `\n`;
-      });
-    }
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${query.replace(/[\\/:*?"<>|]/g, '_')}_回答.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleDeleteSavedItem = (id, e) => {
-    e.stopPropagation();
-    if(window.confirm("この保存済み回答を削除してもよろしいですか？")) {
-      const updatedItems = savedItems.filter(item => item.id !== id);
-      setSavedItems(updatedItems);
-      localStorage.setItem('ai_search_saved_items', JSON.stringify(updatedItems));
-    }
-  };
-
-  const loadSavedItem = (item) => {
-    setQuery(item.query);
-    setSearchInput(item.rawQuery || '');
-    setSelectedCategory(item.category || '');
-    setSelectedFile(null); // 保存データから復元時はファイル実体がないためクリア
-    setAiSummary(item.aiSummary);
-    setResults(item.results);
-    setHasSearched(true);
-    setShowSavedView(false);
-    setSlideData([]);
-    setError(null);
-  };
-
-  const searchWeb = async (searchQuery) => {
-    const baseQuery = typeof searchQuery === 'string' ? searchQuery.trim() : '';
-    if (!baseQuery && !selectedCategory && !selectedFile) return; 
-
-    setIsLoading(true); setError(null); setHasSearched(true); setShowSavedView(false);
+  <!-- ホーム画面 -->
+  <div id="home-view" class="flex flex-col items-center justify-center min-h-screen px-4 pb-20 relative">
+    <div class="absolute top-6 right-6 sm:top-8 sm:right-8 flex space-x-2">
+      <button onclick="openSettings()" class="flex items-center justify-center p-2 bg-gray-50 dark:bg-[#303134] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-full hover:bg-gray-100 transition-colors shadow-sm" title="設定">
+        <i data-lucide="settings" class="h-5 w-5"></i>
+      </button>
+      <button onclick="switchView('saved')" class="flex items-center space-x-2 px-4 py-2 bg-gray-50 dark:bg-[#303134] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-full hover:bg-gray-100 transition-colors shadow-sm">
+        <i data-lucide="library" class="h-4 w-4"></i>
+        <span class="font-medium text-sm">保存済みデータ一覧</span>
+        <span id="home-saved-count" class="hidden bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1">0</span>
+      </button>
+    </div>
     
-    let displayQuery = "";
-    let promptContext = "";
-
-    // 検索コンテキストの構築
-    if (baseQuery && selectedCategory) {
-      displayQuery = `${baseQuery} (${selectedCategory})`;
-      promptContext = `特に「${selectedCategory}」の分野・観点から、「${baseQuery}」について、検索した時点での最新の情勢や情報を参照し、詳しく分かりやすい回答を提供してください。`;
-    } else if (baseQuery) {
-      displayQuery = baseQuery;
-      promptContext = `「${baseQuery}」について、検索した時点での最新の情勢や情報を参照し、詳しく分かりやすい回答を提供してください。`;
-    } else if (selectedCategory) {
-      displayQuery = selectedCategory;
-      promptContext = `「${selectedCategory}」の分野における最新の情勢、重要な動向、今後の展望について検索し、詳しく分かりやすい回答を提供してください。`;
-    } else if (selectedFile) {
-      displayQuery = `ファイル分析`;
-      promptContext = `添付されたドキュメントの内容を分析し、詳しく分かりやすい要約と解説を提供してください。必要に応じてWEB検索で最新情報も補足してください。`;
-    }
-
-    // ファイルがある場合の追加指示
-    if (selectedFile && (baseQuery || selectedCategory)) {
-      displayQuery += ` 📎 ${selectedFile.name}`;
-      promptContext = `【添付ファイルあり】添付されたドキュメント（ファイル名: ${selectedFile.name}）の内容を詳細に読み込み・分析し、その情報を強く踏まえた上で、` + promptContext;
-    }
-
-    setQuery(displayQuery); 
-    setSlideData([]);
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-    const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+    <div class="mb-8 flex items-center space-x-3 text-blue-500">
+      <i data-lucide="search" class="w-14 h-14" stroke-width="2.5"></i>
+      <h1 class="text-5xl sm:text-6xl font-extrabold tracking-tighter text-gray-800 dark:text-white">AI Word Search</h1>
+    </div>
     
-    const parts = [{ 
-      text: `現在は${today}です。${promptContext}回答の文体は「だ・である」調（常体）で統一してください。
-また、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください（Markdownブロックは使わず、直接JSON配列を記述してください）。
-[
-  {"url": "サイトのURL", "description": "このサイトがどのような情報を提供しているか、一目でわかる簡潔な要約（約40〜60文字）"}
-]` 
-    }];
+    <div class="w-full max-w-4xl">
+      <form onsubmit="handleSubmit(event)" class="w-full flex flex-col gap-3">
+        <div class="flex flex-col sm:flex-row gap-3 w-full">
+          <div class="relative group flex-grow h-14">
+            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <i data-lucide="search" class="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors"></i>
+            </div>
+            <input type="text" id="home-search-input" oninput="syncSearchInput(this.value)" class="block w-full h-full pl-12 pr-12 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md focus:outline-none transition-shadow text-base dark:text-white placeholder-gray-400" placeholder="キーワード検索、または分野を選択...">
+            <button type="button" id="home-clear-btn" onclick="clearSearch()" class="hidden absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
+          </div>
+          <div class="relative shrink-0 w-full sm:w-56 h-14">
+            <select id="home-category-select" onchange="syncCategory(this.value)" class="block w-full h-full pl-5 pr-10 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md focus:outline-none transition-shadow text-base dark:text-white appearance-none cursor-pointer text-gray-700 dark:text-gray-200">
+              <option value="">すべての分野</option>
+              <!-- JSで動的生成 -->
+            </select>
+            <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-500">
+              <i data-lucide="chevron-down" class="h-5 w-5"></i>
+            </div>
+          </div>
+          <div class="shrink-0 h-14">
+            <input type="file" id="file-upload-home" class="hidden" accept=".pdf,.txt,.html,.htm,.pptx" onchange="handleFileChange(event)">
+            <label for="file-upload-home" class="flex items-center justify-center w-full sm:w-14 h-full bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md cursor-pointer text-gray-500 hover:text-blue-500 transition-colors" title="PDF, TEXT, HTML, PPTXファイルを添付して分析">
+              <i data-lucide="paperclip" class="h-5 w-5"></i>
+            </label>
+          </div>
+        </div>
+        
+        <div id="home-file-display" class="hidden flex items-center justify-center sm:justify-start space-x-2 text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-4 py-2 rounded-full border border-blue-200 dark:border-blue-800 w-fit mx-auto sm:mx-0 transition-all">
+          <i data-lucide="file-check" class="h-4 w-4"></i>
+          <span id="home-file-name" class="truncate max-w-[200px] sm:max-w-md font-medium"></span>
+          <button type="button" onclick="removeFile()" class="text-blue-400 hover:text-blue-700 dark:hover:text-blue-100 ml-2 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 p-0.5 transition-colors" title="ファイルを削除">
+            <i data-lucide="x" class="h-4 w-4"></i>
+          </button>
+        </div>
+      </form>
 
-    // ファイルデータをAPIペイロードに追加
-    if (selectedFile) {
-      parts.push({
-        inlineData: {
-          mimeType: selectedFile.mimeType,
-          data: selectedFile.data
+      <div class="mt-10 flex justify-center">
+        <button id="home-submit-btn" onclick="executeSearch()" disabled class="px-8 py-3.5 bg-[#f8f9fa] dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full text-base font-medium text-gray-800 dark:text-gray-200 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-sm hover:bg-gray-50 disabled:opacity-50 transition-all">検索を実行する</button>
+      </div>
+      
+      <div id="home-error" class="hidden mt-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3 max-w-xl mx-auto">
+        <i data-lucide="alert-circle" class="h-5 w-5 text-red-600 shrink-0 mt-0.5"></i>
+        <p id="home-error-text" class="text-sm text-red-600 whitespace-pre-wrap"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- アプリ本体画面（検索結果・保存一覧用） -->
+  <div id="app-view" class="hidden flex flex-col min-h-screen">
+    <header class="sticky top-0 z-10 bg-white dark:bg-[#202124] border-b border-gray-200 dark:border-gray-700 p-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row items-center gap-4 sm:gap-6">
+      <div class="flex items-center space-x-2 text-blue-500 cursor-pointer shrink-0" onclick="resetHome()">
+        <i data-lucide="search" class="w-8 h-8" stroke-width="2.5"></i>
+        <span class="text-2xl font-extrabold tracking-tighter text-gray-800 dark:text-white hidden lg:block">AI Word Search</span>
+      </div>
+
+      <form onsubmit="handleSubmit(event)" class="flex-grow w-full max-w-5xl flex flex-col gap-2">
+        <div class="flex flex-row gap-2 w-full">
+          <div class="relative flex-grow group h-12">
+            <input type="text" id="header-search-input" oninput="syncSearchInput(this.value)" class="block w-full h-full pl-5 pr-10 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm focus:outline-none text-base dark:text-white" placeholder="キーワード検索...">
+            <button type="button" id="header-clear-btn" onclick="clearSearch()" class="hidden absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
+          </div>
+          <div class="relative shrink-0 w-28 sm:w-40 h-12">
+            <select id="header-category-select" onchange="syncCategory(this.value)" class="block w-full h-full pl-3 sm:pl-4 pr-6 sm:pr-8 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm focus:outline-none text-sm sm:text-base dark:text-white appearance-none cursor-pointer truncate text-gray-700 dark:text-gray-200">
+              <option value="">分野: すべて</option>
+              <!-- JSで動的生成 -->
+            </select>
+            <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:pr-3 pointer-events-none text-gray-500">
+              <i data-lucide="chevron-down" class="h-4 w-4"></i>
+            </div>
+          </div>
+          <div class="shrink-0 h-12">
+            <input type="file" id="file-upload-header" class="hidden" accept=".pdf,.txt,.html,.htm,.pptx" onchange="handleFileChange(event)">
+            <label for="file-upload-header" class="flex items-center justify-center w-12 h-full bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md cursor-pointer text-gray-500 hover:text-blue-500 transition-colors" title="ファイルを添付">
+              <i data-lucide="paperclip" class="h-4 w-4"></i>
+            </label>
+          </div>
+          <button type="submit" id="header-submit-btn" disabled class="h-12 w-full md:w-auto shrink-0 px-4 sm:px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap shadow-sm">
+            検索を実行する
+          </button>
+        </div>
+        
+        <div id="header-file-display" class="hidden flex items-center space-x-2 text-xs sm:text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-full border border-blue-200 dark:border-blue-800 w-fit transition-all mt-1">
+          <i data-lucide="file-check" class="h-3 w-3 sm:h-4 sm:w-4"></i>
+          <span id="header-file-name" class="truncate max-w-[150px] sm:max-w-xs font-medium"></span>
+          <button type="button" onclick="removeFile()" class="text-blue-400 hover:text-blue-700 dark:hover:text-blue-100 ml-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 p-0.5 transition-colors">
+            <i data-lucide="x" class="h-3 w-3 sm:h-4 sm:w-4"></i>
+          </button>
+        </div>
+      </form>
+
+      <div class="shrink-0 flex items-center justify-end space-x-2">
+        <button onclick="openSettings()" class="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-[#303134] rounded-full transition-colors" title="設定">
+           <i data-lucide="settings" class="h-5 w-5"></i>
+        </button>
+        <button id="header-saved-btn" onclick="switchView('saved')" class="flex items-center space-x-1.5 px-3 py-2 rounded-lg font-medium text-sm transition-colors text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-[#303134]">
+          <i data-lucide="library" class="h-4 w-4"></i>
+          <span class="hidden md:inline">保存済みデータ一覧</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 検索結果メインエリア -->
+    <main id="results-main" class="flex-grow p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full">
+      <!-- ローディング -->
+      <div id="results-loading" class="hidden flex flex-col items-center justify-center py-20 text-gray-500">
+        <i data-lucide="loader-2" class="h-8 w-8 animate-spin mb-4 text-blue-500"></i>
+        <p>情報の分析と回答を生成中...</p>
+      </div>
+      
+      <!-- エラー -->
+      <div id="results-error" class="hidden bg-red-50 border border-red-200 rounded-lg p-6 flex items-start space-x-4">
+        <i data-lucide="alert-circle" class="h-6 w-6 text-red-600 shrink-0 mt-0.5"></i>
+        <div><h3 class="text-lg font-medium text-red-800 mb-2">エラー</h3><p id="results-error-text" class="text-red-600 whitespace-pre-wrap"></p></div>
+      </div>
+
+      <!-- 結果コンテンツ -->
+      <div id="results-content" class="hidden space-y-8 animate-in"></div>
+    </main>
+
+    <!-- 保存済み一覧エリア -->
+    <main id="saved-main" class="hidden flex-grow p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full">
+      <div class="flex items-center space-x-3 mb-8 text-gray-800 dark:text-gray-100">
+        <i data-lucide="library" class="h-8 w-8 text-blue-500"></i>
+        <h2 class="text-3xl font-bold">保存済みデータ一覧</h2>
+      </div>
+      <div id="saved-content"></div>
+    </main>
+  </div>
+
+  <!-- スライドプレビューモーダル -->
+  <div id="slide-modal" class="hidden fixed inset-0 z-50 flex flex-col bg-gray-900 backdrop-blur-md animate-in duration-300">
+    <div class="flex items-center justify-between p-3 sm:p-4 bg-gray-950 text-white border-b border-gray-800 shadow-xl z-20">
+      <div class="flex items-center space-x-3">
+        <i data-lucide="presentation" class="h-6 w-6 text-blue-400 hidden sm:block"></i>
+        <div>
+          <h2 class="text-base sm:text-lg font-semibold leading-tight">スライドプレビュー</h2>
+          <p class="text-xs text-gray-400 hidden sm:block">← → キーでページ送り / テキストをクリックして直接編集できます</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-2 sm:space-x-4">
+        <div class="flex items-center space-x-1 sm:space-x-1.5 mr-1 sm:mr-2 bg-gray-800 px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700 overflow-hidden">
+          <i data-lucide="palette" class="h-4 w-4 text-gray-400 hidden lg:block shrink-0 mr-1"></i>
+          <div id="theme-selector" class="flex items-center space-x-1.5 overflow-x-auto hide-scrollbar">
+            <!-- テーマボタンはJSで生成 -->
+          </div>
+        </div>
+
+        <button onclick="handleDownloadHTML()" class="flex items-center space-x-1.5 sm:space-x-2 bg-gray-800 hover:bg-gray-700 text-white px-2 sm:px-4 py-2 rounded-md transition-colors text-xs sm:text-sm border border-gray-700" title="印刷用HTMLを保存">
+          <i data-lucide="file-code" class="h-4 w-4"></i>
+          <span class="hidden sm:inline">HTML</span>
+        </button>
+        <button onclick="handleDownloadPPTX()" class="flex items-center space-x-1.5 sm:space-x-2 bg-orange-600 hover:bg-orange-700 text-white px-2 sm:px-4 py-2 rounded-md transition-colors text-xs sm:text-sm font-medium shadow-md" title="PowerPointファイルを保存">
+          <i data-lucide="download" class="h-4 w-4"></i>
+          <span class="hidden sm:inline">PPTX</span>
+        </button>
+        <button onclick="closeSlideModal()" class="text-gray-400 hover:text-white transition-colors p-1 ml-1 sm:ml-2"><i data-lucide="x-circle" class="h-6 w-6 sm:h-8 sm:w-8"></i></button>
+      </div>
+    </div>
+
+    <div class="flex-grow w-full relative flex items-center justify-center p-4 sm:p-8 cursor-pointer overflow-hidden" onclick="nextSlide()">
+      <button onclick="event.stopPropagation(); prevSlide();" class="absolute left-2 sm:left-8 p-2 sm:p-3 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm z-10 transition-all">
+        <i data-lucide="chevron-left" class="h-6 w-6 sm:h-8 sm:w-8"></i>
+      </button>
+
+      <!-- スライド描画領域 -->
+      <div id="slide-container" class="w-full aspect-video max-w-[calc(100vh*16/9-100px)] max-h-[calc(100vw*9/16)] shadow-2xl relative flex flex-col p-[6%] overflow-hidden rounded-md transition-all duration-500 cursor-default" onclick="event.stopPropagation()">
+        <!-- JSで動的にスライド内容を流し込む -->
+      </div>
+
+      <button onclick="event.stopPropagation(); nextSlide();" class="absolute right-2 sm:right-8 p-2 sm:p-3 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm z-10 transition-all">
+        <i data-lucide="chevron-right" class="h-6 w-6 sm:h-8 sm:w-8"></i>
+      </button>
+    </div>
+
+    <div class="h-1 bg-gray-800 w-full">
+      <div id="slide-progress" class="h-full transition-all duration-300 ease-out"></div>
+    </div>
+  </div>
+
+  <script>
+    // 定数定義
+    const CATEGORIES = [
+      "外交・安全保障", "国際情勢", "成長戦略", "気候変動・脱炭素", "宇宙産業", "AI・人工知能", "少子高齢化", 
+      "SDGs・サステナビリティ", "地方創生", "自動運転・モビリティ", "サイバーセキュリティ", "金融・FinTech",
+      "バイオテクノロジー", "IT・テクノロジー", "ビジネス・経済", "政治・社会", "科学・学問", 
+      "医療・健康", "教育・学習", "芸術・文化", "歴史・地理", "エンターテインメント", 
+      "ライフスタイル", "旅行・観光", "環境・エコ", "法律・法務", "哲学・思想"
+    ];
+
+    const slideThemes = [
+      { id: 'blue', name: 'ブルー', bg: ['#f8f9fa', '#e9ecef'], text: '#202124', accent: '#1a73e8', subText: '#5f6368' },
+      { id: 'green', name: 'グリーン', bg: ['#f4fdf8', '#e6f6ec'], text: '#1b2e22', accent: '#0f9d58', subText: '#4d5156' },
+      { id: 'dark', name: 'ダーク', bg: ['#202124', '#303134'], text: '#e8eaed', accent: '#8ab4f8', subText: '#9aa0a6' },
+      { id: 'purple', name: 'パープル', bg: ['#fdf8ff', '#f3e8fa'], text: '#2a1b38', accent: '#9333ea', subText: '#6b5a7a' },
+      { id: 'orange', name: 'オレンジ', bg: ['#fff8f3', '#faebe1'], text: '#382216', accent: '#ea580c', subText: '#7a5a4a' },
+      { id: 'navy-yellow', name: 'ネイビー＆イエロー', bg: ['#0f2027', '#203a43'], text: '#ffffff', accent: '#f2c94c', subText: '#b0bec5' },
+      { id: 'pink-blue', name: 'ピンク＆ブルー', bg: ['#ff9a9e', '#fecfef'], text: '#2c3e50', accent: '#3498db', subText: '#34495e' },
+      { id: 'black-red', name: 'ブラック＆レッド', bg: ['#121212', '#1a1a1a'], text: '#f5f5f5', accent: '#e50914', subText: '#9e9e9e' },
+      { id: 'teal-coral', name: 'ティール＆コーラル', bg: ['#0083b0', '#00b4db'], text: '#ffffff', accent: '#ff7e67', subText: '#e0f7fa' },
+      { id: 'mint-choco', name: 'ミント＆チョコ', bg: ['#e0f2f1', '#b2dfdb'], text: '#3e2723', accent: '#d84315', subText: '#5d4037' }
+    ];
+
+    const getDomain = (url) => {
+      try { return new URL(url).hostname; } catch { return url; }
+    };
+
+    // アプリケーションの状態
+    let state = {
+      apiKey: localStorage.getItem('ai_search_api_key') || '',
+      tempApiKey: '',
+      query: '',
+      searchInput: '',
+      selectedCategory: '',
+      selectedFile: null,
+      results: [],
+      aiSummary: '',
+      isLoading: false,
+      error: null,
+      view: 'home', // 'home', 'results', 'saved'
+      
+      isGeneratingSlide: false,
+      slideData: [],
+      currentSlideIndex: 0,
+      currentThemeId: 'blue',
+      
+      isElaborating: false,
+      savedItems: JSON.parse(localStorage.getItem('ai_search_saved_items')) || []
+    };
+
+    // 初期化処理
+    function init() {
+      // カテゴリセレクトボックスの生成
+      const categoryOptions = CATEGORIES.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+      document.getElementById('home-category-select').innerHTML += categoryOptions;
+      document.getElementById('header-category-select').innerHTML += categoryOptions;
+
+      // テーマセレクタの生成
+      const themeSelector = document.getElementById('theme-selector');
+      themeSelector.innerHTML = slideThemes.map(t => `
+        <button onclick="setTheme('${t.id}')" id="theme-btn-${t.id}" class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-gray-500 hover:scale-110 transition-transform shrink-0" style="background: linear-gradient(135deg, ${t.bg[0]} 50%, ${t.accent} 50%)" title="${t.name}"></button>
+      `).join('');
+
+      updateView();
+      lucide.createIcons();
+
+      // キーボードイベント（スライド用）
+      window.addEventListener('keydown', (e) => {
+        const slideModal = document.getElementById('slide-modal');
+        if (slideModal.classList.contains('hidden') || state.slideData.length === 0 || document.activeElement.isContentEditable) return;
+        if (e.key === 'ArrowRight') nextSlide();
+        if (e.key === 'ArrowLeft') prevSlide();
+      });
+    }
+
+    // --- UI更新関連 ---
+    function updateView() {
+      const homeView = document.getElementById('home-view');
+      const appView = document.getElementById('app-view');
+      const resultsMain = document.getElementById('results-main');
+      const savedMain = document.getElementById('saved-main');
+      const headerSavedBtn = document.getElementById('header-saved-btn');
+
+      // 入力欄の同期
+      document.getElementById('home-search-input').value = state.searchInput;
+      document.getElementById('header-search-input').value = state.searchInput;
+      document.getElementById('home-category-select').value = state.selectedCategory;
+      document.getElementById('header-category-select').value = state.selectedCategory;
+
+      // クリアボタンの表示制御
+      const hasInput = state.searchInput.length > 0;
+      document.getElementById('home-clear-btn').classList.toggle('hidden', !hasInput);
+      document.getElementById('header-clear-btn').classList.toggle('hidden', !hasInput);
+
+      // 検索ボタンの活性化制御
+      const canSubmit = state.searchInput.trim() || state.selectedCategory || state.selectedFile;
+      document.getElementById('home-submit-btn').disabled = !canSubmit || state.isLoading;
+      document.getElementById('header-submit-btn').disabled = !canSubmit || state.isLoading;
+
+      // ファイル表示制御
+      const homeFileDisplay = document.getElementById('home-file-display');
+      const headerFileDisplay = document.getElementById('header-file-display');
+      if (state.selectedFile) {
+        document.getElementById('home-file-name').textContent = state.selectedFile.name;
+        document.getElementById('header-file-name').textContent = state.selectedFile.name;
+        homeFileDisplay.classList.remove('hidden');
+        headerFileDisplay.classList.remove('hidden');
+      } else {
+        homeFileDisplay.classList.add('hidden');
+        headerFileDisplay.classList.add('hidden');
+      }
+
+      // 保存済みバッジ
+      const homeSavedCount = document.getElementById('home-saved-count');
+      if (state.savedItems.length > 0) {
+        homeSavedCount.textContent = state.savedItems.length;
+        homeSavedCount.classList.remove('hidden');
+      } else {
+        homeSavedCount.classList.add('hidden');
+      }
+
+      // ビューの切り替え
+      if (state.view === 'home') {
+        homeView.classList.remove('hidden');
+        appView.classList.add('hidden');
+      } else {
+        homeView.classList.add('hidden');
+        appView.classList.remove('hidden');
+        
+        if (state.view === 'results') {
+          resultsMain.classList.remove('hidden');
+          savedMain.classList.add('hidden');
+          headerSavedBtn.className = "flex items-center space-x-1.5 px-3 py-2 rounded-lg font-medium text-sm transition-colors text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-[#303134]";
+          
+          // 結果画面の内部状態更新
+          document.getElementById('results-loading').classList.toggle('hidden', !state.isLoading);
+          
+          const errorContainer = document.getElementById('results-error');
+          if (state.error && !state.isLoading) {
+            document.getElementById('results-error-text').textContent = state.error;
+            errorContainer.classList.remove('hidden');
+          } else {
+            errorContainer.classList.add('hidden');
+          }
+
+          if (!state.isLoading && !state.error && (state.results.length > 0 || state.aiSummary)) {
+            renderResults();
+          } else {
+            document.getElementById('results-content').classList.add('hidden');
+          }
+
+        } else if (state.view === 'saved') {
+          resultsMain.classList.add('hidden');
+          savedMain.classList.remove('hidden');
+          headerSavedBtn.className = "flex items-center space-x-1.5 px-3 py-2 rounded-lg font-medium text-sm transition-colors bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300";
+          renderSavedItems();
         }
-      });
+      }
+
+      // ホーム画面のエラー表示
+      const homeErrorContainer = document.getElementById('home-error');
+      if (state.view === 'home' && state.error && !state.isLoading) {
+        document.getElementById('home-error-text').textContent = state.error;
+        homeErrorContainer.classList.remove('hidden');
+      } else {
+        homeErrorContainer.classList.add('hidden');
+      }
     }
 
-    const payload = {
-      contents: [{ parts }],
-      tools: [{ google_search: {} }]
-    };
+    function renderResults() {
+      const content = document.getElementById('results-content');
+      content.classList.remove('hidden');
 
-    let retries = 5; let delay = 1000;
-    while (retries > 0) {
+      let categoryHtml = state.selectedCategory ? `<span class="inline-flex items-center px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-semibold rounded-full border border-blue-200 dark:border-blue-800">分野: ${state.selectedCategory}</span>` : '';
+
+      let resultsHtml = '';
+      if (state.results.length > 0) {
+        const listItems = state.results.map(r => `
+          <a href="${r.url}" target="_blank" rel="noopener noreferrer" class="group block p-5 bg-white dark:bg-[#202124] border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all flex flex-col h-full">
+            <div class="flex items-center justify-between mb-3">
+              <span class="bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full text-xs text-gray-500 font-medium truncate max-w-[200px] sm:max-w-xs">${getDomain(r.url)}</span>
+              <i data-lucide="external-link" class="h-4 w-4 text-gray-400 group-hover:text-blue-500 transition-colors"></i>
+            </div>
+            <h3 class="text-lg font-bold text-[#1a0dab] dark:text-[#8ab4f8] group-hover:underline line-clamp-2 mb-3 leading-tight">${r.title}</h3>
+            ${r.description ? `
+              <div class="mt-auto pt-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg p-3 border-l-4 border-blue-400 dark:border-blue-600">
+                <p class="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 leading-relaxed font-medium">${r.description}</p>
+              </div>
+            ` : ''}
+          </a>
+        `).join('');
+
+        resultsHtml = `
+          <div>
+            <p class="text-sm font-medium text-gray-500 pb-3 border-b border-gray-100 mb-5 flex items-center"><i data-lucide="globe" class="h-4 w-4 mr-2"></i>参考となったWEBサイト一覧</p>
+            <div class="grid grid-cols-1 gap-4">${listItems}</div>
+          </div>
+        `;
+      }
+
+      content.innerHTML = `
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5 rounded-xl border border-blue-100 dark:border-blue-800">
+          <div>
+            <h3 class="font-bold text-lg text-blue-800 dark:text-blue-300">資料を自動生成</h3>
+            <p class="text-sm text-blue-600 dark:text-blue-400 mt-1">この回答をもとに、プレゼン用のスライドを構築します</p>
+          </div>
+          <button onclick="generateSlide()" id="btn-generate-slide" class="flex items-center justify-center w-full sm:w-auto space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg shadow-md font-medium transition-all ${state.isGeneratingSlide ? 'opacity-70 cursor-not-allowed' : ''}" ${state.isGeneratingSlide ? 'disabled' : ''}>
+            <i data-lucide="${state.isGeneratingSlide ? 'loader-2' : 'presentation'}" class="h-5 w-5 ${state.isGeneratingSlide ? 'animate-spin' : ''}"></i>
+            <span>${state.isGeneratingSlide ? '生成中...' : 'スライドを作成する'}</span>
+          </button>
+        </div>
+
+        <div class="bg-[#f8f9fa] dark:bg-[#303134] rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm relative group">
+          <div class="flex items-center space-x-2 mb-4 text-blue-600 dark:text-blue-400">
+            <i data-lucide="search" class="h-5 w-5"></i>
+            <h2 class="text-lg font-semibold">検索結果への回答</h2>
+          </div>
+          
+          <div class="mb-4 flex flex-wrap gap-2">${categoryHtml}</div>
+          
+          <div class="text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap text-base">${state.aiSummary}</div>
+          
+          <div class="mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-200 dark:border-gray-700 pt-4">
+            <button onclick="handleExportText()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors"><i data-lucide="file-text" class="h-4 w-4"></i><span class="hidden sm:inline">出力</span></button>
+            <button onclick="handleSaveItem()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-blue-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors"><i data-lucide="bookmark" class="h-4 w-4"></i><span class="hidden sm:inline">保存</span></button>
+            <button onclick="handleUpdateSearch()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-green-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors"><i data-lucide="refresh-cw" class="h-4 w-4"></i><span class="hidden sm:inline">更新</span></button>
+            <button onclick="elaborateSummary()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors ${state.isElaborating || state.isLoading ? 'opacity-50 cursor-not-allowed' : ''}" ${state.isElaborating || state.isLoading ? 'disabled' : ''}><i data-lucide="plus-circle" class="h-4 w-4"></i><span>${state.isElaborating ? '詳細化中...' : 'もう少し詳しく'}</span></button>
+          </div>
+        </div>
+
+        ${resultsHtml}
+      `;
+      lucide.createIcons({ root: content });
+    }
+
+    function renderSavedItems() {
+      const container = document.getElementById('saved-content');
+      
+      if (state.savedItems.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-20 text-gray-500 dark:text-gray-400 bg-[#f8f9fa] dark:bg-[#303134] rounded-2xl border border-gray-200 dark:border-gray-700">
+            <i data-lucide="bookmark" class="h-12 w-12 mx-auto mb-4 text-gray-400 opacity-50"></i>
+            <p class="text-lg">保存された回答はまだありません。</p>
+          </div>
+        `;
+      } else {
+        const itemsHtml = state.savedItems.map(item => `
+          <div onclick="loadSavedItem('${item.id}')" class="bg-white dark:bg-[#303134] p-5 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer group flex flex-col h-64">
+            <div class="flex justify-between items-start mb-3">
+              <h3 class="font-bold text-lg text-blue-700 dark:text-blue-400 line-clamp-2">${item.query}</h3>
+              <button onclick="handleDeleteSavedItem('${item.id}', event)" class="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100"><i data-lucide="trash-2" class="h-5 w-5"></i></button>
+            </div>
+            <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-4 flex-grow">${item.aiSummary}</p>
+            <div class="mt-4 flex justify-between items-center text-xs text-gray-500 border-t border-gray-100 dark:border-gray-600 pt-3">
+              <span class="flex items-center"><i data-lucide="globe" class="h-3 w-3 mr-1"></i> 参考元 ${item.results.length}件</span>
+              <span>${item.date}</span>
+            </div>
+          </div>
+        `).join('');
+        container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-6">${itemsHtml}</div>`;
+      }
+      lucide.createIcons({ root: container });
+    }
+
+    // --- 入力ハンドリング ---
+    function syncSearchInput(val) {
+      state.searchInput = val;
+      updateView();
+    }
+
+    function syncCategory(val) {
+      state.selectedCategory = val;
+      updateView();
+    }
+
+    function clearSearch() {
+      state.searchInput = '';
+      updateView();
+      if (state.view === 'home') document.getElementById('home-search-input').focus();
+      else document.getElementById('header-search-input').focus();
+    }
+
+    function switchView(viewName) {
+      state.view = viewName;
+      updateView();
+    }
+
+    function resetHome() {
+      state.view = 'home';
+      state.searchInput = '';
+      state.selectedCategory = '';
+      state.query = '';
+      state.results = [];
+      state.aiSummary = '';
+      state.slideData = [];
+      state.selectedFile = null;
+      state.error = null;
+      updateView();
+    }
+
+    function handleSubmit(e) {
+      e.preventDefault();
+      executeSearch();
+    }
+
+    // --- 設定モーダル ---
+    function openSettings() {
+      state.tempApiKey = state.apiKey;
+      document.getElementById('api-key-input').value = state.tempApiKey;
+      document.getElementById('settings-modal').classList.remove('hidden');
+    }
+
+    function closeSettings() {
+      document.getElementById('settings-modal').classList.add('hidden');
+    }
+
+    function saveApiKey() {
+      state.tempApiKey = document.getElementById('api-key-input').value;
+      state.apiKey = state.tempApiKey;
+      localStorage.setItem('ai_search_api_key', state.tempApiKey);
+      closeSettings();
+    }
+
+    // --- ファイルアップロード ---
+    function handleFileChange(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const MAX_FILE_SIZE = 3 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`ファイルサイズが大きすぎます。3MB以下のファイルを選択してください。\n(現在のサイズ: ${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+        e.target.value = null;
+        return;
+      }
+
+      const lowerName = file.name.toLowerCase();
+      const isTextBased = lowerName.endsWith('.txt') || lowerName.endsWith('.html') || lowerName.endsWith('.htm');
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (isTextBased) {
+          state.selectedFile = { name: file.name, type: 'text', data: event.target.result };
+        } else {
+          const base64Data = event.target.result.split(',')[1];
+          let mimeType = file.type;
+          if (!mimeType) {
+            if (lowerName.endsWith('.pdf')) mimeType = 'application/pdf';
+            else if (lowerName.endsWith('.pptx')) mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+          }
+          state.selectedFile = { name: file.name, type: 'inline', mimeType: mimeType, data: base64Data };
+        }
+        updateView();
+      };
+      
+      if (isTextBased) reader.readAsText(file);
+      else reader.readAsDataURL(file);
+      
+      e.target.value = null;
+    }
+
+    function removeFile() {
+      state.selectedFile = null;
+      updateView();
+    }
+
+    // --- API連携 (検索) ---
+    async function executeSearch() {
+      const baseQuery = typeof state.searchInput === 'string' ? state.searchInput.trim() : '';
+      if (!baseQuery && !state.selectedCategory && !state.selectedFile) return;
+
+      if (!state.apiKey) {
+        openSettings();
+        state.error = "APIキーが設定されていません。設定画面からGemini APIキーを入力してください。";
+        updateView();
+        return;
+      }
+
+      state.isLoading = true;
+      state.error = null;
+      state.view = 'results';
+      updateView();
+
+      let displayQuery = "";
+      let promptContext = "";
+
+      if (baseQuery && state.selectedCategory) {
+        displayQuery = `${baseQuery} (${state.selectedCategory})`;
+        promptContext = `特に「${state.selectedCategory}」の分野・観点から、「${baseQuery}」について、検索した時点での最新の情勢や情報を参照し、詳しく分かりやすい回答を提供してください。`;
+      } else if (baseQuery) {
+        displayQuery = baseQuery;
+        promptContext = `「${baseQuery}」について、検索した時点での最新の情勢や情報を参照し、詳しく分かりやすい回答を提供してください。`;
+      } else if (state.selectedCategory) {
+        displayQuery = state.selectedCategory;
+        promptContext = `「${state.selectedCategory}」の分野における最新の情勢、重要な動向、今後の展望について検索し、詳しく分かりやすい回答を提供してください。`;
+      } else if (state.selectedFile) {
+        displayQuery = `ファイル分析`;
+        promptContext = `添付されたドキュメントの内容を分析し、詳しく分かりやすい要約と解説を提供してください。必要に応じてWEB検索で最新情報も補足してください。`;
+      }
+
+      if (state.selectedFile && (baseQuery || state.selectedCategory)) {
+        displayQuery += ` 📎 ${state.selectedFile.name}`;
+        promptContext = `【添付ファイルあり】添付されたドキュメント（ファイル名: ${state.selectedFile.name}）の内容を詳細に読み込み・分析し、その情報を強く踏まえた上で、` + promptContext;
+      }
+
+      state.query = displayQuery;
+      state.slideData = [];
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${state.apiKey}`;
+      const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+      
+      const parts = [{ 
+        text: `現在は${today}です。${promptContext}回答の文体は「だ・である」調（常体）で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください（Markdownブロックは使わず、直接JSON配列を記述してください）。\n[\n  {"url": "サイトのURL", "description": "簡潔な要約"}\n]` 
+      }];
+
+      if (state.selectedFile) {
+        if (state.selectedFile.type === 'text') {
+          parts.push({ text: `\n\n--- 添付ファイル (${state.selectedFile.name}) の内容 ---\n${state.selectedFile.data}\n--- 添付ファイル終わり ---\n` });
+        } else {
+          parts.push({ inlineData: { mimeType: state.selectedFile.mimeType, data: state.selectedFile.data } });
+        }
+      }
+
+      const payload = { contents: [{ role: "user", parts }], tools: [{ google_search: {} }] };
+
+      let retries = 5; let delay = 1000;
+      while (retries > 0) {
+        try {
+          const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          if (!response.ok) {
+             const errorText = await response.text();
+             if (response.status === 401 || response.status === 403 || response.status === 400) throw new Error(`認証エラー (${response.status}) が発生しました。設定したAPIキーが正しくないか、無効になっています。右上の設定から確認してください。`);
+             if (response.status === 404) throw new Error(`モデルが見つかりません (${response.status})。APIのバージョンまたはモデル名が正しくありません。`);
+             throw new Error(`API error: ${response.status} - ${errorText}`);
+          }
+          const data = await response.json();
+          if (!data || !data.candidates || data.candidates.length === 0) throw new Error("No candidates in response");
+          
+          const candidate = data.candidates[0];
+          const rawText = candidate?.content?.parts?.[0]?.text || "（回答の生成に失敗しました）";
+          let summaryText = rawText;
+          let sourceDescriptions = {};
+
+          const sourcesMarker = "===SOURCES===";
+          if (rawText.includes(sourcesMarker)) {
+            const partsArray = rawText.split(sourcesMarker);
+            summaryText = partsArray[0].trim();
+            const jsonStr = partsArray[1].match(/\[[\s\S]*\]/);
+            if (jsonStr) {
+              try {
+                const sourcesJson = JSON.parse(jsonStr[0]);
+                if (Array.isArray(sourcesJson)) {
+                  sourcesJson.forEach(item => {
+                    if (item.url && item.description) sourceDescriptions[item.url.trim().replace(/\/$/, '')] = item.description;
+                  });
+                }
+              } catch(e) { console.error("JSON parse error:", e); }
+            }
+          }
+
+          const chunks = candidate.groundingMetadata?.groundingChunks || [];
+          const attributions = candidate.groundingMetadata?.groundingAttributions || [];
+          
+          const uniqueSources = []; const seenUrls = new Set();
+          
+          const processSource = (uri, title) => {
+            if (uri && !seenUrls.has(uri)) {
+              seenUrls.add(uri); 
+              const cleanUrl = uri.trim().replace(/\/$/, '');
+              let desc = sourceDescriptions[cleanUrl];
+              if (!desc) {
+                const domain = getDomain(uri);
+                const matchUrl = Object.keys(sourceDescriptions).find(k => getDomain(k) === domain);
+                if (matchUrl) desc = sourceDescriptions[matchUrl];
+              }
+              if (!desc) desc = "このサイトの詳しい情報はリンク先をご覧ください。";
+              uniqueSources.push({ title: title || "ウェブページ", url: uri, description: desc });
+            }
+          };
+
+          for (const chunk of chunks) processSource(chunk.web?.uri, chunk.web?.title);
+          if (uniqueSources.length === 0) {
+            for (const attr of attributions) processSource(attr.web?.uri, attr.web?.title);
+          }
+
+          state.aiSummary = summaryText; 
+          state.results = uniqueSources; 
+          state.isLoading = false; 
+          updateView();
+          return; 
+        } catch (err) {
+          console.error("Search API Error:", err);
+          if (err.message.includes("認証エラー") || err.message.includes("モデルが見つかりません")) {
+              state.error = err.message;
+              state.isLoading = false;
+              updateView();
+              if(err.message.includes("認証エラー")) openSettings();
+              return;
+          }
+          retries--;
+          if (retries === 0) { 
+            state.error = `情報の取得・分析に失敗しました。時間をおいて再度お試しいただくか、ファイルサイズ等をご確認ください。\n詳細: ${err.message}`; 
+            state.isLoading = false; 
+            updateView();
+          } else { 
+            await new Promise(r => setTimeout(r, delay)); delay *= 2; 
+          }
+        }
+      }
+    }
+
+    // --- API連携 (詳細化) ---
+    async function elaborateSummary() {
+      state.isElaborating = true;
+      updateView();
+      
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${state.apiKey}`;
+      const today = new Date().toLocaleDateString('ja-JP');
+      
+      let categoryContext = state.selectedCategory ? `特に「${state.selectedCategory}」の分野・観点から、` : "";
+      if (state.selectedFile) categoryContext = `添付されたドキュメントの内容も引き続き考慮し、` + categoryContext;
+      
+      const parts = [{ text: `現在は${today}です。キーワード「${state.query}」について、${categoryContext}以下の概要を深掘りし、詳細で専門的な情報を含む長文の解説に書き換えてください。文体は「だ・である」調で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください。\n[\n  {"url": "サイトのURL", "description": "一目でわかる簡潔な要約（約40〜60文字）"}\n]\n\n概要:\n${state.aiSummary}` }];
+
+      if (state.selectedFile) {
+        if (state.selectedFile.type === 'text') parts.push({ text: `\n\n--- 添付ファイル (${state.selectedFile.name}) の内容 ---\n${state.selectedFile.data}\n--- 添付ファイル終わり ---\n` });
+        else parts.push({ inlineData: { mimeType: state.selectedFile.mimeType, data: state.selectedFile.data } });
+      }
+
+      const payload = { contents: [{ role: "user", parts }], tools: [{ google_search: {} }] };
+
       try {
         const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!response.ok) throw new Error(`API error`);
+        if (!response.ok) {
+           const errorText = await response.text();
+           if (response.status === 401 || response.status === 403 || response.status === 400) throw new Error(`認証エラー (${response.status})。APIキーを確認してください。`);
+           if (response.status === 404) throw new Error(`モデルが見つかりません (${response.status})。APIのバージョンまたはモデル名が正しくありません。`);
+           throw new Error(`API error: ${response.status} - ${errorText}`);
+        }
         const data = await response.json();
-        const candidate = data.candidates?.[0];
-        if (!candidate) throw new Error("No candidate");
-
-        const rawText = candidate.content?.parts?.[0]?.text || "回答を生成できませんでした。";
+        if (!data || !data.candidates || data.candidates.length === 0) throw new Error("No candidates in response");
+          
+        const candidate = data.candidates[0];
+        const rawText = candidate?.content?.parts?.[0]?.text || "生成失敗";
+        
         let summaryText = rawText;
         let sourceDescriptions = {};
 
         const sourcesMarker = "===SOURCES===";
         if (rawText.includes(sourcesMarker)) {
-          const parts = rawText.split(sourcesMarker);
-          summaryText = parts[0].trim();
-          const jsonMatch = parts[1].match(/\[\s*\{[\s\S]*\}\s*\]/);
-          if (jsonMatch) {
+          const partsArray = rawText.split(sourcesMarker);
+          summaryText = partsArray[0].trim();
+          const jsonStr = partsArray[1].match(/\[[\s\S]*\]/);
+          if (jsonStr) {
             try {
-              const sourcesJson = JSON.parse(jsonMatch[0]);
+              const sourcesJson = JSON.parse(jsonStr[0]);
               if (Array.isArray(sourcesJson)) {
                 sourcesJson.forEach(item => {
-                  if (item.url && item.description) {
-                    sourceDescriptions[item.url.trim().replace(/\/$/, '')] = item.description;
-                  }
+                  if (item.url && item.description) sourceDescriptions[item.url.trim().replace(/\/$/, '')] = item.description;
                 });
               }
-            } catch(e) { console.error("JSON parse error:", e); }
+            } catch(e) { console.error("JSON parse error in elaborate:", e); }
           }
         }
-
+        
         const chunks = candidate.groundingMetadata?.groundingChunks || [];
-        const attributions = candidate.groundingMetadata?.groundingAttributions || [];
+        const newSources = []; const seenUrls = new Set(state.results.map(r => r.url));
         
-        const uniqueSources = []; const seenUrls = new Set();
-        
-        const processSource = (uri, title) => {
-          if (uri && !seenUrls.has(uri)) {
-            seenUrls.add(uri); 
-            const cleanUrl = uri.trim().replace(/\/$/, '');
+        for (const chunk of chunks) {
+          if (chunk.web?.uri && !seenUrls.has(chunk.web.uri)) {
+            seenUrls.add(chunk.web.uri); 
+            const cleanUrl = chunk.web.uri.trim().replace(/\/$/, '');
             let desc = sourceDescriptions[cleanUrl];
             if (!desc) {
-              const domain = getDomain(uri);
+              const domain = getDomain(chunk.web.uri);
               const matchUrl = Object.keys(sourceDescriptions).find(k => getDomain(k) === domain);
               if (matchUrl) desc = sourceDescriptions[matchUrl];
             }
             if (!desc) desc = "このサイトの詳しい情報はリンク先をご覧ください。";
-
-            uniqueSources.push({ title: title || "ウェブページ", url: uri, description: desc });
+            newSources.push({ title: chunk.web.title || "ウェブページ", url: chunk.web.uri, description: desc });
           }
-        };
-
-        for (const chunk of chunks) processSource(chunk.web?.uri, chunk.web?.title);
-        if (uniqueSources.length === 0) {
-          for (const attr of attributions) processSource(attr.web?.uri, attr.web?.title);
         }
 
-        setAiSummary(summaryText); setResults(uniqueSources); setIsLoading(false); return; 
+        state.aiSummary = summaryText;
+        state.results = state.results.map(p => {
+          const cleanUrl = p.url.trim().replace(/\/$/, '');
+          return sourceDescriptions[cleanUrl] ? { ...p, description: sourceDescriptions[cleanUrl] } : p;
+        });
+        state.results = [...state.results, ...newSources];
+
       } catch (err) {
-        retries--;
-        if (retries === 0) { setError("検索結果の取得に失敗しました。ファイルサイズが大きすぎるか、ネットワークの問題の可能性があります。"); setIsLoading(false); } 
-        else { await new Promise(r => setTimeout(r, delay)); delay *= 2; }
+        console.error("Elaborate API Error:", err);
+        alert(err.message.includes("認証エラー") || err.message.includes("モデル") ? err.message : "エラーが発生しました。時間をおいて再度お試しください。");
+        if (err.message.includes("認証エラー")) openSettings();
+      } finally {
+        state.isElaborating = false;
+        updateView();
       }
     }
-  };
 
-  const elaborateSummary = async () => {
-    setIsElaborating(true);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-    const today = new Date().toLocaleDateString('ja-JP');
-    
-    let categoryContext = selectedCategory ? `特に「${selectedCategory}」の分野・観点から、` : "";
-    if (selectedFile) {
-       categoryContext = `添付されたドキュメントの内容も引き続き考慮し、` + categoryContext;
+    // --- 保存機能 ---
+    function autoSaveItem() {
+      if (!state.query || !state.aiSummary) return;
+      if (state.savedItems.some(item => item.query === state.query && item.aiSummary === state.aiSummary)) return;
+
+      const newItem = {
+        id: Date.now().toString(),
+        query: state.query,
+        rawQuery: state.searchInput, 
+        category: state.selectedCategory, 
+        fileName: state.selectedFile ? state.selectedFile.name : null,
+        aiSummary: state.aiSummary, 
+        results: state.results,
+        date: new Date().toLocaleString('ja-JP')
+      };
+      state.savedItems.unshift(newItem);
+      localStorage.setItem('ai_search_saved_items', JSON.stringify(state.savedItems));
     }
-    
-    const parts = [{ text: `現在は${today}です。キーワード「${query}」について、${categoryContext}以下の概要を深掘りし、詳細で専門的な情報を含む長文の解説に書き換えてください。文体は「だ・である」調で統一してください。
-また、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください。
-[
-  {"url": "サイトのURL", "description": "このサイトがどのような情報を提供しているか、一目でわかる簡潔な要約（約40〜60文字）"}
-]
 
-概要:\n${aiSummary}` }];
+    function handleSaveItem() {
+      autoSaveItem();
+      updateView();
+      alert("回答を保存しました！「保存済みデータ一覧」から確認できます。");
+    }
 
-    if (selectedFile) {
-      parts.push({
-        inlineData: {
-          mimeType: selectedFile.mimeType,
-          data: selectedFile.data
+    function handleUpdateSearch() {
+      autoSaveItem();
+      executeSearch();
+    }
+
+    function handleExportText() {
+      if (!state.aiSummary) return;
+      let content = `■ 検索キーワード: ${state.query}\n`;
+      content += `■ 生成日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
+      content += `■ AIによる回答\n${state.aiSummary}\n\n`;
+      if (state.results && state.results.length > 0) {
+        content += `■ 参考となったWEBサイト一覧\n`;
+        state.results.forEach((r, i) => { 
+          content += `[${i + 1}] ${r.title}\n    URL: ${r.url}\n`; 
+          if (r.description) content += `    概要: ${r.description}\n`;
+          content += `\n`;
+        });
+      }
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_回答.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function handleDeleteSavedItem(id, e) {
+      e.stopPropagation();
+      if(window.confirm("この保存済み回答を削除してもよろしいですか？")) {
+        state.savedItems = state.savedItems.filter(item => item.id !== id);
+        localStorage.setItem('ai_search_saved_items', JSON.stringify(state.savedItems));
+        updateView();
+      }
+    }
+
+    function loadSavedItem(id) {
+      const item = state.savedItems.find(i => i.id === id);
+      if(!item) return;
+      state.query = item.query;
+      state.searchInput = item.rawQuery || '';
+      state.selectedCategory = item.category || '';
+      state.selectedFile = null;
+      state.aiSummary = item.aiSummary;
+      state.results = item.results;
+      state.view = 'results';
+      state.slideData = [];
+      state.error = null;
+      updateView();
+    }
+
+    // --- スライド生成機能 ---
+    async function generateSlide() {
+      state.isGeneratingSlide = true;
+      updateView();
+      
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${state.apiKey}`;
+      const prompt = `以下のテーマと内容をもとに、プレゼンテーション用スライドの構成を作成し、必ず有効なJSON形式で出力してください。\n\nテーマ: ${state.query}\n内容: ${state.aiSummary}\n\n【厳格な要件】\n1. JSONのルートは "slides" というキーを持つオブジェクトにしてください。\n2. "slides" の値は配列とし、各要素が1ページ分のスライドを表します。\n3. 各スライドオブジェクトは "title" (文字列) と "content" (文字列の配列。1要素が1つの箇条書き項目) を持ってください。\n4. 1ページ目はタイトルスライドとしてください ("content" にはテーマの説明を短い1文で入れてください)。\n5. 2ページ目以降は詳細な内容をバランスよく分割して配置してください（1スライドにつき箇条書きは3〜4つまで）。\n6. 情報は省略せず全て網羅してください。\n7. スライド内のテキスト（タイトル、概要、箇条書きの各項目）は、すべて「だ・である」調（常体）で統一して簡潔にまとめてください。\n8. 返却するのはJSONデータのみです。Markdownのブロック記法（\`\`\`json など）は絶対に含めず、純粋なJSON文字列だけを出力してください。`;
+
+      const payload = { contents: [{ parts: [{ text: prompt }] }] };
+
+      try {
+        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!response.ok) {
+           if (response.status === 401 || response.status === 403 || response.status === 400) throw new Error(`認証エラー (${response.status})。APIキーを確認してください。`);
+           if (response.status === 404) throw new Error(`モデルが見つかりません (${response.status})。APIのバージョンまたはモデル名が正しくありません。`);
+           throw new Error("生成失敗");
+        }
+        const data = await response.json();
+        let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsedData = JSON.parse(rawText);
+        
+        if (parsedData && parsedData.slides) {
+          state.slideData = parsedData.slides;
+          state.currentSlideIndex = 0;
+          openSlideModal();
+        } else {
+          throw new Error("正しい形式ではありませんでした。");
+        }
+      } catch (err) {
+        console.error("Slide Generation Error:", err);
+        alert(err.message.includes("認証エラー") || err.message.includes("モデル") ? err.message : "スライドの生成中にエラーが発生しました。");
+        if (err.message.includes("認証エラー")) openSettings();
+      } finally {
+        state.isGeneratingSlide = false;
+        updateView();
+      }
+    }
+
+    function openSlideModal() {
+      document.getElementById('slide-modal').classList.remove('hidden');
+      renderSlide();
+    }
+
+    function closeSlideModal() {
+      document.getElementById('slide-modal').classList.add('hidden');
+    }
+
+    function setTheme(themeId) {
+      state.currentThemeId = themeId;
+      
+      // ボタンのハイライト更新
+      slideThemes.forEach(t => {
+        const btn = document.getElementById(`theme-btn-${t.id}`);
+        if(t.id === themeId) {
+          btn.classList.add('scale-125', 'border-white', 'ring-1', 'ring-white');
+          btn.classList.remove('border-gray-500', 'hover:scale-110');
+        } else {
+          btn.classList.remove('scale-125', 'border-white', 'ring-1', 'ring-white');
+          btn.classList.add('border-gray-500', 'hover:scale-110');
         }
       });
+      renderSlide();
     }
 
-    const payload = {
-      contents: [{ parts }],
-      tools: [{ google_search: {} }]
+    function renderSlide() {
+      if (state.slideData.length === 0) return;
+      
+      const theme = slideThemes.find(t => t.id === state.currentThemeId) || slideThemes[0];
+      const slide = state.slideData[state.currentSlideIndex];
+      const container = document.getElementById('slide-container');
+      const isTitle = state.currentSlideIndex === 0;
+
+      container.style.background = `linear-gradient(135deg, ${theme.bg[0]} 0%, ${theme.bg[1]} 100%)`;
+
+      let innerHtml = '';
+      if (isTitle) {
+        innerHtml = `
+          <div class="flex-grow flex flex-col items-center justify-center text-center animate-in duration-500">
+            <h1 contenteditable="true" onblur="handleSlideTitleChange(${state.currentSlideIndex}, this)" onkeydown="handleKeyDownOnEditable(event)" class="text-[5cqw] font-extrabold leading-tight mb-[3cqw] tracking-tight transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" style="color: ${theme.accent}">${slide.title}</h1>
+            <div class="w-24 h-1.5 mb-[4cqw] rounded-full transition-colors duration-500" style="background-color: ${theme.accent}"></div>
+            <p contenteditable="true" onblur="handleSlideTitleContentChange(${state.currentSlideIndex}, this)" onkeydown="handleKeyDownOnEditable(event)" class="text-[2.2cqw] leading-relaxed max-w-[80%] font-medium transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" style="color: ${theme.subText}">${slide.content.join(" ")}</p>
+          </div>
+        `;
+      } else {
+        const listItems = slide.content.map((text, i) => `
+          <li contenteditable="true" onblur="handleSlideListContentChange(${state.currentSlideIndex}, ${i}, this)" onkeydown="handleKeyDownOnEditable(event)" class="cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-1 -ml-1">${text}</li>
+        `).join('');
+
+        innerHtml = `
+          <div class="flex-grow flex flex-col animate-in duration-500">
+            <h2 contenteditable="true" onblur="handleSlideTitleChange(${state.currentSlideIndex}, this)" onkeydown="handleKeyDownOnEditable(event)" class="text-[3.5cqw] font-bold border-b-[3px] pb-[1cqw] mb-[3cqw] transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" style="color: ${theme.accent}; border-bottom-color: ${theme.accent}">${slide.title}</h2>
+            <ul class="text-[2.2cqw] leading-[1.8] list-disc ml-[3cqw] space-y-[1.5cqw] font-medium transition-colors duration-500" style="color: ${theme.text}">${listItems}</ul>
+          </div>
+        `;
+      }
+
+      innerHtml += `
+        <div class="absolute bottom-[3cqw] left-[4cqw] text-[1.5cqw] font-bold transition-colors duration-500" style="color: ${theme.subText}">${state.currentSlideIndex + 1} / ${state.slideData.length}</div>
+        <div class="absolute bottom-[3cqw] right-[4cqw] text-[1.2cqw] transition-colors duration-500" style="color: ${theme.subText}">AI Generated</div>
+      `;
+
+      container.innerHTML = innerHtml;
+
+      // プログレスバー更新
+      const progress = document.getElementById('slide-progress');
+      progress.style.width = `${((state.currentSlideIndex + 1) / state.slideData.length) * 100}%`;
+      progress.style.backgroundColor = theme.accent;
+    }
+
+    function nextSlide() {
+      if(state.slideData.length === 0) return;
+      state.currentSlideIndex = (state.currentSlideIndex + 1) % state.slideData.length;
+      renderSlide();
+    }
+
+    function prevSlide() {
+      if(state.slideData.length === 0) return;
+      state.currentSlideIndex = (state.currentSlideIndex - 1 + state.slideData.length) % state.slideData.length;
+      renderSlide();
+    }
+
+    // スライド内テキスト編集
+    window.handleSlideTitleChange = function(index, el) { state.slideData[index].title = el.innerText; };
+    window.handleSlideTitleContentChange = function(index, el) { state.slideData[index].content = [el.innerText]; };
+    window.handleSlideListContentChange = function(slideIndex, listIndex, el) { state.slideData[slideIndex].content[listIndex] = el.innerText; };
+    window.handleKeyDownOnEditable = function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
     };
 
-    try {
-      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const data = await response.json();
-      const candidate = data.candidates?.[0];
-      const rawText = candidate.content?.parts?.[0]?.text || "生成失敗";
-      
-      let summaryText = rawText;
-      let sourceDescriptions = {};
+    // --- ダウンロード ---
+    function handleDownloadHTML() {
+      if (state.slideData.length === 0) return;
+      const theme = slideThemes.find(t => t.id === state.currentThemeId) || slideThemes[0];
 
-      const sourcesMarker = "===SOURCES===";
-      if (rawText.includes(sourcesMarker)) {
-        const parts = rawText.split(sourcesMarker);
-        summaryText = parts[0].trim();
-        const jsonMatch = parts[1].match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (jsonMatch) {
-          try {
-            const sourcesJson = JSON.parse(jsonMatch[0]);
-            if (Array.isArray(sourcesJson)) {
-              sourcesJson.forEach(item => {
-                if (item.url && item.description) {
-                  sourceDescriptions[item.url.trim().replace(/\/$/, '')] = item.description;
-                }
-              });
-            }
-          } catch(e) { console.error(e); }
-        }
-      }
-      
-      const chunks = candidate.groundingMetadata?.groundingChunks || [];
-      const newSources = []; const seenUrls = new Set(results.map(r => r.url));
-      
-      for (const chunk of chunks) {
-        if (chunk.web?.uri && !seenUrls.has(chunk.web.uri)) {
-          seenUrls.add(chunk.web.uri); 
-          const cleanUrl = chunk.web.uri.trim().replace(/\/$/, '');
-          let desc = sourceDescriptions[cleanUrl];
-          if (!desc) {
-            const domain = getDomain(chunk.web.uri);
-            const matchUrl = Object.keys(sourceDescriptions).find(k => getDomain(k) === domain);
-            if (matchUrl) desc = sourceDescriptions[matchUrl];
-          }
-          if (!desc) desc = "このサイトの詳しい情報はリンク先をご覧ください。";
-          newSources.push({ title: chunk.web.title || "ウェブページ", url: chunk.web.uri, description: desc });
-        }
-      }
-
-      setAiSummary(summaryText);
-      
-      setResults(prev => {
-        const updatedPrev = prev.map(p => {
-          const cleanUrl = p.url.trim().replace(/\/$/, '');
-          if (sourceDescriptions[cleanUrl]) {
-            return { ...p, description: sourceDescriptions[cleanUrl] };
-          }
-          return p;
-        });
-        return [...updatedPrev, ...newSources];
-      });
-
-    } catch (err) {
-      alert("エラーが発生しました: " + err.message);
-    } finally {
-      setIsElaborating(false);
-    }
-  };
-
-  const generateSlide = async () => {
-    setIsGeneratingSlide(true);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-    
-    const prompt = `
-以下のテーマと内容をもとに、プレゼンテーション用スライドの構成を作成し、必ず有効なJSON形式で出力してください。
-
-テーマ: ${query}
-内容: ${aiSummary}
-
-【厳格な要件】
-1. JSONのルートは "slides" というキーを持つオブジェクトにしてください。
-2. "slides" の値は配列とし、各要素が1ページ分のスライドを表します。
-3. 各スライドオブジェクトは "title" (文字列) と "content" (文字列の配列。1要素が1つの箇条書き項目) を持ってください。
-4. 1ページ目はタイトルスライドとしてください ("content" にはテーマの説明を短い1文で入れてください)。
-5. 2ページ目以降は詳細な内容をバランスよく分割して配置してください（1スライドにつき箇条書きは3〜4つまで）。
-6. 情報は省略せず全て網羅してください。
-7. スライド内のテキスト（タイトル、概要、箇条書きの各項目）は、すべて「だ・である」調（常体）で統一して簡潔にまとめてください。
-8. 返却するのはJSONデータのみです。Markdownのブロック記法（\`\`\`json など）は絶対に含めず、純粋なJSON文字列だけを出力してください。
-`;
-
-    const payload = { contents: [{ parts: [{ text: prompt }] }] };
-
-    try {
-      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!response.ok) throw new Error("生成失敗");
-      const data = await response.json();
-      let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      
-      rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      const parsedData = JSON.parse(rawText);
-      if (parsedData && parsedData.slides) {
-        setSlideData(parsedData.slides);
-        setCurrentSlideIndex(0);
-        setShowSlideView(true);
-      } else {
-        throw new Error("正しい形式ではありませんでした。");
-      }
-    } catch (err) {
-      alert("スライドの生成中にエラーが発生しました: " + err.message);
-    } finally {
-      setIsGeneratingSlide(false);
-    }
-  };
-
-  const handleSlideTitleChange = (index, newTitle) => {
-    const updatedData = [...slideData];
-    updatedData[index].title = newTitle;
-    setSlideData(updatedData);
-  };
-
-  const handleSlideTitleContentChange = (index, newContent) => {
-    const updatedData = [...slideData];
-    updatedData[index].content = [newContent];
-    setSlideData(updatedData);
-  };
-
-  const handleSlideListContentChange = (slideIndex, listIndex, newText) => {
-    const updatedData = [...slideData];
-    updatedData[slideIndex].content[listIndex] = newText;
-    setSlideData(updatedData);
-  };
-
-  const handleKeyDownOnEditable = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      e.target.blur();
-    }
-  };
-
-  const handleDownloadHTML = () => {
-    if (slideData.length === 0) return;
-    const theme = slideThemes.find(t => t.id === currentThemeId) || slideThemes[0];
-
-    let htmlStr = `<!DOCTYPE html>
+      let htmlStr = `<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${query} - スライド資料</title>
+<title>${state.query} - スライド資料</title>
 <style>
-  body { 
-    margin: 0; 
-    padding: 2vw; 
-    font-family: 'Helvetica Neue', Arial, sans-serif; 
-    background: #e9ecef; 
-    color: ${theme.text}; 
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3vw;
-  }
-  .container-query { 
-    container-type: inline-size; 
-    width: 100%; 
-    max-width: 1200px; 
-  }
-  .slide-container { 
-    width: 100%; 
-    aspect-ratio: 16 / 9;
-    background: linear-gradient(135deg, ${theme.bg[0]} 0%, ${theme.bg[1]} 100%); 
-    position: relative; 
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
-    border-radius: 8px;
-    overflow: hidden; 
-    display: flex; 
-    flex-direction: column; 
-    padding: 6cqw; 
-    box-sizing: border-box; 
-    justify-content: flex-start; 
-  }
+  body { margin: 0; padding: 2vw; font-family: 'Helvetica Neue', Arial, sans-serif; background: #e9ecef; color: ${theme.text}; display: flex; flex-direction: column; align-items: center; gap: 3vw; }
+  .container-query { container-type: inline-size; width: 100%; max-width: 1200px; }
+  .slide-container { width: 100%; aspect-ratio: 16 / 9; background: linear-gradient(135deg, ${theme.bg[0]} 0%, ${theme.bg[1]} 100%); position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; padding: 6cqw; box-sizing: border-box; justify-content: flex-start; }
   .title-slide { justify-content: center; align-items: center; text-align: center; }
   .title { font-size: 3.5cqw; color: ${theme.accent}; margin-bottom: 3cqw; font-weight: bold; border-bottom: 2px solid ${theme.accent}; padding-bottom: 1cqw; }
   .title-slide .title { font-size: 5cqw; border-bottom: none; margin-bottom: 2cqw; }
@@ -522,507 +1062,88 @@ export default function App() {
   .content { font-size: 2.2cqw; color: ${theme.text}; line-height: 1.8; margin-left: 2cqw; }
   .content li { margin-bottom: 1.5cqw; }
   .page-num { position: absolute; bottom: 2cqw; left: 2cqw; font-size: 1.2cqw; color: ${theme.subText}; font-weight: bold; }
-  
-  .print-btn-container {
-    width: 100%;
-    max-width: 1200px;
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: -1vw;
-  }
-  .print-btn {
-    padding: 12px 24px;
-    background: ${theme.accent};
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 16px;
-    cursor: pointer;
-    font-weight: bold;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    transition: 0.2s;
-  }
+  .print-btn-container { width: 100%; max-width: 1200px; display: flex; justify-content: flex-end; margin-bottom: -1vw; }
+  .print-btn { padding: 12px 24px; background: ${theme.accent}; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s; }
   .print-btn:hover { opacity: 0.9; transform: translateY(-2px); }
-
   @media print {
     @page { size: 16in 9in; margin: 0; }
     body { background: white; padding: 0; gap: 0; display: block; }
     .print-btn-container { display: none; }
     .container-query { max-width: none; page-break-after: always; page-break-inside: avoid; margin-bottom: 0; }
-    .slide-container { 
-      box-shadow: none; 
-      border-radius: 0; 
-      width: 100vw; 
-      height: 56.25vw;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+    .slide-container { box-shadow: none; border-radius: 0; width: 100vw; height: 56.25vw; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
 </head>
 <body>
-
-<div class="print-btn-container">
-  <button class="print-btn" onclick="window.print()">この資料をPDFで保存・印刷</button>
-</div>
+<div class="print-btn-container"><button class="print-btn" onclick="window.print()">この資料をPDFで保存・印刷</button></div>
 `;
-    slideData.forEach((slide, idx) => {
-      const isTitleSlide = idx === 0;
-      htmlStr += `
-<div class="container-query">
-  <div class="slide-container ${isTitleSlide ? 'title-slide' : ''}">
-    <div class="title">${slide.title}</div>
-`;
-      if (isTitleSlide) {
-        htmlStr += `    <div class="content-text">${slide.content.join('<br>')}</div>\n`;
-      } else {
-        htmlStr += `    <ul class="content">\n${slide.content.map(c => `      <li>${c}</li>`).join('\n')}\n    </ul>\n`;
-      }
-      htmlStr += `    <div class="page-num">${idx + 1} / ${slideData.length}</div>
-  </div>
-</div>\n`;
-    });
-
-    htmlStr += `
-</body>
-</html>`;
-
-    const blob = new Blob([htmlStr], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${query.replace(/[\\/:*?"<>|]/g, '_')}_スライド資料.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleDownloadPPTX = async () => {
-    if (slideData.length === 0) return;
-    const theme = slideThemes.find(t => t.id === currentThemeId) || slideThemes[0];
-    const hexToPptx = (hex) => hex.replace('#', '').toUpperCase();
-    
-    const loadScript = (src) => {
-      return new Promise((resolve, reject) => {
-        if (window.PptxGenJS) return resolve();
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.body.appendChild(script);
+      state.slideData.forEach((slide, idx) => {
+        const isTitleSlide = idx === 0;
+        htmlStr += `<div class="container-query"><div class="slide-container ${isTitleSlide ? 'title-slide' : ''}"><div class="title">${slide.title}</div>\n`;
+        if (isTitleSlide) htmlStr += `    <div class="content-text">${slide.content.join('<br>')}</div>\n`;
+        else htmlStr += `    <ul class="content">\n${slide.content.map(c => `      <li>${c}</li>`).join('\n')}\n    </ul>\n`;
+        htmlStr += `    <div class="page-num">${idx + 1} / ${state.slideData.length}</div></div></div>\n`;
       });
-    };
+      htmlStr += `</body></html>`;
 
-    try {
-      await loadScript("https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js");
-      const pptx = new window.PptxGenJS();
-      pptx.layout = 'LAYOUT_16x9';
-
-      slideData.forEach((slide, idx) => {
-        const slidePptx = pptx.addSlide();
-        slidePptx.background = { color: hexToPptx(theme.bg[0]) };
-
-        if (idx === 0) {
-          slidePptx.addText(slide.title, { x: 0.5, y: 2.0, w: "90%", fontSize: 44, bold: true, color: hexToPptx(theme.accent), align: "center" });
-          if (slide.content.length > 0) {
-            slidePptx.addText(slide.content.join("\n"), { x: 0.5, y: 3.5, w: "90%", fontSize: 24, color: hexToPptx(theme.subText), align: "center" });
-          }
-        } else {
-          slidePptx.addText(slide.title, { x: 0.5, y: 0.5, w: "90%", h: 0.8, fontSize: 32, bold: true, color: hexToPptx(theme.accent), align: "left" });
-          slidePptx.addShape(pptx.ShapeType.line, { x: 0.5, y: 1.3, w: "90%", h: 0, line: { color: hexToPptx(theme.accent), width: 2 } });
-          
-          if (slide.content.length > 0) {
-            const bullets = slide.content.map(text => ({ text, options: { bullet: true, breakLine: true } }));
-            slidePptx.addText(bullets, { x: 0.5, y: 1.6, w: "90%", h: 5.0, fontSize: 24, color: hexToPptx(theme.text), align: "left", valign: "top", lineSpacing: 35 });
-          }
-        }
-        
-        slidePptx.addText(`${idx + 1} / ${slideData.length}`, { x: 0.5, y: 6.8, w: "90%", fontSize: 12, color: hexToPptx(theme.subText), align: "right" });
-      });
-
-      pptx.writeFile({ fileName: `${query.replace(/[\\/:*?"<>|]/g, '_')}_slide.pptx` });
-    } catch (error) {
-      alert("PPTXの生成に失敗しました。ネットワーク環境を確認してください。");
-      console.error(error);
+      const blob = new Blob([htmlStr], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_スライド資料.html`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
-  };
 
-  const nextSlide = () => setCurrentSlideIndex((prev) => (prev + 1) % slideData.length);
-  const prevSlide = () => setCurrentSlideIndex((prev) => (prev - 1 + slideData.length) % slideData.length);
-
-  const clearSearch = () => {
-    setSearchInput('');
-    if (!hasSearched) inputRef.current?.focus();
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    searchWeb(searchInput);
-  };
-
-  const resetHome = () => {
-    setHasSearched(false); setShowSavedView(false); setSearchInput('');
-    setSelectedCategory(''); setQuery(''); setResults([]); setAiSummary(''); setSlideData([]); setSelectedFile(null);
-  };
-
-  const renderSavedView = () => (
-    <div className="flex-grow p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full">
-      <div className="flex items-center space-x-3 mb-8 text-gray-800 dark:text-gray-100">
-        <Library className="h-8 w-8 text-blue-500" />
-        <h2 className="text-3xl font-bold">保存済みデータ一覧</h2>
-      </div>
-
-      {savedItems.length === 0 ? (
-        <div className="text-center py-20 text-gray-500 dark:text-gray-400 bg-[#f8f9fa] dark:bg-[#303134] rounded-2xl border border-gray-200 dark:border-gray-700">
-          <Bookmark className="h-12 w-12 mx-auto mb-4 text-gray-400 opacity-50" />
-          <p className="text-lg">保存された回答はまだありません。</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {savedItems.map((item) => (
-            <div key={item.id} onClick={() => loadSavedItem(item)} className="bg-white dark:bg-[#303134] p-5 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer group flex flex-col h-64">
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-lg text-blue-700 dark:text-blue-400 line-clamp-2">{item.query}</h3>
-                <button onClick={(e) => handleDeleteSavedItem(item.id, e)} className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100"><Trash2 className="h-5 w-5" /></button>
-              </div>
-              <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-4 flex-grow">{item.aiSummary}</p>
-              <div className="mt-4 flex justify-between items-center text-xs text-gray-500 border-t border-gray-100 dark:border-gray-600 pt-3">
-                <span className="flex items-center"><Globe className="h-3 w-3 mr-1"/> 参考元 {item.results.length}件</span>
-                <span>{item.date}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  const activeTheme = slideThemes.find(t => t.id === currentThemeId) || slideThemes[0];
-
-  return (
-    <div className="min-h-screen bg-white text-gray-900 font-sans dark:bg-[#202124] dark:text-gray-100 transition-colors duration-200">
+    async function handleDownloadPPTX() {
+      if (state.slideData.length === 0) return;
+      const theme = slideThemes.find(t => t.id === state.currentThemeId) || slideThemes[0];
+      const hexToPptx = (hex) => hex.replace('#', '').toUpperCase();
       
-      {!hasSearched && !showSavedView ? (
-        <div className="flex flex-col items-center justify-center min-h-screen px-4 pb-20 relative">
-          <div className="absolute top-6 right-6 sm:top-8 sm:right-8">
-            <button onClick={() => setShowSavedView(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-50 dark:bg-[#303134] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-full hover:bg-gray-100 transition-colors shadow-sm">
-              <Library className="h-4 w-4" />
-              <span className="font-medium text-sm">保存済みデータ一覧</span>
-              {savedItems.length > 0 && <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1">{savedItems.length}</span>}
-            </button>
-          </div>
-          <div className="mb-8 flex items-center space-x-3 text-blue-500">
-            <Search size={56} strokeWidth={2.5} />
-            <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tighter text-gray-800 dark:text-white">AI Word Search</h1>
-          </div>
-          <div className="w-full max-w-4xl">
-            <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3">
-              <div className="flex flex-col sm:flex-row gap-3 w-full">
-                <div className="relative group flex-grow h-14">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Search className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
-                  </div>
-                  <input ref={inputRef} type="text" className="block w-full h-full pl-12 pr-12 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md focus:outline-none transition-shadow text-base dark:text-white placeholder-gray-400" placeholder="Google検索、または分野を選択..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
-                  {searchInput && <button type="button" onClick={clearSearch} className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>}
-                </div>
-                <div className="relative shrink-0 w-full sm:w-56 h-14">
-                  <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="block w-full h-full pl-5 pr-10 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md focus:outline-none transition-shadow text-base dark:text-white appearance-none cursor-pointer text-gray-700 dark:text-gray-200">
-                    <option value="">すべての分野</option>
-                    {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-500">
-                    <ChevronDown className="h-5 w-5" />
-                  </div>
-                </div>
-                <div className="shrink-0 h-14">
-                  <input type="file" id="file-upload-home" className="hidden" accept=".pdf,.txt,.html,.htm,.pptx" onChange={handleFileChange} />
-                  <label htmlFor="file-upload-home" className="flex items-center justify-center w-full sm:w-14 h-full bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md cursor-pointer text-gray-500 hover:text-blue-500 transition-colors" title="PDF, TEXT, HTML, PPTXファイルを添付して分析">
-                    <Paperclip className="h-5 w-5" />
-                  </label>
-                </div>
-              </div>
-              
-              {/* 選択されたファイルの表示領域 */}
-              {selectedFile && (
-                <div className="flex items-center justify-center sm:justify-start space-x-2 text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-4 py-2 rounded-full border border-blue-200 dark:border-blue-800 w-fit mx-auto sm:mx-0 transition-all">
-                  <FileCheck className="h-4 w-4" />
-                  <span className="truncate max-w-[200px] sm:max-w-md font-medium">{selectedFile.name}</span>
-                  <button type="button" onClick={removeFile} className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-100 ml-2 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 p-0.5 transition-colors" title="ファイルを削除">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-            </form>
+      const loadScript = (src) => {
+        return new Promise((resolve, reject) => {
+          if (window.PptxGenJS) return resolve();
+          const script = document.createElement('script');
+          script.src = src;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      };
 
-            <div className="mt-10 flex justify-center">
-              <button onClick={() => searchWeb(searchInput)} disabled={(!searchInput.trim() && !selectedCategory && !selectedFile) || isLoading} className="px-8 py-3.5 bg-[#f8f9fa] dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full text-base font-medium text-gray-800 dark:text-gray-200 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-sm hover:bg-gray-50 disabled:opacity-50 transition-all">検索を実行する</button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col min-h-screen">
-          <header className="sticky top-0 z-10 bg-white dark:bg-[#202124] border-b border-gray-200 dark:border-gray-700 p-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row items-center gap-4 sm:gap-6">
-            <div className="flex items-center space-x-2 text-blue-500 cursor-pointer shrink-0" onClick={resetHome}>
-              <Search size={32} strokeWidth={2.5} />
-              <span className="text-2xl font-extrabold tracking-tighter text-gray-800 dark:text-white hidden lg:block">AI Word Search</span>
-            </div>
+      try {
+        await loadScript("https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js");
+        const pptx = new window.PptxGenJS();
+        pptx.layout = 'LAYOUT_16x9';
 
-            <form onSubmit={handleSubmit} className="flex-grow w-full max-w-5xl flex flex-col gap-2">
-              <div className="flex flex-row gap-2 w-full">
-                <div className="relative flex-grow group h-12">
-                  <input type="text" className="block w-full h-full pl-5 pr-10 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm focus:outline-none text-base dark:text-white" placeholder="キーワードを入力..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
-                  {searchInput && <button type="button" onClick={clearSearch} className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>}
-                </div>
-                <div className="relative shrink-0 w-28 sm:w-40 h-12">
-                  <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="block w-full h-full pl-3 sm:pl-4 pr-6 sm:pr-8 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm focus:outline-none text-sm sm:text-base dark:text-white appearance-none cursor-pointer truncate text-gray-700 dark:text-gray-200">
-                    <option value="">分野: すべて</option>
-                    {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-2 sm:pr-3 pointer-events-none text-gray-500">
-                    <ChevronDown className="h-4 w-4" />
-                  </div>
-                </div>
-                <div className="shrink-0 h-12">
-                  <input type="file" id="file-upload-header" className="hidden" accept=".pdf,.txt,.html,.htm,.pptx" onChange={handleFileChange} />
-                  <label htmlFor="file-upload-header" className="flex items-center justify-center w-12 h-full bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md cursor-pointer text-gray-500 hover:text-blue-500 transition-colors" title="ファイルを添付">
-                    <Paperclip className="h-4 w-4" />
-                  </label>
-                </div>
-                <button type="submit" disabled={(!searchInput.trim() && !selectedCategory && !selectedFile) || isLoading} className="h-12 w-full md:w-auto shrink-0 px-4 sm:px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap shadow-sm">
-                  検索を実行する
-                </button>
-              </div>
-              
-              {/* ヘッダー部 ファイル表示領域 */}
-              {selectedFile && (
-                <div className="flex items-center space-x-2 text-xs sm:text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-full border border-blue-200 dark:border-blue-800 w-fit transition-all mt-1">
-                  <FileCheck className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="truncate max-w-[150px] sm:max-w-xs font-medium">{selectedFile.name}</span>
-                  <button type="button" onClick={removeFile} className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-100 ml-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 p-0.5 transition-colors">
-                    <X className="h-3 w-3 sm:h-4 sm:w-4" />
-                  </button>
-                </div>
-              )}
-            </form>
+        state.slideData.forEach((slide, idx) => {
+          const slidePptx = pptx.addSlide();
+          slidePptx.background = { color: hexToPptx(theme.bg[0]) };
 
-            <div className="shrink-0 flex items-center justify-end">
-              <button onClick={() => setShowSavedView(true)} className={`flex items-center space-x-1.5 px-3 py-2 rounded-lg font-medium text-sm transition-colors ${showSavedView ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-[#303134]'}`}>
-                <Library className="h-4 w-4" />
-                <span className="hidden md:inline">保存済みデータ一覧</span>
-              </button>
-            </div>
-          </header>
+          if (idx === 0) {
+            slidePptx.addText(slide.title, { x: 0.5, y: 2.0, w: "90%", fontSize: 44, bold: true, color: hexToPptx(theme.accent), align: "center" });
+            if (slide.content.length > 0) slidePptx.addText(slide.content.join("\n"), { x: 0.5, y: 3.5, w: "90%", fontSize: 24, color: hexToPptx(theme.subText), align: "center" });
+          } else {
+            slidePptx.addText(slide.title, { x: 0.5, y: 0.5, w: "90%", h: 0.8, fontSize: 32, bold: true, color: hexToPptx(theme.accent), align: "left" });
+            slidePptx.addShape(pptx.ShapeType.line, { x: 0.5, y: 1.3, w: "90%", h: 0, line: { color: hexToPptx(theme.accent), width: 2 } });
+            if (slide.content.length > 0) {
+              const bullets = slide.content.map(text => ({ text, options: { bullet: true, breakLine: true } }));
+              slidePptx.addText(bullets, { x: 0.5, y: 1.6, w: "90%", h: 5.0, fontSize: 24, color: hexToPptx(theme.text), align: "left", valign: "top", lineSpacing: 35 });
+            }
+          }
+          slidePptx.addText(`${idx + 1} / ${state.slideData.length}`, { x: 0.5, y: 6.8, w: "90%", fontSize: 12, color: hexToPptx(theme.subText), align: "right" });
+        });
 
-          {showSavedView ? ( renderSavedView() ) : (
-            <main className="flex-grow p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full">
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-                  <Loader2 className="h-8 w-8 animate-spin mb-4 text-blue-500" />
-                  <p>情報の分析と回答を生成中...</p>
-                </div>
-              ) : error ? (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-start space-x-4">
-                  <AlertCircle className="h-6 w-6 text-red-600 shrink-0 mt-0.5" />
-                  <div><h3 className="text-lg font-medium text-red-800 mb-2">エラー</h3><p className="text-red-600">{error}</p></div>
-                </div>
-              ) : results.length > 0 || aiSummary ? (
-                <div className="space-y-8 animate-in fade-in duration-500">
-                  
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5 rounded-xl border border-blue-100 dark:border-blue-800">
-                    <div>
-                      <h3 className="font-bold text-lg text-blue-800 dark:text-blue-300">資料を自動生成</h3>
-                      <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">この回答をもとに、プレゼン用のスライドを構築します</p>
-                    </div>
-                    <button onClick={generateSlide} disabled={isGeneratingSlide} className="flex items-center justify-center w-full sm:w-auto space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg shadow-md font-medium transition-all disabled:opacity-70">
-                      {isGeneratingSlide ? <Loader2 className="h-5 w-5 animate-spin" /> : <Presentation className="h-5 w-5" />}
-                      <span>{isGeneratingSlide ? '生成中...' : 'スライドを作成する'}</span>
-                    </button>
-                  </div>
+        pptx.writeFile({ fileName: `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_slide.pptx` });
+      } catch (error) {
+        alert("PPTXの生成に失敗しました。ネットワーク環境を確認してください。");
+        console.error(error);
+      }
+    }
 
-                  <div className="bg-[#f8f9fa] dark:bg-[#303134] rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm relative group">
-                    <div className="flex items-center space-x-2 mb-4 text-blue-600 dark:text-blue-400">
-                      <Search className="h-5 w-5" />
-                      <h2 className="text-lg font-semibold">検索結果への回答</h2>
-                    </div>
-                    
-                    <div className="mb-4 flex flex-wrap gap-2">
-                      {selectedCategory && (
-                        <span className="inline-flex items-center px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-semibold rounded-full border border-blue-200 dark:border-blue-800">
-                          分野: {selectedCategory}
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap text-base">
-                      {aiSummary}
-                    </div>
-                    
-                    <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-200 dark:border-gray-700 pt-4">
-                      <button onClick={handleExportText} className="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors"><FileText className="h-4 w-4" /><span className="hidden sm:inline">出力</span></button>
-                      <button onClick={handleSaveItem} className="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-blue-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors"><Bookmark className="h-4 w-4" /><span className="hidden sm:inline">保存</span></button>
-                      <button onClick={handleUpdateSearch} disabled={isLoading} className="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-green-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /><span className="hidden sm:inline">更新</span></button>
-                      <button onClick={elaborateSummary} disabled={isElaborating || isLoading} className="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"><PlusCircle className="h-4 w-4" /><span>{isElaborating ? '詳細化中...' : 'もう少し詳しく'}</span></button>
-                    </div>
-                  </div>
+    // 初期化実行
+    window.addEventListener('DOMContentLoaded', init);
 
-                  {results.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 pb-3 border-b border-gray-100 mb-5 flex items-center"><Globe className="h-4 w-4 mr-2" />参考となったWEBサイト一覧</p>
-                      <div className="grid grid-cols-1 gap-4">
-                        {results.map((result, index) => (
-                          <a key={index} href={result.url} target="_blank" rel="noopener noreferrer" className="group block p-5 bg-white dark:bg-[#202124] border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all flex flex-col h-full">
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full text-xs text-gray-500 font-medium truncate max-w-[200px] sm:max-w-xs">{getDomain(result.url)}</span>
-                              <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                            </div>
-                            <h3 className="text-lg font-bold text-[#1a0dab] dark:text-[#8ab4f8] group-hover:underline line-clamp-2 mb-3 leading-tight">{result.title}</h3>
-                            {result.description && (
-                              <div className="mt-auto pt-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg p-3 border-l-4 border-blue-400 dark:border-blue-600">
-                                <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 leading-relaxed font-medium">
-                                  {result.description}
-                                </p>
-                              </div>
-                            )}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : null}
-            </main>
-          )}
-        </div>
-      )}
-
-      {/* スライドプレビューモーダル */}
-      {showSlideView && slideData.length > 0 && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-gray-900 backdrop-blur-md animate-in fade-in duration-300">
-          
-          <div className="flex items-center justify-between p-3 sm:p-4 bg-gray-950 text-white border-b border-gray-800 shadow-xl z-20">
-            <div className="flex items-center space-x-3">
-              <Presentation className="h-6 w-6 text-blue-400 hidden sm:block" />
-              <div>
-                <h2 className="text-base sm:text-lg font-semibold leading-tight">スライドプレビュー</h2>
-                <p className="text-xs text-gray-400 hidden sm:block">← → キーでページ送り / テキストをクリックして直接編集できます</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-2 sm:space-x-4">
-              
-              <div className="flex items-center space-x-1 sm:space-x-1.5 mr-1 sm:mr-2 bg-gray-800 px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700 overflow-hidden">
-                <Palette className="h-4 w-4 text-gray-400 hidden lg:block shrink-0 mr-1" />
-                <div className="flex items-center space-x-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                  {slideThemes.map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => setCurrentThemeId(t.id)}
-                      className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full border transition-transform shrink-0 ${currentThemeId === t.id ? 'scale-125 border-white ring-1 ring-white' : 'border-gray-500 hover:scale-110'}`}
-                      style={{ background: `linear-gradient(135deg, ${t.bg[0]} 50%, ${t.accent} 50%)` }}
-                      title={t.name}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <button onClick={handleDownloadHTML} className="flex items-center space-x-1.5 sm:space-x-2 bg-gray-800 hover:bg-gray-700 text-white px-2 sm:px-4 py-2 rounded-md transition-colors text-xs sm:text-sm border border-gray-700" title="印刷用HTMLを保存">
-                <FileCode className="h-4 w-4" />
-                <span className="hidden sm:inline">HTML</span>
-              </button>
-              <button onClick={handleDownloadPPTX} className="flex items-center space-x-1.5 sm:space-x-2 bg-orange-600 hover:bg-orange-700 text-white px-2 sm:px-4 py-2 rounded-md transition-colors text-xs sm:text-sm font-medium shadow-md" title="PowerPointファイルを保存">
-                <Download className="h-4 w-4" />
-                <span className="hidden sm:inline">PPTX</span>
-              </button>
-              <button onClick={() => setShowSlideView(false)} className="text-gray-400 hover:text-white transition-colors p-1 ml-1 sm:ml-2"><XCircle className="h-6 w-6 sm:h-8 sm:w-8" /></button>
-            </div>
-          </div>
-
-          <div 
-            className="flex-grow w-full relative flex items-center justify-center p-4 sm:p-8 cursor-pointer overflow-hidden"
-            onClick={nextSlide}
-          >
-            <button onClick={(e)=>{e.stopPropagation(); prevSlide();}} className="absolute left-2 sm:left-8 p-2 sm:p-3 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm z-10 transition-all">
-              <ChevronLeft className="h-6 w-6 sm:h-8 sm:w-8" />
-            </button>
-
-            <div 
-              className="w-full aspect-video max-w-[calc(100vh*16/9-100px)] max-h-[calc(100vw*9/16)] shadow-2xl relative flex flex-col p-[6%] overflow-hidden rounded-md transition-all duration-500 cursor-default"
-              style={{ background: `linear-gradient(135deg, ${activeTheme.bg[0]} 0%, ${activeTheme.bg[1]} 100%)` }}
-              onClick={(e) => e.stopPropagation()} 
-            >
-              <div key={currentSlideIndex} className="w-full h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
-                
-                {currentSlideIndex === 0 ? (
-                  <div className="flex-grow flex flex-col items-center justify-center text-center">
-                    <h1 
-                      contentEditable suppressContentEditableWarning
-                      onBlur={(e) => handleSlideTitleChange(currentSlideIndex, e.target.innerText)}
-                      onKeyDown={handleKeyDownOnEditable}
-                      className="text-[5cqw] font-extrabold leading-tight mb-[3cqw] tracking-tight transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" 
-                      style={{ color: activeTheme.accent }}
-                    >
-                      {slideData[currentSlideIndex].title}
-                    </h1>
-                    <div className="w-24 h-1.5 mb-[4cqw] rounded-full transition-colors duration-500" style={{ backgroundColor: activeTheme.accent }}></div>
-                    <p 
-                      contentEditable suppressContentEditableWarning
-                      onBlur={(e) => handleSlideTitleContentChange(currentSlideIndex, e.target.innerText)}
-                      onKeyDown={handleKeyDownOnEditable}
-                      className="text-[2.2cqw] leading-relaxed max-w-[80%] font-medium transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" 
-                      style={{ color: activeTheme.subText }}
-                    >
-                      {slideData[currentSlideIndex].content.join(" ")}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="flex-grow flex flex-col">
-                    <h2 
-                      contentEditable suppressContentEditableWarning
-                      onBlur={(e) => handleSlideTitleChange(currentSlideIndex, e.target.innerText)}
-                      onKeyDown={handleKeyDownOnEditable}
-                      className="text-[3.5cqw] font-bold border-b-[3px] pb-[1cqw] mb-[3cqw] transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" 
-                      style={{ color: activeTheme.accent, borderBottomColor: activeTheme.accent }}
-                    >
-                      {slideData[currentSlideIndex].title}
-                    </h2>
-                    <ul className="text-[2.2cqw] leading-[1.8] list-disc ml-[3cqw] space-y-[1.5cqw] font-medium transition-colors duration-500" style={{ color: activeTheme.text }}>
-                      {slideData[currentSlideIndex].content.map((text, i) => (
-                        <li 
-                          key={i}
-                          contentEditable suppressContentEditableWarning
-                          onBlur={(e) => handleSlideListContentChange(currentSlideIndex, i, e.target.innerText)}
-                          onKeyDown={handleKeyDownOnEditable}
-                          className="cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-1 -ml-1"
-                        >
-                          {text}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                <div className="absolute bottom-[3cqw] left-[4cqw] text-[1.5cqw] font-bold transition-colors duration-500" style={{ color: activeTheme.subText }}>
-                  {currentSlideIndex + 1} / {slideData.length}
-                </div>
-                <div className="absolute bottom-[3cqw] right-[4cqw] text-[1.2cqw] transition-colors duration-500" style={{ color: activeTheme.subText }}>
-                  AI Generated
-                </div>
-              </div>
-            </div>
-
-            <button onClick={(e)=>{e.stopPropagation(); nextSlide();}} className="absolute right-2 sm:right-8 p-2 sm:p-3 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm z-10 transition-all">
-              <ChevronRight className="h-6 w-6 sm:h-8 sm:w-8" />
-            </button>
-          </div>
-
-          <div className="h-1 bg-gray-800 w-full">
-            <div 
-              className="h-full transition-all duration-300 ease-out"
-              style={{ width: `${((currentSlideIndex + 1) / slideData.length) * 100}%`, backgroundColor: activeTheme.accent }}
-            ></div>
-          </div>
-
-        </div>
-      )}
-    </div>
-  );
-}
+  </script>
+</body>
+</html>
