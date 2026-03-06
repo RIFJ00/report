@@ -8,6 +8,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Word (.docx) 解析用ライブラリ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <style>
     /* カスタムアニメーション */
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -78,8 +80,8 @@
             </div>
           </div>
           <div class="shrink-0 h-14">
-            <input type="file" id="file-upload-home" class="hidden" accept=".pdf,.txt,.html,.htm,.pptx" onchange="handleFileChange(event)">
-            <label for="file-upload-home" class="flex items-center justify-center w-full sm:w-14 h-full bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md cursor-pointer text-gray-500 hover:text-blue-500 transition-colors" title="PDF, TEXT, HTML, PPTXファイルを添付して分析">
+            <input type="file" id="file-upload-home" class="hidden" accept=".pdf,.txt,.html,.htm,.pptx,.docx" onchange="handleFileChange(event)">
+            <label for="file-upload-home" class="flex items-center justify-center w-full sm:w-14 h-full bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md cursor-pointer text-gray-500 hover:text-blue-500 transition-colors" title="PDF, TEXT, HTML, PPTX, WORDファイルを添付して分析">
               <i data-lucide="paperclip" class="h-5 w-5"></i>
             </label>
           </div>
@@ -129,7 +131,7 @@
             </div>
           </div>
           <div class="shrink-0 h-12">
-            <input type="file" id="file-upload-header" class="hidden" accept=".pdf,.txt,.html,.htm,.pptx" onchange="handleFileChange(event)">
+            <input type="file" id="file-upload-header" class="hidden" accept=".pdf,.txt,.html,.htm,.pptx,.docx" onchange="handleFileChange(event)">
             <label for="file-upload-header" class="flex items-center justify-center w-12 h-full bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md cursor-pointer text-gray-500 hover:text-blue-500 transition-colors" title="ファイルを添付">
               <i data-lucide="paperclip" class="h-4 w-4"></i>
             </label>
@@ -586,12 +588,57 @@
 
       const lowerName = file.name.toLowerCase();
       const isTextBased = lowerName.endsWith('.txt') || lowerName.endsWith('.html') || lowerName.endsWith('.htm');
+      const isDocx = lowerName.endsWith('.docx');
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (isTextBased) {
-          state.selectedFile = { name: file.name, type: 'text', data: event.target.result };
-        } else {
+      if (isDocx) {
+        if (!window.mammoth) {
+          alert("Wordファイル解析ライブラリが読み込まれていません。通信環境をご確認ください。");
+          e.target.value = null;
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          try {
+            const arrayBuffer = event.target.result;
+            // mammoth.jsで.docxからプレーンテキストを抽出
+            const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+            state.selectedFile = { name: file.name, type: 'text', data: result.value };
+            updateView();
+          } catch (err) {
+            console.error("Word抽出エラー:", err);
+            alert("Wordファイルのテキスト抽出に失敗しました。パスワード保護されているか、ファイルが破損している可能性があります。");
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (isTextBased) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          let textData = event.target.result;
+          
+          // HTMLファイルの場合は、タグやスクリプトを除去して純粋なテキストのみを抽出する
+          if (lowerName.endsWith('.html') || lowerName.endsWith('.htm')) {
+            try {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(textData, 'text/html');
+              // 不要な要素（スクリプトやスタイル）を削除
+              const scriptsAndStyles = doc.querySelectorAll('script, style, noscript');
+              scriptsAndStyles.forEach(el => el.remove());
+              textData = doc.body ? doc.body.textContent : textData;
+              // 連続する空白や改行を圧縮してトークンを節約
+              textData = textData.replace(/\s+/g, ' ').trim();
+            } catch (err) {
+              console.error("HTMLパースエラー:", err);
+              // パース失敗時はそのままのテキストフォールバック
+            }
+          }
+          
+          state.selectedFile = { name: file.name, type: 'text', data: textData };
+          updateView();
+        };
+        reader.readAsText(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (event) => {
           const base64Data = event.target.result.split(',')[1];
           let mimeType = file.type;
           if (!mimeType) {
@@ -599,12 +646,10 @@
             else if (lowerName.endsWith('.pptx')) mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
           }
           state.selectedFile = { name: file.name, type: 'inline', mimeType: mimeType, data: base64Data };
-        }
-        updateView();
-      };
-      
-      if (isTextBased) reader.readAsText(file);
-      else reader.readAsDataURL(file);
+          updateView();
+        };
+        reader.readAsDataURL(file);
+      }
       
       e.target.value = null;
     }
