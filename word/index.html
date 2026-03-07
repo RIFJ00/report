@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Word (.docx) 解析用ライブラリ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-  <!-- Word (.docx) 生成用ライブラリ -->
+  <!-- Word (.docx) 生成用ライブラリ (安定版の8.2.3に固定) -->
   <script src="https://cdn.jsdelivr.net/npm/docx@8.2.3/build/index.js"></script>
   <style>
     /* カスタムアニメーション */
@@ -30,16 +30,27 @@
         <h2 class="text-xl font-bold flex items-center"><i data-lucide="settings" class="mr-2 h-5 w-5"></i>設定</h2>
         <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"><i data-lucide="x" class="h-5 w-5"></i></button>
       </div>
-      <div class="mb-4">
+      
+      <div class="mb-5">
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Gemini API キー</label>
         <input type="password" id="api-key-input" class="w-full px-4 py-2 bg-gray-50 dark:bg-[#202124] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" placeholder="AIzaSy...">
         <p class="text-xs text-gray-500 mt-2"><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">Google AI Studio</a>で取得したAPIキーを入力してください。キーはブラウザにのみ保存されます。</p>
       </div>
+
+      <div class="mb-6">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">スライド右下のクレジット表示</label>
+        <div class="flex space-x-2">
+          <input type="text" id="logo-text-input" class="flex-grow px-4 py-2 bg-gray-50 dark:bg-[#202124] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" placeholder="一般社団法人日本みらい研">
+          <button type="button" onclick="resetLogoText()" class="shrink-0 px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-medium whitespace-nowrap border border-gray-300 dark:border-gray-600 shadow-sm">クリア</button>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">スライド出力時に右下に表示される組織名などを設定します。</p>
+      </div>
+
       <div class="flex justify-between items-center">
         <button onclick="removeApiKey()" class="px-3 py-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium text-sm flex items-center">
           <i data-lucide="trash-2" class="h-4 w-4 mr-1"></i>キーを削除
         </button>
-        <button onclick="saveApiKey()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">保存して閉じる</button>
+        <button onclick="saveSettings()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm">保存して閉じる</button>
       </div>
     </div>
   </div>
@@ -254,6 +265,8 @@
 
   <script>
     // 定数定義
+    const DEFAULT_LOGO_TEXT = "一般社団法人日本みらい研";
+
     const CATEGORIES = [
       "外交・安全保障", "国際情勢", "成長戦略", "気候変動・脱炭素", "宇宙産業", "AI・人工知能", "少子高齢化", 
       "SDGs・サステナビリティ", "地方創生", "自動運転・モビリティ", "サイバーセキュリティ", "金融・FinTech",
@@ -296,6 +309,8 @@
     let state = {
       apiKey: localStorage.getItem('ai_search_api_key') || '',
       tempApiKey: '',
+      slideLogoText: localStorage.getItem('ai_search_slide_logo') || DEFAULT_LOGO_TEXT,
+      tempSlideLogoText: '',
       query: '',
       searchInput: '',
       selectedCategory: '',
@@ -637,19 +652,35 @@
     // --- 設定モーダル ---
     function openSettings() {
       state.tempApiKey = state.apiKey;
+      state.tempSlideLogoText = state.slideLogoText;
       document.getElementById('api-key-input').value = state.tempApiKey;
+      document.getElementById('logo-text-input').value = state.tempSlideLogoText;
       document.getElementById('settings-modal').classList.remove('hidden');
     }
 
     function closeSettings() {
       document.getElementById('settings-modal').classList.add('hidden');
     }
+    
+    function resetLogoText() {
+      document.getElementById('logo-text-input').value = DEFAULT_LOGO_TEXT;
+    }
 
-    function saveApiKey() {
+    function saveSettings() {
       state.tempApiKey = document.getElementById('api-key-input').value;
+      state.tempSlideLogoText = document.getElementById('logo-text-input').value || DEFAULT_LOGO_TEXT;
+      
       state.apiKey = state.tempApiKey;
-      localStorage.setItem('ai_search_api_key', state.tempApiKey);
+      state.slideLogoText = state.tempSlideLogoText;
+      
+      localStorage.setItem('ai_search_api_key', state.apiKey);
+      localStorage.setItem('ai_search_slide_logo', state.slideLogoText);
+      
       closeSettings();
+      
+      if (!document.getElementById('slide-modal').classList.contains('hidden')) {
+          renderSlide();
+      }
     }
 
     function removeApiKey() {
@@ -1206,7 +1237,7 @@
         const wTextMuted = hexToWord(t.textMuted);
         const wAccent = hexToWord(t.accent);
 
-        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink } = window.docx;
         
         const summaryParagraphs = [];
         const lines = state.aiSummary.split('\n');
@@ -1296,10 +1327,15 @@
             // エラーを回避するため、URLは通常のテキスト(リンク色・下線)として挿入
             docChildren.push(new Paragraph({
                 children: [
-                  new TextRun({
-                      text: r.url,
-                      color: wAccent,
-                      underline: {}
+                  new ExternalHyperlink({
+                      children: [
+                          new TextRun({
+                              text: r.url,
+                              color: wAccent,
+                              underline: {}
+                          })
+                      ],
+                      link: r.url
                   })
                 ],
                 spacing: { after: 50 }
@@ -1610,7 +1646,7 @@
 
       innerHtml += `
         <div class="absolute bottom-[3cqw] left-[4cqw] text-[1.5cqw] font-bold transition-colors duration-500" style="color: ${theme.subText}">${state.currentSlideIndex + 1} / ${state.slideData.length}</div>
-        <div class="absolute bottom-[3cqw] right-[4cqw] text-[1.2cqw] transition-colors duration-500" style="color: ${theme.subText}">AI Generated</div>
+        <div class="absolute bottom-[3cqw] right-[4cqw] text-[1.2cqw] transition-colors duration-500" style="color: ${theme.subText}">${state.slideLogoText}</div>
       `;
 
       container.innerHTML = innerHtml;
@@ -1663,6 +1699,7 @@
   .content { font-size: 2.2cqw; color: ${theme.text}; line-height: 1.8; margin-left: 2cqw; }
   .content li { margin-bottom: 1.5cqw; }
   .page-num { position: absolute; bottom: 2cqw; left: 2cqw; font-size: 1.2cqw; color: ${theme.subText}; font-weight: bold; }
+  .logo-text { position: absolute; bottom: 2cqw; right: 2cqw; font-size: 1cqw; color: ${theme.subText}; }
   .print-btn-container { width: 100%; max-width: 1200px; display: flex; justify-content: flex-end; margin-bottom: -1vw; }
   .print-btn { padding: 12px 24px; background: ${theme.accent}; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s; }
   .print-btn:hover { opacity: 0.9; transform: translateY(-2px); }
@@ -1683,7 +1720,8 @@
         htmlStr += `<div class="container-query"><div class="slide-container ${isTitleSlide ? 'title-slide' : ''}"><div class="title">${slide.title}</div>\n`;
         if (isTitleSlide) htmlStr += `    <div class="content-text">${slide.content.join('<br>')}</div>\n`;
         else htmlStr += `    <ul class="content">\n${slide.content.map(c => `      <li>${c}</li>`).join('\n')}\n    </ul>\n`;
-        htmlStr += `    <div class="page-num">${idx + 1} / ${state.slideData.length}</div></div></div>\n`;
+        htmlStr += `    <div class="page-num">${idx + 1} / ${state.slideData.length}</div>`;
+        htmlStr += `    <div class="logo-text">${state.slideLogoText}</div></div></div>\n`;
       });
       htmlStr += `</body></html>`;
 
@@ -1732,7 +1770,8 @@
               slidePptx.addText(bullets, { x: 0.5, y: 1.6, w: "90%", h: 5.0, fontSize: 24, color: hexToPptx(theme.text), align: "left", valign: "top", lineSpacing: 35 });
             }
           }
-          slidePptx.addText(`${idx + 1} / ${state.slideData.length}`, { x: 0.5, y: 6.8, w: "90%", fontSize: 12, color: hexToPptx(theme.subText), align: "right" });
+          slidePptx.addText(`${idx + 1} / ${state.slideData.length}`, { x: 0.5, y: 5.2, w: "30%", fontSize: 12, color: hexToPptx(theme.subText), align: "left" });
+          slidePptx.addText(state.slideLogoText, { x: 6.5, y: 5.2, w: "30%", fontSize: 10, color: hexToPptx(theme.subText), align: "right" });
         });
 
         pptx.writeFile({ fileName: `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_slide.pptx` });
