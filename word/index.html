@@ -419,9 +419,12 @@
       if (state.results.length > 0) {
         const listItems = state.results.map(r => `
           <a href="${r.url}" target="_blank" rel="noopener noreferrer" class="group block p-5 bg-white dark:bg-[#202124] border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all flex flex-col h-full">
+            <div class="flex items-center justify-between mb-2">
+              ${r.siteName ? `<span class="bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full text-xs text-gray-600 dark:text-gray-400 font-medium truncate max-w-[200px] sm:max-w-xs">${r.siteName}</span>` : `<span class="bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full text-xs text-gray-500 font-medium truncate max-w-[200px] sm:max-w-xs">参考サイト</span>`}
+              <i data-lucide="external-link" class="h-4 w-4 text-gray-400 group-hover:text-blue-500 transition-colors"></i>
+            </div>
             <div class="flex items-start justify-between mb-2">
               <h3 class="text-lg font-bold text-[#1a0dab] dark:text-[#8ab4f8] group-hover:underline line-clamp-2 leading-tight pr-4">${r.title}</h3>
-              <i data-lucide="external-link" class="h-4 w-4 text-gray-400 group-hover:text-blue-500 transition-colors shrink-0 mt-1"></i>
             </div>
             ${r.description ? `
               <div class="mt-auto pt-2">
@@ -729,7 +732,7 @@
       const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
       
       const parts = [{ 
-        text: `現在は${today}です。${promptContext}回答の文体は「だ・である」調（常体）で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください（Markdownブロックは使わず、直接JSON配列を記述してください）。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "url": "サイトのURL", "description": "簡潔な要約"}\n]\n※重要：「title」にはURLやドメイン名（例: jimin.jp）を絶対に書かないでください。必ず記事やページの実際の日本語タイトルを記述してください。` 
+        text: `現在は${today}です。${promptContext}回答の文体は「だ・である」調（常体）で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください（Markdownブロックは使わず、直接JSON配列を記述してください）。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "siteName": "サイト名や運営組織名（ドメイン名不可）", "url": "サイトのURL", "description": "簡潔な要約"}\n]\n※重要：「title」や「siteName」にはURLやドメイン名（例: jimin.jp）を絶対に書かないでください。必ず実際の日本語の名称を記述してください。` 
       }];
 
       if (state.selectedFile) {
@@ -761,6 +764,7 @@
           let summaryText = rawText;
           let sourceDescriptions = {};
           let sourceTitles = {};
+          let sourceSiteNames = {};
 
           const sourcesMarker = "===SOURCES===";
           if (rawText.includes(sourcesMarker)) {
@@ -776,6 +780,7 @@
                       const cleanUrl = item.url.trim().replace(/\/$/, '');
                       if (item.description) sourceDescriptions[cleanUrl] = item.description;
                       if (item.title) sourceTitles[cleanUrl] = item.title;
+                      if (item.siteName) sourceSiteNames[cleanUrl] = item.siteName;
                     }
                   });
                 }
@@ -794,13 +799,15 @@
               const cleanUrl = uri.trim().replace(/\/$/, '');
               let desc = sourceDescriptions[cleanUrl];
               let aiTitle = sourceTitles[cleanUrl];
+              let aiSiteName = sourceSiteNames[cleanUrl];
               
-              if (!desc || !aiTitle) {
+              if (!desc || !aiTitle || !aiSiteName) {
                 const domain = getDomain(uri);
                 const matchUrl = Object.keys(sourceDescriptions).find(k => getDomain(k) === domain);
                 if (matchUrl) {
                   if (!desc) desc = sourceDescriptions[matchUrl];
                   if (!aiTitle) aiTitle = sourceTitles[matchUrl];
+                  if (!aiSiteName) aiSiteName = sourceSiteNames[matchUrl];
                 }
               }
               
@@ -819,8 +826,10 @@
               } else if (aiTitle) {
                 finalTitle = aiTitle;
               }
+
+              let finalSiteName = aiSiteName && !isBadTitle(aiSiteName) ? aiSiteName : "";
               
-              uniqueSources.push({ title: finalTitle, url: uri, description: desc });
+              uniqueSources.push({ title: finalTitle, siteName: finalSiteName, url: uri, description: desc });
             }
           };
 
@@ -866,7 +875,7 @@
       let categoryContext = state.selectedCategory ? `特に「${state.selectedCategory}」の分野・観点から、` : "";
       if (state.selectedFile) categoryContext = `添付されたドキュメントの内容も引き続き考慮し、` + categoryContext;
       
-      const parts = [{ text: `現在は${today}です。キーワード「${state.query}」について、${categoryContext}以下の概要を深掘りし、詳細で専門的な情報を含む長文の解説に書き換えてください。文体は「だ・である」調で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "url": "サイトのURL", "description": "一目でわかる簡潔な要約（約40〜60文字）"}\n]\n※重要：「title」にはURLやドメイン名を絶対に書かないでください。必ず記事の実際のタイトルを記述してください。\n\n概要:\n${state.aiSummary}` }];
+      const parts = [{ text: `現在は${today}です。キーワード「${state.query}」について、${categoryContext}以下の概要を深掘りし、詳細で専門的な情報を含む長文の解説に書き換えてください。文体は「だ・である」調で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "siteName": "サイト名や運営組織名（ドメイン名不可）", "url": "サイトのURL", "description": "一目でわかる簡潔な要約（約40〜60文字）"}\n]\n※重要：「title」や「siteName」にはURLやドメイン名を絶対に書かないでください。必ず日本語の名称を記述してください。\n\n概要:\n${state.aiSummary}` }];
 
       if (state.selectedFile) {
         if (state.selectedFile.type === 'text') parts.push({ text: `\n\n--- 添付ファイル (${state.selectedFile.name}) の内容 ---\n${state.selectedFile.data}\n--- 添付ファイル終わり ---\n` });
@@ -895,6 +904,7 @@
           let summaryText = rawText;
           let sourceDescriptions = {};
           let sourceTitles = {};
+          let sourceSiteNames = {};
 
           const sourcesMarker = "===SOURCES===";
           if (rawText.includes(sourcesMarker)) {
@@ -910,6 +920,7 @@
                       const cleanUrl = item.url.trim().replace(/\/$/, '');
                       if (item.description) sourceDescriptions[cleanUrl] = item.description;
                       if (item.title) sourceTitles[cleanUrl] = item.title;
+                      if (item.siteName) sourceSiteNames[cleanUrl] = item.siteName;
                     }
                   });
                 }
@@ -927,13 +938,15 @@
               const cleanUrl = uri.trim().replace(/\/$/, '');
               let desc = sourceDescriptions[cleanUrl];
               let aiTitle = sourceTitles[cleanUrl];
+              let aiSiteName = sourceSiteNames[cleanUrl];
               
-              if (!desc || !aiTitle) {
+              if (!desc || !aiTitle || !aiSiteName) {
                 const domain = getDomain(uri);
                 const matchUrl = Object.keys(sourceDescriptions).find(k => getDomain(k) === domain);
                 if (matchUrl) {
                   if (!desc) desc = sourceDescriptions[matchUrl];
                   if (!aiTitle) aiTitle = sourceTitles[matchUrl];
+                  if (!aiSiteName) aiSiteName = sourceSiteNames[matchUrl];
                 }
               }
               
@@ -952,8 +965,10 @@
               } else if (aiTitle) {
                 finalTitle = aiTitle;
               }
+
+              let finalSiteName = aiSiteName && !isBadTitle(aiSiteName) ? aiSiteName : "";
               
-              newSources.push({ title: finalTitle, url: uri, description: desc });
+              newSources.push({ title: finalTitle, siteName: finalSiteName, url: uri, description: desc });
             }
           };
 
@@ -966,6 +981,7 @@
           state.results = state.results.map(p => {
             const cleanUrl = p.url.trim().replace(/\/$/, '');
             let aiTitle = sourceTitles[cleanUrl];
+            let aiSiteName = sourceSiteNames[cleanUrl];
             const isBadTitle = (t) => !t || t.toLowerCase() === getDomain(p.url).toLowerCase() || t.toLowerCase().startsWith("http");
             
             let finalTitle = p.title;
@@ -974,10 +990,16 @@
                 finalTitle = aiTitle;
             }
 
+            let finalSiteName = p.siteName;
+            if (aiSiteName && !isBadTitle(aiSiteName) && (!p.siteName || isBadTitle(p.siteName))) {
+                finalSiteName = aiSiteName;
+            }
+
             return {
               ...p,
               description: sourceDescriptions[cleanUrl] || p.description,
-              title: finalTitle
+              title: finalTitle,
+              siteName: finalSiteName || p.siteName
             };
           });
           state.results = [...state.results, ...newSources];
@@ -1049,7 +1071,9 @@
       if (includeSources && state.results && state.results.length > 0) {
         content += `■ 参考としたWEBサイト一覧\n`;
         state.results.forEach((r, i) => { 
-          content += `[${i + 1}] ${r.title}\n    URL: ${r.url}\n`; 
+          content += `[${i + 1}] ${r.title}\n`; 
+          if (r.siteName) content += `    サイト名: ${r.siteName}\n`;
+          content += `    URL: ${r.url}\n`;
           if (r.description) content += `    概要: ${r.description}\n`;
           content += `\n`;
         });
@@ -1136,7 +1160,7 @@
           htmlContent += `
           <div class="source-item">
             <a href="${r.url}" target="_blank" class="source-title">[${i + 1}] ${r.title}</a>
-            <div class="source-url">${r.url}</div>
+            <div class="source-url">${r.siteName ? `${r.siteName} - ` : ''}${r.url}</div>
             ${r.description ? `<div class="source-desc">${r.description}</div>` : ''}
           </div>`;
         });
