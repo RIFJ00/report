@@ -72,6 +72,17 @@
             sky: '#0284c7', amber: '#d97706', violet: '#6d28d9', teal: '#0f766e'
         };
 
+        const THEME_COLORS_HEX = {
+            indigo: { main: '#4338ca', light: '#eef2ff', border: '#c7d2fe' },
+            slate: { main: '#334155', light: '#f8fafc', border: '#e2e8f0' },
+            emerald: { main: '#047857', light: '#ecfdf5', border: '#a7f3d0' },
+            rose: { main: '#be123c', light: '#fff1f2', border: '#fecdd3' },
+            sky: { main: '#0369a1', light: '#f0f9ff', border: '#bae6fd' },
+            amber: { main: '#b45309', light: '#fffbeb', border: '#fde68a' },
+            violet: { main: '#6d28d9', light: '#f5f3ff', border: '#ddd6fe' },
+            teal: { main: '#0f766e', light: '#f0fdfa', border: '#99f6e4' }
+        };
+
         const PPTX_COLORS = {
             indigo: '4338CA', slate: '1E293B', emerald: '047857', rose: 'BE123C',
             sky: '0284C7', amber: 'D97706', violet: '6D28D9', teal: '0F766E'
@@ -914,7 +925,7 @@ ${JSON.stringify(selectedData, null, 2)}
                 if (!element) return;
                 
                 const currentThemeKey = State.reportConfig.theme || 'slate';
-                const currentTheme = THEME_COLORS[currentThemeKey] || THEME_COLORS.slate;
+                const hexColors = THEME_COLORS_HEX[currentThemeKey] || THEME_COLORS_HEX.slate;
 
                 let htmlStart = "";
                 let htmlEnd = "";
@@ -929,7 +940,8 @@ ${JSON.stringify(selectedData, null, 2)}
     <script src="https://unpkg.com/lucide@latest"><${'/'}script>
     <style>
         @page { size: A4; margin: 0; }
-        body { margin: 0; padding: 0; font-family: sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+        body { margin: 0; padding: 0; font-family: sans-serif; background-color: ${hexColors.light}; }
         .a4-page {
             width: 210mm;
             min-height: 297mm;
@@ -938,15 +950,16 @@ ${JSON.stringify(selectedData, null, 2)}
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             padding: 20mm;
             box-sizing: border-box;
+            color: #1e293b;
         }
         @media print {
-            body { background: white !important; }
+            body { background-color: white !important; }
             .a4-page { margin: 0; box-shadow: none; width: 100%; min-height: auto; padding: 15mm; }
         }
     </style>
 </head>
-<body class="${currentTheme.light}">
-    <div class="a4-page text-slate-800">`;
+<body>
+    <div class="a4-page">`;
                     htmlEnd = `</div><script>lucide.createIcons();<${'/'}script></body></html>`;
                 } else {
                     htmlStart = `<!DOCTYPE html>
@@ -957,11 +970,12 @@ ${JSON.stringify(selectedData, null, 2)}
     <script src="https://cdn.tailwindcss.com"><${'/'}script>
     <script src="https://unpkg.com/lucide@latest"><${'/'}script>
     <style>
-        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+        body { background-color: ${hexColors.light}; color: #1e293b; font-family: sans-serif; }
     </style>
 </head>
-<body class="${currentTheme.light} py-10">
-    <div class="max-w-3xl mx-auto bg-white p-10 shadow-xl rounded-xl text-slate-800">`;
+<body class="py-10">
+    <div class="max-w-3xl mx-auto bg-white p-10 shadow-xl rounded-xl">`;
                     htmlEnd = `</div><script>lucide.createIcons();<${'/'}script></body></html>`;
                 }
                 
@@ -1447,18 +1461,20 @@ ${JSON.stringify(selectedData, null, 2)}
                     </div>`;
             } else if (!State.isGeneratingReport && State.reportData) {
                 const r = State.reportData;
-                const currentTheme = THEME_COLORS[State.reportConfig.theme] || THEME_COLORS.slate;
+                const currentThemeKey = State.reportConfig.theme || 'slate';
+                const currentTheme = THEME_COLORS[currentThemeKey] || THEME_COLORS.slate;
+                const hexColors = THEME_COLORS_HEX[currentThemeKey] || THEME_COLORS_HEX.slate;
                 
                 content += `
                     <div id="report-document" class="max-w-3xl mx-auto bg-white p-10 md:p-16 shadow-xl rounded-xl text-slate-800 print:shadow-none print:p-0">
-                        <h1 class="text-3xl font-bold mb-8 pb-4 border-b-4 ${currentTheme.border} ${currentTheme.text} leading-tight">${escapeHtml(r.title)}</h1>
+                        <h1 class="text-3xl font-bold mb-8 pb-4 border-b-4 ${currentTheme.border} ${currentTheme.text} leading-tight" style="border-bottom-color: ${hexColors.border}; color: ${hexColors.main};">${escapeHtml(r.title)}</h1>
                         
                         ${r.introduction ? `<div class="mb-10 text-lg leading-relaxed text-slate-700 whitespace-pre-wrap">${escapeHtml(r.introduction)}</div>` : ''}
                         
                         ${(r.sections || []).map(sec => `
                             <div class="mb-8">
-                                <h2 class="text-xl font-bold mb-4 pb-2 border-b-2 ${currentTheme.border} ${currentTheme.text} flex items-center gap-2">
-                                    <span class="w-1.5 h-6 ${currentTheme.bg} inline-block rounded-sm"></span>
+                                <h2 class="text-xl font-bold mb-4 pb-2 border-b-2 ${currentTheme.border} ${currentTheme.text} flex items-center gap-2" style="border-bottom-color: ${hexColors.border}; color: ${hexColors.main};">
+                                    <span class="w-1.5 h-6 ${currentTheme.bg} inline-block rounded-sm" style="background-color: ${hexColors.main};"></span>
                                     ${escapeHtml(sec.heading)}
                                 </h2>
                                 <p class="leading-relaxed text-slate-700 whitespace-pre-wrap">${escapeHtml(sec.content)}</p>
@@ -1467,8 +1483,8 @@ ${JSON.stringify(selectedData, null, 2)}
                         
                         ${r.conclusion ? `
                             <div class="mt-10 pt-8 border-t border-slate-200">
-                                <div class="${currentTheme.light} p-6 rounded-xl">
-                                    <h3 class="text-lg font-bold mb-3 ${currentTheme.text} flex items-center gap-2">${Icon('info', 18)} まとめ・結論</h3>
+                                <div class="${currentTheme.light} p-6 rounded-xl" style="background-color: ${hexColors.light};">
+                                    <h3 class="text-lg font-bold mb-3 ${currentTheme.text} flex items-center gap-2" style="color: ${hexColors.main};">${Icon('info', 18)} まとめ・結論</h3>
                                     <p class="leading-relaxed text-slate-700 whitespace-pre-wrap">${escapeHtml(r.conclusion)}</p>
                                 </div>
                             </div>
