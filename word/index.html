@@ -453,9 +453,28 @@
         </div>
 
         <div class="bg-[#f8f9fa] dark:bg-[#303134] rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm relative group">
-          <div class="flex items-center space-x-2 mb-4 text-blue-600 dark:text-blue-400">
-            <i data-lucide="search" class="h-5 w-5"></i>
-            <h2 class="text-lg font-semibold">検索結果への回答</h2>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div class="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
+              <i data-lucide="search" class="h-5 w-5"></i>
+              <h2 class="text-lg font-semibold">検索結果への回答</h2>
+            </div>
+            
+            <div class="flex items-center space-x-2">
+              <div class="flex items-center bg-white dark:bg-[#202124] border border-gray-200 dark:border-gray-600 rounded-lg p-1" title="レポートのテーマ色を選択">
+                <i data-lucide="palette" class="h-4 w-4 text-gray-400 ml-1 shrink-0"></i>
+                <select id="report-theme-select" class="bg-transparent text-sm text-gray-700 dark:text-gray-300 focus:outline-none pl-1 pr-2 py-0.5 cursor-pointer appearance-none font-medium">
+                  <option value="default">標準</option>
+                  <option value="modern-blue">ブルー</option>
+                  <option value="elegant-dark">ダーク</option>
+                  <option value="nature-green">グリーン</option>
+                  <option value="sakura-pink">サクラ</option>
+                </select>
+              </div>
+              <button onclick="handleExportReport()" class="flex items-center space-x-1.5 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-3 sm:px-4 py-2 rounded-lg transition-all shadow shadow-blue-500/30 whitespace-nowrap" title="HTML/PDFレポート形式で保存">
+                <i data-lucide="layout-template" class="h-4 w-4"></i>
+                <span class="font-medium">レポート出力</span>
+              </button>
+            </div>
           </div>
           
           <div class="mb-4 flex flex-wrap gap-2">${categoryHtml}</div>
@@ -464,7 +483,6 @@
           
           <div class="mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-200 dark:border-gray-700 pt-4">
             <button onclick="handleExportText()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors" title="テキスト形式で保存"><i data-lucide="file-text" class="h-4 w-4"></i><span class="hidden sm:inline">テキスト</span></button>
-            <button onclick="handleExportReport()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-lg transition-colors shadow-sm" title="HTML/PDFレポート形式で保存"><i data-lucide="layout-template" class="h-4 w-4"></i><span class="hidden sm:inline">レポート</span></button>
             <button onclick="handleSaveItem()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-blue-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors"><i data-lucide="bookmark" class="h-4 w-4"></i><span class="hidden sm:inline">保存</span></button>
             <button onclick="handleUpdateSearch()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-green-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors"><i data-lucide="refresh-cw" class="h-4 w-4"></i><span class="hidden sm:inline">更新</span></button>
             <button onclick="elaborateSummary()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors ${state.isElaborating || state.isLoading ? 'opacity-50 cursor-not-allowed' : ''}" ${state.isElaborating || state.isLoading ? 'disabled' : ''}><i data-lucide="plus-circle" class="h-4 w-4"></i><span>${state.isElaborating ? '詳細化中...' : 'もう少し詳しく'}</span></button>
@@ -969,12 +987,25 @@
     function handleExportReport() {
       if (!state.aiSummary) return;
 
+      const themeId = document.getElementById('report-theme-select')?.value || 'default';
+      
+      // レポートの配色テーマ定義
+      const reportThemes = {
+        'default': { bg: '#f3f4f6', container: '#ffffff', text: '#333333', textBold: '#111827', textMuted: '#6b7280', accent: '#1d4ed8', border: '#e5e7eb', sourceBg: '#f9fafb' },
+        'modern-blue': { bg: '#e0f2fe', container: '#ffffff', text: '#1e293b', textBold: '#0f172a', textMuted: '#64748b', accent: '#0ea5e9', border: '#e2e8f0', sourceBg: '#f8fafc' },
+        'elegant-dark': { bg: '#111827', container: '#1f2937', text: '#d1d5db', textBold: '#f3f4f6', textMuted: '#9ca3af', accent: '#60a5fa', border: '#374151', sourceBg: '#111827' },
+        'nature-green': { bg: '#d1fae5', container: '#ffffff', text: '#064e3b', textBold: '#022c22', textMuted: '#059669', accent: '#10b981', border: '#a7f3d0', sourceBg: '#ecfdf5' },
+        'sakura-pink': { bg: '#fce7f3', container: '#ffffff', text: '#831843', textBold: '#4c0519', textMuted: '#be185d', accent: '#db2777', border: '#fbcfe8', sourceBg: '#fdf2f8' }
+      };
+      
+      const t = reportThemes[themeId];
+
       // 簡単なマークダウン置換（太字と見出し）で見栄えを向上
       let formattedSummary = state.aiSummary
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/### (.*)/g, '<h4 style="margin-top: 1.5em; margin-bottom: 0.5em; color: #1f2937;">$1</h4>')
-        .replace(/## (.*)/g, '<h3 style="margin-top: 1.5em; margin-bottom: 0.5em; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em;">$1</h3>')
-        .replace(/# (.*)/g, '<h2 style="margin-top: 1.5em; margin-bottom: 0.5em; color: #111827;">$1</h2>');
+        .replace(/\*\*(.*?)\*\*/g, `<strong>$1</strong>`)
+        .replace(/### (.*)/g, `<h4 style="margin-top: 1.5em; margin-bottom: 0.5em; color: ${t.textBold};">$1</h4>`)
+        .replace(/## (.*)/g, `<h3 style="margin-top: 1.5em; margin-bottom: 0.5em; color: ${t.textBold}; border-bottom: 1px solid ${t.border}; padding-bottom: 0.3em;">$1</h3>`)
+        .replace(/# (.*)/g, `<h2 style="margin-top: 1.5em; margin-bottom: 0.5em; color: ${t.textBold};">$1</h2>`);
 
       let htmlContent = `<!DOCTYPE html>
 <html lang="ja">
@@ -983,25 +1014,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${state.query} - 調査レポート</title>
 <style>
-  body { font-family: 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f3f4f6; }
-  .container { background-color: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
-  h1 { color: #1d4ed8; border-bottom: 3px solid #1d4ed8; padding-bottom: 10px; margin-top: 0; }
-  .meta { color: #6b7280; font-size: 0.9em; margin-bottom: 30px; text-align: right; }
-  .section-title { color: #111827; margin-top: 40px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; font-size: 1.5em; }
-  .summary { white-space: pre-wrap; margin-bottom: 30px; line-height: 1.8; color: #374151; }
-  .summary strong { color: #111827; }
-  .source-item { margin-bottom: 20px; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; background-color: #f9fafb; page-break-inside: avoid; }
-  .source-title { font-weight: bold; color: #2563eb; text-decoration: none; font-size: 1.1em; display: block; margin-bottom: 5px; }
-  .source-title:hover { text-decoration: underline; color: #1d4ed8; }
-  .source-url { color: #059669; font-size: 0.85em; margin-bottom: 10px; word-break: break-all; }
-  .source-desc { font-size: 0.95em; color: #4b5563; margin-top: 5px; line-height: 1.5; }
+  body { font-family: 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif; line-height: 1.6; color: ${t.text}; max-width: 800px; margin: 0 auto; padding: 20px; background-color: ${t.bg}; }
+  .container { background-color: ${t.container}; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+  h1 { color: ${t.accent}; border-bottom: 3px solid ${t.accent}; padding-bottom: 10px; margin-top: 0; }
+  .meta { color: ${t.textMuted}; font-size: 0.9em; margin-bottom: 30px; text-align: right; }
+  .section-title { color: ${t.textBold}; margin-top: 40px; border-bottom: 2px solid ${t.border}; padding-bottom: 8px; font-size: 1.5em; }
+  .summary { white-space: pre-wrap; margin-bottom: 30px; line-height: 1.8; color: ${t.text}; }
+  .summary strong { color: ${t.textBold}; }
+  .source-item { margin-bottom: 20px; padding: 20px; border: 1px solid ${t.border}; border-radius: 8px; background-color: ${t.sourceBg}; page-break-inside: avoid; }
+  .source-title { font-weight: bold; color: ${t.accent}; text-decoration: none; font-size: 1.1em; display: block; margin-bottom: 5px; }
+  .source-title:hover { text-decoration: underline; opacity: 0.8; }
+  .source-url { color: ${t.textMuted}; font-size: 0.85em; margin-bottom: 10px; word-break: break-all; }
+  .source-desc { font-size: 0.95em; color: ${t.text}; margin-top: 5px; line-height: 1.5; }
   .print-btn-container { text-align: right; margin-bottom: 20px; position: sticky; top: 20px; z-index: 100; }
-  .print-btn { background-color: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; box-shadow: 0 4px 6px rgba(37,99,235,0.2); transition: all 0.2s; }
-  .print-btn:hover { background-color: #1d4ed8; transform: translateY(-1px); }
+  .print-btn { background-color: ${t.accent}; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s; }
+  .print-btn:hover { filter: brightness(0.9); transform: translateY(-1px); }
   @media print {
-    body { background-color: white; padding: 0; }
-    .container { box-shadow: none; padding: 0; }
+    body { background-color: white; padding: 0; color: black; }
+    .container { box-shadow: none; padding: 0; background-color: white; }
+    h1, .source-title { color: ${t.accent !== '#60a5fa' ? t.accent : '#1d4ed8'}; } /* ダークモード時の印刷用フォールバック調整 */
     .print-btn-container { display: none; }
+    .summary, .source-desc { color: black; }
   }
 </style>
 </head>
