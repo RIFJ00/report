@@ -1,447 +1,1748 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>政策リサーチ情報一覧（政策レポート）</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap');
-        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
-        .audio-icon { cursor: pointer; }
-        /* 再生中のアニメーション */
-        .playing i, #main-audio-control.playing i { color: #3b82f6; animation: pulse 1.2s infinite; }
-        .paused i { color: #3b82f6; }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
-        .sortable-header { cursor: pointer; user-select: none; }
-        .sortable-header:hover { background-color: #f3f4f6; }
-        .sort-icon { margin-left: 0.5rem; color: #9ca3af; width: 1em; display: inline-block; }
-        .sortable-header.asc .sort-icon::after { content: '▲'; }
-        .sortable-header.desc .sort-icon::after { content: '▼'; }
-        .pagination-button { min-width: 2.5rem; }
-        .pagination-button.active { z-index: 10; }
-        
-        #login-overlay {
-            position: fixed;
-            inset: 0;
-            background: #f3f4f6;
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Word Search</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Word (.docx) 解析用ライブラリ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <style>
+    /* カスタムアニメーション */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: fadeIn 0.5s ease-out forwards; }
+    /* スクロールバー非表示（スライドテーマ選択用） */
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+  </style>
 </head>
-<body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
-    <!-- ログイン画面 -->
-    <div id="login-overlay" style="display: none;">
-        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
-            <h2 class="text-2xl font-bold mb-6 text-gray-900">政策レポート</h2>
-            <p class="text-gray-600 mb-6 text-sm">このサイトを閲覧するにはパスワードが必要です。</p>
-            <div class="space-y-4">
-                <input type="password" id="passwordInput" placeholder="パスワードを入力" class="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                <button id="loginButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">
-                    ログイン
-                </button>
-                <p id="loginError" class="text-red-500 text-sm hidden">パスワードが正しくありません。</p>
-            </div>
-        </div>
+<body class="min-h-screen bg-white text-gray-900 font-sans dark:bg-[#202124] dark:text-gray-100 transition-colors duration-200">
+
+  <!-- 設定モーダル -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+    <div class="bg-white dark:bg-[#303134] rounded-2xl shadow-xl w-full max-w-md p-6 border border-gray-200 dark:border-gray-700">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold flex items-center"><i data-lucide="settings" class="mr-2 h-5 w-5"></i>設定</h2>
+        <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Gemini API キー</label>
+        <input type="password" id="api-key-input" class="w-full px-4 py-2 bg-gray-50 dark:bg-[#202124] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" placeholder="AIzaSy...">
+        <p class="text-xs text-gray-500 mt-2"><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">Google AI Studio</a>で取得したAPIキーを入力してください。キーはブラウザにのみ保存されます。</p>
+      </div>
+      <div class="flex justify-between items-center">
+        <button onclick="removeApiKey()" class="px-3 py-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-colors font-medium text-sm flex items-center">
+          <i data-lucide="trash-2" class="h-4 w-4 mr-1"></i>キーを削除
+        </button>
+        <button onclick="saveApiKey()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">保存して閉じる</button>
+      </div>
     </div>
+  </div>
 
-    <!-- メインコンテンツ -->
-    <div id="app-content" class="container mx-auto px-4 py-8 flex-grow flex flex-col hidden">
-        <header class="text-center mb-8 flex-shrink-0 relative">
-           <h1 class="text-3xl md:text-4xl font-bold text-gray-900 inline-flex items-center">
-                政策リサーチ情報一覧（政策レポート）
-                <a href="https://youtube.com/playlist?list=PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2&si=7jw8Suro5oX0zVES" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-700 text-xl ml-4" title="動画プレイリストを開く">
-                    <i class="fas fa-video"></i>
-                </a>
-               <!-- タイトル横のメイン音声コントロール -->
-               <span id="main-audio-control" class="audio-icon text-blue-500 hover:text-blue-700 text-xl ml-3 cursor-pointer" title="音声コントロール">
-                   <i id="main-audio-icon-i" class="fas fa-volume-up"></i>
-               </span>
-           </h1>
-            <div id="last-import-time" class="absolute right-0 top-0 text-gray-500 text-xs"></div>
-        </header>
-
-        <main class="bg-white p-6 rounded-lg shadow-md flex-grow flex flex-col">
-            <div class="flex-shrink-0 flex flex-col sm:flex-row justify-between items-end mb-4 gap-4">
-                <div class="flex flex-col sm:flex-row items-center w-full sm:justify-start gap-4">
-                    <input type="text" id="searchInput" placeholder="検索（ラベル・省庁略称可・複数ワード可）" class="border border-gray-300 p-2 rounded-lg w-full sm:w-96">
-                    <div class="flex items-center gap-2">
-                        <button id="clearSearchButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">
-                            <i class="fas fa-times mr-2"></i>クリア
-                        </button>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <input type="checkbox" id="bookmark-filter-checkbox" class="form-checkbox h-5 w-5 text-yellow-500 rounded cursor-pointer">
-                        <label for="bookmark-filter-checkbox" class="text-sm font-medium text-gray-700 cursor-pointer">ブックマークのみ表示</label>
-                    </div>
-                </div>
-                <div id="dataCountDisplay" class="text-gray-600 text-sm w-full sm:w-auto text-center sm:text-right flex-shrink-0"></div>
-            </div>
-
-            <div class="bg-white border border-gray-200 rounded-lg overflow-auto flex-grow">
-                <table class="min-w-full leading-normal table-auto">
-                    <thead id="table-header" class="bg-gray-200 text-gray-600 sticky top-0 z-10">
-                        <tr>
-                            <th class="w-16 px-2 py-3" title="ブックマーク"><i class="fas fa-bookmark"></i></th>
-                            <th class="w-32 px-2 py-3 sortable-header" data-sort-key="日付">公開日<span class="sort-icon"></span></th>
-                            <th class="px-2 py-3 sortable-header" data-sort-key="タイトル名">政策関連情報概要<span class="sort-icon"></span></th>
-                            <th class="w-16 px-2 py-3" title="動画"><i class="fas fa-video"></i></th>
-                            <th class="w-16 px-2 py-3" title="音声"><i class="fas fa-volume-up"></i></th>
-                        </tr>
-                    </thead>
-                    <tbody id="data-table-body" class="divide-y divide-gray-200"></tbody>
-                </table>
-                <div id="loading" class="text-center p-8 text-gray-500">データを読み込んでいます...</div>
-            </div>
-            <div id="pagination-controls" class="flex justify-center items-center mt-4"></div>
-        </main>
-
-        <footer class="text-center mt-8 text-gray-500 flex-shrink-0">
-             <p>&copy; 2024 政策リサーチポータル.</p>
-        </footer>
+  <!-- ホーム画面 -->
+  <div id="home-view" class="flex flex-col items-center justify-center min-h-screen px-4 pb-20 relative">
+    <div class="absolute top-6 right-6 sm:top-8 sm:right-8 flex space-x-2">
+      <button onclick="openSettings()" class="flex items-center justify-center p-2 bg-gray-50 dark:bg-[#303134] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-full hover:bg-gray-100 transition-colors shadow-sm" title="設定">
+        <i data-lucide="settings" class="h-5 w-5"></i>
+      </button>
+      <button onclick="switchView('saved')" class="flex items-center space-x-2 px-4 py-2 bg-gray-50 dark:bg-[#303134] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-full hover:bg-gray-100 transition-colors shadow-sm">
+        <i data-lucide="library" class="h-4 w-4"></i>
+        <span class="font-medium text-sm">保存済みデータ一覧</span>
+        <span id="home-saved-count" class="hidden bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1">0</span>
+      </button>
     </div>
-
-    <audio id="audioPlayer" style="display: none;"></audio>
     
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, query, where, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
-        // --- Config ---
-        const firebaseConfig = {"apiKey":"AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04","authDomain":"import-b6097.firebaseapp.com","projectId":"import-b6097","storageBucket":"import-b6097.appspot.com","messagingSenderId":"462510788117","appId":"1:462510788117:web:44ff1fd1af583f67bc081c","measurementId":"G-Z5ZNMKGTTK"};
-        const appId = 'default-policy-research-app';
-        const COLLECTION_NAME = 'policy_data';
-        const METADATA_DOC_ID = 'policy_last_import_metadata';
-        const ITEMS_PER_PAGE = 100;
-        const VALID_PASSWORD = 'policy'; 
-        const SYNONYMS = [["国土交通省","国交省"],["経済産業省","経産省"],["文部科学省","文科省"],["厚生労働省","厚労省"],["農林水産省","農水省"]];
+    <div class="mb-8 flex items-center space-x-3 text-blue-500">
+      <i data-lucide="search" class="w-14 h-14" stroke-width="2.5"></i>
+      <h1 class="text-5xl sm:text-6xl font-extrabold tracking-tighter text-gray-800 dark:text-white">AI Word Search</h1>
+    </div>
+    
+    <div class="w-full max-w-4xl">
+      <form onsubmit="handleSubmit(event)" class="w-full flex flex-col gap-3">
+        <div class="flex flex-col sm:flex-row gap-3 w-full">
+          <div class="relative group flex-grow h-14">
+            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <i data-lucide="search" class="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors"></i>
+            </div>
+            <input type="text" id="home-search-input" oninput="syncSearchInput(this.value)" class="block w-full h-full pl-12 pr-12 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md focus:outline-none transition-shadow text-base dark:text-white placeholder-gray-400" placeholder="キーワード検索、または分野を選択...">
+            <button type="button" id="home-clear-btn" onclick="clearSearch()" class="hidden absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
+          </div>
+          <div class="relative shrink-0 w-full sm:w-56 h-14">
+            <select id="home-category-select" onchange="syncCategory(this.value)" class="block w-full h-full pl-5 pr-10 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md focus:outline-none transition-shadow text-base dark:text-white appearance-none cursor-pointer text-gray-700 dark:text-gray-200">
+              <option value="">すべての分野</option>
+              <!-- JSで動的生成 -->
+            </select>
+            <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-500">
+              <i data-lucide="chevron-down" class="h-5 w-5"></i>
+            </div>
+          </div>
+          <div class="shrink-0 h-14">
+            <input type="file" id="file-upload-home" class="hidden" accept=".pdf,.txt,.html,.htm,.pptx,.docx" onchange="handleFileChange(event)">
+            <label for="file-upload-home" class="flex items-center justify-center w-full sm:w-14 h-full bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md cursor-pointer text-gray-500 hover:text-blue-500 transition-colors" title="PDF, TEXT, HTML, PPTX, WORDファイルを添付して分析">
+              <i data-lucide="paperclip" class="h-5 w-5"></i>
+            </label>
+          </div>
+        </div>
         
-        let db;
-        let currentData = [], filteredAndSortedData = [], currentPage = 1;
-        let sortState = { key: 'default', direction: 'desc' };
-        let currentlyPlayingIcon = null;
+        <div id="home-file-display" class="hidden flex items-center justify-center sm:justify-start space-x-2 text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-4 py-2 rounded-full border border-blue-200 dark:border-blue-800 w-fit mx-auto sm:mx-0 transition-all">
+          <i data-lucide="file-check" class="h-4 w-4"></i>
+          <span id="home-file-name" class="truncate max-w-[200px] sm:max-w-md font-medium"></span>
+          <button type="button" onclick="removeFile()" class="text-blue-400 hover:text-blue-700 dark:hover:text-blue-100 ml-2 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 p-0.5 transition-colors" title="ファイルを削除">
+            <i data-lucide="x" class="h-4 w-4"></i>
+          </button>
+        </div>
+      </form>
 
-        // UI Elements
-        let searchInput, clearSearchButton, tableBody, tableHeader, loading, dataCountDisplay, paginationControls, audioPlayer, mainAudioControl, mainAudioIconI, bookmarkFilterCheckbox;
+      <div class="mt-10 flex justify-center">
+        <button id="home-submit-btn" onclick="executeSearch()" disabled class="px-8 py-3.5 bg-[#f8f9fa] dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full text-base font-medium text-gray-800 dark:text-gray-200 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-sm hover:bg-gray-50 disabled:opacity-50 transition-all">検索を実行する</button>
+      </div>
+      
+      <div id="home-error" class="hidden mt-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3 max-w-xl mx-auto">
+        <i data-lucide="alert-circle" class="h-5 w-5 text-red-600 shrink-0 mt-0.5"></i>
+        <p id="home-error-text" class="text-sm text-red-600 whitespace-pre-wrap"></p>
+      </div>
+    </div>
 
-        function checkAuthentication() {
-            try {
-                const urlParams = new URLSearchParams(window.location.search);
-                const pwParam = urlParams.get('pw');
-                const hashParam = window.location.hash;
-                const currentUrl = window.location.href;
-                const targetBase = "https://report.rifj.jp/";
+    <!-- ホーム画面用フッター -->
+    <footer class="absolute bottom-6 w-full text-center text-sm text-gray-500 dark:text-gray-400">
+      &copy; 一般社団法人日本みらい研 All Rights Reserved.
+    </footer>
+  </div>
 
-                if (currentUrl.startsWith(targetBase) && (pwParam === VALID_PASSWORD || hashParam === '#' + VALID_PASSWORD)) {
-                    completeLogin();
-                } else {
-                    document.getElementById('login-overlay').style.display = 'flex';
-                }
-            } catch (e) {
-                document.getElementById('login-overlay').style.display = 'flex';
-            }
+  <!-- アプリ本体画面（検索結果・保存一覧用） -->
+  <div id="app-view" class="hidden flex flex-col min-h-screen">
+    <header class="sticky top-0 z-10 bg-white dark:bg-[#202124] border-b border-gray-200 dark:border-gray-700 p-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row items-center gap-4 sm:gap-6">
+      <div class="flex items-center space-x-2 text-blue-500 cursor-pointer shrink-0" onclick="resetHome()">
+        <i data-lucide="search" class="w-8 h-8" stroke-width="2.5"></i>
+        <span class="text-2xl font-extrabold tracking-tighter text-gray-800 dark:text-white hidden lg:block">AI Word Search</span>
+      </div>
+
+      <form onsubmit="handleSubmit(event)" class="flex-grow w-full max-w-5xl flex flex-col gap-2">
+        <div class="flex flex-row gap-2 w-full">
+          <div class="relative flex-grow group h-12">
+            <input type="text" id="header-search-input" oninput="syncSearchInput(this.value)" class="block w-full h-full pl-5 pr-10 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm focus:outline-none text-base dark:text-white" placeholder="キーワード検索...">
+            <button type="button" id="header-clear-btn" onclick="clearSearch()" class="hidden absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
+          </div>
+          <div class="relative shrink-0 w-28 sm:w-40 h-12">
+            <select id="header-category-select" onchange="syncCategory(this.value)" class="block w-full h-full pl-3 sm:pl-4 pr-6 sm:pr-8 bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm focus:outline-none text-sm sm:text-base dark:text-white appearance-none cursor-pointer truncate text-gray-700 dark:text-gray-200">
+              <option value="">分野: すべて</option>
+              <!-- JSで動的生成 -->
+            </select>
+            <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:pr-3 pointer-events-none text-gray-500">
+              <i data-lucide="chevron-down" class="h-4 w-4"></i>
+            </div>
+          </div>
+          <div class="shrink-0 h-12">
+            <input type="file" id="file-upload-header" class="hidden" accept=".pdf,.txt,.html,.htm,.pptx,.docx" onchange="handleFileChange(event)">
+            <label for="file-upload-header" class="flex items-center justify-center w-12 h-full bg-white dark:bg-[#303134] border border-gray-200 dark:border-gray-600 rounded-full shadow-sm hover:shadow-md cursor-pointer text-gray-500 hover:text-blue-500 transition-colors" title="ファイルを添付">
+              <i data-lucide="paperclip" class="h-4 w-4"></i>
+            </label>
+          </div>
+          <button type="submit" id="header-submit-btn" disabled class="h-12 w-full md:w-auto shrink-0 px-4 sm:px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap shadow-sm">
+            検索を実行する
+          </button>
+        </div>
+        
+        <div id="header-file-display" class="hidden flex items-center space-x-2 text-xs sm:text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-full border border-blue-200 dark:border-blue-800 w-fit transition-all mt-1">
+          <i data-lucide="file-check" class="h-3 w-3 sm:h-4 sm:w-4"></i>
+          <span id="header-file-name" class="truncate max-w-[150px] sm:max-w-xs font-medium"></span>
+          <button type="button" onclick="removeFile()" class="text-blue-400 hover:text-blue-700 dark:hover:text-blue-100 ml-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 p-0.5 transition-colors">
+            <i data-lucide="x" class="h-3 w-3 sm:h-4 sm:w-4"></i>
+          </button>
+        </div>
+      </form>
+
+      <div class="shrink-0 flex items-center justify-end space-x-2">
+        <button onclick="openSettings()" class="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-[#303134] rounded-full transition-colors" title="設定">
+           <i data-lucide="settings" class="h-5 w-5"></i>
+        </button>
+        <button id="header-saved-btn" onclick="switchView('saved')" class="flex items-center space-x-1.5 px-3 py-2 rounded-lg font-medium text-sm transition-colors text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-[#303134]">
+          <i data-lucide="library" class="h-4 w-4"></i>
+          <span class="hidden md:inline">保存済みデータ一覧</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 検索結果メインエリア -->
+    <main id="results-main" class="flex-grow p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full">
+      <!-- ローディング -->
+      <div id="results-loading" class="hidden flex flex-col items-center justify-center py-20 text-gray-500">
+        <i data-lucide="loader-2" class="h-8 w-8 animate-spin mb-4 text-blue-500"></i>
+        <p>情報の分析と回答を生成中...</p>
+      </div>
+      
+      <!-- エラー -->
+      <div id="results-error" class="hidden bg-red-50 border border-red-200 rounded-lg p-6 flex items-start space-x-4">
+        <i data-lucide="alert-circle" class="h-6 w-6 text-red-600 shrink-0 mt-0.5"></i>
+        <div><h3 class="text-lg font-medium text-red-800 mb-2">エラー</h3><p id="results-error-text" class="text-red-600 whitespace-pre-wrap"></p></div>
+      </div>
+
+      <!-- 結果コンテンツ -->
+      <div id="results-content" class="hidden space-y-8 animate-in"></div>
+    </main>
+
+    <!-- 保存済み一覧エリア -->
+    <main id="saved-main" class="hidden flex-grow p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full">
+      <div class="flex items-center space-x-3 mb-8 text-gray-800 dark:text-gray-100">
+        <i data-lucide="library" class="h-8 w-8 text-blue-500"></i>
+        <h2 class="text-3xl font-bold">保存済みデータ一覧</h2>
+      </div>
+      <div id="saved-content"></div>
+    </main>
+
+    <!-- アプリ画面用フッター -->
+    <footer class="w-full py-6 mt-auto border-t border-gray-200 dark:border-gray-800 bg-[#f8f9fa] dark:bg-[#1a1a1b] text-center text-sm text-gray-500 dark:text-gray-400">
+      &copy; 一般社団法人日本みらい研 All Rights Reserved.
+    </footer>
+  </div>
+
+  <!-- スライドプレビューモーダル -->
+  <div id="slide-modal" class="hidden fixed inset-0 z-50 flex flex-col bg-gray-900 backdrop-blur-md animate-in duration-300">
+    <div class="flex items-center justify-between p-3 sm:p-4 bg-gray-950 text-white border-b border-gray-800 shadow-xl z-20">
+      <div class="flex items-center space-x-3">
+        <i data-lucide="presentation" class="h-6 w-6 text-blue-400 hidden sm:block"></i>
+        <div>
+          <h2 class="text-base sm:text-lg font-semibold leading-tight">スライドプレビュー</h2>
+          <p class="text-xs text-gray-400 hidden sm:block">← → キーでページ送り / テキストをクリックして直接編集できます</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-2 sm:space-x-4">
+        <div class="flex items-center space-x-1 sm:space-x-1.5 mr-1 sm:mr-2 bg-gray-800 px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700 overflow-hidden">
+          <i data-lucide="palette" class="h-4 w-4 text-gray-400 hidden lg:block shrink-0 mr-1"></i>
+          <div id="theme-selector" class="flex items-center space-x-1.5 overflow-x-auto hide-scrollbar">
+            <!-- テーマボタンはJSで生成 -->
+          </div>
+        </div>
+
+        <button onclick="handleDownloadHTML()" class="flex items-center space-x-1.5 sm:space-x-2 bg-gray-800 hover:bg-gray-700 text-white px-2 sm:px-4 py-2 rounded-md transition-colors text-xs sm:text-sm border border-gray-700" title="印刷用HTMLを保存">
+          <i data-lucide="file-code" class="h-4 w-4"></i>
+          <span class="hidden sm:inline">HTML</span>
+        </button>
+        <button onclick="handleDownloadPPTX()" class="flex items-center space-x-1.5 sm:space-x-2 bg-orange-600 hover:bg-orange-700 text-white px-2 sm:px-4 py-2 rounded-md transition-colors text-xs sm:text-sm font-medium shadow-md" title="PowerPointファイルを保存">
+          <i data-lucide="download" class="h-4 w-4"></i>
+          <span class="hidden sm:inline">PPTX</span>
+        </button>
+        <button onclick="closeSlideModal()" class="text-gray-400 hover:text-white transition-colors p-1 ml-1 sm:ml-2"><i data-lucide="x-circle" class="h-6 w-6 sm:h-8 sm:w-8"></i></button>
+      </div>
+    </div>
+
+    <div class="flex-grow w-full relative flex items-center justify-center p-4 sm:p-8 cursor-pointer overflow-hidden" onclick="nextSlide()">
+      <button onclick="event.stopPropagation(); prevSlide();" class="absolute left-2 sm:left-8 p-2 sm:p-3 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm z-10 transition-all">
+        <i data-lucide="chevron-left" class="h-6 w-6 sm:h-8 sm:w-8"></i>
+      </button>
+
+      <!-- スライド描画領域 -->
+      <div id="slide-container" class="w-full aspect-video max-w-[calc(100vh*16/9-100px)] max-h-[calc(100vw*9/16)] shadow-2xl relative flex flex-col p-[6%] overflow-hidden rounded-md transition-all duration-500 cursor-default" onclick="event.stopPropagation()">
+        <!-- JSで動的にスライド内容を流し込む -->
+      </div>
+
+      <button onclick="event.stopPropagation(); nextSlide();" class="absolute right-2 sm:right-8 p-2 sm:p-3 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm z-10 transition-all">
+        <i data-lucide="chevron-right" class="h-6 w-6 sm:h-8 sm:w-8"></i>
+      </button>
+    </div>
+
+    <div class="h-1 bg-gray-800 w-full">
+      <div id="slide-progress" class="h-full transition-all duration-300 ease-out"></div>
+    </div>
+  </div>
+
+  <script>
+    // 定数定義
+    const CATEGORIES = [
+      "外交・安全保障", "国際情勢", "成長戦略", "気候変動・脱炭素", "宇宙産業", "AI・人工知能", "少子高齢化", 
+      "SDGs・サステナビリティ", "地方創生", "自動運転・モビリティ", "サイバーセキュリティ", "金融・FinTech",
+      "バイオテクノロジー", "IT・テクノロジー", "ビジネス・経済", "政治・社会", "科学・学問", 
+      "医療・健康", "教育・学習", "芸術・文化", "歴史・地理", "エンターテインメント", 
+      "ライフスタイル", "旅行・観光", "環境・エコ", "法律・法務", "哲学・思想"
+    ];
+
+    const slideThemes = [
+      { id: 'blue', name: 'ブルー', bg: ['#f8f9fa', '#e9ecef'], text: '#202124', accent: '#1a73e8', subText: '#5f6368' },
+      { id: 'green', name: 'グリーン', bg: ['#f4fdf8', '#e6f6ec'], text: '#1b2e22', accent: '#0f9d58', subText: '#4d5156' },
+      { id: 'dark', name: 'ダーク', bg: ['#202124', '#303134'], text: '#e8eaed', accent: '#8ab4f8', subText: '#9aa0a6' },
+      { id: 'purple', name: 'パープル', bg: ['#fdf8ff', '#f3e8fa'], text: '#2a1b38', accent: '#9333ea', subText: '#6b5a7a' },
+      { id: 'orange', name: 'オレンジ', bg: ['#fff8f3', '#faebe1'], text: '#382216', accent: '#ea580c', subText: '#7a5a4a' },
+      { id: 'navy-yellow', name: 'ネイビー＆イエロー', bg: ['#0f2027', '#203a43'], text: '#ffffff', accent: '#f2c94c', subText: '#b0bec5' },
+      { id: 'pink-blue', name: 'ピンク＆ブルー', bg: ['#ff9a9e', '#fecfef'], text: '#2c3e50', accent: '#3498db', subText: '#34495e' },
+      { id: 'black-red', name: 'ブラック＆レッド', bg: ['#121212', '#1a1a1a'], text: '#f5f5f5', accent: '#e50914', subText: '#9e9e9e' },
+      { id: 'teal-coral', name: 'ティール＆コーラル', bg: ['#0083b0', '#00b4db'], text: '#ffffff', accent: '#ff7e67', subText: '#e0f7fa' },
+      { id: 'mint-choco', name: 'ミント＆チョコ', bg: ['#e0f2f1', '#b2dfdb'], text: '#3e2723', accent: '#d84315', subText: '#5d4037' }
+    ];
+
+    // レポート用の配色テーマ定義
+    const REPORT_THEMES = {
+      'default': { bg: '#f3f4f6', container: '#ffffff', text: '#333333', textBold: '#111827', textMuted: '#6b7280', accent: '#1d4ed8', border: '#e5e7eb', sourceBg: '#f9fafb' },
+      'modern-blue': { bg: '#e0f2fe', container: '#ffffff', text: '#1e293b', textBold: '#0f172a', textMuted: '#64748b', accent: '#0ea5e9', border: '#e2e8f0', sourceBg: '#f8fafc' },
+      'elegant-dark': { bg: '#111827', container: '#1f2937', text: '#d1d5db', textBold: '#f3f4f6', textMuted: '#9ca3af', accent: '#60a5fa', border: '#374151', sourceBg: '#111827' },
+      'nature-green': { bg: '#d1fae5', container: '#ffffff', text: '#064e3b', textBold: '#022c22', textMuted: '#059669', accent: '#10b981', border: '#a7f3d0', sourceBg: '#ecfdf5' },
+      'sakura-pink': { bg: '#fce7f3', container: '#ffffff', text: '#831843', textBold: '#4c0519', textMuted: '#be185d', accent: '#db2777', border: '#fbcfe8', sourceBg: '#fdf2f8' },
+      'sunset-orange': { bg: '#ffedd5', container: '#ffffff', text: '#7c2d12', textBold: '#431407', textMuted: '#ea580c', accent: '#ea580c', border: '#fed7aa', sourceBg: '#fff7ed' },
+      'ocean-teal': { bg: '#ccfbf1', container: '#ffffff', text: '#134e4a', textBold: '#042f2e', textMuted: '#0d9488', accent: '#0d9488', border: '#99f6e4', sourceBg: '#f0fdfa' },
+      'monochrome': { bg: '#e5e5e5', container: '#ffffff', text: '#404040', textBold: '#171717', textMuted: '#737373', accent: '#404040', border: '#d4d4d4', sourceBg: '#f5f5f5' },
+      'retro-brown': { bg: '#fef3c7', container: '#fffbeb', text: '#78350f', textBold: '#451a03', textMuted: '#b45309', accent: '#d97706', border: '#fde68a', sourceBg: '#fef3c7' }
+    };
+
+    const getDomain = (url) => {
+      try { return new URL(url).hostname; } catch { return url; }
+    };
+
+    // アプリケーションの状態
+    let state = {
+      apiKey: localStorage.getItem('ai_search_api_key') || '',
+      tempApiKey: '',
+      query: '',
+      searchInput: '',
+      selectedCategory: '',
+      selectedFile: null,
+      results: [],
+      aiSummary: '',
+      isLoading: false,
+      error: null,
+      view: 'home', // 'home', 'results', 'saved'
+      
+      isGeneratingSlide: false,
+      slideData: [],
+      currentSlideIndex: 0,
+      currentThemeId: 'blue',
+      
+      isElaborating: false,
+      savedItems: JSON.parse(localStorage.getItem('ai_search_saved_items')) || []
+    };
+
+    // 初期化処理
+    function init() {
+      // カテゴリセレクトボックスの生成
+      const categoryOptions = CATEGORIES.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+      document.getElementById('home-category-select').innerHTML += categoryOptions;
+      document.getElementById('header-category-select').innerHTML += categoryOptions;
+
+      // テーマセレクタの生成
+      const themeSelector = document.getElementById('theme-selector');
+      themeSelector.innerHTML = slideThemes.map(t => `
+        <button onclick="setTheme('${t.id}')" id="theme-btn-${t.id}" class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-gray-500 hover:scale-110 transition-transform shrink-0" style="background: linear-gradient(135deg, ${t.bg[0]} 50%, ${t.accent} 50%)" title="${t.name}"></button>
+      `).join('');
+
+      updateView();
+      lucide.createIcons();
+
+      // キーボードイベント（スライド用）
+      window.addEventListener('keydown', (e) => {
+        const slideModal = document.getElementById('slide-modal');
+        if (slideModal.classList.contains('hidden') || state.slideData.length === 0 || document.activeElement.isContentEditable) return;
+        if (e.key === 'ArrowRight') nextSlide();
+        if (e.key === 'ArrowLeft') prevSlide();
+      });
+    }
+
+    // --- UI更新関連 ---
+    function updateView() {
+      const homeView = document.getElementById('home-view');
+      const appView = document.getElementById('app-view');
+      const resultsMain = document.getElementById('results-main');
+      const savedMain = document.getElementById('saved-main');
+      const headerSavedBtn = document.getElementById('header-saved-btn');
+
+      // 入力欄の同期
+      document.getElementById('home-search-input').value = state.searchInput;
+      document.getElementById('header-search-input').value = state.searchInput;
+      document.getElementById('home-category-select').value = state.selectedCategory;
+      document.getElementById('header-category-select').value = state.selectedCategory;
+
+      // クリアボタンの表示制御
+      const hasInput = state.searchInput.length > 0;
+      document.getElementById('home-clear-btn').classList.toggle('hidden', !hasInput);
+      document.getElementById('header-clear-btn').classList.toggle('hidden', !hasInput);
+
+      // 検索ボタンの活性化制御
+      const canSubmit = state.searchInput.trim() || state.selectedCategory || state.selectedFile;
+      document.getElementById('home-submit-btn').disabled = !canSubmit || state.isLoading;
+      document.getElementById('header-submit-btn').disabled = !canSubmit || state.isLoading;
+
+      // ファイル表示制御
+      const homeFileDisplay = document.getElementById('home-file-display');
+      const headerFileDisplay = document.getElementById('header-file-display');
+      if (state.selectedFile) {
+        document.getElementById('home-file-name').textContent = state.selectedFile.name;
+        document.getElementById('header-file-name').textContent = state.selectedFile.name;
+        homeFileDisplay.classList.remove('hidden');
+        headerFileDisplay.classList.remove('hidden');
+      } else {
+        homeFileDisplay.classList.add('hidden');
+        headerFileDisplay.classList.add('hidden');
+      }
+
+      // 保存済みバッジ
+      const homeSavedCount = document.getElementById('home-saved-count');
+      if (state.savedItems.length > 0) {
+        homeSavedCount.textContent = state.savedItems.length;
+        homeSavedCount.classList.remove('hidden');
+      } else {
+        homeSavedCount.classList.add('hidden');
+      }
+
+      // ビューの切り替え
+      if (state.view === 'home') {
+        homeView.classList.remove('hidden');
+        appView.classList.add('hidden');
+      } else {
+        homeView.classList.add('hidden');
+        appView.classList.remove('hidden');
+        
+        if (state.view === 'results') {
+          resultsMain.classList.remove('hidden');
+          savedMain.classList.add('hidden');
+          headerSavedBtn.className = "flex items-center space-x-1.5 px-3 py-2 rounded-lg font-medium text-sm transition-colors text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-[#303134]";
+          
+          // 結果画面の内部状態更新
+          document.getElementById('results-loading').classList.toggle('hidden', !state.isLoading);
+          
+          const errorContainer = document.getElementById('results-error');
+          if (state.error && !state.isLoading) {
+            document.getElementById('results-error-text').textContent = state.error;
+            errorContainer.classList.remove('hidden');
+          } else {
+            errorContainer.classList.add('hidden');
+          }
+
+          if (!state.isLoading && !state.error && (state.results.length > 0 || state.aiSummary)) {
+            renderResults();
+          } else {
+            document.getElementById('results-content').classList.add('hidden');
+          }
+
+        } else if (state.view === 'saved') {
+          resultsMain.classList.add('hidden');
+          savedMain.classList.remove('hidden');
+          headerSavedBtn.className = "flex items-center space-x-1.5 px-3 py-2 rounded-lg font-medium text-sm transition-colors bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300";
+          renderSavedItems();
         }
+      }
 
-        function completeLogin() {
+      // ホーム画面のエラー表示
+      const homeErrorContainer = document.getElementById('home-error');
+      if (state.view === 'home' && state.error && !state.isLoading) {
+        document.getElementById('home-error-text').textContent = state.error;
+        homeErrorContainer.classList.remove('hidden');
+      } else {
+        homeErrorContainer.classList.add('hidden');
+      }
+    }
+
+    function renderResults() {
+      const content = document.getElementById('results-content');
+      content.classList.remove('hidden');
+
+      let categoryHtml = state.selectedCategory ? `<span class="inline-flex items-center px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-semibold rounded-full border border-blue-200 dark:border-blue-800">分野: ${state.selectedCategory}</span>` : '';
+
+      let resultsHtml = '';
+      if (state.results.length > 0) {
+        const listItems = state.results.map(r => {
+          const domain = getDomain(r.url);
+          const showDomain = domain !== 'vertexaisearch.cloud.google.com';
+          
+          return `
+          <a href="${r.url}" target="_blank" rel="noopener noreferrer" class="group block p-5 bg-white dark:bg-[#202124] border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all flex flex-col h-full">
+            <div class="flex flex-col mb-3 gap-1.5">
+              <div class="flex flex-col overflow-hidden mb-1">
+                ${r.siteName ? `<span class="text-base sm:text-lg font-bold text-gray-800 dark:text-gray-200 truncate">${r.siteName}</span>` : ''}
+                ${showDomain ? `<span class="text-[8px] sm:text-[10px] font-normal text-gray-400 dark:text-gray-500 truncate mt-0.5 leading-none">${domain}</span>` : ''}
+              </div>
+              <div class="flex items-start justify-between mt-1">
+                <h3 class="text-2xl font-black text-[#1a0dab] dark:text-[#8ab4f8] group-hover:underline line-clamp-2 leading-tight pr-4">${r.title}</h3>
+                <i data-lucide="external-link" class="h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors shrink-0 mt-1"></i>
+              </div>
+            </div>
+            ${r.description ? `
+              <div class="mt-auto pt-2">
+                <div class="bg-blue-50/50 dark:bg-blue-900/10 rounded-lg p-3 border-l-4 border-blue-400 dark:border-blue-600">
+                  <p class="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 leading-relaxed font-medium">${r.description}</p>
+                </div>
+              </div>
+            ` : ''}
+          </a>
+        `}).join('');
+
+        resultsHtml = `
+          <div>
+            <p class="text-sm font-medium text-gray-500 pb-3 border-b border-gray-100 mb-5 flex items-center"><i data-lucide="globe" class="h-4 w-4 mr-2"></i>参考としたWEBサイト一覧</p>
+            <div class="grid grid-cols-1 gap-4">${listItems}</div>
+          </div>
+        `;
+      }
+
+      content.innerHTML = `
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5 rounded-xl border border-blue-100 dark:border-blue-800">
+          <div>
+            <h3 class="font-bold text-lg text-blue-800 dark:text-blue-300">資料を自動生成</h3>
+            <p class="text-sm text-blue-600 dark:text-blue-400 mt-1">この回答をもとに、プレゼン用のスライドを構築します</p>
+          </div>
+          <button onclick="generateSlide()" id="btn-generate-slide" class="flex items-center justify-center w-full sm:w-auto space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg shadow-md font-medium transition-all ${state.isGeneratingSlide ? 'opacity-70 cursor-not-allowed' : ''}" ${state.isGeneratingSlide ? 'disabled' : ''}>
+            <i data-lucide="${state.isGeneratingSlide ? 'loader-2' : 'presentation'}" class="h-5 w-5 ${state.isGeneratingSlide ? 'animate-spin' : ''}"></i>
+            <span>${state.isGeneratingSlide ? '生成中...' : 'スライドを作成する'}</span>
+          </button>
+        </div>
+
+        <div class="bg-[#f8f9fa] dark:bg-[#303134] rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm relative group">
+          <div class="flex items-center space-x-2 text-blue-600 dark:text-blue-400 mb-4">
+            <i data-lucide="search" class="h-5 w-5"></i>
+            <h2 class="text-lg font-semibold">分析結果のレポート</h2>
+          </div>
+          
+          <div class="mb-4 flex flex-wrap gap-2">${categoryHtml}</div>
+          
+          <div class="text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap text-base">${state.aiSummary}</div>
+          
+          <div class="mt-8 flex flex-col gap-4 border-t border-gray-200 dark:border-gray-700 pt-5">
+            <!-- 上段：エクスポート設定と主要アクション -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <!-- 出力オプション -->
+              <div class="flex flex-wrap items-center gap-3 bg-white dark:bg-[#202124] px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm w-fit">
+                <div class="flex items-center" title="レポートのテーマ色を選択">
+                  <i data-lucide="palette" class="h-4 w-4 text-gray-500 shrink-0"></i>
+                  <select id="report-theme-select" class="bg-transparent text-sm text-gray-700 dark:text-gray-300 focus:outline-none pl-2 pr-1 py-0.5 cursor-pointer appearance-none font-medium">
+                    <option value="default">標準</option>
+                    <option value="modern-blue">ブルー</option>
+                    <option value="elegant-dark">ダーク</option>
+                    <option value="nature-green">グリーン</option>
+                    <option value="sakura-pink">サクラ</option>
+                    <option value="sunset-orange">サンセット</option>
+                    <option value="ocean-teal">オーシャン</option>
+                    <option value="monochrome">モノクロ</option>
+                    <option value="retro-brown">レトロ</option>
+                  </select>
+                </div>
+                <div class="w-px h-5 bg-gray-300 dark:bg-gray-600"></div>
+                <label class="flex items-center space-x-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none" title="レポートに参考サイト一覧を含める">
+                  <input type="checkbox" id="report-include-sources" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:border-gray-600 dark:bg-[#303134] cursor-pointer" checked>
+                  <span>参考データを付ける</span>
+                </label>
+              </div>
+
+              <!-- 出力ボタン -->
+              <div class="flex flex-wrap items-center gap-2">
+                <button id="btn-export-word" onclick="handleExportWord()" class="flex items-center space-x-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300 px-4 py-2.5 rounded-lg transition-colors border border-blue-200 dark:border-blue-800 shadow-sm font-medium" title="Wordレポート形式で保存">
+                  <i data-lucide="file-text" class="h-4 w-4"></i>
+                  <span>Word</span>
+                </button>
+                <button onclick="handleExportReport()" class="flex items-center space-x-1.5 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2.5 rounded-lg transition-all shadow shadow-blue-500/30 whitespace-nowrap font-medium" title="HTML/PDFレポート形式で保存">
+                  <i data-lucide="layout-template" class="h-4 w-4"></i>
+                  <span>HTML / PDF</span>
+                </button>
+                <button onclick="handleExportText()" class="flex items-center space-x-1.5 text-sm bg-white hover:bg-gray-50 text-gray-700 dark:bg-[#202124] dark:hover:bg-[#303134] dark:text-gray-300 px-3 py-2.5 rounded-lg transition-colors border border-gray-300 dark:border-gray-600 shadow-sm font-medium" title="テキスト形式で保存">
+                  <i data-lucide="file" class="h-4 w-4"></i>
+                  <span class="hidden sm:inline">テキスト</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 下段：その他のアクション -->
+            <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
+              <button onclick="handleSaveItem()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#303134] text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg transition-colors font-medium">
+                <i data-lucide="bookmark" class="h-4 w-4"></i>
+                <span>保存</span>
+              </button>
+              <button onclick="handleUpdateSearch()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#303134] text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg transition-colors font-medium">
+                <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                <span>更新</span>
+              </button>
+              <button onclick="elaborateSummary()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#303134] text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg transition-colors font-medium ${state.isElaborating || state.isLoading ? 'opacity-50 cursor-not-allowed' : ''}" ${state.isElaborating || state.isLoading ? 'disabled' : ''}>
+                <i data-lucide="plus-circle" class="h-4 w-4"></i>
+                <span>${state.isElaborating ? '詳細化中...' : 'もう少し詳しく'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        ${resultsHtml}
+      `;
+      lucide.createIcons({ root: content });
+    }
+
+    function renderSavedItems() {
+      const container = document.getElementById('saved-content');
+      
+      if (state.savedItems.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-20 text-gray-500 dark:text-gray-400 bg-[#f8f9fa] dark:bg-[#303134] rounded-2xl border border-gray-200 dark:border-gray-700">
+            <i data-lucide="bookmark" class="h-12 w-12 mx-auto mb-4 text-gray-400 opacity-50"></i>
+            <p class="text-lg">保存された回答はまだありません。</p>
+          </div>
+        `;
+      } else {
+        const itemsHtml = state.savedItems.map(item => `
+          <div onclick="loadSavedItem('${item.id}')" class="bg-white dark:bg-[#303134] p-5 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer group flex flex-col h-64">
+            <div class="flex justify-between items-start mb-3">
+              <h3 class="font-bold text-lg text-blue-700 dark:text-blue-400 line-clamp-2">${item.query}</h3>
+              <button onclick="handleDeleteSavedItem('${item.id}', event)" class="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100"><i data-lucide="trash-2" class="h-5 w-5"></i></button>
+            </div>
+            <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-4 flex-grow">${item.aiSummary}</p>
+            <div class="mt-4 flex justify-between items-center text-xs text-gray-500 border-t border-gray-100 dark:border-gray-600 pt-3">
+              <span class="flex items-center"><i data-lucide="globe" class="h-3 w-3 mr-1"></i> 参考元 ${item.results.length}件</span>
+              <span>${item.date}</span>
+            </div>
+          </div>
+        `).join('');
+        container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-6">${itemsHtml}</div>`;
+      }
+      lucide.createIcons({ root: container });
+    }
+
+    // --- 入力ハンドリング ---
+    function syncSearchInput(val) {
+      state.searchInput = val;
+      updateView();
+    }
+
+    function syncCategory(val) {
+      state.selectedCategory = val;
+      updateView();
+    }
+
+    function clearSearch() {
+      state.searchInput = '';
+      updateView();
+      if (state.view === 'home') document.getElementById('home-search-input').focus();
+      else document.getElementById('header-search-input').focus();
+    }
+
+    function switchView(viewName) {
+      state.view = viewName;
+      updateView();
+    }
+
+    function resetHome() {
+      state.view = 'home';
+      state.searchInput = '';
+      state.selectedCategory = '';
+      state.query = '';
+      state.results = [];
+      state.aiSummary = '';
+      state.slideData = [];
+      state.selectedFile = null;
+      state.error = null;
+      updateView();
+    }
+
+    function handleSubmit(e) {
+      e.preventDefault();
+      executeSearch();
+    }
+
+    // --- 設定モーダル ---
+    function openSettings() {
+      state.tempApiKey = state.apiKey;
+      document.getElementById('api-key-input').value = state.tempApiKey;
+      document.getElementById('settings-modal').classList.remove('hidden');
+    }
+
+    function closeSettings() {
+      document.getElementById('settings-modal').classList.add('hidden');
+    }
+
+    function saveApiKey() {
+      state.tempApiKey = document.getElementById('api-key-input').value;
+      state.apiKey = state.tempApiKey;
+      localStorage.setItem('ai_search_api_key', state.tempApiKey);
+      closeSettings();
+    }
+
+    function removeApiKey() {
+      if(confirm('保存されているAPIキーを削除してもよろしいですか？')) {
+        state.apiKey = '';
+        state.tempApiKey = '';
+        document.getElementById('api-key-input').value = '';
+        localStorage.removeItem('ai_search_api_key');
+        closeSettings();
+      }
+    }
+
+    // --- ファイルアップロード ---
+    function handleFileChange(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // Gemini APIのinlineData上限を考慮し、可能な限り大きな20MBまでに拡張
+      const MAX_FILE_SIZE = 20 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`ファイルサイズが大きすぎます。20MB以下のファイルを選択してください。\n(現在のサイズ: ${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+        e.target.value = null;
+        return;
+      }
+
+      const lowerName = file.name.toLowerCase();
+      const isTextBased = lowerName.endsWith('.txt') || lowerName.endsWith('.html') || lowerName.endsWith('.htm');
+      const isDocx = lowerName.endsWith('.docx');
+
+      if (isDocx) {
+        if (!window.mammoth) {
+          alert("Wordファイル解析ライブラリが読み込まれていません。通信環境をご確認ください。");
+          e.target.value = null;
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          try {
+            const arrayBuffer = event.target.result;
+            // mammoth.jsで.docxからプレーンテキストを抽出
+            const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+            state.selectedFile = { name: file.name, type: 'text', data: result.value };
+            updateView();
+          } catch (err) {
+            console.error("Word抽出エラー:", err);
+            alert("Wordファイルのテキスト抽出に失敗しました。パスワード保護されているか、ファイルが破損している可能性があります。");
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (isTextBased) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          let textData = event.target.result;
+          
+          // HTMLファイルの場合は、タグやスクリプトを除去して純粋なテキストのみを抽出する
+          if (lowerName.endsWith('.html') || lowerName.endsWith('.htm')) {
             try {
-                const url = new URL(window.location.href);
-                let needsUpdate = false;
-                if (url.searchParams.has('pw')) { url.searchParams.delete('pw'); needsUpdate = true; }
-                if (url.hash === '#' + VALID_PASSWORD) { url.hash = ''; needsUpdate = true; }
-                if (needsUpdate) window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
-            } catch (e) { console.warn("URL cleanup suppressed."); }
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(textData, 'text/html');
+              // 不要な要素（スクリプトやスタイル）を削除
+              const scriptsAndStyles = doc.querySelectorAll('script, style, noscript');
+              scriptsAndStyles.forEach(el => el.remove());
+              textData = doc.body ? doc.body.textContent : textData;
+              // 連続する空白や改行を圧縮してトークンを節約
+              textData = textData.replace(/\s+/g, ' ').trim();
+            } catch (err) {
+              console.error("HTMLパースエラー:", err);
+              // パース失敗時はそのままのテキストフォールバック
+            }
+          }
+          
+          state.selectedFile = { name: file.name, type: 'text', data: textData };
+          updateView();
+        };
+        reader.readAsText(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64Data = event.target.result.split(',')[1];
+          let mimeType = file.type;
+          if (!mimeType) {
+            if (lowerName.endsWith('.pdf')) mimeType = 'application/pdf';
+            else if (lowerName.endsWith('.pptx')) mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+          }
+          state.selectedFile = { name: file.name, type: 'inline', mimeType: mimeType, data: base64Data };
+          updateView();
+        };
+        reader.readAsDataURL(file);
+      }
+      
+      e.target.value = null;
+    }
+
+    function removeFile() {
+      state.selectedFile = null;
+      updateView();
+    }
+
+    // --- API連携 (検索) ---
+    async function executeSearch() {
+      const baseQuery = typeof state.searchInput === 'string' ? state.searchInput.trim() : '';
+      if (!baseQuery && !state.selectedCategory && !state.selectedFile) return;
+
+      if (!state.apiKey) {
+        openSettings();
+        state.error = "APIキーが設定されていません。設定画面からGemini APIキーを入力してください。";
+        updateView();
+        return;
+      }
+
+      state.isLoading = true;
+      state.error = null;
+      state.view = 'results';
+      updateView();
+
+      let displayQuery = "";
+      let promptContext = "";
+
+      if (baseQuery && state.selectedCategory) {
+        displayQuery = `${baseQuery} (${state.selectedCategory})`;
+        promptContext = `特に「${state.selectedCategory}」の分野・観点から、「${baseQuery}」について、検索した時点での最新の情勢や情報を参照し、詳しく分かりやすい回答を提供してください。`;
+      } else if (baseQuery) {
+        displayQuery = baseQuery;
+        promptContext = `「${baseQuery}」について、検索した時点での最新の情勢や情報を参照し、詳しく分かりやすい回答を提供してください。`;
+      } else if (state.selectedCategory) {
+        displayQuery = state.selectedCategory;
+        promptContext = `「${state.selectedCategory}」の分野における最新の情勢、重要な動向、今後の展望について検索し、詳しく分かりやすい回答を提供してください。`;
+      } else if (state.selectedFile) {
+        displayQuery = `ファイル分析`;
+        promptContext = `添付されたドキュメントの内容を分析し、詳しく分かりやすい要約と解説を提供してください。必要に応じてWEB検索で最新情報も補足してください。`;
+      }
+
+      if (state.selectedFile && (baseQuery || state.selectedCategory)) {
+        displayQuery += ` 📎 ${state.selectedFile.name}`;
+        promptContext = `【添付ファイルあり】添付されたドキュメント（ファイル名: ${state.selectedFile.name}）の内容を詳細に読み込み・分析し、その情報を強く踏まえた上で、` + promptContext;
+      }
+
+      state.query = displayQuery;
+      state.slideData = [];
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${state.apiKey}`;
+      const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+      
+      const parts = [{ 
+        text: `現在は${today}です。${promptContext}回答の文体は「だ・である」調（常体）で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下の厳密なJSON形式で出力してください。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "siteName": "サイト名や運営組織名（ドメイン名不可）", "url": "サイトのURL", "description": "サイト内容の詳しい要約"}\n]\n※重要：「title」や「siteName」にはURLやドメイン名（例: jimin.jp）を絶対に書かないでください。必ず実際の日本語の名称を記述してください。` 
+      }];
+
+      if (state.selectedFile) {
+        if (state.selectedFile.type === 'text') {
+          parts.push({ text: `\n\n--- 添付ファイル (${state.selectedFile.name}) の内容 ---\n${state.selectedFile.data}\n--- 添付ファイル終わり ---\n` });
+        } else {
+          parts.push({ inlineData: { mimeType: state.selectedFile.mimeType, data: state.selectedFile.data } });
+        }
+      }
+
+      const payload = { contents: [{ role: "user", parts }], tools: [{ google_search: {} }] };
+
+      let retries = 5; let delay = 1000;
+      while (retries > 0) {
+        try {
+          const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          if (!response.ok) {
+             const errorText = await response.text();
+             if (response.status === 401 || response.status === 403 || response.status === 400) throw new Error(`認証エラー (${response.status}) が発生しました。設定したAPIキーが正しくないか、無効になっています。右上の設定から確認してください。`);
+             if (response.status === 404) throw new Error(`モデルが見つかりません (${response.status})。APIのバージョンまたはモデル名が正しくありません。`);
+             if (response.status === 429) throw new Error(`APIの利用制限（Quota exceeded）に達しました。しばらく時間をおいてから再度お試しいただくか、APIキーのプランをご確認ください。`);
+             throw new Error(`API error: ${response.status} - ${errorText}`);
+          }
+          const data = await response.json();
+          if (!data || !data.candidates || data.candidates.length === 0) throw new Error("No candidates in response");
+          
+          const candidate = data.candidates[0];
+          const rawText = candidate?.content?.parts?.[0]?.text || "（回答の生成に失敗しました）";
+          let summaryText = rawText;
+          let sourceDescriptions = {};
+          let sourceTitles = {};
+          let sourceSiteNames = {};
+
+          const sourcesMarker = "===SOURCES===";
+          if (rawText.includes(sourcesMarker)) {
+            const partsArray = rawText.split(sourcesMarker);
+            summaryText = partsArray[0].trim();
+            // Markdownブロック等が混入してパースエラーになるのを防ぐ
+            let jsonRaw = partsArray[1].replace(/```json/gi, '').replace(/```/gi, '');
+            const jsonStr = jsonRaw.match(/\[[\s\S]*\]/);
+            if (jsonStr) {
+              try {
+                const sourcesJson = JSON.parse(jsonStr[0]);
+                if (Array.isArray(sourcesJson)) {
+                  sourcesJson.forEach(item => {
+                    if (item.url) {
+                      const cleanUrl = item.url.trim().replace(/\/$/, '');
+                      if (item.description) sourceDescriptions[cleanUrl] = item.description;
+                      if (item.title) sourceTitles[cleanUrl] = item.title;
+                      if (item.siteName) sourceSiteNames[cleanUrl] = item.siteName;
+                    }
+                  });
+                }
+              } catch(e) { console.error("JSON parse error:", e); }
+            }
+          }
+
+          const chunks = candidate.groundingMetadata?.groundingChunks || [];
+          const attributions = candidate.groundingMetadata?.groundingAttributions || [];
+          
+          const uniqueSources = []; const seenUrls = new Set();
+          
+          const processSource = (uri, chunkTitle) => {
+            if (uri && !seenUrls.has(uri)) {
+              seenUrls.add(uri); 
+              const cleanUrl = uri.trim().replace(/\/$/, '');
+              let desc = sourceDescriptions[cleanUrl];
+              let aiTitle = sourceTitles[cleanUrl];
+              let aiSiteName = sourceSiteNames[cleanUrl];
+              
+              if (!desc || !aiTitle || !aiSiteName) {
+                const domain = getDomain(uri);
+                const matchUrl = Object.keys(sourceDescriptions).find(k => getDomain(k) === domain);
+                if (matchUrl) {
+                  if (!desc) desc = sourceDescriptions[matchUrl];
+                  if (!aiTitle) aiTitle = sourceTitles[matchUrl];
+                  if (!aiSiteName) aiSiteName = sourceSiteNames[matchUrl];
+                }
+              }
+              
+              if (!desc) desc = "このサイトの詳しい情報はリンク先をご覧ください。";
+              
+              // ドメイン名やURLそのものがタイトルになっているか判定
+              const isBadTitle = (t) => !t || t.toLowerCase() === getDomain(uri).toLowerCase() || t.toLowerCase().startsWith("http");
+              
+              let finalTitle = "参考ウェブサイト";
+              if (chunkTitle && !isBadTitle(chunkTitle)) {
+                finalTitle = chunkTitle; // 1. Search Groundingの公式タイトルを最優先
+              } else if (aiTitle && !isBadTitle(aiTitle)) {
+                finalTitle = aiTitle; // 2. AIが生成したタイトル
+              } else if (chunkTitle) {
+                finalTitle = chunkTitle; // 3. 妥協してそのまま使用
+              } else if (aiTitle) {
+                finalTitle = aiTitle;
+              }
+
+              let finalSiteName = aiSiteName && !isBadTitle(aiSiteName) ? aiSiteName : "";
+              
+              uniqueSources.push({ title: finalTitle, siteName: finalSiteName, url: uri, description: desc });
+            }
+          };
+
+          for (const chunk of chunks) processSource(chunk.web?.uri, chunk.web?.title);
+          if (uniqueSources.length === 0) {
+            for (const attr of attributions) processSource(attr.web?.uri, attr.web?.title);
+          }
+
+          state.aiSummary = summaryText; 
+          state.results = uniqueSources; 
+          state.isLoading = false; 
+          updateView();
+          return; 
+        } catch (err) {
+          if (err.message.includes("認証エラー") || err.message.includes("モデルが見つかりません")) {
+              state.error = err.message;
+              state.isLoading = false;
+              updateView();
+              if(err.message.includes("認証エラー")) openSettings();
+              return;
+          }
+          retries--;
+          if (retries === 0) { 
+            console.error("Search API Error:", err);
+            state.error = err.message.includes("利用制限") ? err.message : `情報の取得・分析に失敗しました。時間をおいて再度お試しいただくか、ファイルサイズ等をご確認ください。\n詳細: ${err.message}`; 
+            state.isLoading = false; 
+            updateView();
+          } else { 
+            await new Promise(r => setTimeout(r, delay)); delay *= 2; 
+          }
+        }
+      }
+    }
+
+    // --- API連携 (詳細化) ---
+    async function elaborateSummary() {
+      state.isElaborating = true;
+      updateView();
+      
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${state.apiKey}`;
+      const today = new Date().toLocaleDateString('ja-JP');
+      
+      let categoryContext = state.selectedCategory ? `特に「${state.selectedCategory}」の分野・観点から、` : "";
+      if (state.selectedFile) categoryContext = `添付されたドキュメントの内容も引き続き考慮し、` + categoryContext;
+      
+      const parts = [{ text: `現在は${today}です。キーワード「${state.query}」について、${categoryContext}以下の概要を深掘りし、詳細で専門的な情報を含む長文の解説に書き換えてください。文体は「だ・である」調で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下の厳密なJSON形式で出力してください。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "siteName": "サイト名や運営組織名（ドメイン名不可）", "url": "サイトのURL", "description": "サイト内容の詳しい要約"}\n]\n※重要：「title」や「siteName」にはURLやドメイン名を絶対に書かないでください。必ず日本語の名称を記述してください。\n\n概要:\n${state.aiSummary}` }];
+
+      if (state.selectedFile) {
+        if (state.selectedFile.type === 'text') parts.push({ text: `\n\n--- 添付ファイル (${state.selectedFile.name}) の内容 ---\n${state.selectedFile.data}\n--- 添付ファイル終わり ---\n` });
+        else parts.push({ inlineData: { mimeType: state.selectedFile.mimeType, data: state.selectedFile.data } });
+      }
+
+      const payload = { contents: [{ role: "user", parts }], tools: [{ google_search: {} }] };
+
+      let retries = 5; let delay = 1000;
+      while (retries > 0) {
+        try {
+          const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          if (!response.ok) {
+             const errorText = await response.text();
+             if (response.status === 401 || response.status === 403 || response.status === 400) throw new Error(`認証エラー (${response.status})。APIキーを確認してください。`);
+             if (response.status === 404) throw new Error(`モデルが見つかりません (${response.status})。APIのバージョンまたはモデル名が正しくありません。`);
+             if (response.status === 429) throw new Error(`APIの利用制限（Quota exceeded）に達しました。時間をおいて再度お試しください。`);
+             throw new Error(`API error: ${response.status} - ${errorText}`);
+          }
+          const data = await response.json();
+          if (!data || !data.candidates || data.candidates.length === 0) throw new Error("No candidates in response");
             
-            document.getElementById('login-overlay').style.display = 'none';
-            document.getElementById('app-content').classList.remove('hidden');
-            startApp();
-        }
+          const candidate = data.candidates[0];
+          const rawText = candidate?.content?.parts?.[0]?.text || "生成失敗";
+          
+          let summaryText = rawText;
+          let sourceDescriptions = {};
+          let sourceTitles = {};
+          let sourceSiteNames = {};
 
-        document.getElementById('loginButton').addEventListener('click', () => {
-            if (document.getElementById('passwordInput').value === VALID_PASSWORD) completeLogin();
-            else document.getElementById('loginError').classList.remove('hidden');
-        });
-        document.getElementById('passwordInput').addEventListener('keypress', (e) => { 
-            if (e.key === 'Enter') document.getElementById('loginButton').click(); 
-        });
-
-        async function startApp() {
-            searchInput = document.getElementById('searchInput');
-            clearSearchButton = document.getElementById('clearSearchButton');
-            tableBody = document.getElementById('data-table-body');
-            tableHeader = document.getElementById('table-header');
-            loading = document.getElementById('loading');
-            dataCountDisplay = document.getElementById('dataCountDisplay');
-            paginationControls = document.getElementById('pagination-controls');
-            audioPlayer = document.getElementById('audioPlayer');
-            mainAudioControl = document.getElementById('main-audio-control');
-            mainAudioIconI = document.getElementById('main-audio-icon-i');
-            bookmarkFilterCheckbox = document.getElementById('bookmark-filter-checkbox');
-
-            try {
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                const auth = getAuth(app);
-                await signInAnonymously(auth);
-                
-                setupEventListeners();
-                setupFirestoreListener();
-                setupMetadataListener(METADATA_DOC_ID, document.getElementById('last-import-time'));
-            } catch (e) {
-                console.error("Initialization failed", e);
-                loading.textContent = "初期化に失敗しました。";
-            }
-        }
-
-        function setupFirestoreListener() {
-            const dataCollection = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
-            const q = query(dataCollection);
-            onSnapshot(q, (snapshot) => {
-                currentData = snapshot.docs
-                    .map(doc => ({ id: doc.id, ...doc.data() }))
-                    // 1. 区分が「会議」のものを除外
-                    // 2. タイトル名が空、あるいは「タイトルなし」のものを除外
-                    .filter(item => {
-                        const kubun = String(item['区分'] || '').trim();
-                        const title = String(item['タイトル名'] || '').trim();
-                        return kubun !== '会議' && title !== '' && title !== 'タイトルなし';
-                    });
-                render();
-            }, (error) => {
-                loading.textContent = "データの取得に失敗しました。";
-            });
-        }
-        
-        function setupMetadataListener(docId, displayElement) {
-            const metadataDocRef = doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, docId);
-            onSnapshot(metadataDocRef, (docSnap) => {
-                if (displayElement && docSnap.exists()) {
-                    const lastImportDate = docSnap.data().lastImportTimestamp?.toDate();
-                    if (lastImportDate) displayElement.textContent = `更新: ${lastImportDate.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
+          const sourcesMarker = "===SOURCES===";
+          if (rawText.includes(sourcesMarker)) {
+            const partsArray = rawText.split(sourcesMarker);
+            summaryText = partsArray[0].trim();
+            // Markdownブロック等が混入してパースエラーになるのを防ぐ
+            let jsonRaw = partsArray[1].replace(/```json/gi, '').replace(/```/gi, '');
+            const jsonStr = jsonRaw.match(/\[[\s\S]*\]/);
+            if (jsonStr) {
+              try {
+                const sourcesJson = JSON.parse(jsonStr[0]);
+                if (Array.isArray(sourcesJson)) {
+                  sourcesJson.forEach(item => {
+                    if (item.url) {
+                      const cleanUrl = item.url.trim().replace(/\/$/, '');
+                      if (item.description) sourceDescriptions[cleanUrl] = item.description;
+                      if (item.title) sourceTitles[cleanUrl] = item.title;
+                      if (item.siteName) sourceSiteNames[cleanUrl] = item.siteName;
+                    }
+                  });
                 }
-            });
+              } catch(e) { console.error("JSON parse error in elaborate:", e); }
+            }
+          }
+          
+          const chunks = candidate.groundingMetadata?.groundingChunks || [];
+          const attributions = candidate.groundingMetadata?.groundingAttributions || [];
+          const newSources = []; const seenUrls = new Set(state.results.map(r => r.url));
+          
+          const processSource = (uri, chunkTitle) => {
+            if (uri && !seenUrls.has(uri)) {
+              seenUrls.add(uri); 
+              const cleanUrl = uri.trim().replace(/\/$/, '');
+              let desc = sourceDescriptions[cleanUrl];
+              let aiTitle = sourceTitles[cleanUrl];
+              let aiSiteName = sourceSiteNames[cleanUrl];
+              
+              if (!desc || !aiTitle || !aiSiteName) {
+                const domain = getDomain(uri);
+                const matchUrl = Object.keys(sourceDescriptions).find(k => getDomain(k) === domain);
+                if (matchUrl) {
+                  if (!desc) desc = sourceDescriptions[matchUrl];
+                  if (!aiTitle) aiTitle = sourceTitles[matchUrl];
+                  if (!aiSiteName) aiSiteName = sourceSiteNames[matchUrl];
+                }
+              }
+              
+              if (!desc) desc = "このサイトの詳しい情報はリンク先をご覧ください。";
+              
+              // ドメイン名やURLそのものがタイトルになっているか判定
+              const isBadTitle = (t) => !t || t.toLowerCase() === getDomain(uri).toLowerCase() || t.toLowerCase().startsWith("http");
+              
+              let finalTitle = "参考ウェブサイト";
+              if (chunkTitle && !isBadTitle(chunkTitle)) {
+                finalTitle = chunkTitle;
+              } else if (aiTitle && !isBadTitle(aiTitle)) {
+                finalTitle = aiTitle;
+              } else if (chunkTitle) {
+                finalTitle = chunkTitle;
+              } else if (aiTitle) {
+                finalTitle = aiTitle;
+              }
+
+              let finalSiteName = aiSiteName && !isBadTitle(aiSiteName) ? aiSiteName : "";
+              
+              newSources.push({ title: finalTitle, siteName: finalSiteName, url: uri, description: desc });
+            }
+          };
+
+          for (const chunk of chunks) processSource(chunk.web?.uri, chunk.web?.title);
+          if (newSources.length === 0) {
+            for (const attr of attributions) processSource(attr.web?.uri, attr.web?.title);
+          }
+
+          state.aiSummary = summaryText;
+          state.results = state.results.map(p => {
+            const cleanUrl = p.url.trim().replace(/\/$/, '');
+            let aiTitle = sourceTitles[cleanUrl];
+            let aiSiteName = sourceSiteNames[cleanUrl];
+            const isBadTitle = (t) => !t || t.toLowerCase() === getDomain(p.url).toLowerCase() || t.toLowerCase().startsWith("http");
+            
+            let finalTitle = p.title;
+            // 古いタイトルがドメイン名で、新しいAIタイトルが正常なら上書き更新する
+            if (aiTitle && !isBadTitle(aiTitle) && isBadTitle(p.title)) {
+                finalTitle = aiTitle;
+            }
+
+            let finalSiteName = p.siteName;
+            if (aiSiteName && !isBadTitle(aiSiteName) && (!p.siteName || isBadTitle(p.siteName))) {
+                finalSiteName = aiSiteName;
+            }
+
+            return {
+              ...p,
+              description: sourceDescriptions[cleanUrl] || p.description,
+              title: finalTitle,
+              siteName: finalSiteName || p.siteName
+            };
+          });
+          state.results = [...state.results, ...newSources];
+          
+          state.isElaborating = false;
+          updateView();
+          return;
+
+        } catch (err) {
+          if (err.message.includes("認証エラー") || err.message.includes("モデルが見つかりません")) {
+            alert(err.message);
+            if (err.message.includes("認証エラー")) openSettings();
+            state.isElaborating = false;
+            updateView();
+            return;
+          }
+          retries--;
+          if (retries === 0) {
+            console.error("Elaborate API Error:", err);
+            alert(err.message.includes("利用制限") ? err.message : "エラーが発生しました。時間をおいて再度お試しください。");
+            state.isElaborating = false;
+            updateView();
+            return;
+          } else {
+            await new Promise(r => setTimeout(r, delay)); delay *= 2;
+          }
         }
+      }
+    }
 
-        function render() {
-             filteredAndSortedData = getFilteredAndSortedData();
-             currentPage = 1;
-             renderTable();
-             renderPagination();
-        }
+    // --- 保存機能 ---
+    function autoSaveItem() {
+      if (!state.query || !state.aiSummary) return;
+      if (state.savedItems.some(item => item.query === state.query && item.aiSummary === state.aiSummary)) return;
 
-        function getFilteredAndSortedData() {
-            const localBookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
-            let data = [...currentData].map(item => ({...item, isBookmarked: localBookmarks.has(item.id)}));
-            if (bookmarkFilterCheckbox.checked) data = data.filter(item => item.isBookmarked);
-            data = filterData(data, searchInput.value);
-            sortData(data);
-            return data;
-        }
+      const newItem = {
+        id: Date.now().toString(),
+        query: state.query,
+        rawQuery: state.searchInput, 
+        category: state.selectedCategory, 
+        fileName: state.selectedFile ? state.selectedFile.name : null,
+        aiSummary: state.aiSummary, 
+        results: state.results,
+        date: new Date().toLocaleString('ja-JP')
+      };
+      state.savedItems.unshift(newItem);
+      localStorage.setItem('ai_search_saved_items', JSON.stringify(state.savedItems));
+    }
 
-        function renderTable() {
-             const totalItems = filteredAndSortedData.length;
-             const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-             const endIndex = startIndex + ITEMS_PER_PAGE;
-             const paginatedData = filteredAndSortedData.slice(startIndex, endIndex);
-             tableBody.innerHTML = '';
-             loading.style.display = 'none';
+    function handleSaveItem() {
+      autoSaveItem();
+      updateView();
+      alert("回答を保存しました！「保存済みデータ一覧」から確認できます。");
+    }
 
-             if (totalItems === 0) {
-                 loading.textContent = '条件に一致するデータがありません。';
-                 loading.style.display = 'block';
-                 dataCountDisplay.textContent = '0件';
-             } else {
-                 const fragment = document.createDocumentFragment();
-                 paginatedData.forEach(item => fragment.appendChild(createTableRow(item)));
-                 tableBody.appendChild(fragment);
-                 dataCountDisplay.textContent = `${startIndex + 1} - ${Math.min(endIndex, totalItems)} / 全${totalItems}件`;
+    function handleUpdateSearch() {
+      autoSaveItem();
+      executeSearch();
+    }
+
+    function handleExportText() {
+      if (!state.aiSummary) return;
+
+      const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+
+      let content = `■ 検索キーワード: ${state.query}\n`;
+      content += `■ 生成日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
+      content += `■ 分析結果のレポート\n${state.aiSummary}\n\n`;
+      if (includeSources && state.results && state.results.length > 0) {
+        content += `■ 参考としたWEBサイト一覧\n`;
+        state.results.forEach((r, i) => { 
+          content += `[${i + 1}] ${r.title}\n`; 
+          if (r.siteName) content += `    サイト名: ${r.siteName}\n`;
+          content += `    URL: ${r.url}\n`;
+          if (r.description) content += `    概要: ${r.description}\n`;
+          content += `\n`;
+        });
+      }
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_回答.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function handleExportWord() {
+      if (!state.aiSummary) return;
+
+      const btn = document.getElementById('btn-export-word');
+      const originalHtml = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.innerHTML = `<i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i><span class="font-medium">生成中...</span>`;
+        lucide.createIcons({ root: btn });
+        btn.disabled = true;
+      }
+
+      try {
+        // 複数のCDNを順番に試行してライブラリを確実に読み込む
+        const loadDocxScript = async () => {
+          if (window.docx) return;
+          const cdns = [
+            "https://unpkg.com/docx@8.5.0/build/index.js",
+            "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js",
+            "https://unpkg.com/docx@7.8.2/build/index.js"
+          ];
+          for (const url of cdns) {
+            try {
+              await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = url;
+                script.onload = () => {
+                  if (window.docx) resolve();
+                  else reject(new Error("No window.docx"));
+                };
+                script.onerror = reject;
+                document.body.appendChild(script);
+              });
+              return; // 読み込み成功
+            } catch (e) {
+              console.warn(`Failed to load docx from ${url}`);
+            }
+          }
+          throw new Error("すべてのサーバーからのライブラリ読み込みに失敗しました。通信環境をご確認ください。");
+        };
+
+        await loadDocxScript();
+
+        const themeId = document.getElementById('report-theme-select')?.value || 'default';
+        const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+        
+        const t = REPORT_THEMES[themeId] || REPORT_THEMES['default'];
+        const hexToWord = (hex) => hex.replace('#', '');
+        
+        const wText = hexToWord(t.text);
+        const wTextBold = hexToWord(t.textBold);
+        const wTextMuted = hexToWord(t.textMuted);
+        const wAccent = hexToWord(t.accent);
+
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
+        
+        const summaryParagraphs = [];
+        const lines = state.aiSummary.split('\n');
+        
+        for (const line of lines) {
+          if (!line.trim()) {
+             summaryParagraphs.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+             continue;
+          }
+
+          if (line.startsWith('### ')) {
+             summaryParagraphs.push(new Paragraph({
+               text: line.substring(4),
+               heading: HeadingLevel.HEADING_3,
+             }));
+          } else if (line.startsWith('## ')) {
+             summaryParagraphs.push(new Paragraph({
+               text: line.substring(3),
+               heading: HeadingLevel.HEADING_2,
+             }));
+          } else if (line.startsWith('# ')) {
+             summaryParagraphs.push(new Paragraph({
+               text: line.substring(2),
+               heading: HeadingLevel.HEADING_1,
+             }));
+          } else {
+             const runs = [];
+             const parts = line.split(/(\*\*.*?\*\*)/g);
+             for (const part of parts) {
+               if (part.startsWith('**') && part.endsWith('**')) {
+                 runs.push(new TextRun({ text: part.substring(2, part.length - 2), bold: true, color: wTextBold }));
+               } else if (part) {
+                 runs.push(new TextRun({ text: part }));
+               }
              }
+             summaryParagraphs.push(new Paragraph({ children: runs, spacing: { after: 120 } }));
+          }
         }
 
-        function renderPagination() {
-            const totalItems = filteredAndSortedData.length;
-            const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
-            paginationControls.innerHTML = '';
-            if (totalPages <= 1) return;
+        const docChildren = [
+          new Paragraph({
+            text: state.query,
+            heading: HeadingLevel.TITLE,
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 400 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                  text: `作成日時: ${new Date().toLocaleString('ja-JP')}`,
+                  color: wTextMuted
+              })
+            ],
+            alignment: AlignmentType.RIGHT,
+            spacing: { after: 400 }
+          }),
+          new Paragraph({
+            text: "分析結果のレポート",
+            heading: HeadingLevel.HEADING_1,
+          }),
+          ...summaryParagraphs
+        ];
 
-            const createButton = (html, page, isDisabled = false, isActive = false) => {
-                const button = document.createElement('button');
-                button.innerHTML = html;
-                button.disabled = isDisabled;
-                button.className = `pagination-button mx-1 px-3 py-1 border rounded-md text-sm font-medium transition-colors ${isDisabled ? 'text-gray-400 bg-gray-100' : 'text-gray-700 bg-white hover:bg-gray-50'} ${isActive ? 'active border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-300'}`;
-                if (!isDisabled) button.onclick = () => { currentPage = page; renderTable(); renderPagination(); };
-                return button;
-            };
+        if (includeSources && state.results && state.results.length > 0) {
+          docChildren.push(
+            new Paragraph({
+              text: "参考としたWEBサイト一覧",
+              heading: HeadingLevel.HEADING_1,
+            })
+          );
 
-            paginationControls.appendChild(createButton('<i class="fas fa-chevron-left"></i>', currentPage - 1, currentPage === 1));
-            let startPage = Math.max(1, currentPage - 2);
-            let endPage = Math.min(totalPages, currentPage + 2);
-            if (startPage > 1) paginationControls.appendChild(createButton('1', 1));
-            for (let i = startPage; i <= endPage; i++) paginationControls.appendChild(createButton(i, i, false, i === currentPage));
-            if (endPage < totalPages) paginationControls.appendChild(createButton(totalPages, totalPages));
-            paginationControls.appendChild(createButton('<i class="fas fa-chevron-right"></i>', currentPage + 1, currentPage === totalPages));
-        }
-
-        function createTableRow(item) {
-            const row = document.createElement('tr');
-            row.className = 'hover:bg-gray-50 transition-colors duration-150';
-            const date = item['日付'] || '';
+          state.results.forEach((r, i) => {
+            docChildren.push(
+               new Paragraph({
+                 text: `[${i + 1}] ${r.title}`,
+                 heading: HeadingLevel.HEADING_3,
+               })
+            );
             
-            // 日付比較用の文字列作成関数
-            const getFormattedDateString = (daysAgo) => {
-                const d = new Date();
-                d.setDate(d.getDate() - daysAgo);
-                return d.toLocaleDateString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit'});
-            };
-
-            const today = getFormattedDateString(0);
-            const yesterday = getFormattedDateString(1);
-            const dayBeforeYesterday = getFormattedDateString(2);
-
-            let dateClass = 'text-gray-900';
-            if (date === today) {
-                dateClass = 'text-red-600 font-bold';
-            } else if (date === yesterday) {
-                dateClass = 'text-red-400';
-            } else if (date === dayBeforeYesterday) {
-                dateClass = 'text-red-300';
+            if (r.siteName) {
+               docChildren.push(new Paragraph({ 
+                   children: [new TextRun({ text: `サイト名: ${r.siteName}`, color: wTextMuted })],
+                   spacing: { after: 50 } 
+               }));
             }
-            
-            // 更新情報のハイライト処理（括弧内に「更新」がある場合全体を赤太字にする）
-            const updateRegex = /([（\(][^）\)]*更新[^）\)]*[）\)])/g;
-            const highlightUpdate = (text) => (text || '').replace(updateRegex, '<span class="text-red-500 font-bold">$1</span>');
 
-            const titleName = highlightUpdate(item['タイトル名'] || '');
-            const bikou = highlightUpdate(item['備考'] || '');
+            // エラーを回避するため、URLは通常のテキスト(リンク色・下線)として挿入
+            docChildren.push(new Paragraph({
+                children: [
+                  new TextRun({
+                      text: r.url,
+                      color: wAccent,
+                      underline: {}
+                  })
+                ],
+                spacing: { after: 50 }
+            }));
 
-            let titlePrefixHtml = '';
-            const url2 = String(item['URL2'] || '');
-            if (url2) titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>';
-
-            row.innerHTML = `
-                <td class="px-2 py-3 text-center"><input type="checkbox" class="bookmark-checkbox" data-id="${item.id}" ${item.isBookmarked ? 'checked' : ''}></td>
-                <td class="px-2 py-3 text-sm"><p class="${dateClass}">${date}</p></td>
-                <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-start">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" class="text-blue-600 hover:underline">${titleName}</a></div><p class="text-xs text-gray-500 mt-1">${bikou}</p></div></td>
-                <td class="text-center">${item['YouTube'] ? `<a href="${item['YouTube']}" target="_blank" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : ''}</td>
-                <td class="text-center">${item['URL1'] ? `<span data-src="${item['URL1']}" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : ''}</td>
-            `;
-            return row;
-        }
-
-        function filterData(data, queryText) {
-            if (!queryText || !queryText.trim()) return data;
-            const terms = queryText.toLowerCase().trim().split(/[\s　]+/).filter(t => t !== '');
-            return data.filter(item => {
-                const url2 = String(item['URL2'] || '');
-                let labelText = '';
-                if (String(item['区分'] || '').trim() === '会議') labelText = '会議';
-                else if (url2) labelText = url2.toLowerCase().includes('.pdf') ? 'PDF' : 'WEB';
-                const content = `${item['タイトル名'] || ''} ${item['備考'] || ''} ${labelText}`.toLowerCase();
-                return terms.every(term => {
-                    if (content.includes(term)) return true;
-                    const group = SYNONYMS.find(g => g.map(s => s.toLowerCase()).includes(term));
-                    return group ? group.some(s => content.includes(s.toLowerCase())) : false;
-                });
-            });
-        }
-
-        function sortData(data) {
-            data.sort((a, b) => {
-                const { key, direction } = sortState;
-                const modifier = direction === 'asc' ? 1 : -1;
-                if (key === 'default') return (new Date(b['日付'] || 0) - new Date(a['日付'] || 0));
-                const valA = String(a[key] || ''), valB = String(b[key] || '');
-                return key === '日付' ? (new Date(valA) - new Date(valB)) * modifier : valA.localeCompare(valB, 'ja') * modifier;
-            });
-        }
-
-        function toggleBookmark(id, checked) { 
-            const bookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
-            if(checked) bookmarks.add(id); else bookmarks.delete(id);
-            localStorage.setItem(`bookmarks_${appId}`, JSON.stringify(Array.from(bookmarks)));
-            render();
-        }
-
-        function toggleAudioPlayback(clickedIcon) {
-            if (currentlyPlayingIcon === clickedIcon) {
-                if (audioPlayer.paused) audioPlayer.play(); else audioPlayer.pause();
-            } else {
-                if (currentlyPlayingIcon) setIconState(currentlyPlayingIcon, 'stopped');
-                audioPlayer.src = clickedIcon.dataset.src;
-                audioPlayer.play();
-                currentlyPlayingIcon = clickedIcon;
+            if (r.description) {
+               docChildren.push(new Paragraph({ text: r.description, spacing: { after: 150 } }));
             }
+          });
         }
 
-        function setIconState(icon, state) {
-            if (!icon) return;
-            const i = icon.querySelector('i');
-            icon.classList.remove('playing', 'paused');
-            i.classList.remove('fa-volume-up', 'fa-play', 'fa-pause');
-            if (state === 'playing') { icon.classList.add('playing'); i.classList.add('fa-pause'); }
-            else if (state === 'paused') { icon.classList.add('paused'); i.classList.add('fa-play'); }
-            else { i.classList.add('fa-volume-up'); }
+        const doc = new Document({
+          styles: {
+              default: {
+                  document: {
+                      run: {
+                          font: "Yu Gothic",
+                          color: wText,
+                      },
+                  },
+              },
+              paragraphStyles: [
+                  {
+                      id: "Title",
+                      name: "Title",
+                      basedOn: "Normal",
+                      next: "Normal",
+                      quickFormat: true,
+                      run: { size: 44, bold: true, color: wAccent }
+                  },
+                  {
+                      id: "Heading1",
+                      name: "Heading 1",
+                      basedOn: "Normal",
+                      next: "Normal",
+                      quickFormat: true,
+                      run: { size: 32, bold: true, color: wTextBold },
+                      paragraph: { spacing: { before: 400, after: 200 } }
+                  },
+                  {
+                      id: "Heading2",
+                      name: "Heading 2",
+                      basedOn: "Normal",
+                      next: "Normal",
+                      quickFormat: true,
+                      run: { size: 28, bold: true, color: wTextBold },
+                      paragraph: { spacing: { before: 300, after: 150 } }
+                  },
+                  {
+                      id: "Heading3",
+                      name: "Heading 3",
+                      basedOn: "Normal",
+                      next: "Normal",
+                      quickFormat: true,
+                      run: { size: 24, bold: true, color: wTextBold },
+                      paragraph: { spacing: { before: 200, after: 100 } }
+                  }
+              ]
+          },
+          sections: [{
+            properties: {},
+            children: docChildren,
+          }]
+        });
+
+        const blob = await Packer.toBlob(doc);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_レポート.docx`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+      } catch (err) {
+        console.error("Word Export Error:", err);
+        alert("Wordファイルの生成中にエラーが発生しました: " + err.message);
+      } finally {
+        if (btn) {
+          btn.innerHTML = originalHtml;
+          btn.disabled = false;
+          lucide.createIcons({ root: btn });
         }
+      }
+    }
 
-        function setupEventListeners() {
-            clearSearchButton.addEventListener('click', () => { searchInput.value = ''; render(); });
-            let timeout;
-            searchInput.addEventListener('input', () => { clearTimeout(timeout); timeout = setTimeout(render, 300); });
-            
-            tableHeader.addEventListener('click', (e) => {
-                const header = e.target.closest('.sortable-header');
-                if (!header) return;
-                const key = header.dataset.sortKey;
-                sortState.direction = (sortState.key === key && sortState.direction === 'asc') ? 'desc' : 'asc';
-                sortState.key = key;
-                document.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('asc', 'desc'));
-                header.classList.add(sortState.direction);
-                render();
-            });
+    function handleExportReport() {
+      if (!state.aiSummary) return;
 
-            tableBody.addEventListener('click', (e) => {
-                const audioIcon = e.target.closest('.audio-icon');
-                if (audioIcon) toggleAudioPlayback(audioIcon);
-                else if (e.target.classList.contains('bookmark-checkbox')) toggleBookmark(e.target.dataset.id, e.target.checked);
-            });
+      const themeId = document.getElementById('report-theme-select')?.value || 'default';
+      const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+      
+      const t = REPORT_THEMES[themeId] || REPORT_THEMES['default'];
 
-            mainAudioControl.addEventListener('click', () => {
-                if (!audioPlayer.src || audioPlayer.src === window.location.href) {
-                    const firstIcon = tableBody.querySelector('.audio-icon[data-src]');
-                    if (firstIcon) toggleAudioPlayback(firstIcon);
-                    return;
-                }
-                if (audioPlayer.paused) audioPlayer.play();
-                else audioPlayer.pause();
-            });
+      // 簡単なマークダウン置換（太字と見出し）で見栄えを向上
+      let formattedSummary = state.aiSummary
+        .replace(/\*\*(.*?)\*\*/g, `<strong>$1</strong>`)
+        .replace(/### (.*)/g, `<h4 style="margin-top: 1.5em; margin-bottom: 0.5em; color: ${t.textBold};">$1</h4>`)
+        .replace(/## (.*)/g, `<h3 style="margin-top: 1.5em; margin-bottom: 0.5em; color: ${t.textBold}; border-bottom: 1px solid ${t.border}; padding-bottom: 0.3em;">$1</h3>`)
+        .replace(/# (.*)/g, `<h2 style="margin-top: 1.5em; margin-bottom: 0.5em; color: ${t.textBold};">$1</h2>`);
 
-            audioPlayer.onplay = () => { 
-                setIconState(currentlyPlayingIcon, 'playing'); 
-                mainAudioIconI.className = 'fas fa-pause';
-                mainAudioControl.classList.add('playing');
-            };
-            audioPlayer.onpause = () => { 
-                setIconState(currentlyPlayingIcon, 'paused'); 
-                mainAudioIconI.className = 'fas fa-play';
-                mainAudioControl.classList.remove('playing');
-            };
-            audioPlayer.onended = () => {
-                setIconState(currentlyPlayingIcon, 'stopped');
-                mainAudioIconI.className = 'fas fa-volume-up';
-                mainAudioControl.classList.remove('playing');
-                const icons = Array.from(tableBody.querySelectorAll('.audio-icon[data-src]'));
-                const next = icons[icons.indexOf(currentlyPlayingIcon) + 1];
-                if (next) setTimeout(() => toggleAudioPlayback(next), 3000);
-            };
+      let htmlContent = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${state.query} - 調査レポート</title>
+<style>
+  body { font-family: 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif; line-height: 1.6; color: ${t.text}; max-width: 800px; margin: 0 auto; padding: 20px; background-color: ${t.bg}; }
+  .container { background-color: ${t.container}; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+  h1 { color: ${t.accent}; border-bottom: 3px solid ${t.accent}; padding-bottom: 10px; margin-top: 0; }
+  .meta { color: ${t.textMuted}; font-size: 0.9em; margin-bottom: 30px; text-align: right; }
+  .section-title { color: ${t.textBold}; margin-top: 40px; border-bottom: 2px solid ${t.border}; padding-bottom: 8px; font-size: 1.5em; }
+  .summary { white-space: pre-wrap; margin-bottom: 30px; line-height: 1.8; color: ${t.text}; }
+  .summary strong { color: ${t.textBold}; }
+  .source-item { margin-bottom: 20px; padding: 20px; border: 1px solid ${t.border}; border-radius: 8px; background-color: ${t.sourceBg}; page-break-inside: avoid; }
+  .source-title { font-weight: bold; color: ${t.accent}; text-decoration: none; font-size: 1.1em; display: block; margin-bottom: 5px; }
+  .source-title:hover { text-decoration: underline; opacity: 0.8; }
+  .source-url { color: ${t.textMuted}; font-size: 0.85em; margin-bottom: 10px; word-break: break-all; }
+  .source-desc { font-size: 0.95em; color: ${t.text}; margin-top: 5px; line-height: 1.5; }
+  .print-btn-container { text-align: right; margin-bottom: 20px; position: sticky; top: 20px; z-index: 100; }
+  .print-btn { background-color: ${t.accent}; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s; }
+  .print-btn:hover { filter: brightness(0.9); transform: translateY(-1px); }
+  @media print {
+    body { background-color: white; padding: 0; color: black; }
+    .container { box-shadow: none; padding: 0; background-color: white; }
+    h1, .source-title { color: ${t.accent !== '#60a5fa' ? t.accent : '#1d4ed8'}; } /* ダークモード時の印刷用フォールバック調整 */
+    .print-btn-container { display: none; }
+    .summary, .source-desc { color: black; }
+  }
+</style>
+</head>
+<body>
+  <div class="print-btn-container">
+    <button class="print-btn" onclick="window.print()">📄 PDFで保存 / 印刷する</button>
+  </div>
+  <div class="container">
+    <h1>${state.query}</h1>
+    <div class="meta">作成日時: ${new Date().toLocaleString('ja-JP')}</div>
+    
+    <h2 class="section-title">分析結果のレポート</h2>
+    <div class="summary">${formattedSummary}</div>
+`;
 
-            bookmarkFilterCheckbox.addEventListener('change', render);
+      if (includeSources && state.results && state.results.length > 0) {
+        htmlContent += `<h2 class="section-title">参考としたWEBサイト一覧</h2>`;
+        state.results.forEach((r, i) => { 
+          htmlContent += `
+          <div class="source-item">
+            <a href="${r.url}" target="_blank" class="source-title">[${i + 1}] ${r.title}</a>
+            <div class="source-url">${r.siteName ? `${r.siteName} - ` : ''}${r.url}</div>
+            ${r.description ? `<div class="source-desc">${r.description}</div>` : ''}
+          </div>`;
+        });
+      }
+
+      htmlContent += `
+  </div>
+</body>
+</html>`;
+
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_レポート.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function handleDeleteSavedItem(id, e) {
+      e.stopPropagation();
+      if(window.confirm("この保存済み回答を削除してもよろしいですか？")) {
+        state.savedItems = state.savedItems.filter(item => item.id !== id);
+        localStorage.setItem('ai_search_saved_items', JSON.stringify(state.savedItems));
+        updateView();
+      }
+    }
+
+    function loadSavedItem(id) {
+      const item = state.savedItems.find(i => i.id === id);
+      if(!item) return;
+      state.query = item.query;
+      state.searchInput = item.rawQuery || '';
+      state.selectedCategory = item.category || '';
+      state.selectedFile = null;
+      state.aiSummary = item.aiSummary;
+      state.results = item.results;
+      state.view = 'results';
+      state.slideData = [];
+      state.error = null;
+      updateView();
+    }
+
+    // --- スライド生成機能 ---
+    async function generateSlide() {
+      state.isGeneratingSlide = true;
+      updateView();
+      
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${state.apiKey}`;
+      const prompt = `以下のテーマと内容をもとに、プレゼンテーション用スライドの構成を作成し、必ず有効なJSON形式で出力してください。\n\nテーマ: ${state.query}\n内容: ${state.aiSummary}\n\n【厳格な要件】\n1. JSONのルートは "slides" というキーを持つオブジェクトにしてください。\n2. "slides" の値は配列とし、各要素が1ページ分のスライドを表します。\n3. 各スライドオブジェクトは "title" (文字列) と "content" (文字列の配列。1要素が1つの箇条書き項目) を持ってください。\n4. 1ページ目はタイトルスライドとしてください ("content" にはテーマの説明を短い1文で入れてください)。\n5. 2ページ目以降は詳細な内容をバランスよく分割して配置してください（1スライドにつき箇条書きは3〜4つまで）。\n6. 情報は省略せず全て網羅してください。\n7. スライド内のテキスト（タイトル、概要、箇条書きの各項目）は、すべて「だ・である」調（常体）で統一して簡潔にまとめてください。\n8. 返却するのはJSONデータのみです。Markdownのブロック記法（\`\`\`json など）は絶対に含めず、純粋なJSON文字列だけを出力してください。`;
+
+      const payload = { contents: [{ parts: [{ text: prompt }] }] };
+
+      let retries = 5; let delay = 1000;
+      while (retries > 0) {
+        try {
+          const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          if (!response.ok) {
+             if (response.status === 401 || response.status === 403 || response.status === 400) throw new Error(`認証エラー (${response.status})。APIキーを確認してください。`);
+             if (response.status === 404) throw new Error(`モデルが見つかりません (${response.status})。APIのバージョンまたはモデル名が正しくありません。`);
+             if (response.status === 429) throw new Error(`APIの利用制限（Quota exceeded）に達しました。時間をおいて再度お試しください。`);
+             throw new Error("生成失敗");
+          }
+          const data = await response.json();
+          let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+          const parsedData = JSON.parse(rawText);
+          
+          if (parsedData && parsedData.slides) {
+            state.slideData = parsedData.slides;
+            state.currentSlideIndex = 0;
+            state.isGeneratingSlide = false;
+            updateView();
+            openSlideModal();
+            return;
+          } else {
+            throw new Error("正しい形式ではありませんでした。");
+          }
+        } catch (err) {
+          if (err.message.includes("認証エラー") || err.message.includes("モデルが見つかりません")) {
+            alert(err.message);
+            if (err.message.includes("認証エラー")) openSettings();
+            state.isGeneratingSlide = false;
+            updateView();
+            return;
+          }
+          retries--;
+          if (retries === 0) {
+            console.error("Slide Generation Error:", err);
+            alert(err.message.includes("利用制限") ? err.message : "スライドの生成中にエラーが発生しました。");
+            state.isGeneratingSlide = false;
+            updateView();
+            return;
+          } else {
+            await new Promise(r => setTimeout(r, delay)); delay *= 2;
+          }
         }
-        
-        document.addEventListener('DOMContentLoaded', checkAuthentication);
-    </script>
+      }
+    }
+
+    function openSlideModal() {
+      document.getElementById('slide-modal').classList.remove('hidden');
+      renderSlide();
+    }
+
+    function closeSlideModal() {
+      document.getElementById('slide-modal').classList.add('hidden');
+    }
+
+    function setTheme(themeId) {
+      state.currentThemeId = themeId;
+      
+      // ボタンのハイライト更新
+      slideThemes.forEach(t => {
+        const btn = document.getElementById(`theme-btn-${t.id}`);
+        if(t.id === themeId) {
+          btn.classList.add('scale-125', 'border-white', 'ring-1', 'ring-white');
+          btn.classList.remove('border-gray-500', 'hover:scale-110');
+        } else {
+          btn.classList.remove('scale-125', 'border-white', 'ring-1', 'ring-white');
+          btn.classList.add('border-gray-500', 'hover:scale-110');
+        }
+      });
+      renderSlide();
+    }
+
+    function renderSlide() {
+      if (state.slideData.length === 0) return;
+      
+      const theme = slideThemes.find(t => t.id === state.currentThemeId) || slideThemes[0];
+      const slide = state.slideData[state.currentSlideIndex];
+      const container = document.getElementById('slide-container');
+      const isTitle = state.currentSlideIndex === 0;
+
+      container.style.background = `linear-gradient(135deg, ${theme.bg[0]} 0%, ${theme.bg[1]} 100%)`;
+
+      let innerHtml = '';
+      if (isTitle) {
+        innerHtml = `
+          <div class="flex-grow flex flex-col items-center justify-center text-center animate-in duration-500">
+            <h1 contenteditable="true" onblur="handleSlideTitleChange(${state.currentSlideIndex}, this)" onkeydown="handleKeyDownOnEditable(event)" class="text-[5cqw] font-extrabold leading-tight mb-[3cqw] tracking-tight transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" style="color: ${theme.accent}">${slide.title}</h1>
+            <div class="w-24 h-1.5 mb-[4cqw] rounded-full transition-colors duration-500" style="background-color: ${theme.accent}"></div>
+            <p contenteditable="true" onblur="handleSlideTitleContentChange(${state.currentSlideIndex}, this)" onkeydown="handleKeyDownOnEditable(event)" class="text-[2.2cqw] leading-relaxed max-w-[80%] font-medium transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" style="color: ${theme.subText}">${slide.content.join(" ")}</p>
+          </div>
+        `;
+      } else {
+        const listItems = slide.content.map((text, i) => `
+          <li contenteditable="true" onblur="handleSlideListContentChange(${state.currentSlideIndex}, ${i}, this)" onkeydown="handleKeyDownOnEditable(event)" class="cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-1 -ml-1">${text}</li>
+        `).join('');
+
+        innerHtml = `
+          <div class="flex-grow flex flex-col animate-in duration-500">
+            <h2 contenteditable="true" onblur="handleSlideTitleChange(${state.currentSlideIndex}, this)" onkeydown="handleKeyDownOnEditable(event)" class="text-[3.5cqw] font-bold border-b-[3px] pb-[1cqw] mb-[3cqw] transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" style="color: ${theme.accent}; border-bottom-color: ${theme.accent}">${slide.title}</h2>
+            <ul class="text-[2.2cqw] leading-[1.8] list-disc ml-[3cqw] space-y-[1.5cqw] font-medium transition-colors duration-500" style="color: ${theme.text}">${listItems}</ul>
+          </div>
+        `;
+      }
+
+      innerHtml += `
+        <div class="absolute bottom-[3cqw] left-[4cqw] text-[1.5cqw] font-bold transition-colors duration-500" style="color: ${theme.subText}">${state.currentSlideIndex + 1} / ${state.slideData.length}</div>
+        <div class="absolute bottom-[3cqw] right-[4cqw] text-[1.2cqw] transition-colors duration-500" style="color: ${theme.subText}">AI Generated</div>
+      `;
+
+      container.innerHTML = innerHtml;
+
+      // プログレスバー更新
+      const progress = document.getElementById('slide-progress');
+      progress.style.width = `${((state.currentSlideIndex + 1) / state.slideData.length) * 100}%`;
+      progress.style.backgroundColor = theme.accent;
+    }
+
+    function nextSlide() {
+      if(state.slideData.length === 0) return;
+      state.currentSlideIndex = (state.currentSlideIndex + 1) % state.slideData.length;
+      renderSlide();
+    }
+
+    function prevSlide() {
+      if(state.slideData.length === 0) return;
+      state.currentSlideIndex = (state.currentSlideIndex - 1 + state.slideData.length) % state.slideData.length;
+      renderSlide();
+    }
+
+    // スライド内テキスト編集
+    window.handleSlideTitleChange = function(index, el) { state.slideData[index].title = el.innerText; };
+    window.handleSlideTitleContentChange = function(index, el) { state.slideData[index].content = [el.innerText]; };
+    window.handleSlideListContentChange = function(slideIndex, listIndex, el) { state.slideData[slideIndex].content[listIndex] = el.innerText; };
+    window.handleKeyDownOnEditable = function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+    };
+
+    // --- ダウンロード ---
+    function handleDownloadHTML() {
+      if (state.slideData.length === 0) return;
+      const theme = slideThemes.find(t => t.id === state.currentThemeId) || slideThemes[0];
+
+      let htmlStr = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${state.query} - スライド資料</title>
+<style>
+  body { margin: 0; padding: 2vw; font-family: 'Helvetica Neue', Arial, sans-serif; background: #e9ecef; color: ${theme.text}; display: flex; flex-direction: column; align-items: center; gap: 3vw; }
+  .container-query { container-type: inline-size; width: 100%; max-width: 1200px; }
+  .slide-container { width: 100%; aspect-ratio: 16 / 9; background: linear-gradient(135deg, ${theme.bg[0]} 0%, ${theme.bg[1]} 100%); position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; padding: 6cqw; box-sizing: border-box; justify-content: flex-start; }
+  .title-slide { justify-content: center; align-items: center; text-align: center; }
+  .title { font-size: 3.5cqw; color: ${theme.accent}; margin-bottom: 3cqw; font-weight: bold; border-bottom: 2px solid ${theme.accent}; padding-bottom: 1cqw; }
+  .title-slide .title { font-size: 5cqw; border-bottom: none; margin-bottom: 2cqw; }
+  .title-slide .content-text { font-size: 2cqw; color: ${theme.subText}; }
+  .content { font-size: 2.2cqw; color: ${theme.text}; line-height: 1.8; margin-left: 2cqw; }
+  .content li { margin-bottom: 1.5cqw; }
+  .page-num { position: absolute; bottom: 2cqw; left: 2cqw; font-size: 1.2cqw; color: ${theme.subText}; font-weight: bold; }
+  .print-btn-container { width: 100%; max-width: 1200px; display: flex; justify-content: flex-end; margin-bottom: -1vw; }
+  .print-btn { padding: 12px 24px; background: ${theme.accent}; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s; }
+  .print-btn:hover { opacity: 0.9; transform: translateY(-2px); }
+  @media print {
+    @page { size: 16in 9in; margin: 0; }
+    body { background: white; padding: 0; gap: 0; display: block; }
+    .print-btn-container { display: none; }
+    .container-query { max-width: none; page-break-after: always; page-break-inside: avoid; margin-bottom: 0; }
+    .slide-container { box-shadow: none; border-radius: 0; width: 100vw; height: 56.25vw; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="print-btn-container"><button class="print-btn" onclick="window.print()">この資料をPDFで保存・印刷</button></div>
+`;
+      state.slideData.forEach((slide, idx) => {
+        const isTitleSlide = idx === 0;
+        htmlStr += `<div class="container-query"><div class="slide-container ${isTitleSlide ? 'title-slide' : ''}"><div class="title">${slide.title}</div>\n`;
+        if (isTitleSlide) htmlStr += `    <div class="content-text">${slide.content.join('<br>')}</div>\n`;
+        else htmlStr += `    <ul class="content">\n${slide.content.map(c => `      <li>${c}</li>`).join('\n')}\n    </ul>\n`;
+        htmlStr += `    <div class="page-num">${idx + 1} / ${state.slideData.length}</div></div></div>\n`;
+      });
+      htmlStr += `</body></html>`;
+
+      const blob = new Blob([htmlStr], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_スライド資料.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function handleDownloadPPTX() {
+      if (state.slideData.length === 0) return;
+      const theme = slideThemes.find(t => t.id === state.currentThemeId) || slideThemes[0];
+      const hexToPptx = (hex) => hex.replace('#', '').toUpperCase();
+      
+      const loadScript = (src) => {
+        return new Promise((resolve, reject) => {
+          if (window.PptxGenJS) return resolve();
+          const script = document.createElement('script');
+          script.src = src;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      };
+
+      try {
+        await loadScript("https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js");
+        const pptx = new window.PptxGenJS();
+        pptx.layout = 'LAYOUT_16x9';
+
+        state.slideData.forEach((slide, idx) => {
+          const slidePptx = pptx.addSlide();
+          slidePptx.background = { color: hexToPptx(theme.bg[0]) };
+
+          if (idx === 0) {
+            slidePptx.addText(slide.title, { x: 0.5, y: 2.0, w: "90%", fontSize: 44, bold: true, color: hexToPptx(theme.accent), align: "center" });
+            if (slide.content.length > 0) slidePptx.addText(slide.content.join("\n"), { x: 0.5, y: 3.5, w: "90%", fontSize: 24, color: hexToPptx(theme.subText), align: "center" });
+          } else {
+            slidePptx.addText(slide.title, { x: 0.5, y: 0.5, w: "90%", h: 0.8, fontSize: 32, bold: true, color: hexToPptx(theme.accent), align: "left" });
+            slidePptx.addShape(pptx.ShapeType.line, { x: 0.5, y: 1.3, w: "90%", h: 0, line: { color: hexToPptx(theme.accent), width: 2 } });
+            if (slide.content.length > 0) {
+              const bullets = slide.content.map(text => ({ text, options: { bullet: true, breakLine: true } }));
+              slidePptx.addText(bullets, { x: 0.5, y: 1.6, w: "90%", h: 5.0, fontSize: 24, color: hexToPptx(theme.text), align: "left", valign: "top", lineSpacing: 35 });
+            }
+          }
+          slidePptx.addText(`${idx + 1} / ${state.slideData.length}`, { x: 0.5, y: 6.8, w: "90%", fontSize: 12, color: hexToPptx(theme.subText), align: "right" });
+        });
+
+        pptx.writeFile({ fileName: `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_slide.pptx` });
+      } catch (error) {
+        alert("PPTXの生成に失敗しました。ネットワーク環境を確認してください。");
+        console.error(error);
+      }
+    }
+
+    // 初期化実行
+    window.addEventListener('DOMContentLoaded', init);
+
+  </script>
 </body>
 </html>
