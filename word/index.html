@@ -757,7 +757,7 @@
       const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
       
       const parts = [{ 
-        text: `現在は${today}です。${promptContext}回答の文体は「だ・である」調（常体）で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください（Markdownブロックは使わず、直接JSON配列を記述してください）。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "siteName": "サイト名や運営組織名（ドメイン名不可）", "url": "サイトのURL", "description": "簡潔な要約"}\n]\n※重要：「title」や「siteName」にはURLやドメイン名（例: jimin.jp）を絶対に書かないでください。必ず実際の日本語の名称を記述してください。` 
+        text: `現在は${today}です。${promptContext}回答の文体は「だ・である」調（常体）で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下の厳密なJSON形式で出力してください。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "siteName": "サイト名や運営組織名（ドメイン名不可）", "url": "サイトのURL", "description": "サイト内容の詳しい要約"}\n]\n※重要：「title」や「siteName」にはURLやドメイン名（例: jimin.jp）を絶対に書かないでください。必ず実際の日本語の名称を記述してください。` 
       }];
 
       if (state.selectedFile) {
@@ -795,7 +795,9 @@
           if (rawText.includes(sourcesMarker)) {
             const partsArray = rawText.split(sourcesMarker);
             summaryText = partsArray[0].trim();
-            const jsonStr = partsArray[1].match(/\[[\s\S]*\]/);
+            // Markdownブロック等が混入してパースエラーになるのを防ぐ
+            let jsonRaw = partsArray[1].replace(/```json/gi, '').replace(/```/gi, '');
+            const jsonStr = jsonRaw.match(/\[[\s\S]*\]/);
             if (jsonStr) {
               try {
                 const sourcesJson = JSON.parse(jsonStr[0]);
@@ -900,7 +902,7 @@
       let categoryContext = state.selectedCategory ? `特に「${state.selectedCategory}」の分野・観点から、` : "";
       if (state.selectedFile) categoryContext = `添付されたドキュメントの内容も引き続き考慮し、` + categoryContext;
       
-      const parts = [{ text: `現在は${today}です。キーワード「${state.query}」について、${categoryContext}以下の概要を深掘りし、詳細で専門的な情報を含む長文の解説に書き換えてください。文体は「だ・である」調で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "siteName": "サイト名や運営組織名（ドメイン名不可）", "url": "サイトのURL", "description": "一目でわかる簡潔な要約（約40〜60文字）"}\n]\n※重要：「title」や「siteName」にはURLやドメイン名を絶対に書かないでください。必ず日本語の名称を記述してください。\n\n概要:\n${state.aiSummary}` }];
+      const parts = [{ text: `現在は${today}です。キーワード「${state.query}」について、${categoryContext}以下の概要を深掘りし、詳細で専門的な情報を含む長文の解説に書き換えてください。文体は「だ・である」調で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下の厳密なJSON形式で出力してください。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "siteName": "サイト名や運営組織名（ドメイン名不可）", "url": "サイトのURL", "description": "サイト内容の詳しい要約"}\n]\n※重要：「title」や「siteName」にはURLやドメイン名を絶対に書かないでください。必ず日本語の名称を記述してください。\n\n概要:\n${state.aiSummary}` }];
 
       if (state.selectedFile) {
         if (state.selectedFile.type === 'text') parts.push({ text: `\n\n--- 添付ファイル (${state.selectedFile.name}) の内容 ---\n${state.selectedFile.data}\n--- 添付ファイル終わり ---\n` });
@@ -935,7 +937,9 @@
           if (rawText.includes(sourcesMarker)) {
             const partsArray = rawText.split(sourcesMarker);
             summaryText = partsArray[0].trim();
-            const jsonStr = partsArray[1].match(/\[[\s\S]*\]/);
+            // Markdownブロック等が混入してパースエラーになるのを防ぐ
+            let jsonRaw = partsArray[1].replace(/```json/gi, '').replace(/```/gi, '');
+            const jsonStr = jsonRaw.match(/\[[\s\S]*\]/);
             if (jsonStr) {
               try {
                 const sourcesJson = JSON.parse(jsonStr[0]);
