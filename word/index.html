@@ -10,8 +10,6 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Word (.docx) 解析用ライブラリ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-  <!-- Word (.docx) 生成用ライブラリ (安定版の8.2.3に固定) -->
-  <script src="https://cdn.jsdelivr.net/npm/docx@8.2.3/build/index.js"></script>
   <style>
     /* カスタムアニメーション */
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -501,7 +499,7 @@
                   <option value="retro-brown">レトロ</option>
                 </select>
               </div>
-              <button onclick="handleExportWord()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#202124] border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 sm:px-4 py-2 rounded-lg transition-all shadow-sm whitespace-nowrap" title="Wordレポート形式で保存">
+              <button id="btn-export-word" onclick="handleExportWord()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#202124] border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 sm:px-4 py-2 rounded-lg transition-all shadow-sm whitespace-nowrap" title="Wordレポート形式で保存">
                 <i data-lucide="file-text" class="h-4 w-4"></i>
                 <span class="font-medium">Word</span>
               </button>
@@ -1116,12 +1114,46 @@
 
     async function handleExportWord() {
       if (!state.aiSummary) return;
-      if (!window.docx) {
-        alert("Word生成ライブラリが読み込まれていません。ページを再読み込みするか、通信環境をご確認ください。");
-        return;
+
+      const btn = document.getElementById('btn-export-word');
+      const originalHtml = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.innerHTML = `<i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i><span class="font-medium">生成中...</span>`;
+        lucide.createIcons({ root: btn });
+        btn.disabled = true;
       }
 
       try {
+        // 複数のCDNを順番に試行してライブラリを確実に読み込む
+        const loadDocxScript = async () => {
+          if (window.docx) return;
+          const cdns = [
+            "https://unpkg.com/docx@8.5.0/build/index.js",
+            "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js",
+            "https://unpkg.com/docx@7.8.2/build/index.js"
+          ];
+          for (const url of cdns) {
+            try {
+              await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = url;
+                script.onload = () => {
+                  if (window.docx) resolve();
+                  else reject(new Error("No window.docx"));
+                };
+                script.onerror = reject;
+                document.body.appendChild(script);
+              });
+              return; // 読み込み成功
+            } catch (e) {
+              console.warn(`Failed to load docx from ${url}`);
+            }
+          }
+          throw new Error("すべてのサーバーからのライブラリ読み込みに失敗しました。通信環境をご確認ください。");
+        };
+
+        await loadDocxScript();
+
         const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
         const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
         
@@ -1258,6 +1290,12 @@
       } catch (err) {
         console.error("Word Export Error:", err);
         alert("Wordファイルの生成中にエラーが発生しました: " + err.message);
+      } finally {
+        if (btn) {
+          btn.innerHTML = originalHtml;
+          btn.disabled = false;
+          lucide.createIcons({ root: btn });
+        }
       }
     }
 
