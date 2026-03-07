@@ -10,6 +10,8 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Word (.docx) 解析用ライブラリ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <!-- Word (.docx) 生成用ライブラリ -->
+  <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
   <style>
     /* カスタムアニメーション */
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -434,9 +436,9 @@
           return `
           <a href="${r.url}" target="_blank" rel="noopener noreferrer" class="group block p-5 bg-white dark:bg-[#202124] border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all flex flex-col h-full">
             <div class="flex flex-col mb-3 gap-1.5">
-              <div class="flex flex-col text-sm text-gray-500 dark:text-gray-400 overflow-hidden">
-                ${r.siteName ? `<span class="font-semibold text-gray-700 dark:text-gray-300 truncate">${r.siteName}</span>` : ''}
-                ${showDomain ? `<span class="text-xs truncate mt-0.5">${domain}</span>` : ''}
+              <div class="flex flex-col overflow-hidden mb-1">
+                ${r.siteName ? `<span class="text-base sm:text-lg font-bold text-gray-800 dark:text-gray-200 truncate">${r.siteName}</span>` : ''}
+                ${showDomain ? `<span class="text-xs sm:text-sm font-normal text-gray-500 dark:text-gray-400 truncate mt-0.5">${domain}</span>` : ''}
               </div>
               <div class="flex items-start justify-between mt-1">
                 <h3 class="text-2xl font-black text-[#1a0dab] dark:text-[#8ab4f8] group-hover:underline line-clamp-2 leading-tight pr-4">${r.title}</h3>
@@ -495,9 +497,13 @@
                   <option value="sakura-pink">サクラ</option>
                 </select>
               </div>
+              <button onclick="handleExportWord()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#202124] border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 sm:px-4 py-2 rounded-lg transition-all shadow-sm whitespace-nowrap" title="Wordレポート形式で保存">
+                <i data-lucide="file-text" class="h-4 w-4"></i>
+                <span class="font-medium">Word</span>
+              </button>
               <button onclick="handleExportReport()" class="flex items-center space-x-1.5 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-3 sm:px-4 py-2 rounded-lg transition-all shadow shadow-blue-500/30 whitespace-nowrap" title="HTML/PDFレポート形式で保存">
                 <i data-lucide="layout-template" class="h-4 w-4"></i>
-                <span class="font-medium">レポート出力</span>
+                <span class="font-medium">HTML / PDF</span>
               </button>
             </div>
           </div>
@@ -1102,6 +1108,154 @@
       a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_回答.txt`;
       a.click();
       URL.revokeObjectURL(url);
+    }
+
+    function handleExportWord() {
+      if (!state.aiSummary) return;
+      if (!window.docx) {
+        alert("Word生成ライブラリが読み込まれていません。通信環境をご確認ください。");
+        return;
+      }
+
+      const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel, ExternalHyperlink, AlignmentType } = window.docx;
+      
+      const summaryParagraphs = [];
+      const lines = state.aiSummary.split('\n');
+      
+      for (const line of lines) {
+        if (!line.trim()) {
+           summaryParagraphs.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+           continue;
+        }
+
+        if (line.startsWith('### ')) {
+           summaryParagraphs.push(new Paragraph({
+             text: line.substring(4),
+             heading: HeadingLevel.HEADING_3,
+             spacing: { before: 240, after: 120 }
+           }));
+        } else if (line.startsWith('## ')) {
+           summaryParagraphs.push(new Paragraph({
+             text: line.substring(3),
+             heading: HeadingLevel.HEADING_2,
+             spacing: { before: 360, after: 120 }
+           }));
+        } else if (line.startsWith('# ')) {
+           summaryParagraphs.push(new Paragraph({
+             text: line.substring(2),
+             heading: HeadingLevel.HEADING_1,
+             spacing: { before: 480, after: 120 }
+           }));
+        } else {
+           const runs = [];
+           const parts = line.split(/(\*\*.*?\*\*)/g);
+           for (const part of parts) {
+             if (part.startsWith('**') && part.endsWith('**')) {
+               runs.push(new TextRun({ text: part.substring(2, part.length - 2), bold: true }));
+             } else if (part) {
+               runs.push(new TextRun({ text: part }));
+             }
+           }
+           summaryParagraphs.push(new Paragraph({ children: runs, spacing: { after: 120 } }));
+        }
+      }
+
+      const docChildren = [
+        new Paragraph({
+          text: state.query,
+          heading: HeadingLevel.TITLE,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+                text: `作成日時: ${new Date().toLocaleString('ja-JP')}`,
+                color: "6b7280"
+            })
+          ],
+          alignment: AlignmentType.RIGHT,
+          spacing: { after: 400 }
+        }),
+        new Paragraph({
+          text: "分析結果のレポート",
+          heading: HeadingLevel.HEADING_1,
+          spacing: { after: 200 }
+        }),
+        ...summaryParagraphs
+      ];
+
+      if (includeSources && state.results && state.results.length > 0) {
+        docChildren.push(
+          new Paragraph({
+            text: "参考としたWEBサイト一覧",
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 }
+          })
+        );
+
+        state.results.forEach((r, i) => {
+          docChildren.push(
+             new Paragraph({
+               text: `[${i + 1}] ${r.title}`,
+               heading: HeadingLevel.HEADING_3,
+               spacing: { before: 200, after: 50 }
+             })
+          );
+          
+          if (r.siteName) {
+             docChildren.push(new Paragraph({ text: `サイト名: ${r.siteName}`, spacing: { after: 50 } }));
+          }
+
+          docChildren.push(new Paragraph({
+              children: [
+                new ExternalHyperlink({
+                   children: [
+                       new TextRun({
+                           text: r.url,
+                           style: "Hyperlink",
+                       }),
+                   ],
+                   link: r.url,
+                })
+              ],
+              spacing: { after: 50 }
+          }));
+
+          if (r.description) {
+             docChildren.push(new Paragraph({ text: r.description, spacing: { after: 150 } }));
+          }
+        });
+      }
+
+      const doc = new Document({
+        styles: {
+            default: {
+                document: {
+                    run: {
+                        font: "Yu Gothic",
+                    },
+                },
+            },
+        },
+        sections: [{
+          properties: {},
+          children: docChildren,
+        }]
+      });
+
+      Packer.toBlob(doc).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_レポート.docx`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }).catch(err => {
+        console.error("Word Export Error:", err);
+        alert("Wordファイルの生成に失敗しました。");
+      });
     }
 
     function handleExportReport() {
