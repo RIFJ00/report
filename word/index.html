@@ -38,12 +38,12 @@
       </div>
 
       <div class="mb-6">
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">スライド右下のクレジット表示</label>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">出力資料のクレジット表示</label>
         <div class="flex space-x-2">
           <input type="text" id="logo-text-input" class="flex-grow px-4 py-2 bg-gray-50 dark:bg-[#202124] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" placeholder="一般社団法人日本みらい研">
           <button type="button" onclick="resetLogoText()" class="shrink-0 px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-medium whitespace-nowrap border border-gray-300 dark:border-gray-600 shadow-sm">クリア</button>
         </div>
-        <p class="text-xs text-gray-500 mt-2">スライド出力時に右下に表示される組織名などを設定します。</p>
+        <p class="text-xs text-gray-500 mt-2">スライド、Word、レポート出力時に記載される組織名などを設定します。</p>
       </div>
 
       <div class="flex justify-between items-center">
@@ -1175,6 +1175,7 @@
           content += `\n`;
         });
       }
+      content += `\n${state.slideLogoText}\n`;
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1346,6 +1347,21 @@
             }
           });
         }
+        
+        // レポートの最後にロゴテキスト（クレジット）を追加
+        docChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                  text: state.slideLogoText,
+                  color: wTextMuted,
+                  size: 20 // 10pt相当
+              })
+            ],
+            alignment: AlignmentType.RIGHT,
+            spacing: { before: 400 }
+          })
+        );
 
         const doc = new Document({
           styles: {
@@ -1492,6 +1508,9 @@
       }
 
       htmlContent += `
+    <div style="text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid ${t.border}; color: ${t.textMuted}; font-size: 0.85em;">
+      ${state.slideLogoText}
+    </div>
   </div>
 </body>
 </html>`;
@@ -1770,8 +1789,8 @@
               slidePptx.addText(bullets, { x: 0.5, y: 1.6, w: "90%", h: 5.0, fontSize: 24, color: hexToPptx(theme.text), align: "left", valign: "top", lineSpacing: 35 });
             }
           }
-          slidePptx.addText(`${idx + 1} / ${state.slideData.length}`, { x: 0.5, y: 5.2, w: "30%", fontSize: 12, color: hexToPptx(theme.subText), align: "left" });
-          slidePptx.addText(state.slideLogoText, { x: 6.5, y: 5.2, w: "30%", fontSize: 10, color: hexToPptx(theme.subText), align: "right" });
+          slidePptx.addText(`${idx + 1} / ${state.slideData.length}`, { x: 0.5, y: 6.8, w: "30%", fontSize: 12, color: hexToPptx(theme.subText), align: "left" });
+          slidePptx.addText(state.slideLogoText, { x: 6.5, y: 6.8, w: "30%", fontSize: 10, color: hexToPptx(theme.subText), align: "right" });
         });
 
         pptx.writeFile({ fileName: `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_slide.pptx` });
