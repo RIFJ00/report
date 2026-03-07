@@ -10,6 +10,8 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Word (.docx) 解析用ライブラリ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <!-- Word (.docx) 生成用ライブラリ -->
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.2.3/build/index.js"></script>
   <style>
     /* カスタムアニメーション */
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -273,6 +275,19 @@
       { id: 'mint-choco', name: 'ミント＆チョコ', bg: ['#e0f2f1', '#b2dfdb'], text: '#3e2723', accent: '#d84315', subText: '#5d4037' }
     ];
 
+    // レポート用の配色テーマ定義
+    const REPORT_THEMES = {
+      'default': { bg: '#f3f4f6', container: '#ffffff', text: '#333333', textBold: '#111827', textMuted: '#6b7280', accent: '#1d4ed8', border: '#e5e7eb', sourceBg: '#f9fafb' },
+      'modern-blue': { bg: '#e0f2fe', container: '#ffffff', text: '#1e293b', textBold: '#0f172a', textMuted: '#64748b', accent: '#0ea5e9', border: '#e2e8f0', sourceBg: '#f8fafc' },
+      'elegant-dark': { bg: '#111827', container: '#1f2937', text: '#d1d5db', textBold: '#f3f4f6', textMuted: '#9ca3af', accent: '#60a5fa', border: '#374151', sourceBg: '#111827' },
+      'nature-green': { bg: '#d1fae5', container: '#ffffff', text: '#064e3b', textBold: '#022c22', textMuted: '#059669', accent: '#10b981', border: '#a7f3d0', sourceBg: '#ecfdf5' },
+      'sakura-pink': { bg: '#fce7f3', container: '#ffffff', text: '#831843', textBold: '#4c0519', textMuted: '#be185d', accent: '#db2777', border: '#fbcfe8', sourceBg: '#fdf2f8' },
+      'sunset-orange': { bg: '#ffedd5', container: '#ffffff', text: '#7c2d12', textBold: '#431407', textMuted: '#ea580c', accent: '#ea580c', border: '#fed7aa', sourceBg: '#fff7ed' },
+      'ocean-teal': { bg: '#ccfbf1', container: '#ffffff', text: '#134e4a', textBold: '#042f2e', textMuted: '#0d9488', accent: '#0d9488', border: '#99f6e4', sourceBg: '#f0fdfa' },
+      'monochrome': { bg: '#e5e5e5', container: '#ffffff', text: '#404040', textBold: '#171717', textMuted: '#737373', accent: '#404040', border: '#d4d4d4', sourceBg: '#f5f5f5' },
+      'retro-brown': { bg: '#fef3c7', container: '#fffbeb', text: '#78350f', textBold: '#451a03', textMuted: '#b45309', accent: '#d97706', border: '#fde68a', sourceBg: '#fef3c7' }
+    };
+
     const getDomain = (url) => {
       try { return new URL(url).hostname; } catch { return url; }
     };
@@ -474,51 +489,73 @@
         </div>
 
         <div class="bg-[#f8f9fa] dark:bg-[#303134] rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm relative group">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div class="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
-              <i data-lucide="search" class="h-5 w-5"></i>
-              <h2 class="text-lg font-semibold">分析結果のレポート</h2>
-            </div>
-            
-            <div class="flex flex-wrap items-center gap-2 sm:gap-3 justify-start sm:justify-end">
-              <label class="flex items-center space-x-1.5 text-xs sm:text-sm text-gray-600 dark:text-gray-300 cursor-pointer select-none" title="レポートに参考サイト一覧を含める">
-                <input type="checkbox" id="report-include-sources" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:border-gray-600 dark:bg-[#202124] cursor-pointer" checked>
-                <span>参考データを付ける</span>
-              </label>
-              <div class="flex items-center bg-white dark:bg-[#202124] border border-gray-200 dark:border-gray-600 rounded-lg p-1" title="レポートのテーマ色を選択">
-                <i data-lucide="palette" class="h-4 w-4 text-gray-400 ml-1 shrink-0"></i>
-                <select id="report-theme-select" class="bg-transparent text-sm text-gray-700 dark:text-gray-300 focus:outline-none pl-1 pr-2 py-0.5 cursor-pointer appearance-none font-medium">
-                  <option value="default">標準</option>
-                  <option value="modern-blue">ブルー</option>
-                  <option value="elegant-dark">ダーク</option>
-                  <option value="nature-green">グリーン</option>
-                  <option value="sakura-pink">サクラ</option>
-                  <option value="sunset-orange">サンセット</option>
-                  <option value="ocean-teal">オーシャン</option>
-                  <option value="monochrome">モノクロ</option>
-                  <option value="retro-brown">レトロ</option>
-                </select>
-              </div>
-              <button id="btn-export-word" onclick="handleExportWord()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#202124] border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 sm:px-4 py-2 rounded-lg transition-all shadow-sm whitespace-nowrap" title="Wordレポート形式で保存">
-                <i data-lucide="file-text" class="h-4 w-4"></i>
-                <span class="font-medium">Word</span>
-              </button>
-              <button onclick="handleExportReport()" class="flex items-center space-x-1.5 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-3 sm:px-4 py-2 rounded-lg transition-all shadow shadow-blue-500/30 whitespace-nowrap" title="HTML/PDFレポート形式で保存">
-                <i data-lucide="layout-template" class="h-4 w-4"></i>
-                <span class="font-medium">HTML / PDF</span>
-              </button>
-            </div>
+          <div class="flex items-center space-x-2 text-blue-600 dark:text-blue-400 mb-4">
+            <i data-lucide="search" class="h-5 w-5"></i>
+            <h2 class="text-lg font-semibold">分析結果のレポート</h2>
           </div>
           
           <div class="mb-4 flex flex-wrap gap-2">${categoryHtml}</div>
           
           <div class="text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap text-base">${state.aiSummary}</div>
           
-          <div class="mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-200 dark:border-gray-700 pt-4">
-            <button onclick="handleExportText()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors" title="テキスト形式で保存"><i data-lucide="file-text" class="h-4 w-4"></i><span class="hidden sm:inline">テキスト</span></button>
-            <button onclick="handleSaveItem()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-blue-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors"><i data-lucide="bookmark" class="h-4 w-4"></i><span class="hidden sm:inline">保存</span></button>
-            <button onclick="handleUpdateSearch()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-green-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors"><i data-lucide="refresh-cw" class="h-4 w-4"></i><span class="hidden sm:inline">更新</span></button>
-            <button onclick="elaborateSummary()" class="flex items-center space-x-2 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors ${state.isElaborating || state.isLoading ? 'opacity-50 cursor-not-allowed' : ''}" ${state.isElaborating || state.isLoading ? 'disabled' : ''}><i data-lucide="plus-circle" class="h-4 w-4"></i><span>${state.isElaborating ? '詳細化中...' : 'もう少し詳しく'}</span></button>
+          <div class="mt-8 flex flex-col gap-4 border-t border-gray-200 dark:border-gray-700 pt-5">
+            <!-- 上段：エクスポート設定と主要アクション -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <!-- 出力オプション -->
+              <div class="flex flex-wrap items-center gap-3 bg-white dark:bg-[#202124] px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm w-fit">
+                <div class="flex items-center" title="レポートのテーマ色を選択">
+                  <i data-lucide="palette" class="h-4 w-4 text-gray-500 shrink-0"></i>
+                  <select id="report-theme-select" class="bg-transparent text-sm text-gray-700 dark:text-gray-300 focus:outline-none pl-2 pr-1 py-0.5 cursor-pointer appearance-none font-medium">
+                    <option value="default">標準</option>
+                    <option value="modern-blue">ブルー</option>
+                    <option value="elegant-dark">ダーク</option>
+                    <option value="nature-green">グリーン</option>
+                    <option value="sakura-pink">サクラ</option>
+                    <option value="sunset-orange">サンセット</option>
+                    <option value="ocean-teal">オーシャン</option>
+                    <option value="monochrome">モノクロ</option>
+                    <option value="retro-brown">レトロ</option>
+                  </select>
+                </div>
+                <div class="w-px h-5 bg-gray-300 dark:bg-gray-600"></div>
+                <label class="flex items-center space-x-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none" title="レポートに参考サイト一覧を含める">
+                  <input type="checkbox" id="report-include-sources" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:border-gray-600 dark:bg-[#303134] cursor-pointer" checked>
+                  <span>参考データを付ける</span>
+                </label>
+              </div>
+
+              <!-- 出力ボタン -->
+              <div class="flex flex-wrap items-center gap-2">
+                <button id="btn-export-word" onclick="handleExportWord()" class="flex items-center space-x-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300 px-4 py-2.5 rounded-lg transition-colors border border-blue-200 dark:border-blue-800 shadow-sm font-medium" title="Wordレポート形式で保存">
+                  <i data-lucide="file-text" class="h-4 w-4"></i>
+                  <span>Word</span>
+                </button>
+                <button onclick="handleExportReport()" class="flex items-center space-x-1.5 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2.5 rounded-lg transition-all shadow shadow-blue-500/30 whitespace-nowrap font-medium" title="HTML/PDFレポート形式で保存">
+                  <i data-lucide="layout-template" class="h-4 w-4"></i>
+                  <span>HTML / PDF</span>
+                </button>
+                <button onclick="handleExportText()" class="flex items-center space-x-1.5 text-sm bg-white hover:bg-gray-50 text-gray-700 dark:bg-[#202124] dark:hover:bg-[#303134] dark:text-gray-300 px-3 py-2.5 rounded-lg transition-colors border border-gray-300 dark:border-gray-600 shadow-sm font-medium" title="テキスト形式で保存">
+                  <i data-lucide="file" class="h-4 w-4"></i>
+                  <span class="hidden sm:inline">テキスト</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 下段：その他のアクション -->
+            <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
+              <button onclick="handleSaveItem()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#303134] text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg transition-colors font-medium">
+                <i data-lucide="bookmark" class="h-4 w-4"></i>
+                <span>保存</span>
+              </button>
+              <button onclick="handleUpdateSearch()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#303134] text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg transition-colors font-medium">
+                <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                <span>更新</span>
+              </button>
+              <button onclick="elaborateSummary()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#303134] text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg transition-colors font-medium ${state.isElaborating || state.isLoading ? 'opacity-50 cursor-not-allowed' : ''}" ${state.isElaborating || state.isLoading ? 'disabled' : ''}>
+                <i data-lucide="plus-circle" class="h-4 w-4"></i>
+                <span>${state.isElaborating ? '詳細化中...' : 'もう少し詳しく'}</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -902,7 +939,7 @@
       let categoryContext = state.selectedCategory ? `特に「${state.selectedCategory}」の分野・観点から、` : "";
       if (state.selectedFile) categoryContext = `添付されたドキュメントの内容も引き続き考慮し、` + categoryContext;
       
-      const parts = [{ text: `現在は${today}です。キーワード「${state.query}」について、${categoryContext}以下の概要を深掘りし、詳細で専門的な情報を含む長文の解説に書き換えてください。文体は「だ・である」調で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下の厳密なJSON形式で出力してください。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "siteName": "サイト名や運営組織名（ドメイン名不可）", "url": "サイトのURL", "description": "サイト内容の詳しい要約"}\n]\n※重要：「title」や「siteName」にはURLやドメイン名を絶対に書かないでください。必ず日本語の名称を記述してください。\n\n概要:\n${state.aiSummary}` }];
+      const parts = [{ text: `現在は${today}です。キーワード「${state.query}」について、${categoryContext}以下の概要を深掘りし、詳細で専門的な情報を含む長文の解説に書き換えてください。文体は「だ・である」調で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下の厳密なJSON形式で出力してください。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "siteName": "サイト名や運営組織名（ドメイン名不可）", "url": "サイトのURL", "description": "一目でわかる簡潔な要約（約40〜60文字）"}\n]\n※重要：「title」や「siteName」にはURLやドメイン名を絶対に書かないでください。必ず日本語の名称を記述してください。\n\n概要:\n${state.aiSummary}` }];
 
       if (state.selectedFile) {
         if (state.selectedFile.type === 'text') parts.push({ text: `\n\n--- 添付ファイル (${state.selectedFile.name}) の内容 ---\n${state.selectedFile.data}\n--- 添付ファイル終わり ---\n` });
@@ -1158,7 +1195,17 @@
 
         await loadDocxScript();
 
+        const themeId = document.getElementById('report-theme-select')?.value || 'default';
         const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+        
+        const t = REPORT_THEMES[themeId] || REPORT_THEMES['default'];
+        const hexToWord = (hex) => hex.replace('#', '');
+        
+        const wText = hexToWord(t.text);
+        const wTextBold = hexToWord(t.textBold);
+        const wTextMuted = hexToWord(t.textMuted);
+        const wAccent = hexToWord(t.accent);
+
         const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
         
         const summaryParagraphs = [];
@@ -1174,26 +1221,23 @@
              summaryParagraphs.push(new Paragraph({
                text: line.substring(4),
                heading: HeadingLevel.HEADING_3,
-               spacing: { before: 240, after: 120 }
              }));
           } else if (line.startsWith('## ')) {
              summaryParagraphs.push(new Paragraph({
                text: line.substring(3),
                heading: HeadingLevel.HEADING_2,
-               spacing: { before: 360, after: 120 }
              }));
           } else if (line.startsWith('# ')) {
              summaryParagraphs.push(new Paragraph({
                text: line.substring(2),
                heading: HeadingLevel.HEADING_1,
-               spacing: { before: 480, after: 120 }
              }));
           } else {
              const runs = [];
              const parts = line.split(/(\*\*.*?\*\*)/g);
              for (const part of parts) {
                if (part.startsWith('**') && part.endsWith('**')) {
-                 runs.push(new TextRun({ text: part.substring(2, part.length - 2), bold: true }));
+                 runs.push(new TextRun({ text: part.substring(2, part.length - 2), bold: true, color: wTextBold }));
                } else if (part) {
                  runs.push(new TextRun({ text: part }));
                }
@@ -1213,7 +1257,7 @@
             children: [
               new TextRun({
                   text: `作成日時: ${new Date().toLocaleString('ja-JP')}`,
-                  color: "6b7280"
+                  color: wTextMuted
               })
             ],
             alignment: AlignmentType.RIGHT,
@@ -1222,7 +1266,6 @@
           new Paragraph({
             text: "分析結果のレポート",
             heading: HeadingLevel.HEADING_1,
-            spacing: { after: 200 }
           }),
           ...summaryParagraphs
         ];
@@ -1232,7 +1275,6 @@
             new Paragraph({
               text: "参考としたWEBサイト一覧",
               heading: HeadingLevel.HEADING_1,
-              spacing: { before: 400, after: 200 }
             })
           );
 
@@ -1241,20 +1283,22 @@
                new Paragraph({
                  text: `[${i + 1}] ${r.title}`,
                  heading: HeadingLevel.HEADING_3,
-                 spacing: { before: 200, after: 50 }
                })
             );
             
             if (r.siteName) {
-               docChildren.push(new Paragraph({ text: `サイト名: ${r.siteName}`, spacing: { after: 50 } }));
+               docChildren.push(new Paragraph({ 
+                   children: [new TextRun({ text: `サイト名: ${r.siteName}`, color: wTextMuted })],
+                   spacing: { after: 50 } 
+               }));
             }
 
-            // エラーを回避するため、URLは通常のテキスト(青色・下線)として挿入
+            // エラーを回避するため、URLは通常のテキスト(リンク色・下線)として挿入
             docChildren.push(new Paragraph({
                 children: [
                   new TextRun({
                       text: r.url,
-                      color: "1a0dab",
+                      color: wAccent,
                       underline: {}
                   })
                 ],
@@ -1273,9 +1317,47 @@
                   document: {
                       run: {
                           font: "Yu Gothic",
+                          color: wText,
                       },
                   },
               },
+              paragraphStyles: [
+                  {
+                      id: "Title",
+                      name: "Title",
+                      basedOn: "Normal",
+                      next: "Normal",
+                      quickFormat: true,
+                      run: { size: 44, bold: true, color: wAccent }
+                  },
+                  {
+                      id: "Heading1",
+                      name: "Heading 1",
+                      basedOn: "Normal",
+                      next: "Normal",
+                      quickFormat: true,
+                      run: { size: 32, bold: true, color: wTextBold },
+                      paragraph: { spacing: { before: 400, after: 200 } }
+                  },
+                  {
+                      id: "Heading2",
+                      name: "Heading 2",
+                      basedOn: "Normal",
+                      next: "Normal",
+                      quickFormat: true,
+                      run: { size: 28, bold: true, color: wTextBold },
+                      paragraph: { spacing: { before: 300, after: 150 } }
+                  },
+                  {
+                      id: "Heading3",
+                      name: "Heading 3",
+                      basedOn: "Normal",
+                      next: "Normal",
+                      quickFormat: true,
+                      run: { size: 24, bold: true, color: wTextBold },
+                      paragraph: { spacing: { before: 200, after: 100 } }
+                  }
+              ]
           },
           sections: [{
             properties: {},
@@ -1309,20 +1391,7 @@
       const themeId = document.getElementById('report-theme-select')?.value || 'default';
       const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
       
-      // レポートの配色テーマ定義
-      const reportThemes = {
-        'default': { bg: '#f3f4f6', container: '#ffffff', text: '#333333', textBold: '#111827', textMuted: '#6b7280', accent: '#1d4ed8', border: '#e5e7eb', sourceBg: '#f9fafb' },
-        'modern-blue': { bg: '#e0f2fe', container: '#ffffff', text: '#1e293b', textBold: '#0f172a', textMuted: '#64748b', accent: '#0ea5e9', border: '#e2e8f0', sourceBg: '#f8fafc' },
-        'elegant-dark': { bg: '#111827', container: '#1f2937', text: '#d1d5db', textBold: '#f3f4f6', textMuted: '#9ca3af', accent: '#60a5fa', border: '#374151', sourceBg: '#111827' },
-        'nature-green': { bg: '#d1fae5', container: '#ffffff', text: '#064e3b', textBold: '#022c22', textMuted: '#059669', accent: '#10b981', border: '#a7f3d0', sourceBg: '#ecfdf5' },
-        'sakura-pink': { bg: '#fce7f3', container: '#ffffff', text: '#831843', textBold: '#4c0519', textMuted: '#be185d', accent: '#db2777', border: '#fbcfe8', sourceBg: '#fdf2f8' },
-        'sunset-orange': { bg: '#ffedd5', container: '#ffffff', text: '#7c2d12', textBold: '#431407', textMuted: '#ea580c', accent: '#ea580c', border: '#fed7aa', sourceBg: '#fff7ed' },
-        'ocean-teal': { bg: '#ccfbf1', container: '#ffffff', text: '#134e4a', textBold: '#042f2e', textMuted: '#0d9488', accent: '#0d9488', border: '#99f6e4', sourceBg: '#f0fdfa' },
-        'monochrome': { bg: '#e5e5e5', container: '#ffffff', text: '#404040', textBold: '#171717', textMuted: '#737373', accent: '#404040', border: '#d4d4d4', sourceBg: '#f5f5f5' },
-        'retro-brown': { bg: '#fef3c7', container: '#fffbeb', text: '#78350f', textBold: '#451a03', textMuted: '#b45309', accent: '#d97706', border: '#fde68a', sourceBg: '#fef3c7' }
-      };
-      
-      const t = reportThemes[themeId];
+      const t = REPORT_THEMES[themeId] || REPORT_THEMES['default'];
 
       // 簡単なマークダウン置換（太字と見出し）で見栄えを向上
       let formattedSummary = state.aiSummary
