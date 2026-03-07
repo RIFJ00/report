@@ -729,7 +729,7 @@
       const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
       
       const parts = [{ 
-        text: `現在は${today}です。${promptContext}回答の文体は「だ・である」調（常体）で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください（Markdownブロックは使わず、直接JSON配列を記述してください）。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "url": "サイトのURL", "description": "簡潔な要約"}\n]` 
+        text: `現在は${today}です。${promptContext}回答の文体は「だ・である」調（常体）で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください（Markdownブロックは使わず、直接JSON配列を記述してください）。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "url": "サイトのURL", "description": "簡潔な要約"}\n]\n※重要：「title」にはURLやドメイン名（例: jimin.jp）を絶対に書かないでください。必ず記事やページの実際の日本語タイトルを記述してください。` 
       }];
 
       if (state.selectedFile) {
@@ -793,23 +793,34 @@
               seenUrls.add(uri); 
               const cleanUrl = uri.trim().replace(/\/$/, '');
               let desc = sourceDescriptions[cleanUrl];
-              let title = sourceTitles[cleanUrl] || chunkTitle;
+              let aiTitle = sourceTitles[cleanUrl];
               
-              if (!desc || !title) {
+              if (!desc || !aiTitle) {
                 const domain = getDomain(uri);
                 const matchUrl = Object.keys(sourceDescriptions).find(k => getDomain(k) === domain);
                 if (matchUrl) {
                   if (!desc) desc = sourceDescriptions[matchUrl];
-                  if (!title) title = sourceTitles[matchUrl];
+                  if (!aiTitle) aiTitle = sourceTitles[matchUrl];
                 }
               }
               
               if (!desc) desc = "このサイトの詳しい情報はリンク先をご覧ください。";
-              if (!title || title.toLowerCase() === getDomain(uri).toLowerCase() || title.includes("http")) {
-                title = "参考ウェブサイト";
+              
+              // ドメイン名やURLそのものがタイトルになっているか判定
+              const isBadTitle = (t) => !t || t.toLowerCase() === getDomain(uri).toLowerCase() || t.toLowerCase().startsWith("http");
+              
+              let finalTitle = "参考ウェブサイト";
+              if (chunkTitle && !isBadTitle(chunkTitle)) {
+                finalTitle = chunkTitle; // 1. Search Groundingの公式タイトルを最優先
+              } else if (aiTitle && !isBadTitle(aiTitle)) {
+                finalTitle = aiTitle; // 2. AIが生成したタイトル
+              } else if (chunkTitle) {
+                finalTitle = chunkTitle; // 3. 妥協してそのまま使用
+              } else if (aiTitle) {
+                finalTitle = aiTitle;
               }
               
-              uniqueSources.push({ title: title, url: uri, description: desc });
+              uniqueSources.push({ title: finalTitle, url: uri, description: desc });
             }
           };
 
@@ -855,7 +866,7 @@
       let categoryContext = state.selectedCategory ? `特に「${state.selectedCategory}」の分野・観点から、` : "";
       if (state.selectedFile) categoryContext = `添付されたドキュメントの内容も引き続き考慮し、` + categoryContext;
       
-      const parts = [{ text: `現在は${today}です。キーワード「${state.query}」について、${categoryContext}以下の概要を深掘りし、詳細で専門的な情報 মোহ含む長文の解説に書き換えてください。文体は「だ・である」調で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "url": "サイトのURL", "description": "一目でわかる簡潔な要約（約40〜60文字）"}\n]\n\n概要:\n${state.aiSummary}` }];
+      const parts = [{ text: `現在は${today}です。キーワード「${state.query}」について、${categoryContext}以下の概要を深掘りし、詳細で専門的な情報を含む長文の解説に書き換えてください。文体は「だ・である」調で統一してください。\nまた、回答の最後には必ず「===SOURCES===」という行を追加し、その下に参考にしたWEBサイトのリストを以下のJSON形式で出力してください。\n[\n  {"title": "記事やページの具体的なタイトル（ドメイン名不可）", "url": "サイトのURL", "description": "一目でわかる簡潔な要約（約40〜60文字）"}\n]\n※重要：「title」にはURLやドメイン名を絶対に書かないでください。必ず記事の実際のタイトルを記述してください。\n\n概要:\n${state.aiSummary}` }];
 
       if (state.selectedFile) {
         if (state.selectedFile.type === 'text') parts.push({ text: `\n\n--- 添付ファイル (${state.selectedFile.name}) の内容 ---\n${state.selectedFile.data}\n--- 添付ファイル終わり ---\n` });
@@ -907,40 +918,66 @@
           }
           
           const chunks = candidate.groundingMetadata?.groundingChunks || [];
+          const attributions = candidate.groundingMetadata?.groundingAttributions || [];
           const newSources = []; const seenUrls = new Set(state.results.map(r => r.url));
           
-          for (const chunk of chunks) {
-            if (chunk.web?.uri && !seenUrls.has(chunk.web.uri)) {
-              seenUrls.add(chunk.web.uri); 
-              const cleanUrl = chunk.web.uri.trim().replace(/\/$/, '');
+          const processSource = (uri, chunkTitle) => {
+            if (uri && !seenUrls.has(uri)) {
+              seenUrls.add(uri); 
+              const cleanUrl = uri.trim().replace(/\/$/, '');
               let desc = sourceDescriptions[cleanUrl];
-              let title = sourceTitles[cleanUrl] || chunk.web?.title;
+              let aiTitle = sourceTitles[cleanUrl];
               
-              if (!desc || !title) {
-                const domain = getDomain(chunk.web.uri);
+              if (!desc || !aiTitle) {
+                const domain = getDomain(uri);
                 const matchUrl = Object.keys(sourceDescriptions).find(k => getDomain(k) === domain);
                 if (matchUrl) {
                   if (!desc) desc = sourceDescriptions[matchUrl];
-                  if (!title) title = sourceTitles[matchUrl];
+                  if (!aiTitle) aiTitle = sourceTitles[matchUrl];
                 }
               }
               
               if (!desc) desc = "このサイトの詳しい情報はリンク先をご覧ください。";
-              if (!title || title.toLowerCase() === getDomain(chunk.web.uri).toLowerCase() || title.includes("http")) {
-                title = "参考ウェブサイト";
+              
+              // ドメイン名やURLそのものがタイトルになっているか判定
+              const isBadTitle = (t) => !t || t.toLowerCase() === getDomain(uri).toLowerCase() || t.toLowerCase().startsWith("http");
+              
+              let finalTitle = "参考ウェブサイト";
+              if (chunkTitle && !isBadTitle(chunkTitle)) {
+                finalTitle = chunkTitle;
+              } else if (aiTitle && !isBadTitle(aiTitle)) {
+                finalTitle = aiTitle;
+              } else if (chunkTitle) {
+                finalTitle = chunkTitle;
+              } else if (aiTitle) {
+                finalTitle = aiTitle;
               }
               
-              newSources.push({ title: title, url: chunk.web.uri, description: desc });
+              newSources.push({ title: finalTitle, url: uri, description: desc });
             }
+          };
+
+          for (const chunk of chunks) processSource(chunk.web?.uri, chunk.web?.title);
+          if (newSources.length === 0) {
+            for (const attr of attributions) processSource(attr.web?.uri, attr.web?.title);
           }
 
           state.aiSummary = summaryText;
           state.results = state.results.map(p => {
             const cleanUrl = p.url.trim().replace(/\/$/, '');
+            let aiTitle = sourceTitles[cleanUrl];
+            const isBadTitle = (t) => !t || t.toLowerCase() === getDomain(p.url).toLowerCase() || t.toLowerCase().startsWith("http");
+            
+            let finalTitle = p.title;
+            // 古いタイトルがドメイン名で、新しいAIタイトルが正常なら上書き更新する
+            if (aiTitle && !isBadTitle(aiTitle) && isBadTitle(p.title)) {
+                finalTitle = aiTitle;
+            }
+
             return {
               ...p,
               description: sourceDescriptions[cleanUrl] || p.description,
-              title: sourceTitles[cleanUrl] || p.title
+              title: finalTitle
             };
           });
           state.results = [...state.results, ...newSources];
