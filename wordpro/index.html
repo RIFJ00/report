@@ -42,6 +42,8 @@
         // ==========================================
         // Constants & Utilities
         // ==========================================
+        const DEFAULT_ORG_NAME = "一般社団法人日本みらい研";
+
         const PRESET_CATEGORIES = [
             "政治・経済", "成長戦略・ビジネスモデル", "国際情勢・地政学", 
             "社会問題・少子高齢化", "教育・人材育成", "AI・人工知能", 
@@ -247,6 +249,7 @@
         // ==========================================
         const State = {
             userApiKey: "",
+            organizationName: DEFAULT_ORG_NAME,
             isSettingsOpen: false,
             keywords: [],
             newKeyword: "",
@@ -284,6 +287,12 @@
             setSettingsOpen: (val) => updateState({ isSettingsOpen: val }),
             setBackupModalOpen: (val) => updateState({ isBackupModalOpen: val }),
             setUserApiKey: (val) => { State.userApiKey = val; }, 
+            setOrganizationName: (val) => { State.organizationName = val; },
+            resetOrganizationName: () => {
+                State.organizationName = DEFAULT_ORG_NAME;
+                const input = document.getElementById('org-name-input');
+                if (input) input.value = DEFAULT_ORG_NAME;
+            },
             setNewKeyword: (val) => { 
                 State.newKeyword = val; 
                 const btn = document.getElementById('add-keyword-btn');
@@ -291,6 +300,8 @@
             },
             handleSaveSettings: () => {
                 localStorage.setItem('research_app_api_key', State.userApiKey);
+                localStorage.setItem('research_app_org_name', State.organizationName || DEFAULT_ORG_NAME);
+                if (!State.organizationName) State.organizationName = DEFAULT_ORG_NAME;
                 updateState({ isSettingsOpen: false, researchError: null });
             },
             updateResearchData: (newData) => {
@@ -368,6 +379,10 @@
             restoreProjectData: (importedData) => {
                 if (importedData.keywords) AppActions.updateKeywords(importedData.keywords);
                 if (importedData.researchData) AppActions.updateResearchData(importedData.researchData);
+                if (importedData.organizationName !== undefined) {
+                    State.organizationName = importedData.organizationName || DEFAULT_ORG_NAME;
+                    localStorage.setItem('research_app_org_name', State.organizationName);
+                }
                 if (importedData.slides) {
                     localStorage.setItem('research_app_slides', JSON.stringify(importedData.slides));
                     State.slides = importedData.slides;
@@ -394,7 +409,8 @@
                     slides: State.slides,
                     reportData: State.reportData,
                     slideConfig: State.slideConfig,
-                    reportConfig: State.reportConfig
+                    reportConfig: State.reportConfig,
+                    organizationName: State.organizationName
                 };
                 
                 const defaultTitle = State.keywords.length > 0 
@@ -443,7 +459,8 @@
                     slides: State.slides,
                     reportData: State.reportData,
                     slideConfig: State.slideConfig,
-                    reportConfig: State.reportConfig
+                    reportConfig: State.reportConfig,
+                    organizationName: State.organizationName
                 };
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projectData));
                 const downloadAnchorNode = document.createElement('a');
@@ -778,7 +795,7 @@ ${JSON.stringify(selectedData, null, 2)}
                                 <div class="pdf-slide" ${idx === State.slides.length - 1 ? 'style="page-break-after: auto;"' : ''}>
                                     <div class="pdf-header"><h3 class="pdf-title">${escapeHtml(slide.title)}</h3><span style="font-size: 1.75rem; font-weight: bold;">${slide.page}</span></div>
                                     <div class="pdf-body">${contentHtml}</div>
-                                    <div class="pdf-footer"><span>一般社団法人日本みらい研</span><span>${new Date().toLocaleDateString('ja-JP')}</span></div>
+                                    <div class="pdf-footer"><span>${escapeHtml(State.organizationName)}</span><span>${new Date().toLocaleDateString('ja-JP')}</span></div>
                                 </div>`;
                         }).join('')}
                         </div>`;
@@ -800,7 +817,7 @@ ${JSON.stringify(selectedData, null, 2)}
                     } else {
                         contentHtml = `<ul>` + (slide.bullets || []).map(b => `<li><span>${escapeHtml(b)}</span></li>`).join('') + `</ul>`;
                     }
-                    return `<div class="slide"><div class="header"><h3 class="title">${escapeHtml(slide.title)}</h3><span>${slide.page}</span></div><div class="body">${contentHtml}</div><div class="footer"><span>一般社団法人日本みらい研</span><span>${new Date().toLocaleDateString('ja-JP')}</span></div></div>`;
+                    return `<div class="slide"><div class="header"><h3 class="title">${escapeHtml(slide.title)}</h3><span>${slide.page}</span></div><div class="body">${contentHtml}</div><div class="footer"><span>${escapeHtml(State.organizationName)}</span><span>${new Date().toLocaleDateString('ja-JP')}</span></div></div>`;
                 }).join('');
                 const htmlEnd = `</body></html>`;
                 const blob = new Blob([htmlStart + slidesHtml + htmlEnd], { type: 'text/html' });
@@ -828,7 +845,7 @@ ${JSON.stringify(selectedData, null, 2)}
                         pptxSlide.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: '100%', h: 1, fill: { color: primaryColor } });
                         pptxSlide.addText(slide.title, { x: 0.5, y: 0.2, w: 8, h: 0.6, fontSize: 28, bold: true, color: 'FFFFFF' });
                         pptxSlide.addText(String(slide.page), { x: 9, y: 0.2, w: 1, h: 0.6, fontSize: 18, color: 'FFFFFF', align: 'right' });
-                        pptxSlide.addText('一般社団法人日本みらい研', { x: 0.5, y: 5.2, w: 4, h: 0.4, fontSize: 10, color: '888888' });
+                        pptxSlide.addText(State.organizationName || '一般社団法人日本みらい研', { x: 0.5, y: 5.2, w: 4, h: 0.4, fontSize: 10, color: '888888' });
                         pptxSlide.addText(new Date().toLocaleDateString('ja-JP'), { x: 8.5, y: 5.2, w: 1.5, h: 0.4, fontSize: 10, color: '888888', align: 'right' });
 
                         if (slide.layout === 'visual' && slide.diagramNodes && slide.diagramNodes.length > 0) {
@@ -892,16 +909,24 @@ ${JSON.stringify(selectedData, null, 2)}
                 finally { updateState({ isExportingReportPDF: false }); }
             },
 
-            handleExportReportHTML: () => {
+            handleExportReportHTML: (style = 'standard') => {
                 const element = document.getElementById('report-document');
                 if (!element) return;
                 
-                const htmlStart = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>Generated Report</title><script src="https://cdn.tailwindcss.com"><${'/'}script></head><body class="bg-slate-50 py-10"><div class="max-w-3xl mx-auto bg-white p-10 shadow-xl rounded-xl">`;
-                const htmlEnd = `</div></body></html>`;
+                let htmlStart = "";
+                let htmlEnd = "";
+
+                if (style === 'a4') {
+                    htmlStart = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>Generated Report</title><script src="https://cdn.tailwindcss.com"><${'/'}script><style>@media print { body { background: white; } .a4-page { box-shadow: none !important; margin: 0 !important; width: 100% !important; min-height: auto !important; padding: 0 !important; } }</style></head><body class="bg-slate-200 py-10"><div class="a4-page bg-white shadow-2xl mx-auto box-border" style="width: 210mm; min-height: 297mm; padding: 20mm;">`;
+                    htmlEnd = `</div></body></html>`;
+                } else {
+                    htmlStart = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>Generated Report</title><script src="https://cdn.tailwindcss.com"><${'/'}script></head><body class="bg-slate-50 py-10"><div class="max-w-3xl mx-auto bg-white p-10 shadow-xl rounded-xl">`;
+                    htmlEnd = `</div></body></html>`;
+                }
                 
                 const blob = new Blob([htmlStart + element.innerHTML + htmlEnd], { type: 'text/html' });
                 const url = URL.createObjectURL(blob); const a = document.createElement('a');
-                a.href = url; a.download = `report_${new Date().getTime()}.html`; a.click(); URL.revokeObjectURL(url);
+                a.href = url; a.download = `report_${style}_${new Date().getTime()}.html`; a.click(); URL.revokeObjectURL(url);
             }
         };
 
@@ -942,6 +967,14 @@ ${JSON.stringify(selectedData, null, 2)}
                                     情報を取得・分析するために必要です。<a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" class="text-indigo-500 hover:underline">Google AI Studio</a> で無料で取得できます。<br/>
                                     ※ 入力したキーはブラウザにのみ安全に保存され、外部に送信されることはありません。
                                 </p>
+                            </div>
+                            <div class="pt-2 border-t border-slate-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="block text-sm font-bold text-slate-700">署名（組織名・作成者名）</label>
+                                    <button onclick="AppActions.resetOrganizationName()" class="text-xs text-indigo-600 hover:text-indigo-800 font-bold transition-colors">デフォルトに戻す</button>
+                                </div>
+                                <input id="org-name-input" type="text" value="${escapeHtml(State.organizationName)}" oninput="AppActions.setOrganizationName(this.value)" placeholder="${DEFAULT_ORG_NAME}" class="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all bg-slate-50 focus:bg-white" />
+                                <p class="text-xs text-slate-500 mt-2 leading-relaxed">スライドやレポートのフッター、画面下部に表示されるクレジット名です。</p>
                             </div>
                         </div>
                         <div class="mt-8 flex justify-end gap-3">
@@ -1295,7 +1328,7 @@ ${JSON.stringify(selectedData, null, 2)}
                             </div>
                             <div class="flex-1 p-12 bg-slate-50 flex flex-col justify-center">${slideBody}</div>
                             <div class="bg-white border-t border-slate-200 px-10 py-4 flex justify-between items-center text-sm font-medium text-slate-500">
-                                <span>一般社団法人日本みらい研</span><span>${new Date().toLocaleDateString('ja-JP')}</span>
+                                <span>${escapeHtml(State.organizationName)}</span><span>${new Date().toLocaleDateString('ja-JP')}</span>
                             </div>
                         </div>`;
                 }).join('') + `</div>`;
@@ -1355,8 +1388,11 @@ ${JSON.stringify(selectedData, null, 2)}
                         <button onclick="AppActions.handleExportReportPDF()" ${State.isExportingReportPDF ? 'disabled' : ''} class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-50">
                             ${State.isExportingReportPDF ? Icon('loader-2', 16, "text-slate-500 animate-spin") : Icon('printer', 16, "text-slate-500")} ${State.isExportingReportPDF ? "PDF生成中..." : "PDF出力"}
                         </button>
-                        <button onclick="AppActions.handleExportReportHTML()" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg transition-colors shadow-sm">
-                            ${Icon('globe', 16, "text-blue-500")} HTML
+                        <button onclick="AppActions.handleExportReportHTML('standard')" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg transition-colors shadow-sm">
+                            ${Icon('globe', 16, "text-blue-500")} HTML(標準)
+                        </button>
+                        <button onclick="AppActions.handleExportReportHTML('a4')" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg transition-colors shadow-sm" title="A4用紙サイズのデザインで出力します">
+                            ${Icon('file', 16, "text-slate-500")} HTML(A4スタイル)
                         </button>
                     </div>
                 `;
@@ -1398,7 +1434,7 @@ ${JSON.stringify(selectedData, null, 2)}
                         ` : ''}
 
                         <div class="mt-12 text-right text-sm font-medium text-slate-400">
-                            一般社団法人日本みらい研 - ${new Date().toLocaleDateString('ja-JP')}
+                            ${escapeHtml(State.organizationName)} - ${new Date().toLocaleDateString('ja-JP')}
                         </div>
                     </div>
                 `;
@@ -1436,6 +1472,9 @@ ${JSON.stringify(selectedData, null, 2)}
         window.onload = () => {
             const savedKey = localStorage.getItem('research_app_api_key');
             if (savedKey) State.userApiKey = savedKey;
+
+            const savedOrgName = localStorage.getItem('research_app_org_name');
+            if (savedOrgName) State.organizationName = savedOrgName;
 
             const savedKeywords = localStorage.getItem('research_app_keywords');
             if (savedKeywords) State.keywords = JSON.parse(savedKeywords);
