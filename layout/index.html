@@ -17,6 +17,9 @@
   
   <style>
     body { margin: 0; padding: 0; font-family: sans-serif; }
+    /* 背面ハイライト用コンテナのスクロールバーを隠すためのCSS */
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 
   <!-- エラー検知用スクリプト -->
@@ -74,8 +77,8 @@
       }
     }
 
-    const IconWrapper = ({ children, size = 24, className = "" }) => (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    const IconWrapper = ({ children, size = 24, className = "", strokeWidth = 2 }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
         {children}
       </svg>
     );
@@ -96,6 +99,8 @@
     const Wand2 = (p) => <IconWrapper {...p}><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></IconWrapper>;
     const Layers = (p) => <IconWrapper {...p}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 12 12 17 22 12"/><polyline points="2 17 12 22 22 17"/></IconWrapper>;
     const Stamp = (p) => <IconWrapper {...p}><path d="M4 22h16"/><path d="M20 18H4"/><path d="M16 10a4 4 0 0 0-8 0v4h8z"/><path d="M12 10V6"/><path d="M10 2h4v4h-4z"/></IconWrapper>;
+    const ChevronRight = (p) => <IconWrapper {...p}><polyline points="9 18 15 12 9 6"/></IconWrapper>;
+    const ImageIcon = (p) => <IconWrapper {...p}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></IconWrapper>;
 
     const defaultText = `# プロジェクト提案書: サンプルデータ
 
@@ -174,10 +179,13 @@ AIアシスタントを導入することで、これらの課題を以下のよ
       const [showAutoPageBreakConfirm, setShowAutoPageBreakConfirm] = useState(false);
       const [autoPageBreakMode, setAutoPageBreakMode] = useState('context'); // 'context' or 'strict'
       const [pendingUploadFile, setPendingUploadFile] = useState(null); 
+      const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
       
       const previewRef = useRef(null);
       const textareaRef = useRef(null);
       const fileInputRef = useRef(null);
+      const imageInputRef = useRef(null);
+      const bgRef = useRef(null);
 
       const safeText = text || '';
       const activeText = safeText.split('[EOF]')[0];
@@ -248,6 +256,20 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         }
       };
 
+      const updateCursorPosition = (e) => {
+        const target = e.target;
+        if (!target) return;
+        setTimeout(() => {
+          const pos = target.selectionStart;
+          const textBeforeCursor = target.value.substring(0, pos);
+          const lines = textBeforeCursor.split('\n');
+          setCursorPos({
+            line: lines.length,
+            col: lines[lines.length - 1].length + 1
+          });
+        }, 0);
+      };
+
       useEffect(() => {
         const loadScript = (src) => {
           const script = document.createElement('script');
@@ -260,7 +282,6 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         const docxScript = loadScript('https://unpkg.com/docx@8.2.3/build/index.umd.js');
         const pptxScript = loadScript('https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js');
         const mammothScript = loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js');
-        // 個別のページ処理を行うため、jsPDFとhtml2canvasを別々に読み込みます
         const jspdfScript = loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
         const html2canvasScript = loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
 
@@ -530,6 +551,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
             .replace(/^## (.*$)/gim, '<h2>$1</h2>')
             .replace(/^# (.*$)/gim, '<h1>$1</h1>')
             .replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>')
+            .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; max-height: 300px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);" />')
             .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/gim, '<em>$1</em>');
             
@@ -550,7 +572,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           const lines = html.split('\n');
           const parsedLines = lines.map(line => {
             const trimmed = line.trim();
-            if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div)/.test(trimmed)) return line;
+            if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div|<img)/.test(trimmed)) return line;
             return `<p>${line}</p>`;
           });
           let parsedText = parsedLines.join('\n');
@@ -568,6 +590,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold mt-8 mb-4 border-b border-current/20 pb-2">$1</h2>')
           .replace(/^# (.*$)/gim, '<h1 class="text-4xl font-extrabold mt-4 mb-6 tracking-tight">$1</h1>')
           .replace(/^\> (.*$)/gim, '<blockquote class="border-l-4 border-current/50 pl-4 py-2 italic my-6 opacity-80">$1</blockquote>')
+          .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" class="max-w-full max-h-64 object-contain mx-auto my-4 rounded-md shadow-sm" />')
           .replace(/\*\*(.*?)\*\*/gim, '<strong class="font-bold opacity-100">$1</strong>')
           .replace(/\*(.*?)\*/gim, '<em class="italic">$1</em>');
 
@@ -588,7 +611,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         const lines = html.split('\n');
         const parsedLines = lines.map(line => {
           const trimmed = line.trim();
-          if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div)/.test(trimmed)) return line;
+          if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div|<img)/.test(trimmed)) return line;
           return `<p class="my-3 leading-relaxed ${isSlide ? 'text-lg md:text-xl' : 'text-base'}">${line}</p>`;
         });
 
@@ -923,6 +946,15 @@ AIアシスタントを導入することで、これらの課題を以下のよ
                   continue; 
                 }
 
+                if (line.match(/^!\[([^\]]*)\]\((.*?)\)$/)) {
+                  const match = line.match(/^!\[([^\]]*)\]\((.*?)\)$/);
+                  children.push(new Paragraph({ 
+                    children: [new TextRun({ text: `[図表: ${match[1] || '画像'}]`, italics: true, color: "888888" })], 
+                    alignment: AlignmentType.CENTER 
+                  }));
+                  continue;
+                }
+
                 if (line.startsWith('# ')) {
                   children.push(new Paragraph({ children: parseInlineText(line.slice(2)), heading: HeadingLevel.HEADING_1 }));
                 } else if (line.startsWith('## ')) {
@@ -956,6 +988,15 @@ AIアシスタントを導入することで、これらの課題を以下のよ
                 } else {
                   children.push(new Paragraph({ text: "---", alignment: AlignmentType.CENTER }));
                 }
+                continue;
+              }
+
+              if (line.match(/^!\[([^\]]*)\]\((.*?)\)$/)) {
+                const match = line.match(/^!\[([^\]]*)\]\((.*?)\)$/);
+                children.push(new Paragraph({ 
+                  children: [new TextRun({ text: `[図表: ${match[1] || '画像'}]`, italics: true, color: "888888" })], 
+                  alignment: AlignmentType.CENTER 
+                }));
                 continue;
               }
 
@@ -1095,6 +1136,12 @@ AIアシスタントを導入することで、これらの課題を以下のよ
 
               let baseOptions = { color: slideTextColor, fontFace: docFontFamily };
               
+              if (line.match(/^!\[([^\]]*)\]\((.*?)\)$/)) {
+                const match = line.match(/^!\[([^\]]*)\]\((.*?)\)$/);
+                textRuns.push({ text: `[図表: ${match[1] || '画像'}]`, options: { breakLine: true, ...baseOptions, italic: true, color: '888888' } });
+                continue;
+              }
+
               if (line.startsWith('# ')) {
                 line = line.slice(2);
                 baseOptions.fontSize = 36;
@@ -1230,7 +1277,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
                 <div 
                   key={index}
                   className={`w-full max-w-[210mm] shadow-2xl transition-colors duration-300 ${layoutConfig.classes} ${colorClass} relative overflow-hidden`}
-                  style={{ height: '296.5mm', padding: '20mm 20mm 30mm 20mm', boxSizing: 'border-box' }}
+                  style={{ minHeight: '296.5mm', padding: '20mm 20mm 30mm 20mm', boxSizing: 'border-box' }}
                 >
                   <div 
                     className="prose prose-lg max-w-none"
@@ -1268,7 +1315,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
                         <div className="absolute right-6 bottom-8 text-sm opacity-50 font-mono">{index + 1}</div>
                         {logoText && <div className="absolute right-6 bottom-4 text-xs opacity-40 font-sans">{logoText}</div>}
                         <div 
-                          className="w-full"
+                          className="w-full max-h-full overflow-hidden flex flex-col justify-center"
                           dangerouslySetInnerHTML={{ __html: parseMarkdown(slideContent, true, false, '', slideBreakMode) }}
                         />
                       </div>
@@ -1277,7 +1324,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
                         <div className="absolute right-6 bottom-8 text-sm opacity-50 font-mono">{index + 1}</div>
                         {logoText && <div className="absolute right-6 bottom-4 text-xs opacity-40 font-sans">{logoText}</div>}
                         <div 
-                          className="w-full z-10"
+                          className="w-full z-10 max-h-full overflow-hidden flex flex-col justify-center"
                           dangerouslySetInnerHTML={{ __html: parseMarkdown(slideContent, true, false, '', slideBreakMode) }}
                         />
                       </>
@@ -1338,6 +1385,23 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           return;
         }
 
+        if (format === 'clear_page_breaks') {
+          const lines = currentText.split('\n');
+          const newLines = lines.map(line => {
+            const trimmed = line.trim();
+            // 区切り線を削除
+            if (/^(?:===|---+|ーーー|—-|——)$/.test(trimmed)) return '';
+            return line;
+          });
+          
+          // 連続する空行を整える
+          const newText = newLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+          setText(newText);
+          
+          e.target.value = "";
+          return;
+        }
+
         let lineStart = currentText.lastIndexOf('\n', startPos - 1) + 1;
         let lineEnd = currentText.indexOf('\n', endPos);
         if (lineEnd === -1) lineEnd = currentText.length;
@@ -1348,6 +1412,14 @@ AIアシスタントを導入することで、これらの課題を以下のよ
 
         const lines = targetText.split('\n');
         const formattedLines = lines.map((line) => {
+          if (format === 'clear_page_break') {
+            // 改ページ記号のみを空文字に変換
+            if (/^[ \t]*(?:===|---+|ーーー|—-|——)[ \t]*$/.test(line)) {
+              return '';
+            }
+            return line;
+          }
+
           let cleanLine = line.replace(/^(#+ |- |\d+\.\s+|> )/, '');
           let newLine = cleanLine;
           
@@ -1363,7 +1435,12 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         });
 
         const newTargetText = formattedLines.join('\n');
-        const newText = beforeText + newTargetText + afterText;
+        let newText = beforeText + newTargetText + afterText;
+        
+        // 指定行の改ページを削除したことで生じた不要な空行を整理する
+        if (format === 'clear_page_break') {
+          newText = newText.replace(/\n{3,}/g, '\n\n');
+        }
         
         setText(newText);
         
@@ -1410,7 +1487,14 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         const eofText = splitByEOF.length > 1 ? '\n\n[EOF]' + splitByEOF[1] : '';
 
         // 既存の改ページ記号を完全に削除し、一度プレーンな状態にする
-        targetText = targetText.replace(/^[ \t]*(?:===|---|ーーー|—-|——)[ \t]*$/gm, '');
+        const linesBefore = targetText.split('\n');
+        const cleanedLines = linesBefore.map(line => {
+          const trimmed = line.trim();
+          if (/^(?:===|---+|ーーー|—-|——)$/.test(trimmed)) return '';
+          return line;
+        });
+        
+        targetText = cleanedLines.join('\n');
         // 改ページ削除によって生じた余分な空行を整理する
         targetText = targetText.replace(/\n{3,}/g, '\n\n').trim();
 
@@ -1438,6 +1522,8 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           let lineWeight = 1;
           if (trimmed === '') {
             lineWeight = 1;
+          } else if (trimmed.match(/^!\[([^\]]*)\]\((.*?)\)$/)) {
+            lineWeight = 10; // 画像行は大きくスペースを取る
           } else if (trimmed.startsWith('# ')) {
             lineWeight = 3; // 見出し1は大きくスペースを取る
           } else if (trimmed.startsWith('## ') || trimmed.startsWith('### ')) {
@@ -1500,9 +1586,15 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           lines = lines.map(line => {
             const trimmed = line.trim();
             // 区切り線を削除
-            if (/^(?:===|---|ーーー|—-|——)$/.test(trimmed)) return '';
+            if (/^(?:===|---+|ーーー|—-|——)$/.test(trimmed)) return '';
             
             let cleanLine = trimmed;
+            
+            // 画像記号はそのまま維持
+            if (/^!\[([^\]]*)\]\((.*?)\)$/.test(cleanLine)) {
+              return cleanLine;
+            }
+            
             // 行頭の見出しや引用は削除
             cleanLine = cleanLine.replace(/^(?:#+\s+|> \s*)/, '');
             
@@ -1534,7 +1626,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           }
           
           // 区切り線はそのまま維持し、リスト状態をリセット
-          if (/^(?:===|---|ーーー|—-|——)$/.test(trimmed)) {
+          if (/^(?:===|---+|ーーー|—-|——)$/.test(trimmed)) {
              inList = false;
              isFirstContentLine = false;
              return trimmed;
@@ -1546,6 +1638,14 @@ AIアシスタントを導入することで、これらの課題を以下のよ
              listCounter = 1;
              isFirstContentLine = false;
              return trimmed; 
+          }
+          
+          // 画像記法の場合
+          if (/^!\[([^\]]*)\]\((.*?)\)$/.test(trimmed)) {
+             inList = false;
+             listCounter = 1;
+             isFirstContentLine = false;
+             return line; 
           }
 
           // 見出しの判定と変換
@@ -1619,6 +1719,63 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         let formattedText = newLines.join('\n');
         setText(formattedText + eofText);
         setShowAutoFormatConfirm(false);
+      };
+
+      const handleImageUpload = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            // キャンバスを使って画像をリサイズ・圧縮し、ブラウザのフリーズを防ぐ
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 1280;
+            const MAX_HEIGHT = 1280;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width *= MAX_HEIGHT / height;
+                height = MAX_HEIGHT;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // JPEGとして品質0.8で出力し、ファイルサイズを削減
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+
+            const startPos = textarea.selectionStart;
+            const endPos = textarea.selectionEnd;
+            const fileName = file.name.split('.')[0] || '画像';
+            const imageMarkdown = `\n![${fileName}](${compressedBase64})\n`;
+            
+            const currentText = safeText;
+            const newText = currentText.substring(0, startPos) + imageMarkdown + currentText.substring(endPos);
+            setText(newText);
+            
+            setTimeout(() => {
+              textarea.selectionStart = textarea.selectionEnd = startPos + imageMarkdown.length;
+              textarea.focus();
+            }, 0);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+        event.target.value = '';
       };
 
       const processFileUpload = async (file) => {
@@ -1849,11 +2006,25 @@ AIアシスタントを導入することで、これらの課題を以下のよ
               </div>
 
               <div className="flex-1 flex flex-col relative bg-white">
-                <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50/50 shrink-0 overflow-x-auto whitespace-nowrap">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50/50 shrink-0 overflow-x-auto whitespace-nowrap z-20">
                   <div className="text-xs text-gray-500 font-mono flex items-center gap-1 mr-4">
                     <Type size={14} /> <span>Editor</span>
                   </div>
                   <div className="flex items-center gap-2">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      ref={imageInputRef} 
+                      className="hidden" 
+                      onChange={handleImageUpload}
+                    />
+                    <button
+                      onClick={() => imageInputRef.current?.click()}
+                      className="text-xs text-fuchsia-700 font-medium flex items-center gap-1 bg-fuchsia-50 hover:bg-fuchsia-100 px-2.5 py-1.5 rounded transition-colors shadow-sm border border-fuchsia-200"
+                      title="画像を挿入します"
+                    >
+                      <ImageIcon size={12} /> 画像
+                    </button>
                     <input 
                       type="file" 
                       accept=".txt,.md,.docx,.html,.htm" 
@@ -1884,6 +2055,8 @@ AIアシスタントを導入することで、これらの課題を以下のよ
                       <option value="page_break">区切り/改ページ (---)</option>
                       <option value="clear">装飾をクリア</option>
                       <option value="clear_all">全装飾のクリア</option>
+                      <option value="clear_page_break">改ページのクリア</option>
+                      <option value="clear_page_breaks">全改ページのクリア</option>
                     </select>
                     <button
                       onClick={() => setShowAutoFormatConfirm(true)}
@@ -1915,14 +2088,57 @@ AIアシスタントを導入することで、これらの課題を以下のよ
                     </button>
                   </div>
                 </div>
-                <textarea
-                  ref={textareaRef}
-                  value={safeText}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder={"ここにマークダウン形式でテキストを入力または貼り付けるか、ファイルを読み込んで下さい...\n\n見出し: # または ## または ###\nリスト: - または 1.\nスライド区切り/改ページ: [改ページ]ボタンを使用\n\n読み込めるファイルは、text、doc、html、markdown形式になります。"}
-                  className="flex-1 w-full p-6 resize-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500/50 bg-transparent text-gray-700 leading-relaxed font-mono text-sm"
-                  spellCheck="false"
-                />
+
+                {/* Editor Content Area */}
+                <div className="flex-1 relative min-h-0 bg-white">
+                  
+                  {/* 背景の同期ハイライトレイヤー */}
+                  <div 
+                    ref={bgRef}
+                    className="absolute inset-0 pointer-events-none overflow-y-scroll hide-scrollbar py-6 pl-12 pr-6 font-mono text-sm z-0"
+                    style={{ lineHeight: '24px', color: 'transparent', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                    aria-hidden="true"
+                  >
+                    {safeText.split('\n').map((line, i) => (
+                      <div key={i} className="relative">
+                        {i + 1 === cursorPos.line && (
+                          <>
+                            {/* 行の左側の矢印 */}
+                            <div className="absolute -left-8 top-0 h-[24px] flex items-center text-indigo-500">
+                              <ChevronRight size={16} strokeWidth={3} />
+                            </div>
+                            {/* 行全体の背景ハイライト */}
+                            <div className="absolute -left-12 -right-6 top-0 bottom-0 bg-indigo-50/50 border-l-4 border-indigo-500 -z-10" />
+                          </>
+                        )}
+                        {/* テキストがない行も高さを確保するためのゼロ幅スペース */}
+                        {line || '\u200B'}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 実際の入力エリア */}
+                  <textarea
+                    ref={textareaRef}
+                    value={safeText}
+                    onChange={(e) => {
+                      setText(e.target.value);
+                      updateCursorPosition(e);
+                    }}
+                    onClick={updateCursorPosition}
+                    onKeyUp={updateCursorPosition}
+                    onScroll={(e) => {
+                      if (bgRef.current) {
+                        bgRef.current.scrollTop = e.target.scrollTop;
+                        bgRef.current.scrollLeft = e.target.scrollLeft;
+                      }
+                    }}
+                    placeholder={"ここにマークダウン形式でテキストを入力または貼り付けるか、ファイルを読み込んで下さい...\n\n見出し: # または ## または ###\nリスト: - または 1.\n画像挿入: [画像]ボタンを使用\n\n読み込めるファイルは、text、doc、html、markdown形式になります。"}
+                    className="absolute inset-0 w-full h-full py-6 pl-12 pr-6 resize-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500/50 bg-transparent text-gray-800 font-mono text-sm z-10"
+                    style={{ lineHeight: '24px', caretColor: '#4f46e5' }}
+                    spellCheck="false"
+                  />
+                </div>
               </div>
             </div>
 
