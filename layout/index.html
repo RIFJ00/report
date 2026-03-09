@@ -649,16 +649,21 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           const escapedLogo = safeLogoText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
           const container = document.createElement('div');
+          // 画面外ではなく、背面・ほぼ透明にして確実にレンダリングさせる
           container.style.position = 'absolute';
-          container.style.left = '-9999px';
           container.style.top = '0';
+          container.style.left = '0';
+          container.style.zIndex = '-9999';
+          container.style.opacity = '0.01';
+          container.style.pointerEvents = 'none';
           
+          let plainHTML = '';
+          let pdfOpt = {};
+
           if (mode === 'slides') {
             container.style.width = '1280px';
-            let plainHTML = `<div id="pdf-container" style="background: ${exportBgColor}; font-family: ${fontFamily}; color: ${exportTextColor};">`;
-            
             const slides = getSlides(activeText);
-            plainHTML += slides.map((s, index) => {
+            plainHTML = slides.map((s, index) => {
               const l = slideLayouts[slideLayout] || slideLayouts.solid;
               const currentSlideColor = slideColors[slideColor] || slideColors.blue;
               const mainHexColor = (isSlideReversed && currentSlideColor.isTwoTone) ? currentSlideColor.hexRev : currentSlideColor.hex;
@@ -681,15 +686,15 @@ AIアシスタントを導入することで、これらの課題を以下のよ
                 slideBgColor = 'transparent';
                 cardContent = `
                   <div style="background-color: #ffffff; color: #1f2937; width: 90%; height: 86%; margin: auto; border-radius: 16px; padding: 40px; display: flex; flex-direction: column; justify-content: center; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); box-sizing: border-box;">
-                    <div style="position: absolute; right: 2rem; bottom: 2rem; font-size: 1rem; opacity: 0.5; font-family: monospace;">${index + 1}</div>
-                    ${safeLogoText ? `<div style="position: absolute; right: 2rem; bottom: 1rem; font-size: 0.875rem; opacity: 0.5; font-family: inherit;">${escapedLogo}</div>` : ''}
+                    <div style="position: absolute; right: 40px; bottom: 40px; font-size: 1rem; opacity: 0.5; font-family: monospace;">${index + 1}</div>
+                    ${safeLogoText ? `<div style="position: absolute; right: 40px; bottom: 20px; font-size: 0.875rem; opacity: 0.5; font-family: inherit;">${escapedLogo}</div>` : ''}
                     ${parseMarkdown(s, true, true, '', slideBreakMode)}
                   </div>
                 `;
               } else {
                 cardContent = `
-                  <div style="position: absolute; right: 2rem; bottom: 2rem; font-size: 1rem; opacity: 0.5; font-family: monospace;">${index + 1}</div>
-                  ${safeLogoText ? `<div style="position: absolute; right: 2rem; bottom: 1rem; font-size: 0.875rem; opacity: 0.5; font-family: inherit;">${escapedLogo}</div>` : ''}
+                  <div style="position: absolute; right: 40px; bottom: 40px; font-size: 1rem; opacity: 0.5; font-family: monospace;">${index + 1}</div>
+                  ${safeLogoText ? `<div style="position: absolute; right: 40px; bottom: 20px; font-size: 0.875rem; opacity: 0.5; font-family: inherit;">${escapedLogo}</div>` : ''}
                   ${parseMarkdown(s, true, true, '', slideBreakMode)}
                 `;
               }
@@ -703,82 +708,81 @@ AIアシスタントを導入することで、これらの課題を以下のよ
                 </div>
               `;
             }).join('');
-            
-            plainHTML += `</div>`;
 
-            const style = document.createElement('style');
-            style.innerHTML = `
-              * { box-sizing: border-box; }
-              .pdf-slide h1 { font-size: 2.25rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; line-height: 1.2; }
-              .pdf-slide h2 { font-size: 1.5rem; font-weight: 700; border-bottom: 1px solid currentColor; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; opacity: 0.9; }
-              .pdf-slide h3 { font-size: 1.25rem; font-weight: 700; margin-top: 1.5em; margin-bottom: 0.5em; opacity: 0.9; }
-              .pdf-slide p { font-size: 1rem; line-height: 1.75; margin-top: 0; margin-bottom: 1em; }
-              .pdf-slide ul, .pdf-slide ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5rem; line-height: 1.75; }
-              .pdf-slide li { margin-bottom: 0.25rem; }
-              .pdf-slide blockquote { border-left: 4px solid currentColor; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
-              .pdf-slide hr { border: 0; border-top: 1px solid currentColor; opacity: 0.2; margin: 2rem 0; }
-              .pdf-slide strong { font-weight: bold; }
-              .pdf-slide em { font-style: italic; }
-              .page-break { display: none !important; }
-            `;
-
-            container.innerHTML = plainHTML;
-            container.appendChild(style);
-            document.body.appendChild(container);
-
-            await new Promise(resolve => setTimeout(resolve, 300));
-
-            const opt = {
+            pdfOpt = {
               margin: 0,
               filename: `document_${Date.now()}.pdf`,
               image: { type: 'jpeg', quality: 1.0 },
-              html2canvas: { scale: 2, useCORS: true },
-              jsPDF: { unit: 'px', format: [1280, 720], orientation: 'landscape' }
+              html2canvas: { scale: 2, useCORS: true, windowWidth: 1280 },
+              jsPDF: { unit: 'px', format: [1280, 720], orientation: 'landscape' },
+              pagebreak: { mode: 'css', avoid: ['.pdf-slide'] }
             };
-
-            await window.html2pdf().set(opt).from(container.querySelector('#pdf-container')).save();
-            document.body.removeChild(container);
 
           } else {
-            container.style.width = '210mm';
-            const element = document.getElementById('preview-content');
-            if (!element) throw new Error("レポートが見つかりません。");
+            container.style.width = '794px';
+            let pages;
+            if (slideBreakMode === 'none') {
+              pages = [getProcessedReportText(activeText)];
+            } else {
+              pages = getProcessedReportText(activeText).split(/\n*(?:===|---|ーーー|—-|——)\n*/).filter(p => p.trim() !== '');
+              if (pages.length === 0) pages.push('');
+            }
+            plainHTML = pages.map((pageContent, index) => {
+              const isLast = index === pages.length - 1;
+              const pageBreakStyle = isLast ? 'page-break-after: auto;' : 'page-break-after: always; break-after: page;';
+              return `
+                <div class="pdf-report" style="background-color: ${exportBgColor}; color: ${exportTextColor}; width: 794px; height: 1120px; padding: 75px; position: relative; overflow: hidden; box-sizing: border-box; ${pageBreakStyle}">
+                  ${parseMarkdown(pageContent, false, true, logoText, slideBreakMode)}
+                  ${safeLogoText && slideBreakMode !== 'none' ? `<div class="doc-logo" style="position: absolute; right: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: inherit;">${escapedLogo}</div>` : ''}
+                </div>
+              `;
+            }).join('');
 
-            const clonedElement = element.cloneNode(true);
-            clonedElement.style.padding = '0px'; 
-            
-            const pages = clonedElement.querySelectorAll('.max-w-\\[210mm\\]');
-            pages.forEach((page, idx) => {
-               page.style.boxShadow = 'none';
-               page.style.margin = '0';
-               page.style.minHeight = 'auto'; 
-               if(idx !== pages.length - 1) {
-                   page.style.pageBreakAfter = 'always';
-                   page.style.breakAfter = 'page';
-               }
-            });
-
-            container.appendChild(clonedElement);
-            document.body.appendChild(container);
-
-            await new Promise(resolve => setTimeout(resolve, 300));
-
-            const opt = { 
-              margin: 10, 
-              filename: `document_${Date.now()}.pdf`, 
-              image: { type: 'jpeg', quality: 1.0 }, 
-              html2canvas: { scale: 2, useCORS: true }, 
-              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
+            pdfOpt = {
+              margin: 0,
+              filename: `document_${Date.now()}.pdf`,
+              image: { type: 'jpeg', quality: 1.0 },
+              html2canvas: { scale: 2, useCORS: true, windowWidth: 794 },
+              jsPDF: { unit: 'px', format: [794, 1122], orientation: 'portrait' },
+              pagebreak: { mode: 'css', avoid: ['.pdf-report'] }
             };
-
-            await window.html2pdf().set(opt).from(container).save();
-            document.body.removeChild(container);
           }
+
+          // PDF化するターゲット要素の"内側"にスタイルを含めることで、確実にCSSを適用させる
+          const pdfContent = `
+            <div id="pdf-container" style="font-family: ${fontFamily}; margin: 0; padding: 0; display: block; width: ${mode === 'slides' ? '1280px' : '794px'}; background-color: ${exportBgColor};">
+              <style>
+                * { box-sizing: border-box; }
+                .pdf-slide h1, .pdf-report h1 { font-size: 2.25rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; line-height: 1.2; }
+                .pdf-slide h2, .pdf-report h2 { font-size: 1.5rem; font-weight: 700; border-bottom: 1px solid currentColor; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; opacity: 0.9; }
+                .pdf-slide h3, .pdf-report h3 { font-size: 1.25rem; font-weight: 700; margin-top: 1.5em; margin-bottom: 0.5em; opacity: 0.9; }
+                .pdf-slide p, .pdf-report p { font-size: 1rem; line-height: 1.75; margin-top: 0; margin-bottom: 1em; }
+                .pdf-slide ul, .pdf-report ul, .pdf-slide ol, .pdf-report ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5rem; line-height: 1.75; }
+                .pdf-slide li, .pdf-report li { margin-bottom: 0.25rem; }
+                .pdf-slide blockquote, .pdf-report blockquote { border-left: 4px solid currentColor; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
+                .pdf-slide hr, .pdf-report hr { border: 0; border-top: 1px solid currentColor; opacity: 0.2; margin: 2rem 0; }
+                .pdf-slide strong, .pdf-report strong { font-weight: bold; }
+                .pdf-slide em, .pdf-report em { font-style: italic; }
+                .page-break { display: none !important; }
+              </style>
+              ${plainHTML}
+            </div>
+          `;
+
+          container.innerHTML = pdfContent;
+          document.body.appendChild(container);
+
+          // DOMの描画とスタイルの適用を待機（長めに待つ）
+          await new Promise(resolve => setTimeout(resolve, 800));
+
+          await window.html2pdf().set(pdfOpt).from(container.querySelector('#pdf-container')).save();
+
+          document.body.removeChild(container);
+          setIsExporting(false);
 
         } catch (error) {
           console.error("PDF Download Error:", error);
           alert("PDFの生成中にエラーが発生しました。");
-        } finally {
           setIsExporting(false);
         }
       };
@@ -892,10 +896,11 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           }
           .report-page {
             width: 210mm;
-            min-height: 297mm;
+            height: 296.5mm;
             padding: 20mm 20mm 30mm 20mm;
             position: relative;
             overflow: hidden;
+            box-sizing: border-box;
           }
 
           .export-container h1 { font-size: 2.25rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; line-height: 1.2; }
@@ -922,7 +927,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
               box-shadow: none;
               margin: 0;
               width: ${mode === 'slides' ? '297mm' : '210mm'};
-              height: ${mode === 'slides' ? '209.5mm' : 'auto'};
+              height: ${mode === 'slides' ? '209.5mm' : '296.5mm'};
               display: ${mode === 'slides' ? 'flex' : 'block'};
               align-items: center;
               justify-content: center;
@@ -932,20 +937,21 @@ AIアシスタントを導入することで、これらの課題を以下のよ
               break-inside: avoid;
             }
             .slide-page {
-              width: 297mm;
-              height: 167.06mm;
+              width: 297mm !important;
+              height: 167.1mm !important;
               padding: 15mm 25mm;
+              margin: 0 auto;
               box-shadow: none !important;
             }
             .report-page {
-              width: 210mm;
-              min-height: 296.5mm;
+              width: 210mm !important;
+              height: 296.5mm !important;
               margin: 0;
               box-shadow: none !important;
-              page-break-after: always;
-              break-after: page;
-              page-break-inside: avoid;
-              break-inside: avoid;
+              page-break-after: always !important;
+              break-after: page !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
             }
           }
         `;
@@ -1366,8 +1372,8 @@ ${plainHTML}
               {pages.map((pageContent, index) => (
                 <div 
                   key={index}
-                  className={`w-full max-w-[210mm] shadow-2xl transition-colors duration-300 ${layoutConfig.classes} ${colorClass} relative`}
-                  style={{ minHeight: '297mm', padding: '20mm 20mm 30mm 20mm', boxSizing: 'border-box' }}
+                  className={`w-full max-w-[210mm] shadow-2xl transition-colors duration-300 ${layoutConfig.classes} ${colorClass} relative overflow-hidden`}
+                  style={{ height: '296.5mm', padding: '20mm 20mm 30mm 20mm', boxSizing: 'border-box' }}
                 >
                   <div 
                     className="prose prose-lg max-w-none"
@@ -1546,11 +1552,18 @@ ${plainHTML}
         let targetText = splitByEOF[0];
         const eofText = splitByEOF.length > 1 ? '\n\n[EOF]' + splitByEOF[1] : '';
 
+        // 既存の改ページ記号を完全に削除し、一度プレーンな状態にする
+        targetText = targetText.replace(/^[ \t]*(?:===|---|ーーー|—-|——)[ \t]*$/gm, '');
+        // 改ページ削除によって生じた余分な空行を整理する
+        targetText = targetText.replace(/\n{3,}/g, '\n\n').trim();
+
         const lines = targetText.split('\n');
         const newLines = [];
         let currentWeight = 0;
         
-        const maxWeight = mode === 'report' ? 42 : 8; 
+        // A4用紙やスライドにロゴごと確実に収まるようにウェイトを設定
+        // ロゴが存在する場合は、1ページあたりの限界文字数を少なくして余白を確保する
+        const maxWeight = mode === 'report' ? (logoText ? 34 : 36) : (logoText ? 6 : 7); 
         
         let breakMark = '---';
         if (slideBreakMode === 'hr_eq') breakMark = '===';
@@ -1563,20 +1576,16 @@ ${plainHTML}
           const line = lines[i];
           const trimmed = line.trim();
 
-          if (/^(?:===|---|ーーー|—-|——)$/.test(trimmed)) {
-            currentWeight = 0;
-            newLines.push(line);
-            i++;
-            continue;
-          }
-
           let lineWeight = 1;
           if (trimmed === '') {
             lineWeight = 1;
-          } else if (trimmed.startsWith('#')) {
-            lineWeight = 2.5; 
+          } else if (trimmed.startsWith('# ')) {
+            lineWeight = 3; // 見出し1は大きくスペースを取る
+          } else if (trimmed.startsWith('## ') || trimmed.startsWith('### ')) {
+            lineWeight = 2; // 見出し2,3
           } else {
             const charPerLine = mode === 'report' ? 40 : 25;
+            // 行の折り返しを考慮した高さを算出
             lineWeight = Math.max(1, Math.ceil(trimmed.length / charPerLine) * 1.2);
           }
 
@@ -1585,14 +1594,17 @@ ${plainHTML}
             
             if (currentWeight + lineWeight > maxWeight) {
               shouldBreak = true;
-            } else if (currentWeight > maxWeight * 0.65 && trimmed.match(/^#{1,2}\s/)) {
+            } else if (currentWeight > maxWeight * 0.7 && trimmed.match(/^#{1,3}\s/)) {
+              // ページの下部に見出しだけが孤立するのを防ぐために改ページ
               shouldBreak = true;
             }
 
             if (shouldBreak) {
-              if (newLines.length > 0 && newLines[newLines.length - 1].trim() !== '') {
-                 newLines.push('');
+              // 改ページ前の余分な空行を削除
+              while (newLines.length > 0 && newLines[newLines.length - 1].trim() === '') {
+                 newLines.pop();
               }
+              newLines.push('');
               newLines.push(breakMark);
               newLines.push('');
               currentWeight = 0;
@@ -1605,7 +1617,6 @@ ${plainHTML}
         }
 
         let formattedText = newLines.join('\n').replace(/\n{3,}/g, '\n\n');
-        formattedText = formattedText.replace(/\n*(?:===|---|ーーー|—-|——)\n*/g, `\n\n${breakMark}\n\n`);
 
         setText(formattedText.trim() + eofText);
         setShowAutoPageBreakConfirm(false);
@@ -1621,9 +1632,21 @@ ${plainHTML}
         let targetText = splitByEOF[0];
         const eofText = splitByEOF.length > 1 ? '\n\n[EOF]' + splitByEOF[1] : '';
 
-        // 余分な空白行を整理 (3つ以上の連続する改行を2つに)
-        targetText = targetText.replace(/\n{3,}/g, '\n\n');
+        // --- 強制的に全ての装飾を一度クリアする ---
+        let plainLines = targetText.split('\n').map(line => {
+          const trimmed = line.trim();
+          // 改ページ記号を削除
+          if (/^(?:===|---|ーーー|—-|——)$/.test(trimmed)) return '';
+          // 行頭のMarkdown装飾記号を削除
+          let cleanLine = trimmed.replace(/^(?:#+\s+|- \s*|\d+\.\s+|> \s*)/, '');
+          // 文字列内の太字・斜体の装飾を削除
+          cleanLine = cleanLine.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
+          return cleanLine;
+        });
+        
+        targetText = plainLines.join('\n').replace(/\n{3,}/g, '\n\n');
 
+        // --- 再解析して最適な装飾を割り振る ---
         const lines = targetText.split('\n');
         let isFirstContentLine = true;
         let inList = false;
@@ -1631,17 +1654,9 @@ ${plainHTML}
         const newLines = lines.map((line, index) => {
           const trimmed = line.trim();
           
-          // 空行の場合
           if (!trimmed) {
              inList = false;
              return line;
-          }
-          
-          // 既にMarkdown見出し、リスト、引用、区切りの場合はスキップ
-          if (/^(#+ |- |\d+\.|> |===|---|ーーー|—-|——)/.test(trimmed)) {
-            isFirstContentLine = false;
-            inList = /^(- |\d+\.)/.test(trimmed);
-            return trimmed;
           }
           
           // 【見出し】や［見出し］のパターン
@@ -1693,12 +1708,10 @@ ${plainHTML}
           const isNextEmpty = nextLine === '';
 
           if (isShortNoPunctuation && !inList) {
-            // 最初の行は見出し1
             if (isFirstContentLine) {
               isFirstContentLine = false;
               return '# ' + trimmed; 
             } 
-            // 前後が空行なら見出し2として推測
             else if (isPrevEmpty && isNextEmpty) {
               return '## ' + trimmed; 
             }
