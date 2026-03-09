@@ -632,126 +632,202 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         return { fontFamily, docFontFamily, bgColorHex, textColorHex };
       };
 
-      const handleExportPDF = async () => {
-        setIsExporting(true);
+      const generateExportHTML = () => {
+        const { fontFamily, bgColorHex, textColorHex } = getThemeValues();
+        const exportBgColor = '#' + bgColorHex;
+        const exportTextColor = '#' + textColorHex;
+        const safeLogoText = String(logoText || '');
+        const escapedLogo = safeLogoText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
         
-        try {
-          const { fontFamily, bgColorHex, textColorHex } = getThemeValues();
-          const exportBgColor = '#' + bgColorHex;
-          const exportTextColor = '#' + textColorHex;
-          const safeLogoText = String(logoText || '');
-          const escapedLogo = safeLogoText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          
-          let plainHTML = '';
-          if (mode === 'slides') {
-            const slides = getSlides(activeText);
-            plainHTML = slides.map((s, index) => {
-              const l = slideLayouts[slideLayout] || slideLayouts.solid;
-              const currentSlideColor = slideColors[slideColor] || slideColors.blue;
-              const mainHexColor = (isSlideReversed && currentSlideColor.isTwoTone) ? currentSlideColor.hexRev : currentSlideColor.hex;
-              let innerStyles = '';
-              
-              if (l.type === 'accent') innerStyles = `border-left: 20px solid ${mainHexColor};`;
-              if (l.type === 'header') innerStyles = `border-top: 40px solid ${mainHexColor};`;
-              if (l.type === 'minimal') innerStyles = `border-top: 8px solid ${mainHexColor};`;
-              if (l.type === 'card') {
-                innerStyles = `background-color: #ffffff; color: #1f2937; margin: 5%; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); padding: 40px; height: 90%;`;
-              }
-
-              return `<div class="export-container slide-page" style="${innerStyles} display: flex; flex-direction: column; justify-content: center; position: relative;">
+        let plainHTML = '';
+        if (mode === 'slides') {
+          const slides = getSlides(activeText);
+          plainHTML = slides.map((s, index) => {
+            const l = slideLayouts[slideLayout] || slideLayouts.solid;
+            const currentSlideColor = slideColors[slideColor] || slideColors.blue;
+            const mainHexColor = (isSlideReversed && currentSlideColor.isTwoTone) ? currentSlideColor.hexRev : currentSlideColor.hex;
+            
+            let slideBgColor = exportBgColor;
+            let slideTextColor = exportTextColor;
+            if (l.type === 'accent' || l.type === 'header') {
+                slideBgColor = '#ffffff';
+                slideTextColor = '#1f2937';
+            }
+            
+            let innerStyles = '';
+            let cardContent = '';
+            
+            if (l.type === 'accent') innerStyles = `border-left: 20px solid ${mainHexColor};`;
+            if (l.type === 'header') innerStyles = `border-top: 40px solid ${mainHexColor};`;
+            if (l.type === 'minimal') innerStyles = `border-top: 8px solid ${mainHexColor};`;
+            
+            if (l.type === 'card') {
+              cardContent = `
+                <div style="background-color: #ffffff; color: #1f2937; width: 90%; height: 86%; margin: auto; border-radius: 16px; padding: 40px; display: flex; flex-direction: column; justify-content: center; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
                   <div style="position: absolute; right: 2rem; bottom: 2rem; font-size: 1rem; opacity: 0.5; font-family: monospace;">${index + 1}</div>
                   ${safeLogoText ? `<div style="position: absolute; right: 2rem; bottom: 1rem; font-size: 0.875rem; opacity: 0.5; font-family: inherit;">${escapedLogo}</div>` : ''}
                   ${parseMarkdown(s, true, true, '', slideBreakMode)}
-              </div>`;
-            }).join('\n');
-          } else {
-            let pages;
-            if (slideBreakMode === 'none') {
-              pages = [getProcessedReportText(activeText)];
+                </div>
+              `;
             } else {
-              pages = getProcessedReportText(activeText).split(/\n*(?:===|---|ーーー|—-|——)\n*/).filter(p => p.trim() !== '');
-              if (pages.length === 0) pages.push('');
+              cardContent = `
+                <div style="position: absolute; right: 2rem; bottom: 2rem; font-size: 1rem; opacity: 0.5; font-family: monospace;">${index + 1}</div>
+                ${safeLogoText ? `<div style="position: absolute; right: 2rem; bottom: 1rem; font-size: 0.875rem; opacity: 0.5; font-family: inherit;">${escapedLogo}</div>` : ''}
+                ${parseMarkdown(s, true, true, '', slideBreakMode)}
+              `;
             }
-            plainHTML = pages.map((pageContent, index) => {
-              return `<div class="export-container report-page" style="position: relative;">
+
+            return `<div class="page-wrapper">
+              <div class="export-container slide-page" style="background-color: ${slideBgColor}; color: ${slideTextColor}; ${innerStyles}">
+                ${cardContent}
+              </div>
+            </div>`;
+          }).join('\n');
+        } else {
+          let pages;
+          if (slideBreakMode === 'none') {
+            pages = [getProcessedReportText(activeText)];
+          } else {
+            pages = getProcessedReportText(activeText).split(/\n*(?:===|---|ーーー|—-|——)\n*/).filter(p => p.trim() !== '');
+            if (pages.length === 0) pages.push('');
+          }
+          plainHTML = pages.map((pageContent, index) => {
+            return `<div class="page-wrapper">
+              <div class="export-container report-page" style="background-color: ${exportBgColor}; color: ${exportTextColor};">
                 ${parseMarkdown(pageContent, false, true, logoText, slideBreakMode)}
                 ${safeLogoText && slideBreakMode !== 'none' ? `<div class="doc-logo" style="position: absolute; right: 20mm; bottom: 20mm; font-size: 0.75rem; opacity: 0.6; font-family: inherit;">${escapedLogo}</div>` : ''}
-              </div>`;
-            }).join('\n');
+              </div>
+            </div>`;
+          }).join('\n');
+        }
+        
+        const customStyles = `
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            box-sizing: border-box;
           }
+          @page {
+            size: ${mode === 'slides' ? 'A4 landscape' : 'A4 portrait'};
+            margin: 0;
+          }
+          html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+          }
+          body { 
+            font-family: ${fontFamily}; 
+            background-color: #e5e7eb; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+            padding: 2rem 0;
+          }
+          .page-wrapper {
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            background-color: transparent;
+          }
+          .slide-page {
+            width: 1280px;
+            height: 720px;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+          }
+          .report-page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm 20mm 30mm 20mm;
+            position: relative;
+            overflow: hidden;
+          }
+
+          .export-container h1 { font-size: 2.25rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; line-height: 1.2; }
+          .export-container h2 { font-size: 1.5rem; font-weight: 700; border-bottom: 1px solid currentColor; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; opacity: 0.9; }
+          .export-container h3 { font-size: 1.25rem; font-weight: 700; margin-top: 1.5em; margin-bottom: 0.5em; opacity: 0.9; }
+          .export-container p { font-size: 1rem; line-height: 1.75; margin-top: 0; margin-bottom: 1em; }
+          .export-container ul, .export-container ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5rem; line-height: 1.75; }
+          .export-container li { margin-bottom: 0.25rem; }
+          .export-container blockquote { border-left: 4px solid currentColor; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
+          .export-container hr { border: 0; border-top: 1px solid currentColor; opacity: 0.2; margin: 2rem 0; }
+          .export-container strong { font-weight: bold; }
+          .export-container em { font-style: italic; }
           
-          const containerBgColor = mode === 'slides' && slideLayouts[slideLayout]?.type === 'card' ? 'transparent' : exportBgColor;
-          const displayFlex = mode === 'slides' ? 'flex' : 'block';
-          
-          const customStyles = `
-            * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              box-sizing: border-box;
-            }
-            @page {
-              size: ${mode === 'slides' ? '1280px 720px' : 'A4 portrait'};
-              margin: 0;
-            }
+          .page-break { display: none !important; }
+
+          @media print {
             body { 
-              font-family: ${fontFamily}; 
-              background-color: ${mode === 'slides' && slideLayouts[slideLayout]?.type === 'card' ? exportBgColor : '#ffffff'}; 
-              color: ${exportTextColor}; 
-              margin: 0; 
+              background-color: transparent !important; 
               padding: 0; 
-              ${mode === 'slides' ? 'width: 1280px; height: 720px;' : ''}
+              margin: 0; 
+              display: block; 
             }
-            .export-container { 
-              background-color: ${containerBgColor}; 
-              color: ${exportTextColor}; 
-              padding: ${mode === 'slides' ? '50px 80px' : '20mm 20mm 30mm 20mm'}; 
-              width: ${mode === 'slides' ? '1280px' : '100%'}; 
-              height: ${mode === 'slides' ? '720px' : 'auto'};
-              min-height: ${mode === 'slides' ? '720px' : '297mm'};
-              display: ${displayFlex};
-              flex-direction: column;
-              justify-content: ${mode === 'slides' ? 'center' : 'flex-start'};
+            .page-wrapper {
+              box-shadow: none;
+              margin: 0;
+              width: ${mode === 'slides' ? '297mm' : '210mm'};
+              height: ${mode === 'slides' ? '209.5mm' : 'auto'};
+              display: block;
+              padding-top: ${mode === 'slides' ? '21.2mm' : '0'};
+              box-sizing: border-box;
               page-break-after: always;
               break-after: page;
-              position: relative;
-              overflow: ${mode === 'slides' ? 'hidden' : 'visible'};
+              page-break-inside: avoid;
+              break-inside: avoid;
             }
-            .export-container h1 { font-size: 2.25rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; line-height: 1.2; }
-            .export-container h2 { font-size: 1.5rem; font-weight: 700; border-bottom: 1px solid currentColor; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; opacity: 0.9; }
-            .export-container h3 { font-size: 1.25rem; font-weight: 700; margin-top: 1.5em; margin-bottom: 0.5em; opacity: 0.9; }
-            .export-container p { font-size: 1rem; line-height: 1.75; margin-top: 0; margin-bottom: 1em; }
-            .export-container ul, .export-container ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5rem; line-height: 1.75; }
-            .export-container li { margin-bottom: 0.25rem; }
-            .export-container blockquote { border-left: 4px solid currentColor; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
-            .export-container hr { border: 0; border-top: 1px solid currentColor; opacity: 0.2; margin: 2rem 0; }
-            .export-container strong { font-weight: bold; }
-            .export-container em { font-style: italic; }
-            
-            .slide-page { width: 1280px; height: 720px; overflow: hidden; }
-            .page-break { page-break-before: always !important; break-before: page !important; height: 0; margin: 0; padding: 0; border: none; display: none; }
-          `;
+            .slide-page {
+              width: 297mm !important;
+              height: 167.1mm !important;
+              padding: 15mm 25mm;
+              margin: 0 auto;
+              box-shadow: none !important;
+            }
+            .report-page {
+              width: 210mm !important;
+              min-height: 296.5mm !important;
+              margin: 0;
+              box-shadow: none !important;
+              page-break-after: always;
+              break-after: page;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+          }
+        `;
 
-          const bodyBgColor = mode === 'slides' && slideLayouts[slideLayout]?.type === 'card' ? exportBgColor : '#ffffff';
-          const htmlTemplate = "<!DOCTYPE html>\n" +
-          "<html lang=\"ja\">\n" +
-          "<head>\n" +
-          "  <meta charset=\"UTF-8\">\n" +
-          "  <title>PDF出力プレビュー</title>\n" +
-          "  <style>\n" + customStyles + "\n  </style>\n" +
-          "</head>\n" +
-          "<body style=\"background-color: " + bodyBgColor + ";\">\n" +
-          "  " + plainHTML + "\n" +
-          "  <script>\n" +
-          "    window.onload = function() {\n" +
-          "      setTimeout(function() {\n" +
-          "        window.print();\n" +
-          "      }, 500);\n" +
-          "    };\n" +
-          "  <" + "/script>\n" +
-          "</body>\n" +
-          "</html>";
+        return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exported Document</title>
+  <style>
+${customStyles}
+  </style>
+</head>
+<body>
+${plainHTML}
+  <script>
+    if (window.name === 'pdf_export_window') {
+      window.onload = function() {
+        setTimeout(function() { window.print(); }, 500);
+      };
+    }
+  <` + `/script>
+</body>
+</html>`;
+      };
 
-          const printWindow = window.open('', '_blank');
+      const handleExportPDF = async () => {
+        setIsExporting(true);
+        try {
+          const htmlTemplate = generateExportHTML();
+          const printWindow = window.open('', 'pdf_export_window');
           if (printWindow) {
             printWindow.document.open();
             printWindow.document.write(htmlTemplate);
@@ -759,13 +835,31 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           } else {
             alert("ポップアップがブロックされました。ブラウザの設定でポップアップ（新しいウィンドウ）を許可してください。");
           }
-
-          setIsExporting(false);
-
         } catch (error) {
           console.error("Print/PDF Export Error:", error);
           alert("出力準備中にエラーが発生しました。");
+        } finally {
           setIsExporting(false);
+        }
+      };
+
+      const handleExportHTML = () => {
+        try {
+          const htmlTemplate = generateExportHTML();
+          const blob = new Blob([htmlTemplate], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          const fileDownload = document.createElement("a");
+          document.body.appendChild(fileDownload);
+          fileDownload.href = url;
+          fileDownload.download = `document_${Date.now()}.html`;
+          fileDownload.target = "_blank";
+          fileDownload.rel = "noopener noreferrer";
+          fileDownload.click();
+          document.body.removeChild(fileDownload);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (error) {
+          console.error("HTML Export Error:", error);
+          alert("HTML出力中にエラーが発生しました。");
         }
       };
 
@@ -1081,119 +1175,6 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         } finally {
           setIsExporting(false);
         }
-      };
-
-      const handleExportHTML = () => {
-        const { fontFamily, bgColorHex, textColorHex } = getThemeValues();
-        const exportBgColor = '#' + bgColorHex;
-        const exportTextColor = '#' + textColorHex;
-        const safeLogoText = String(logoText || '');
-        const escapedLogo = safeLogoText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        
-        let plainHTML = '';
-        if (mode === 'slides') {
-          const slides = getSlides(activeText);
-          plainHTML = slides.map((s, index) => {
-            const l = slideLayouts[slideLayout] || slideLayouts.solid;
-            const currentSlideColor = slideColors[slideColor] || slideColors.blue;
-            const mainHexColor = (isSlideReversed && currentSlideColor.isTwoTone) ? currentSlideColor.hexRev : currentSlideColor.hex;
-            let innerStyles = '';
-            
-            if (l.type === 'accent') innerStyles = `border-left: 20px solid ${mainHexColor};`;
-            if (l.type === 'header') innerStyles = `border-top: 40px solid ${mainHexColor};`;
-            if (l.type === 'minimal') innerStyles = `border-top: 8px solid ${mainHexColor};`;
-            if (l.type === 'card') {
-              innerStyles = `background-color: #ffffff; color: #1f2937; margin: 5%; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); padding: 40px; height: 90%;`;
-            }
-
-            return `<div class="export-container slide-page" style="${innerStyles} display: flex; flex-direction: column; justify-content: center; position: relative;">
-                <div style="position: absolute; right: 1.5rem; bottom: 2rem; font-size: 0.875rem; opacity: 0.5; font-family: monospace;">${index + 1}</div>
-                ${safeLogoText ? `<div style="position: absolute; right: 1.5rem; bottom: 1rem; font-size: 0.75rem; opacity: 0.5; font-family: inherit;">${escapedLogo}</div>` : ''}
-                ${parseMarkdown(s, true, true, '', slideBreakMode)}
-            </div>`;
-          }).join('\n');
-        } else {
-          let pages;
-          if (slideBreakMode === 'none') {
-            pages = [getProcessedReportText(activeText)];
-          } else {
-            pages = getProcessedReportText(activeText).split(/\n*(?:===|---|ーーー|—-|——)\n*/).filter(p => p.trim() !== '');
-            if (pages.length === 0) pages.push('');
-          }
-          plainHTML = pages.map((pageContent, index) => {
-            return `<div class="export-container report-page" style="position: relative;">
-              ${parseMarkdown(pageContent, false, true, logoText, slideBreakMode)}
-              ${safeLogoText && slideBreakMode !== 'none' ? `<div class="doc-logo" style="position: absolute; right: 20mm; bottom: 20mm; font-size: 0.75rem; opacity: 0.6; font-family: inherit;">${escapedLogo}</div>` : ''}
-            </div>`;
-          }).join('\n');
-        }
-        
-        const containerBgColor = mode === 'slides' && slideLayouts[slideLayout]?.type === 'card' ? 'transparent' : exportBgColor;
-        const containerShadow = mode === 'slides' && slideLayouts[slideLayout]?.type === 'card' ? 'none' : '0 10px 15px -3px rgba(0,0,0,0.1)';
-        const displayFlex = mode === 'slides' ? 'flex' : 'block';
-        
-        const customStyles = `
-          body { font-family: ${fontFamily}; background-color: #e5e7eb; color: ${exportTextColor}; margin: 0; padding: 2rem 0; display: flex; flex-direction: column; align-items: center; }
-          .export-container { 
-            background-color: ${containerBgColor}; 
-            color: ${exportTextColor}; 
-            padding: ${mode === 'slides' ? '50px 80px' : '20mm 20mm 30mm 20mm'}; 
-            margin-bottom: 2rem; 
-            width: 100%; 
-            max-width: ${mode === 'slides' ? '1280px' : '210mm'}; 
-            aspect-ratio: ${mode === 'slides' ? '16/9' : 'auto'};
-            box-shadow: ${containerShadow}; 
-            box-sizing: border-box; 
-            min-height: ${mode === 'slides' ? 'auto' : '297mm'};
-            display: ${displayFlex};
-            flex-direction: column;
-            justify-content: ${mode === 'slides' ? 'center' : 'flex-start'};
-            position: relative;
-          }
-          .export-container h1 { font-size: 2.25rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; line-height: 1.2; }
-          .export-container h2 { font-size: 1.5rem; font-weight: 700; border-bottom: 1px solid currentColor; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; opacity: 0.9; }
-          .export-container h3 { font-size: 1.25rem; font-weight: 700; margin-top: 1.5em; margin-bottom: 0.5em; opacity: 0.9; }
-          .export-container p { font-size: 1rem; line-height: 1.75; margin-top: 0; margin-bottom: 1em; }
-          .export-container ul, .export-container ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5rem; line-height: 1.75; }
-          .export-container li { margin-bottom: 0.25rem; }
-          .export-container blockquote { border-left: 4px solid currentColor; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
-          .export-container hr { border: 0; border-top: 1px solid currentColor; opacity: 0.2; margin: 2rem 0; }
-          .export-container strong { font-weight: bold; }
-          .export-container em { font-style: italic; }
-          
-          @media print {
-            body { background-color: transparent; padding: 0; display: block; }
-            .export-container { box-shadow: none; margin: 0; max-width: 100%; min-height: auto; padding: 2cm; }
-            .slide-page { width: 100%; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; page-break-after: always; break-after: page; }
-            .page-break { page-break-before: always !important; break-before: page !important; display: none; }
-          }
-        `;
-
-        const bodyBgColor = mode === 'slides' && slideLayouts[slideLayout]?.type === 'card' ? exportBgColor : '#e5e7eb';
-        const htmlTemplate = "<!DOCTYPE html>\n" +
-        "<html lang=\"ja\">\n" +
-        "<head>\n" +
-        "  <meta charset=\"UTF-8\">\n" +
-        "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n" +
-        "  <title>Exported Document</title>\n" +
-        "  <style>\n" + customStyles + "\n  </style>\n" +
-        "</head>\n" +
-        "<body style=\"background-color: " + bodyBgColor + ";\">\n" +
-        "  " + plainHTML + "\n" +
-        "</body>\n" +
-        "</html>";
-
-        const blob = new Blob([htmlTemplate], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const fileDownload = document.createElement("a");
-        document.body.appendChild(fileDownload);
-        fileDownload.href = url;
-        fileDownload.download = `document_${Date.now()}.html`;
-        fileDownload.target = "_blank";
-        fileDownload.rel = "noopener noreferrer";
-        fileDownload.click();
-        document.body.removeChild(fileDownload);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
       };
 
       const renderPreviewContent = () => {
