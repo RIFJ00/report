@@ -1470,11 +1470,12 @@
         const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
         
         const docFontFamily = layoutConfig.fontFamily.split(',')[0].replace(/['"]/g, '');
-        const wText = t.text.replace('#', '');
-        const wTextBold = t.textBold.replace('#', '');
-        const wTextMuted = t.textMuted.replace('#', '');
-        const wAccent = t.accent.replace('#', '');
-        const bgColorHex = t.container.replace('#', '');
+        // # を確実に除去してWordライブラリに渡す
+        const wText = (t.text || '333333').replace('#', '');
+        const wTextBold = (t.textBold || '111827').replace('#', '');
+        const wTextMuted = (t.textMuted || '888888').replace('#', '');
+        const wAccent = (t.accent || '1d4ed8').replace('#', '');
+        const bgColorHex = (t.container || 'ffffff').replace('#', '');
 
         const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink, Footer } = window.docx;
         
@@ -1628,6 +1629,33 @@
       const a = document.createElement('a');
       a.href = url;
       a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_レポート.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function handleExportReportText() {
+      if (!state.aiSummary) return;
+
+      const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+      let content = `■ 検索キーワード: ${state.query}\n`;
+      content += `■ 生成日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
+      content += `■ 分析結果のレポート\n${state.aiSummary}\n\n`;
+      if (includeSources && state.results && state.results.length > 0) {
+        content += `■ 参考としたWEBサイト一覧\n`;
+        state.results.forEach((r, i) => { 
+          content += `[${i + 1}] ${r.title}\n`; 
+          if (r.siteName) content += `    サイト名: ${r.siteName}\n`;
+          content += `    URL: ${r.url}\n`;
+          if (r.description) content += `    概要: ${r.description}\n`;
+          content += `\n`;
+        });
+      }
+      content += `\n${state.slideLogoText}\n`;
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_回答.txt`;
       a.click();
       URL.revokeObjectURL(url);
     }
