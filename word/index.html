@@ -308,7 +308,7 @@
           </div>
         </div>
 
-        <button onclick="handleDownloadHTML()" class="flex items-center space-x-1.5 sm:space-x-2 bg-gray-800 hover:bg-gray-700 text-white px-2 sm:px-4 py-2 rounded-md transition-colors text-xs sm:text-sm border border-gray-700" title="印刷用HTMLを保存">
+        <button onclick="handleDownloadHTML()" class="flex items-center space-x-1.5 sm:space-x-2 bg-gray-800 hover:bg-gray-700 text-white px-2 sm:px-4 py-2 rounded-md transition-colors text-xs sm:text-sm border border-gray-700" title="HTMLを保存">
           <i data-lucide="file-code" class="h-4 w-4"></i>
           <span class="hidden sm:inline">HTML</span>
         </button>
@@ -393,7 +393,7 @@
       };
     }
 
-    // レポート用の設定定義 (DocCraftベースを統合)
+    // レポート用の設定定義
     const reportLayouts = {
       modern: { name: 'モダン (Sans)', fontFamily: "'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif" },
       classic: { name: 'クラシック (Serif)', fontFamily: "'Yu Mincho', 'MS Mincho', serif" },
@@ -440,7 +440,7 @@
         container: t.container,
         text: t.text,
         textBold: t.textBold,
-        textMuted: t.border, // 単色テーマの場合はボーダー色などで代用
+        textMuted: t.border,
         accent: t.accent,
         border: t.border
       };
@@ -464,7 +464,7 @@
       aiSummary: '',
       isLoading: false,
       error: null,
-      view: 'home', // 'home', 'results', 'saved'
+      view: 'home', 
       
       // スライド関連
       isGeneratingSlide: false,
@@ -474,8 +474,8 @@
       isSlideReversed: false,
       
       // レポート関連
-      reportPages: [], // 元のMarkdownテキスト配列
-      reportPagesHtml: [], // 編集可能なHTML文字列配列
+      reportPages: [], 
+      reportPagesHtml: [], 
       reportLayout: 'modern',
       reportThemeId: 'default',
       isReportReversed: false,
@@ -1274,29 +1274,28 @@
     }
 
     // --- レポート機能 ---
-    function parseMarkdownForReport(markdown) {
+    function parseMarkdownForReport(markdown, t) {
       if (!markdown) return '';
       let html = String(markdown);
       html = html
-        .replace(/^### (.*$)/gim, `<h3>$1</h3>`)
-        .replace(/^## (.*$)/gim, `<h2>$1</h2>`)
-        .replace(/^# (.*$)/gim, `<h1>$1</h1>`)
-        .replace(/^\> (.*$)/gim, `<blockquote>$1</blockquote>`)
-        .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" />')
-        .replace(/\*\*(.*?)\*\*/gim, `<strong>$1</strong>`)
-        .replace(/\*(.*?)\*/gim, `<em>$1</em>`)
-        .replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank">$1</a>`);
+        .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: ${t.textBold}">$1</h3>`)
+        .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid ${t.border}; color: ${t.textBold}">$1</h2>`)
+        .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: ${t.accent}">$1</h1>`)
+        .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid ${t.accent}; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0;">$1</blockquote>`)
+        .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);" />')
+        .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: ${t.textBold}">$1</strong>`)
+        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic;">$1</em>`);
 
-      html = html.replace(/^- (.*$)/gim, '<li>$1</li>');
-      html = html.replace(/^\d+\. (.*$)/gim, '<li>$1</li>');
+      html = html.replace(/^- (.*$)/gim, '<li style="margin-bottom: 0.5rem;">$1</li>');
+      html = html.replace(/^\d+\. (.*$)/gim, '<li style="margin-bottom: 0.5rem;">$1</li>');
       
-      html = html.replace(/(<li>.*<\/li>\n?)+/g, match => `<ul>\n${match}</ul>\n`);
+      html = html.replace(/(<li style="margin-bottom: 0.5rem;">.*<\/li>\n?)+/g, match => `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-position: outside; line-height: 1.8;">${match}</ul>`);
 
       const lines = html.split('\n');
       const parsedLines = lines.map(line => {
         const trimmed = line.trim();
         if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div|<img)/.test(trimmed)) return line;
-        return `<p>${line}</p>`;
+        return `<p style="line-height: 1.8; margin-bottom: 1rem;">${line}</p>`;
       });
 
       return parsedLines.join('\n');
@@ -1391,7 +1390,8 @@
       state.reportPages = splitTextIntoPages(fullText, maxWeight);
       
       // MarkdownからHTMLを生成し、状態として保持する（以降の編集ベースとなる）
-      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page));
+      const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
+      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page, t));
       
       renderReportThemeSelector();
       renderReport();
@@ -1583,6 +1583,13 @@
         const docChildren = [];
         const parser = new DOMParser();
 
+        docChildren.push(
+          new Paragraph({ text: state.query, heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER, spacing: { after: 400 } }),
+          new Paragraph({ children: [new TextRun({ text: `作成日時: ${new Date().toLocaleString('ja-JP')}`, color: wTextMuted })], alignment: AlignmentType.RIGHT, spacing: { after: 400 } }),
+          new Paragraph({ text: "分析結果のレポート", heading: HeadingLevel.HEADING_1 })
+        );
+
+        // プレビューのHTML(編集内容を含む)を解析してWordドキュメントを構築する
         state.reportPagesHtml.forEach((htmlStr, pageIdx) => {
             if (pageIdx > 0) {
                docChildren.push(new Paragraph({ text: "", pageBreakBefore: true }));
@@ -1590,10 +1597,7 @@
             const docEl = parser.parseFromString(htmlStr, 'text/html');
             
             const processNode = (node) => {
-                if (node.nodeType === Node.TEXT_NODE) {
-                    const text = node.textContent.trim();
-                    if (text) docChildren.push(new Paragraph({ children: [new TextRun({ text, color: wText })] }));
-                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
                     const tag = node.tagName.toLowerCase();
                     if (tag === 'h1') {
                         docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_1 }));
@@ -1605,7 +1609,7 @@
                         const runs = [];
                         node.childNodes.forEach(child => {
                             if (child.nodeType === Node.TEXT_NODE) {
-                                runs.push(new TextRun({ text: child.textContent, color: wText }));
+                                if (child.textContent) runs.push(new TextRun({ text: child.textContent, color: wText }));
                             } else if (child.nodeType === Node.ELEMENT_NODE) {
                                 const cTag = child.tagName.toLowerCase();
                                 if (cTag === 'strong' || cTag === 'b') {
@@ -1613,7 +1617,7 @@
                                 } else if (cTag === 'em' || cTag === 'i') {
                                     runs.push(new TextRun({ text: child.textContent, italics: true, color: wText }));
                                 } else if (cTag === 'a') {
-                                    runs.push(new TextRun({ text: child.textContent, color: wAccent, underline: {} }));
+                                    runs.push(new TextRun({ text: child.textContent, color: wAccent }));
                                 } else {
                                     runs.push(new TextRun({ text: child.textContent, color: wText }));
                                 }
@@ -1623,13 +1627,31 @@
                     } else if (tag === 'ul' || tag === 'ol') {
                         node.childNodes.forEach(li => {
                             if (li.nodeType === Node.ELEMENT_NODE && li.tagName.toLowerCase() === 'li') {
-                                docChildren.push(new Paragraph({ text: li.textContent, bullet: { level: 0 }, color: wText }));
+                                docChildren.push(new Paragraph({ 
+                                    children: [new TextRun({ text: li.textContent, color: wText })],
+                                    bullet: { level: 0 } 
+                                }));
                             }
                         });
                     } else if (tag === 'blockquote') {
-                        docChildren.push(new Paragraph({ text: node.textContent, indent: { left: 720 }, italics: true, color: wText }));
+                        docChildren.push(new Paragraph({ 
+                            children: [new TextRun({ text: node.textContent, italics: true, color: wText })],
+                            indent: { left: 720 } 
+                        }));
+                    } else if (tag === 'img') {
+                         const alt = node.getAttribute('alt') || '画像';
+                         docChildren.push(new Paragraph({
+                             children: [new TextRun({ text: `[画像: ${alt}]`, italics: true, color: wTextMuted })],
+                             alignment: AlignmentType.CENTER,
+                             spacing: { before: 150, after: 150 }
+                         }));
                     } else {
                         node.childNodes.forEach(processNode);
+                    }
+                } else if (node.nodeType === Node.TEXT_NODE) {
+                    const text = node.textContent.trim();
+                    if (text) {
+                        docChildren.push(new Paragraph({ children: [new TextRun({ text, color: wText })] }));
                     }
                 }
             };
@@ -1707,13 +1729,6 @@
   .page { width: 210mm; min-height: 297mm; background: ${t.container}; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-radius: 8px; padding: 20mm; box-sizing: border-box; position: relative; }
   .logo { position: absolute; right: 20mm; bottom: 20mm; font-size: 0.8rem; opacity: 0.6; color: ${t.textMuted}; }
   .page-num { position: absolute; left: 20mm; bottom: 20mm; font-size: 0.8rem; opacity: 0.6; color: ${t.textMuted}; font-family: monospace; }
-  .print-btn-container { width: 100%; max-width: 210mm; text-align: right; margin-bottom: 10px; }
-  .print-btn { padding: 10px 20px; background: ${t.accent}; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-  @media print {
-    body { background: white; padding: 0; gap: 0; display: block; }
-    .print-btn-container { display: none; }
-    .page { box-shadow: none; border-radius: 0; margin: 0; page-break-after: always; min-height: auto; height: 100vh; }
-  }
   
   /* レポート用コンテンツスタイル */
   .report-content { white-space: pre-wrap; }
@@ -1732,7 +1747,6 @@
 </style>
 </head>
 <body>
-<div class="print-btn-container"><button class="print-btn" onclick="window.print()">この資料を印刷・PDF保存</button></div>
 `;
       
       state.reportPagesHtml.forEach((pageHtml, idx) => {
@@ -1994,7 +2008,6 @@
       if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
     };
 
-    // --- ダウンロード ---
     function handleDownloadHTML() {
       if (state.slideData.length === 0) return;
       const themeConfig = getSlideThemeColors(state.currentThemeId, state.isSlideReversed);
@@ -2023,20 +2036,9 @@
   .content li { margin-bottom: 1.5cqw; }
   .page-num { position: absolute; bottom: 2cqw; left: 2cqw; font-size: 1.2cqw; color: ${theme.subText}; font-weight: bold; }
   .logo-text { position: absolute; bottom: 2cqw; right: 2cqw; font-size: 1cqw; color: ${theme.subText}; }
-  .print-btn-container { width: 100%; max-width: 1200px; display: flex; justify-content: flex-end; margin-bottom: -1vw; }
-  .print-btn { padding: 12px 24px; background: ${theme.accent}; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s; }
-  .print-btn:hover { opacity: 0.9; transform: translateY(-2px); }
-  @media print {
-    @page { size: 16in 9in; margin: 0; }
-    body { background: white; padding: 0; gap: 0; display: block; }
-    .print-btn-container { display: none; }
-    .container-query { max-width: none; page-break-after: always; page-break-inside: avoid; margin-bottom: 0; }
-    .slide-container { box-shadow: none; border-radius: 0; width: 100vw; height: 56.25vw; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  }
 </style>
 </head>
 <body>
-<div class="print-btn-container"><button class="print-btn" onclick="window.print()">この資料をPDFで保存・印刷</button></div>
 `;
       state.slideData.forEach((slide, idx) => {
         const isTitleSlide = idx === 0;
