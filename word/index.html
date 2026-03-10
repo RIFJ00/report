@@ -12,11 +12,14 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <!-- Word (.docx) 生成用ライブラリ (安定版の8.2.3に固定) -->
   <script src="https://cdn.jsdelivr.net/npm/docx@8.2.3/build/index.js"></script>
+  <!-- PDF 生成用ライブラリ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     /* カスタムアニメーション */
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     .animate-in { animation: fadeIn 0.5s ease-out forwards; }
-    /* スクロールバー非表示（スライドテーマ選択用） */
+    /* スクロールバー非表示 */
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
   </style>
@@ -212,6 +215,65 @@
     </footer>
   </div>
 
+  <!-- レポートプレビューモーダル -->
+  <div id="report-modal" class="hidden fixed inset-0 z-50 flex flex-col bg-gray-200 dark:bg-gray-900 animate-in duration-300">
+    <div class="flex items-center justify-between p-3 sm:p-4 bg-white dark:bg-[#202124] border-b border-gray-200 dark:border-gray-700 shadow-sm z-20">
+      <div class="flex items-center space-x-3 text-gray-800 dark:text-gray-100">
+        <i data-lucide="file-text" class="h-6 w-6 text-blue-600"></i>
+        <div>
+          <h2 class="text-base sm:text-lg font-semibold leading-tight">レポートプレビュー</h2>
+          <p class="text-xs text-gray-500 hidden sm:block">スクロールして全ページを確認できます</p>
+        </div>
+      </div>
+      <button onclick="closeReportModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1"><i data-lucide="x-circle" class="h-6 w-6 sm:h-8 sm:w-8"></i></button>
+    </div>
+
+    <!-- プレビュー領域 -->
+    <div class="flex-grow w-full relative flex flex-col items-center p-4 sm:p-8 overflow-y-auto" id="report-preview-container">
+       <!-- JSでA4ページ要素を描画 -->
+    </div>
+
+    <!-- 下部操作バー -->
+    <div class="bg-white dark:bg-[#202124] border-t border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="flex items-center bg-gray-50 dark:bg-[#303134] rounded-lg p-1 border border-gray-200 dark:border-gray-600">
+          <i data-lucide="layout-template" class="h-4 w-4 text-gray-500 mx-2"></i>
+          <select id="report-layout-select" onchange="updateReportSettings()" class="bg-transparent text-sm text-gray-700 dark:text-gray-300 focus:outline-none pr-2 py-1 cursor-pointer appearance-none font-medium">
+             <!-- JSで生成 -->
+          </select>
+        </div>
+        
+        <!-- レポート用：丸いカラーボタンリスト -->
+        <div class="flex items-center bg-gray-50 dark:bg-[#303134] rounded-lg p-1 border border-gray-200 dark:border-gray-600" title="テーマカラーを選択">
+          <i data-lucide="palette" class="h-4 w-4 text-gray-400 mx-2 shrink-0"></i>
+          <div id="report-theme-selector" class="flex items-center space-x-1.5 overflow-x-auto hide-scrollbar px-1">
+            <!-- JSで生成 -->
+          </div>
+        </div>
+
+        <label class="flex items-center space-x-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none ml-2 border-l border-gray-300 pl-3">
+          <input type="checkbox" id="report-include-sources" onchange="openReportModal()" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" checked>
+          <span>参考データを付ける</span>
+        </label>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="handleExportReportText()" class="flex items-center space-x-1.5 text-sm bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+          <i data-lucide="file" class="h-4 w-4"></i><span class="hidden sm:inline">テキスト</span>
+        </button>
+        <button onclick="handleExportReportHTML()" class="flex items-center space-x-1.5 text-sm bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+          <i data-lucide="file-code" class="h-4 w-4"></i><span class="hidden sm:inline">HTML</span>
+        </button>
+        <button id="btn-export-word" onclick="handleExportReportWord()" class="flex items-center space-x-1.5 text-sm bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors font-medium shadow-sm">
+          <i data-lucide="file-text" class="h-4 w-4"></i><span>Word</span>
+        </button>
+        <button id="btn-export-pdf" onclick="handleExportReportPDF()" class="flex items-center space-x-1.5 text-sm bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm">
+          <i data-lucide="download" class="h-4 w-4"></i><span>PDF出力</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- スライドプレビューモーダル -->
   <div id="slide-modal" class="hidden fixed inset-0 z-50 flex flex-col bg-gray-900 backdrop-blur-md animate-in duration-300">
     <div class="flex items-center justify-between p-3 sm:p-4 bg-gray-950 text-white border-b border-gray-800 shadow-xl z-20">
@@ -288,18 +350,58 @@
       { id: 'mint-choco', name: 'ミント＆チョコ', bg: ['#e0f2f1', '#b2dfdb'], text: '#3e2723', accent: '#d84315', subText: '#5d4037' }
     ];
 
-    // レポート用の配色テーマ定義
-    const REPORT_THEMES = {
-      'default': { bg: '#f3f4f6', container: '#ffffff', text: '#333333', textBold: '#111827', textMuted: '#6b7280', accent: '#1d4ed8', border: '#e5e7eb', sourceBg: '#f9fafb' },
-      'modern-blue': { bg: '#e0f2fe', container: '#ffffff', text: '#1e293b', textBold: '#0f172a', textMuted: '#64748b', accent: '#0ea5e9', border: '#e2e8f0', sourceBg: '#f8fafc' },
-      'elegant-dark': { bg: '#111827', container: '#1f2937', text: '#d1d5db', textBold: '#f3f4f6', textMuted: '#9ca3af', accent: '#60a5fa', border: '#374151', sourceBg: '#111827' },
-      'nature-green': { bg: '#d1fae5', container: '#ffffff', text: '#064e3b', textBold: '#022c22', textMuted: '#059669', accent: '#10b981', border: '#a7f3d0', sourceBg: '#ecfdf5' },
-      'sakura-pink': { bg: '#fce7f3', container: '#ffffff', text: '#831843', textBold: '#4c0519', textMuted: '#be185d', accent: '#db2777', border: '#fbcfe8', sourceBg: '#fdf2f8' },
-      'sunset-orange': { bg: '#ffedd5', container: '#ffffff', text: '#7c2d12', textBold: '#431407', textMuted: '#ea580c', accent: '#ea580c', border: '#fed7aa', sourceBg: '#fff7ed' },
-      'ocean-teal': { bg: '#ccfbf1', container: '#ffffff', text: '#134e4a', textBold: '#042f2e', textMuted: '#0d9488', accent: '#0d9488', border: '#99f6e4', sourceBg: '#f0fdfa' },
-      'monochrome': { bg: '#e5e5e5', container: '#ffffff', text: '#404040', textBold: '#171717', textMuted: '#737373', accent: '#404040', border: '#d4d4d4', sourceBg: '#f5f5f5' },
-      'retro-brown': { bg: '#fef3c7', container: '#fffbeb', text: '#78350f', textBold: '#451a03', textMuted: '#b45309', accent: '#d97706', border: '#fde68a', sourceBg: '#fef3c7' }
+    // レポート用の設定定義 (DocCraftベースを統合)
+    const reportLayouts = {
+      modern: { name: 'モダン (Sans)', fontFamily: "'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif" },
+      classic: { name: 'クラシック (Serif)', fontFamily: "'Yu Mincho', 'MS Mincho', serif" },
+      monospaced: { name: '等幅 (Mono)', fontFamily: "'MS Gothic', monospace" }
     };
+
+    const reportThemes = [
+      // 単色テーマ
+      { id: 'default', name: '標準', container: '#ffffff', text: '#333333', textBold: '#111827', accent: '#1d4ed8', border: '#e5e7eb', isTwoTone: false, bg1: '#ffffff', bg2: '#1d4ed8' },
+      { id: 'modern-blue', name: 'ブルー', container: '#ffffff', text: '#1e293b', textBold: '#0f172a', accent: '#0ea5e9', border: '#e2e8f0', isTwoTone: false, bg1: '#ffffff', bg2: '#0ea5e9' },
+      { id: 'elegant-dark', name: 'ダーク', container: '#1f2937', text: '#d1d5db', textBold: '#f3f4f6', accent: '#60a5fa', border: '#374151', isTwoTone: false, bg1: '#1f2937', bg2: '#60a5fa' },
+      { id: 'nature-green', name: 'グリーン', container: '#ffffff', text: '#064e3b', textBold: '#022c22', accent: '#10b981', border: '#a7f3d0', isTwoTone: false, bg1: '#ffffff', bg2: '#10b981' },
+      { id: 'sakura-pink', name: 'サクラ', container: '#ffffff', text: '#831843', textBold: '#4c0519', accent: '#db2777', border: '#fbcfe8', isTwoTone: false, bg1: '#ffffff', bg2: '#db2777' },
+
+      // ツートンテーマ
+      { id: 'navy_gold', name: 'ネイビー×ゴールド', isTwoTone: true, 
+        color1: '#0f172a', color2: '#fbbf24', 
+        normal:  { container: '#0f172a', text: '#fcd34d', textBold: '#fbbf24', textMuted: '#b45309', accent: '#fbbf24', border: '#334155' },
+        reverse: { container: '#fbbf24', text: '#0f172a', textBold: '#020617', textMuted: '#b45309', accent: '#0f172a', border: '#d97706' } 
+      },
+      { id: 'black_green', name: 'ブラック×グリーン', isTwoTone: true, 
+        color1: '#000000', color2: '#4ade80', 
+        normal:  { container: '#000000', text: '#bbf7d0', textBold: '#4ade80', textMuted: '#166534', accent: '#4ade80', border: '#1f2937' },
+        reverse: { container: '#4ade80', text: '#000000', textBold: '#000000', textMuted: '#14532d', accent: '#000000', border: '#22c55e' } 
+      },
+      { id: 'wine_gold', name: 'ワイン×ゴールド', isTwoTone: true, 
+        color1: '#4c0519', color2: '#facc15', 
+        normal:  { container: '#4c0519', text: '#fef08a', textBold: '#facc15', textMuted: '#a16207', accent: '#facc15', border: '#881337' },
+        reverse: { container: '#facc15', text: '#4c0519', textBold: '#22000a', textMuted: '#881337', accent: '#4c0519', border: '#ca8a04' } 
+      },
+      { id: 'forest_sand', name: 'フォレスト×サンド', isTwoTone: true, 
+        color1: '#022c22', color2: '#e7e5e4', 
+        normal:  { container: '#022c22', text: '#d6d3d1', textBold: '#e7e5e4', textMuted: '#78716c', accent: '#e7e5e4', border: '#064e3b' },
+        reverse: { container: '#e7e5e4', text: '#022c22', textBold: '#000000', textMuted: '#064e3b', accent: '#022c22', border: '#d6d3d1' } 
+      }
+    ];
+
+    function getReportThemeColors(themeId, isReversed) {
+      const t = reportThemes.find(x => x.id === themeId) || reportThemes[0];
+      if (t.isTwoTone) {
+        return isReversed ? t.reverse : t.normal;
+      }
+      return {
+        container: t.container,
+        text: t.text,
+        textBold: t.textBold,
+        textMuted: t.border, // 単色テーマの場合はボーダー色などで代用
+        accent: t.accent,
+        border: t.border
+      };
+    }
 
     const getDomain = (url) => {
       try { return new URL(url).hostname; } catch { return url; }
@@ -321,10 +423,17 @@
       error: null,
       view: 'home', // 'home', 'results', 'saved'
       
+      // スライド関連
       isGeneratingSlide: false,
       slideData: [],
       currentSlideIndex: 0,
       currentThemeId: 'blue',
+      
+      // レポート関連
+      reportPages: [],
+      reportLayout: 'modern',
+      reportThemeId: 'default',
+      isReportReversed: false,
       
       isElaborating: false,
       savedItems: JSON.parse(localStorage.getItem('ai_search_saved_items')) || []
@@ -337,11 +446,14 @@
       document.getElementById('home-category-select').innerHTML += categoryOptions;
       document.getElementById('header-category-select').innerHTML += categoryOptions;
 
-      // テーマセレクタの生成
+      // スライドテーマセレクタの生成
       const themeSelector = document.getElementById('theme-selector');
       themeSelector.innerHTML = slideThemes.map(t => `
         <button onclick="setTheme('${t.id}')" id="theme-btn-${t.id}" class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-gray-500 hover:scale-110 transition-transform shrink-0" style="background: linear-gradient(135deg, ${t.bg[0]} 50%, ${t.accent} 50%)" title="${t.name}"></button>
       `).join('');
+
+      // レポート設定セレクトボックスの生成
+      document.getElementById('report-layout-select').innerHTML = Object.entries(reportLayouts).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
 
       updateView();
       lucide.createIcons();
@@ -349,9 +461,10 @@
       // キーボードイベント（スライド用）
       window.addEventListener('keydown', (e) => {
         const slideModal = document.getElementById('slide-modal');
-        if (slideModal.classList.contains('hidden') || state.slideData.length === 0 || document.activeElement.isContentEditable) return;
-        if (e.key === 'ArrowRight') nextSlide();
-        if (e.key === 'ArrowLeft') prevSlide();
+        if (slideModal && !slideModal.classList.contains('hidden') && state.slideData.length > 0 && document.activeElement && !document.activeElement.isContentEditable) {
+          if (e.key === 'ArrowRight') nextSlide();
+          if (e.key === 'ArrowLeft') prevSlide();
+        }
       });
     }
 
@@ -495,12 +608,18 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5 rounded-xl border border-blue-100 dark:border-blue-800">
           <div>
             <h3 class="font-bold text-lg text-blue-800 dark:text-blue-300">資料を自動生成</h3>
-            <p class="text-sm text-blue-600 dark:text-blue-400 mt-1">この回答をもとに、プレゼン用のスライドを構築します</p>
+            <p class="text-sm text-blue-600 dark:text-blue-400 mt-1">この回答をもとに、レポートやスライドを構築します</p>
           </div>
-          <button onclick="generateSlide()" id="btn-generate-slide" class="flex items-center justify-center w-full sm:w-auto space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg shadow-md font-medium transition-all ${state.isGeneratingSlide ? 'opacity-70 cursor-not-allowed' : ''}" ${state.isGeneratingSlide ? 'disabled' : ''}>
-            <i data-lucide="${state.isGeneratingSlide ? 'loader-2' : 'presentation'}" class="h-5 w-5 ${state.isGeneratingSlide ? 'animate-spin' : ''}"></i>
-            <span>${state.isGeneratingSlide ? '生成中...' : 'スライドを作成する'}</span>
-          </button>
+          <div class="flex gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+            <button onclick="openReportModal()" class="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 px-5 py-2.5 rounded-lg shadow-sm font-medium transition-all">
+              <i data-lucide="file-text" class="h-5 w-5"></i>
+              <span>レポート生成</span>
+            </button>
+            <button onclick="generateSlide()" id="btn-generate-slide" class="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg shadow-md font-medium transition-all ${state.isGeneratingSlide ? 'opacity-70 cursor-not-allowed' : ''}" ${state.isGeneratingSlide ? 'disabled' : ''}>
+              <i data-lucide="${state.isGeneratingSlide ? 'loader-2' : 'presentation'}" class="h-5 w-5 ${state.isGeneratingSlide ? 'animate-spin' : ''}"></i>
+              <span>スライド生成</span>
+            </button>
+          </div>
         </div>
 
         <div class="bg-[#f8f9fa] dark:bg-[#303134] rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm relative group">
@@ -514,49 +633,6 @@
           <div class="text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap text-base">${state.aiSummary}</div>
           
           <div class="mt-8 flex flex-col gap-4 border-t border-gray-200 dark:border-gray-700 pt-5">
-            <!-- 上段：エクスポート設定と主要アクション -->
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <!-- 出力オプション -->
-              <div class="flex flex-wrap items-center gap-3 bg-white dark:bg-[#202124] px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm w-fit">
-                <div class="flex items-center" title="レポートのテーマ色を選択">
-                  <i data-lucide="palette" class="h-4 w-4 text-gray-500 shrink-0"></i>
-                  <select id="report-theme-select" class="bg-transparent text-sm text-gray-700 dark:text-gray-300 focus:outline-none pl-2 pr-1 py-0.5 cursor-pointer appearance-none font-medium">
-                    <option value="default">標準</option>
-                    <option value="modern-blue">ブルー</option>
-                    <option value="elegant-dark">ダーク</option>
-                    <option value="nature-green">グリーン</option>
-                    <option value="sakura-pink">サクラ</option>
-                    <option value="sunset-orange">サンセット</option>
-                    <option value="ocean-teal">オーシャン</option>
-                    <option value="monochrome">モノクロ</option>
-                    <option value="retro-brown">レトロ</option>
-                  </select>
-                </div>
-                <div class="w-px h-5 bg-gray-300 dark:bg-gray-600"></div>
-                <label class="flex items-center space-x-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none" title="レポートに参考サイト一覧を含める">
-                  <input type="checkbox" id="report-include-sources" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:border-gray-600 dark:bg-[#303134] cursor-pointer" checked>
-                  <span>参考データを付ける</span>
-                </label>
-              </div>
-
-              <!-- 出力ボタン -->
-              <div class="flex flex-wrap items-center gap-2">
-                <button id="btn-export-word" onclick="handleExportWord()" class="flex items-center space-x-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300 px-4 py-2.5 rounded-lg transition-colors border border-blue-200 dark:border-blue-800 shadow-sm font-medium" title="Wordレポート形式で保存">
-                  <i data-lucide="file-text" class="h-4 w-4"></i>
-                  <span>Word</span>
-                </button>
-                <button onclick="handleExportReport()" class="flex items-center space-x-1.5 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2.5 rounded-lg transition-all shadow shadow-blue-500/30 whitespace-nowrap font-medium" title="HTML/PDFレポート形式で保存">
-                  <i data-lucide="layout-template" class="h-4 w-4"></i>
-                  <span>HTML / PDF</span>
-                </button>
-                <button onclick="handleExportText()" class="flex items-center space-x-1.5 text-sm bg-white hover:bg-gray-50 text-gray-700 dark:bg-[#202124] dark:hover:bg-[#303134] dark:text-gray-300 px-3 py-2.5 rounded-lg transition-colors border border-gray-300 dark:border-gray-600 shadow-sm font-medium" title="テキスト形式で保存">
-                  <i data-lucide="file" class="h-4 w-4"></i>
-                  <span class="hidden sm:inline">テキスト</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- 下段：その他のアクション -->
             <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
               <button onclick="handleSaveItem()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-[#303134] text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg transition-colors font-medium">
                 <i data-lucide="bookmark" class="h-4 w-4"></i>
@@ -639,6 +715,7 @@
       state.results = [];
       state.aiSummary = '';
       state.slideData = [];
+      state.reportPages = [];
       state.selectedFile = null;
       state.error = null;
       updateView();
@@ -681,6 +758,9 @@
       if (!document.getElementById('slide-modal').classList.contains('hidden')) {
           renderSlide();
       }
+      if (!document.getElementById('report-modal').classList.contains('hidden')) {
+          renderReport();
+      }
     }
 
     function removeApiKey() {
@@ -698,7 +778,6 @@
       const file = e.target.files[0];
       if (!file) return;
 
-      // Gemini APIのinlineData上限を考慮し、可能な限り大きな20MBまでに拡張
       const MAX_FILE_SIZE = 20 * 1024 * 1024;
       if (file.size > MAX_FILE_SIZE) {
         alert(`ファイルサイズが大きすぎます。20MB以下のファイルを選択してください。\n(現在のサイズ: ${(file.size / 1024 / 1024).toFixed(1)}MB)`);
@@ -720,7 +799,6 @@
         reader.onload = async (event) => {
           try {
             const arrayBuffer = event.target.result;
-            // mammoth.jsで.docxからプレーンテキストを抽出
             const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
             state.selectedFile = { name: file.name, type: 'text', data: result.value };
             updateView();
@@ -734,24 +812,16 @@
         const reader = new FileReader();
         reader.onload = (event) => {
           let textData = event.target.result;
-          
-          // HTMLファイルの場合は、タグやスクリプトを除去して純粋なテキストのみを抽出する
           if (lowerName.endsWith('.html') || lowerName.endsWith('.htm')) {
             try {
               const parser = new DOMParser();
               const doc = parser.parseFromString(textData, 'text/html');
-              // 不要な要素（スクリプトやスタイル）を削除
               const scriptsAndStyles = doc.querySelectorAll('script, style, noscript');
               scriptsAndStyles.forEach(el => el.remove());
               textData = doc.body ? doc.body.textContent : textData;
-              // 連続する空白や改行を圧縮してトークンを節約
               textData = textData.replace(/\s+/g, ' ').trim();
-            } catch (err) {
-              console.error("HTMLパースエラー:", err);
-              // パース失敗時はそのままのテキストフォールバック
-            }
+            } catch (err) {}
           }
-          
           state.selectedFile = { name: file.name, type: 'text', data: textData };
           updateView();
         };
@@ -770,7 +840,6 @@
         };
         reader.readAsDataURL(file);
       }
-      
       e.target.value = null;
     }
 
@@ -820,6 +889,7 @@
 
       state.query = displayQuery;
       state.slideData = [];
+      state.reportPages = [];
 
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${state.apiKey}`;
       const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -863,7 +933,6 @@
           if (rawText.includes(sourcesMarker)) {
             const partsArray = rawText.split(sourcesMarker);
             summaryText = partsArray[0].trim();
-            // Markdownブロック等が混入してパースエラーになるのを防ぐ
             let jsonRaw = partsArray[1].replace(/```json/gi, '').replace(/```/gi, '');
             const jsonStr = jsonRaw.match(/\[[\s\S]*\]/);
             if (jsonStr) {
@@ -879,7 +948,7 @@
                     }
                   });
                 }
-              } catch(e) { console.error("JSON parse error:", e); }
+              } catch(e) {}
             }
           }
 
@@ -907,23 +976,15 @@
               }
               
               if (!desc) desc = "このサイトの詳しい情報はリンク先をご覧ください。";
-              
-              // ドメイン名やURLそのものがタイトルになっているか判定
               const isBadTitle = (t) => !t || t.toLowerCase() === getDomain(uri).toLowerCase() || t.toLowerCase().startsWith("http");
               
               let finalTitle = "参考ウェブサイト";
-              if (chunkTitle && !isBadTitle(chunkTitle)) {
-                finalTitle = chunkTitle; // 1. Search Groundingの公式タイトルを最優先
-              } else if (aiTitle && !isBadTitle(aiTitle)) {
-                finalTitle = aiTitle; // 2. AIが生成したタイトル
-              } else if (chunkTitle) {
-                finalTitle = chunkTitle; // 3. 妥協してそのまま使用
-              } else if (aiTitle) {
-                finalTitle = aiTitle;
-              }
+              if (chunkTitle && !isBadTitle(chunkTitle)) finalTitle = chunkTitle;
+              else if (aiTitle && !isBadTitle(aiTitle)) finalTitle = aiTitle;
+              else if (chunkTitle) finalTitle = chunkTitle;
+              else if (aiTitle) finalTitle = aiTitle;
 
               let finalSiteName = aiSiteName && !isBadTitle(aiSiteName) ? aiSiteName : "";
-              
               uniqueSources.push({ title: finalTitle, siteName: finalSiteName, url: uri, description: desc });
             }
           };
@@ -948,7 +1009,6 @@
           }
           retries--;
           if (retries === 0) { 
-            console.error("Search API Error:", err);
             state.error = err.message.includes("利用制限") ? err.message : `情報の取得・分析に失敗しました。時間をおいて再度お試しいただくか、ファイルサイズ等をご確認ください。\n詳細: ${err.message}`; 
             state.isLoading = false; 
             updateView();
@@ -1005,7 +1065,6 @@
           if (rawText.includes(sourcesMarker)) {
             const partsArray = rawText.split(sourcesMarker);
             summaryText = partsArray[0].trim();
-            // Markdownブロック等が混入してパースエラーになるのを防ぐ
             let jsonRaw = partsArray[1].replace(/```json/gi, '').replace(/```/gi, '');
             const jsonStr = jsonRaw.match(/\[[\s\S]*\]/);
             if (jsonStr) {
@@ -1021,7 +1080,7 @@
                     }
                   });
                 }
-              } catch(e) { console.error("JSON parse error in elaborate:", e); }
+              } catch(e) {}
             }
           }
           
@@ -1048,23 +1107,15 @@
               }
               
               if (!desc) desc = "このサイトの詳しい情報はリンク先をご覧ください。";
-              
-              // ドメイン名やURLそのものがタイトルになっているか判定
               const isBadTitle = (t) => !t || t.toLowerCase() === getDomain(uri).toLowerCase() || t.toLowerCase().startsWith("http");
               
               let finalTitle = "参考ウェブサイト";
-              if (chunkTitle && !isBadTitle(chunkTitle)) {
-                finalTitle = chunkTitle;
-              } else if (aiTitle && !isBadTitle(aiTitle)) {
-                finalTitle = aiTitle;
-              } else if (chunkTitle) {
-                finalTitle = chunkTitle;
-              } else if (aiTitle) {
-                finalTitle = aiTitle;
-              }
+              if (chunkTitle && !isBadTitle(chunkTitle)) finalTitle = chunkTitle;
+              else if (aiTitle && !isBadTitle(aiTitle)) finalTitle = aiTitle;
+              else if (chunkTitle) finalTitle = chunkTitle;
+              else if (aiTitle) finalTitle = aiTitle;
 
               let finalSiteName = aiSiteName && !isBadTitle(aiSiteName) ? aiSiteName : "";
-              
               newSources.push({ title: finalTitle, siteName: finalSiteName, url: uri, description: desc });
             }
           };
@@ -1082,10 +1133,7 @@
             const isBadTitle = (t) => !t || t.toLowerCase() === getDomain(p.url).toLowerCase() || t.toLowerCase().startsWith("http");
             
             let finalTitle = p.title;
-            // 古いタイトルがドメイン名で、新しいAIタイトルが正常なら上書き更新する
-            if (aiTitle && !isBadTitle(aiTitle) && isBadTitle(p.title)) {
-                finalTitle = aiTitle;
-            }
+            if (aiTitle && !isBadTitle(aiTitle) && isBadTitle(p.title)) finalTitle = aiTitle;
 
             let finalSiteName = p.siteName;
             if (aiSiteName && !isBadTitle(aiSiteName) && (!p.siteName || isBadTitle(p.siteName))) {
@@ -1115,7 +1163,6 @@
           }
           retries--;
           if (retries === 0) {
-            console.error("Elaborate API Error:", err);
             alert(err.message.includes("利用制限") ? err.message : "エラーが発生しました。時間をおいて再度お試しください。");
             state.isElaborating = false;
             updateView();
@@ -1157,36 +1204,235 @@
       executeSearch();
     }
 
-    function handleExportText() {
-      if (!state.aiSummary) return;
+    // --- レポート機能 ---
+    function parseMarkdownForReport(markdown, t) {
+      if (!markdown) return '';
+      let html = String(markdown);
+      html = html
+        .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: ${t.textBold}">$1</h3>`)
+        .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid ${t.border}; color: ${t.textBold}">$1</h2>`)
+        .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: ${t.accent}">$1</h1>`)
+        .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid ${t.accent}; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0;">$1</blockquote>`)
+        .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);" />')
+        .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: ${t.textBold}">$1</strong>`)
+        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic;">$1</em>`);
 
-      const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+      html = html.replace(/^- (.*$)/gim, '<li style="margin-bottom: 0.5rem;">$1</li>');
+      html = html.replace(/^\d+\. (.*$)/gim, '<li style="margin-bottom: 0.5rem;">$1</li>');
+      
+      html = html.replace(/(<li style="margin-bottom: 0.5rem;">.*<\/li>\n?)+/g, match => `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-position: outside; line-height: 1.8;">${match}</ul>`);
 
-      let content = `■ 検索キーワード: ${state.query}\n`;
-      content += `■ 生成日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
-      content += `■ 分析結果のレポート\n${state.aiSummary}\n\n`;
-      if (includeSources && state.results && state.results.length > 0) {
-        content += `■ 参考としたWEBサイト一覧\n`;
-        state.results.forEach((r, i) => { 
-          content += `[${i + 1}] ${r.title}\n`; 
-          if (r.siteName) content += `    サイト名: ${r.siteName}\n`;
-          content += `    URL: ${r.url}\n`;
-          if (r.description) content += `    概要: ${r.description}\n`;
-          content += `\n`;
-        });
-      }
-      content += `\n${state.slideLogoText}\n`;
-      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_回答.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const lines = html.split('\n');
+      const parsedLines = lines.map(line => {
+        const trimmed = line.trim();
+        if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div|<img)/.test(trimmed)) return line;
+        return `<p style="line-height: 1.8; margin-bottom: 1rem;">${line}</p>`;
+      });
+
+      return parsedLines.join('\n');
     }
 
-    async function handleExportWord() {
+    function splitTextIntoPages(text, maxWeight) {
+      const lines = text.split('\n');
+      const pages = [];
+      let currentLines = [];
+      let currentWeight = 0;
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        let lineWeight = 1;
+        if (trimmed === '') {
+          lineWeight = 1;
+        } else if (trimmed.startsWith('# ')) {
+          lineWeight = 3;
+        } else if (trimmed.startsWith('## ') || trimmed.startsWith('### ')) {
+          lineWeight = 2;
+        } else {
+          lineWeight = Math.max(1, Math.ceil(trimmed.length / 40) * 1.2);
+        }
+
+        if (currentWeight > 0 && currentWeight + lineWeight > maxWeight) {
+          pages.push(currentLines.join('\n'));
+          currentLines = [];
+          currentWeight = 0;
+        }
+        
+        currentLines.push(line);
+        currentWeight += lineWeight;
+      }
+      if (currentLines.length > 0) {
+        pages.push(currentLines.join('\n'));
+      }
+      return pages;
+    }
+
+    function setReportTheme(themeId) {
+      const t = reportThemes.find(x => x.id === themeId);
+      if (t && t.isTwoTone && state.reportThemeId === themeId) {
+        state.isReportReversed = !state.isReportReversed;
+      } else {
+        state.reportThemeId = themeId;
+        state.isReportReversed = false;
+      }
+      renderReportThemeSelector();
+      renderReport();
+    }
+
+    function renderReportThemeSelector() {
+      const selector = document.getElementById('report-theme-selector');
+      if (!selector) return;
+      
+      selector.innerHTML = reportThemes.map(t => {
+        let bg1 = t.bg1;
+        let bg2 = t.bg2;
+        if (t.isTwoTone) {
+           bg1 = (state.reportThemeId === t.id && state.isReportReversed) ? t.color2 : t.color1;
+           bg2 = (state.reportThemeId === t.id && state.isReportReversed) ? t.color1 : t.color2;
+        }
+        
+        const activeClass = state.reportThemeId === t.id ? 'scale-125 border-white ring-1 ring-gray-400' : 'border-gray-300 hover:scale-110';
+        return `<button 
+          onclick="setReportTheme('${t.id}')"
+          class="w-5 h-5 sm:w-6 sm:h-6 rounded-full border transition-transform shrink-0 shadow-sm ${activeClass}"
+          style="background: linear-gradient(135deg, ${bg1} 50%, ${bg2} 50%)"
+          title="${t.name}${t.isTwoTone ? ' (クリックで反転)' : ''}"
+        ></button>`;
+      }).join('');
+    }
+
+    function openReportModal() {
       if (!state.aiSummary) return;
+      document.getElementById('report-modal').classList.remove('hidden');
+      
+      let fullText = state.aiSummary;
+      const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+      if (includeSources && state.results.length > 0) {
+        fullText += "\n\n## 参考としたWEBサイト一覧\n";
+        state.results.forEach((r, i) => {
+          fullText += `\n### [${i + 1}] ${r.title}\n`;
+          if (r.siteName) fullText += `サイト名: ${r.siteName}\n`;
+          fullText += `URL: ${r.url}\n`;
+          if (r.description) fullText += `概要: ${r.description}\n`;
+        });
+      }
+      
+      const maxWeight = state.slideLogoText ? 34 : 36;
+      state.reportPages = splitTextIntoPages(fullText, maxWeight);
+      
+      renderReportThemeSelector();
+      renderReport();
+    }
+
+    function closeReportModal() {
+      document.getElementById('report-modal').classList.add('hidden');
+    }
+
+    function updateReportSettings() {
+      state.reportLayout = document.getElementById('report-layout-select').value;
+      renderReport();
+    }
+
+    function renderReport() {
+      const container = document.getElementById('report-preview-container');
+      if (!container) return;
+      const layout = reportLayouts[state.reportLayout];
+      const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
+      
+      let html = '';
+      state.reportPages.forEach((page, idx) => {
+        html += `
+          <div class="report-page shadow-2xl mb-8 w-full max-w-[210mm] relative overflow-hidden ${layout.classes}" style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; color: ${t.text}; background-color: ${t.container};">
+            <div class="max-w-none">
+              ${parseMarkdownForReport(page, t)}
+            </div>
+            ${state.slideLogoText ? `<div class="absolute right-[20mm] bottom-[20mm] text-xs opacity-60" style="color: ${t.textMuted}">${state.slideLogoText}</div>` : ''}
+            <div class="absolute left-[20mm] bottom-[20mm] text-xs opacity-60 font-mono" style="color: ${t.textMuted}">${idx + 1} / ${state.reportPages.length}</div>
+          </div>
+        `;
+      });
+      
+      container.innerHTML = html;
+    }
+
+    async function handleExportReportPDF() {
+      if (!window.jspdf || !window.html2canvas) {
+        alert("PDF生成ライブラリを読み込み中です。少し待ってから再度お試しください。");
+        return;
+      }
+      
+      const btn = document.getElementById('btn-export-pdf');
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = `<i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i><span class="hidden sm:inline">生成中...</span>`;
+      lucide.createIcons({ root: btn });
+      btn.disabled = true;
+
+      try {
+        const { jsPDF } = window.jspdf;
+        const layoutConfig = reportLayouts[state.reportLayout];
+        const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
+        
+        const fontFamily = layoutConfig.fontFamily;
+        const escapedLogo = state.slideLogoText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.zIndex = '-9999';
+        container.style.opacity = '0.01';
+        container.style.pointerEvents = 'none';
+        container.style.width = '794px'; 
+
+        const elementsHTML = state.reportPages.map((pageContent, index) => {
+          const logoHtml = state.slideLogoText ? `<div style="position: absolute; right: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: inherit; color: ${t.textMuted}">${escapedLogo}</div>` : '';
+          const pageNumHtml = `<div style="position: absolute; left: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: monospace; color: ${t.textMuted}">${index + 1} / ${state.reportPages.length}</div>`;
+          return `
+            <div class="pdf-page-element" style="background-color: ${t.container}; color: ${t.text}; width: 794px; height: 1122px; padding: 75px; position: relative; overflow: hidden; box-sizing: border-box; margin-bottom: 10px;">
+              ${parseMarkdownForReport(pageContent, t)}
+              ${logoHtml}
+              ${pageNumHtml}
+            </div>
+          `;
+        }).join('');
+
+        container.innerHTML = `<div style="font-family: ${fontFamily}; margin: 0; padding: 0; display: block; width: 794px;">
+          ${elementsHTML}
+        </div>`;
+        document.body.appendChild(container);
+
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        const pageElements = container.querySelectorAll('.pdf-page-element');
+        const pdf = new jsPDF({ unit: 'px', format: [794, 1122], orientation: 'portrait' });
+
+        for (let i = 0; i < pageElements.length; i++) {
+          const canvas = await window.html2canvas(pageElements[i], {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            backgroundColor: t.container
+          });
+          const imgData = canvas.toDataURL('image/jpeg', 0.98);
+          if (i > 0) pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', 0, 0, 794, 1122);
+        }
+
+        pdf.save(`${state.query.replace(/[\\/:*?"<>|]/g, '_')}_レポート.pdf`);
+        document.body.removeChild(container);
+
+      } catch (error) {
+        console.error(error);
+        alert("PDFの生成中にエラーが発生しました。");
+      } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+        lucide.createIcons({ root: btn });
+      }
+    }
+
+    async function handleExportReportWord() {
+      if (state.reportPages.length === 0) return;
 
       const btn = document.getElementById('btn-export-word');
       const originalHtml = btn ? btn.innerHTML : '';
@@ -1197,72 +1443,79 @@
       }
 
       try {
-        // 複数のCDNを順番に試行してライブラリを確実に読み込む
         const loadDocxScript = async () => {
           if (window.docx) return;
           const cdns = [
-            "https://unpkg.com/docx@8.5.0/build/index.js",
-            "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js",
-            "https://unpkg.com/docx@7.8.2/build/index.js"
+            "https://unpkg.com/docx@8.2.3/build/index.js",
+            "https://cdn.jsdelivr.net/npm/docx@8.2.3/build/index.js"
           ];
           for (const url of cdns) {
             try {
               await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.src = url;
-                script.onload = () => {
-                  if (window.docx) resolve();
-                  else reject(new Error("No window.docx"));
-                };
+                script.onload = () => { if (window.docx) resolve(); else reject(); };
                 script.onerror = reject;
                 document.body.appendChild(script);
               });
-              return; // 読み込み成功
-            } catch (e) {
-              console.warn(`Failed to load docx from ${url}`);
-            }
+              return;
+            } catch (e) {}
           }
-          throw new Error("すべてのサーバーからのライブラリ読み込みに失敗しました。通信環境をご確認ください。");
+          throw new Error("ライブラリ読み込み失敗");
         };
 
         await loadDocxScript();
 
-        const themeId = document.getElementById('report-theme-select')?.value || 'default';
-        const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+        const layoutConfig = reportLayouts[state.reportLayout];
+        const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
         
-        const t = REPORT_THEMES[themeId] || REPORT_THEMES['default'];
-        const hexToWord = (hex) => hex.replace('#', '');
-        
-        const wText = hexToWord(t.text);
-        const wTextBold = hexToWord(t.textBold);
-        const wTextMuted = hexToWord(t.textMuted);
-        const wAccent = hexToWord(t.accent);
+        const docFontFamily = layoutConfig.fontFamily.split(',')[0].replace(/['"]/g, '');
+        const wText = t.text.replace('#', '');
+        const wTextBold = t.textBold.replace('#', '');
+        const wTextMuted = t.textMuted.replace('#', '');
+        const wAccent = t.accent.replace('#', '');
+        const bgColorHex = t.container.replace('#', '');
 
-        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink } = window.docx;
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink, Footer } = window.docx;
         
-        const summaryParagraphs = [];
-        const lines = state.aiSummary.split('\n');
+        const docChildren = [];
         
+        docChildren.push(
+          new Paragraph({ text: state.query, heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER, spacing: { after: 400 } }),
+          new Paragraph({ children: [new TextRun({ text: `作成日時: ${new Date().toLocaleString('ja-JP')}`, color: wTextMuted })], alignment: AlignmentType.RIGHT, spacing: { after: 400 } }),
+          new Paragraph({ text: "分析結果のレポート", heading: HeadingLevel.HEADING_1 })
+        );
+
+        const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+        let fullText = state.aiSummary;
+        if (includeSources && state.results.length > 0) {
+          fullText += "\n\n## 参考としたWEBサイト一覧\n";
+          state.results.forEach((r, i) => {
+            fullText += `\n### [${i + 1}] ${r.title}\n`;
+            if (r.siteName) fullText += `サイト名: ${r.siteName}\n`;
+            fullText += `URL: ${r.url}\n`;
+            if (r.description) fullText += `概要: ${r.description}\n`;
+          });
+        }
+
+        const lines = fullText.split('\n');
         for (const line of lines) {
           if (!line.trim()) {
-             summaryParagraphs.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+             docChildren.push(new Paragraph({ text: "", spacing: { after: 200 } }));
              continue;
           }
 
           if (line.startsWith('### ')) {
-             summaryParagraphs.push(new Paragraph({
-               text: line.substring(4),
-               heading: HeadingLevel.HEADING_3,
-             }));
+             docChildren.push(new Paragraph({ text: line.substring(4), heading: HeadingLevel.HEADING_3 }));
           } else if (line.startsWith('## ')) {
-             summaryParagraphs.push(new Paragraph({
-               text: line.substring(3),
-               heading: HeadingLevel.HEADING_2,
-             }));
+             docChildren.push(new Paragraph({ text: line.substring(3), heading: HeadingLevel.HEADING_2 }));
           } else if (line.startsWith('# ')) {
-             summaryParagraphs.push(new Paragraph({
-               text: line.substring(2),
-               heading: HeadingLevel.HEADING_1,
+             docChildren.push(new Paragraph({ text: line.substring(2), heading: HeadingLevel.HEADING_1 }));
+          } else if (line.startsWith('URL: ')) {
+             const urlLink = line.substring(5);
+             docChildren.push(new Paragraph({
+                children: [ new ExternalHyperlink({ children: [ new TextRun({ text: urlLink, color: wAccent, underline: {} }) ], link: urlLink }) ],
+                spacing: { after: 50 }
              }));
           } else {
              const runs = [];
@@ -1274,145 +1527,40 @@
                  runs.push(new TextRun({ text: part }));
                }
              }
-             summaryParagraphs.push(new Paragraph({ children: runs, spacing: { after: 120 } }));
+             docChildren.push(new Paragraph({ children: runs, spacing: { after: 120 } }));
           }
         }
 
-        const docChildren = [
-          new Paragraph({
-            text: state.query,
-            heading: HeadingLevel.TITLE,
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 400 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({
-                  text: `作成日時: ${new Date().toLocaleString('ja-JP')}`,
-                  color: wTextMuted
-              })
-            ],
-            alignment: AlignmentType.RIGHT,
-            spacing: { after: 400 }
-          }),
-          new Paragraph({
-            text: "分析結果のレポート",
-            heading: HeadingLevel.HEADING_1,
-          }),
-          ...summaryParagraphs
-        ];
-
-        if (includeSources && state.results && state.results.length > 0) {
-          docChildren.push(
-            new Paragraph({
-              text: "参考としたWEBサイト一覧",
-              heading: HeadingLevel.HEADING_1,
-            })
-          );
-
-          state.results.forEach((r, i) => {
-            docChildren.push(
-               new Paragraph({
-                 text: `[${i + 1}] ${r.title}`,
-                 heading: HeadingLevel.HEADING_3,
-               })
-            );
-            
-            if (r.siteName) {
-               docChildren.push(new Paragraph({ 
-                   children: [new TextRun({ text: `サイト名: ${r.siteName}`, color: wTextMuted })],
-                   spacing: { after: 50 } 
-               }));
-            }
-
-            // エラーを回避するため、URLは通常のテキスト(リンク色・下線)として挿入
-            docChildren.push(new Paragraph({
-                children: [
-                  new ExternalHyperlink({
-                      children: [
-                          new TextRun({
-                              text: r.url,
-                              color: wAccent,
-                              underline: {}
-                          })
-                      ],
-                      link: r.url
-                  })
-                ],
-                spacing: { after: 50 }
-            }));
-
-            if (r.description) {
-               docChildren.push(new Paragraph({ text: r.description, spacing: { after: 150 } }));
-            }
-          });
-        }
-        
-        // レポートの最後にロゴテキスト（クレジット）を追加
-        docChildren.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                  text: state.slideLogoText,
-                  color: wTextMuted,
-                  size: 20 // 10pt相当
-              })
-            ],
-            alignment: AlignmentType.RIGHT,
-            spacing: { before: 400 }
-          })
-        );
-
         const doc = new Document({
+          creator: "AI Word Search",
+          background: { color: bgColorHex },
           styles: {
               default: {
                   document: {
-                      run: {
-                          font: "Yu Gothic",
-                          color: wText,
-                      },
+                      run: { font: docFontFamily, color: wText },
                   },
               },
               paragraphStyles: [
-                  {
-                      id: "Title",
-                      name: "Title",
-                      basedOn: "Normal",
-                      next: "Normal",
-                      quickFormat: true,
-                      run: { size: 44, bold: true, color: wAccent }
-                  },
-                  {
-                      id: "Heading1",
-                      name: "Heading 1",
-                      basedOn: "Normal",
-                      next: "Normal",
-                      quickFormat: true,
-                      run: { size: 32, bold: true, color: wTextBold },
-                      paragraph: { spacing: { before: 400, after: 200 } }
-                  },
-                  {
-                      id: "Heading2",
-                      name: "Heading 2",
-                      basedOn: "Normal",
-                      next: "Normal",
-                      quickFormat: true,
-                      run: { size: 28, bold: true, color: wTextBold },
-                      paragraph: { spacing: { before: 300, after: 150 } }
-                  },
-                  {
-                      id: "Heading3",
-                      name: "Heading 3",
-                      basedOn: "Normal",
-                      next: "Normal",
-                      quickFormat: true,
-                      run: { size: 24, bold: true, color: wTextBold },
-                      paragraph: { spacing: { before: 200, after: 100 } }
-                  }
+                  { id: "Title", name: "Title", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 44, bold: true, color: wAccent } },
+                  { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 32, bold: true, color: wTextBold }, paragraph: { spacing: { before: 400, after: 200 } } },
+                  { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 28, bold: true, color: wTextBold }, paragraph: { spacing: { before: 300, after: 150 } } },
+                  { id: "Heading3", name: "Heading 3", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 24, bold: true, color: wTextBold }, paragraph: { spacing: { before: 200, after: 100 } } }
               ]
           },
           sections: [{
-            properties: {},
+            properties: {
+              page: { size: { width: 11906, height: 16838 } } // A4
+            },
+            footers: state.slideLogoText ? {
+              default: new Footer({
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: state.slideLogoText, color: wTextMuted, size: 20 })],
+                    alignment: AlignmentType.RIGHT,
+                  }),
+                ],
+              })
+            } : undefined,
             children: docChildren,
           }]
         });
@@ -1437,85 +1585,45 @@
       }
     }
 
-    function handleExportReport() {
-      if (!state.aiSummary) return;
+    function handleExportReportHTML() {
+      if (state.reportPages.length === 0) return;
+      const layout = reportLayouts[state.reportLayout];
+      const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
 
-      const themeId = document.getElementById('report-theme-select')?.value || 'default';
-      const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
-      
-      const t = REPORT_THEMES[themeId] || REPORT_THEMES['default'];
-
-      // 簡単なマークダウン置換（太字と見出し）で見栄えを向上
-      let formattedSummary = state.aiSummary
-        .replace(/\*\*(.*?)\*\*/g, `<strong>$1</strong>`)
-        .replace(/### (.*)/g, `<h4 style="margin-top: 1.5em; margin-bottom: 0.5em; color: ${t.textBold};">$1</h4>`)
-        .replace(/## (.*)/g, `<h3 style="margin-top: 1.5em; margin-bottom: 0.5em; color: ${t.textBold}; border-bottom: 1px solid ${t.border}; padding-bottom: 0.3em;">$1</h3>`)
-        .replace(/# (.*)/g, `<h2 style="margin-top: 1.5em; margin-bottom: 0.5em; color: ${t.textBold};">$1</h2>`);
-
-      let htmlContent = `<!DOCTYPE html>
+      let htmlStr = `<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${state.query} - 調査レポート</title>
+<title>${state.query} - レポート資料</title>
 <style>
-  body { font-family: 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif; line-height: 1.6; color: ${t.text}; max-width: 800px; margin: 0 auto; padding: 20px; background-color: ${t.bg}; }
-  .container { background-color: ${t.container}; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
-  h1 { color: ${t.accent}; border-bottom: 3px solid ${t.accent}; padding-bottom: 10px; margin-top: 0; }
-  .meta { color: ${t.textMuted}; font-size: 0.9em; margin-bottom: 30px; text-align: right; }
-  .section-title { color: ${t.textBold}; margin-top: 40px; border-bottom: 2px solid ${t.border}; padding-bottom: 8px; font-size: 1.5em; }
-  .summary { white-space: pre-wrap; margin-bottom: 30px; line-height: 1.8; color: ${t.text}; }
-  .summary strong { color: ${t.textBold}; }
-  .source-item { margin-bottom: 20px; padding: 20px; border: 1px solid ${t.border}; border-radius: 8px; background-color: ${t.sourceBg}; page-break-inside: avoid; }
-  .source-title { font-weight: bold; color: ${t.accent}; text-decoration: none; font-size: 1.1em; display: block; margin-bottom: 5px; }
-  .source-title:hover { text-decoration: underline; opacity: 0.8; }
-  .source-url { color: ${t.textMuted}; font-size: 0.85em; margin-bottom: 10px; word-break: break-all; }
-  .source-desc { font-size: 0.95em; color: ${t.text}; margin-top: 5px; line-height: 1.5; }
-  .print-btn-container { text-align: right; margin-bottom: 20px; position: sticky; top: 20px; z-index: 100; }
-  .print-btn { background-color: ${t.accent}; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s; }
-  .print-btn:hover { filter: brightness(0.9); transform: translateY(-1px); }
+  body { margin: 0; padding: 20px; font-family: ${layout.fontFamily}; background: #e9ecef; color: ${t.text}; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  .page { width: 210mm; min-height: 297mm; background: ${t.container}; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-radius: 8px; padding: 20mm; box-sizing: border-box; position: relative; }
+  .logo { position: absolute; right: 20mm; bottom: 20mm; font-size: 0.8rem; opacity: 0.6; color: ${t.textMuted}; }
+  .page-num { position: absolute; left: 20mm; bottom: 20mm; font-size: 0.8rem; opacity: 0.6; color: ${t.textMuted}; font-family: monospace; }
+  .print-btn-container { width: 100%; max-width: 210mm; text-align: right; margin-bottom: 10px; }
+  .print-btn { padding: 10px 20px; background: ${t.accent}; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
   @media print {
-    body { background-color: white; padding: 0; color: black; }
-    .container { box-shadow: none; padding: 0; background-color: white; }
-    h1, .source-title { color: ${t.accent !== '#60a5fa' ? t.accent : '#1d4ed8'}; } /* ダークモード時の印刷用フォールバック調整 */
+    body { background: white; padding: 0; gap: 0; display: block; }
     .print-btn-container { display: none; }
-    .summary, .source-desc { color: black; }
+    .page { box-shadow: none; border-radius: 0; margin: 0; page-break-after: always; min-height: auto; height: 100vh; }
   }
 </style>
 </head>
 <body>
-  <div class="print-btn-container">
-    <button class="print-btn" onclick="window.print()">📄 PDFで保存 / 印刷する</button>
-  </div>
-  <div class="container">
-    <h1>${state.query}</h1>
-    <div class="meta">作成日時: ${new Date().toLocaleString('ja-JP')}</div>
-    
-    <h2 class="section-title">分析結果のレポート</h2>
-    <div class="summary">${formattedSummary}</div>
+<div class="print-btn-container"><button class="print-btn" onclick="window.print()">この資料を印刷・PDF保存</button></div>
 `;
-
-      if (includeSources && state.results && state.results.length > 0) {
-        htmlContent += `<h2 class="section-title">参考としたWEBサイト一覧</h2>`;
-        state.results.forEach((r, i) => { 
-          htmlContent += `
-          <div class="source-item">
-            <a href="${r.url}" target="_blank" class="source-title">[${i + 1}] ${r.title}</a>
-            <div class="source-url">${r.siteName ? `${r.siteName} - ` : ''}${r.url}</div>
-            ${r.description ? `<div class="source-desc">${r.description}</div>` : ''}
-          </div>`;
-        });
-      }
-
-      htmlContent += `
-    <div style="text-align: right; margin-top: 40px; padding-top: 20px; border-top: 1px solid ${t.border}; color: ${t.textMuted}; font-size: 0.85em;">
-      ${state.slideLogoText}
-    </div>
-  </div>
-</body>
-</html>`;
-
-      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      
+      state.reportPages.forEach((page, idx) => {
+        htmlStr += `<div class="page">\n`;
+        htmlStr += parseMarkdownForReport(page, t);
+        htmlStr += `<div class="page-num">${idx + 1} / ${state.reportPages.length}</div>`;
+        if(state.slideLogoText) htmlStr += `<div class="logo">${state.slideLogoText}</div>\n`;
+        htmlStr += `</div>\n`;
+      });
+      
+      htmlStr += `</body></html>`;
+      const blob = new Blob([htmlStr], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1524,28 +1632,31 @@
       URL.revokeObjectURL(url);
     }
 
-    function handleDeleteSavedItem(id, e) {
-      e.stopPropagation();
-      if(window.confirm("この保存済み回答を削除してもよろしいですか？")) {
-        state.savedItems = state.savedItems.filter(item => item.id !== id);
-        localStorage.setItem('ai_search_saved_items', JSON.stringify(state.savedItems));
-        updateView();
-      }
-    }
+    function handleExportText() {
+      if (!state.aiSummary) return;
 
-    function loadSavedItem(id) {
-      const item = state.savedItems.find(i => i.id === id);
-      if(!item) return;
-      state.query = item.query;
-      state.searchInput = item.rawQuery || '';
-      state.selectedCategory = item.category || '';
-      state.selectedFile = null;
-      state.aiSummary = item.aiSummary;
-      state.results = item.results;
-      state.view = 'results';
-      state.slideData = [];
-      state.error = null;
-      updateView();
+      const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+      let content = `■ 検索キーワード: ${state.query}\n`;
+      content += `■ 生成日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
+      content += `■ 分析結果のレポート\n${state.aiSummary}\n\n`;
+      if (includeSources && state.results && state.results.length > 0) {
+        content += `■ 参考としたWEBサイト一覧\n`;
+        state.results.forEach((r, i) => { 
+          content += `[${i + 1}] ${r.title}\n`; 
+          if (r.siteName) content += `    サイト名: ${r.siteName}\n`;
+          content += `    URL: ${r.url}\n`;
+          if (r.description) content += `    概要: ${r.description}\n`;
+          content += `\n`;
+        });
+      }
+      content += `\n${state.slideLogoText}\n`;
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_回答.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     // --- スライド生成機能 ---
