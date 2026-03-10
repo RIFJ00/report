@@ -22,6 +22,21 @@
     /* スクロールバー非表示 */
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
+    
+    /* レポート編集用スタイル */
+    .report-content { outline: none; white-space: pre-wrap; }
+    .report-content h1 { font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent); }
+    .report-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold); }
+    .report-content h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
+    .report-content p { line-height: 1.8; margin-bottom: 1rem; }
+    .report-content ul { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: disc; }
+    .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; }
+    .report-content li { margin-bottom: 0.5rem; display: list-item; }
+    .report-content blockquote { border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
+    .report-content img { max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); }
+    .report-content strong { font-weight: bold; color: var(--color-text-bold); }
+    .report-content em { font-style: italic; }
+    .report-content a { color: var(--color-accent); text-decoration: underline; }
   </style>
 </head>
 <body class="min-h-screen bg-white text-gray-900 font-sans dark:bg-[#202124] dark:text-gray-100 transition-colors duration-200">
@@ -222,7 +237,7 @@
         <i data-lucide="file-text" class="h-6 w-6 text-blue-600"></i>
         <div>
           <h2 class="text-base sm:text-lg font-semibold leading-tight">レポートプレビュー</h2>
-          <p class="text-xs text-gray-500 hidden sm:block">スクロールして全ページを確認できます</p>
+          <p class="text-xs text-gray-500 hidden sm:block">テキストをクリックすると直接編集できます</p>
         </div>
       </div>
       <button onclick="closeReportModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1"><i data-lucide="x-circle" class="h-6 w-6 sm:h-8 sm:w-8"></i></button>
@@ -288,7 +303,7 @@
       <div class="flex items-center space-x-2 sm:space-x-4">
         <div class="flex items-center space-x-1 sm:space-x-1.5 mr-1 sm:mr-2 bg-gray-800 px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700 overflow-hidden">
           <i data-lucide="palette" class="h-4 w-4 text-gray-400 hidden lg:block shrink-0 mr-1"></i>
-          <div id="theme-selector" class="flex items-center space-x-1.5 overflow-x-auto hide-scrollbar">
+          <div id="slide-theme-selector" class="flex items-center space-x-1.5 overflow-x-auto hide-scrollbar">
             <!-- テーマボタンはJSで生成 -->
           </div>
         </div>
@@ -338,17 +353,45 @@
     ];
 
     const slideThemes = [
-      { id: 'blue', name: 'ブルー', bg: ['#f8f9fa', '#e9ecef'], text: '#202124', accent: '#1a73e8', subText: '#5f6368' },
-      { id: 'green', name: 'グリーン', bg: ['#f4fdf8', '#e6f6ec'], text: '#1b2e22', accent: '#0f9d58', subText: '#4d5156' },
-      { id: 'dark', name: 'ダーク', bg: ['#202124', '#303134'], text: '#e8eaed', accent: '#8ab4f8', subText: '#9aa0a6' },
-      { id: 'purple', name: 'パープル', bg: ['#fdf8ff', '#f3e8fa'], text: '#2a1b38', accent: '#9333ea', subText: '#6b5a7a' },
-      { id: 'orange', name: 'オレンジ', bg: ['#fff8f3', '#faebe1'], text: '#382216', accent: '#ea580c', subText: '#7a5a4a' },
-      { id: 'navy-yellow', name: 'ネイビー＆イエロー', bg: ['#0f2027', '#203a43'], text: '#ffffff', accent: '#f2c94c', subText: '#b0bec5' },
-      { id: 'pink-blue', name: 'ピンク＆ブルー', bg: ['#ff9a9e', '#fecfef'], text: '#2c3e50', accent: '#3498db', subText: '#34495e' },
-      { id: 'black-red', name: 'ブラック＆レッド', bg: ['#121212', '#1a1a1a'], text: '#f5f5f5', accent: '#e50914', subText: '#9e9e9e' },
-      { id: 'teal-coral', name: 'ティール＆コーラル', bg: ['#0083b0', '#00b4db'], text: '#ffffff', accent: '#ff7e67', subText: '#e0f7fa' },
-      { id: 'mint-choco', name: 'ミント＆チョコ', bg: ['#e0f2f1', '#b2dfdb'], text: '#3e2723', accent: '#d84315', subText: '#5d4037' }
+      { id: 'blue', name: 'ブルー', bg: ['#f8f9fa', '#e9ecef'], text: '#202124', accent: '#1a73e8', subText: '#5f6368', isTwoTone: false },
+      { id: 'green', name: 'グリーン', bg: ['#f4fdf8', '#e6f6ec'], text: '#1b2e22', accent: '#0f9d58', subText: '#4d5156', isTwoTone: false },
+      { id: 'dark', name: 'ダーク', bg: ['#202124', '#303134'], text: '#e8eaed', accent: '#8ab4f8', subText: '#9aa0a6', isTwoTone: false },
+      { id: 'purple', name: 'パープル', bg: ['#fdf8ff', '#f3e8fa'], text: '#2a1b38', accent: '#9333ea', subText: '#6b5a7a', isTwoTone: false },
+      { id: 'orange', name: 'オレンジ', bg: ['#fff8f3', '#faebe1'], text: '#382216', accent: '#ea580c', subText: '#7a5a4a', isTwoTone: false },
+      { id: 'navy-yellow', name: 'ネイビー×イエロー', isTwoTone: true, color1: '#0f2027', color2: '#f2c94c',
+        normal: { bg: ['#0f2027', '#203a43'], text: '#ffffff', accent: '#f2c94c', subText: '#b0bec5' },
+        reverse: { bg: ['#fefce8', '#fef08a'], text: '#0f172a', accent: '#0f172a', subText: '#713f12' }
+      },
+      { id: 'pink-blue', name: 'ピンク×ブルー', isTwoTone: true, color1: '#ff9a9e', color2: '#3498db',
+        normal: { bg: ['#ff9a9e', '#fecfef'], text: '#2c3e50', accent: '#3498db', subText: '#34495e' },
+        reverse: { bg: ['#e0f2fe', '#bae6fd'], text: '#0f172a', accent: '#be185d', subText: '#334155' }
+      },
+      { id: 'black-red', name: 'ブラック×レッド', isTwoTone: true, color1: '#121212', color2: '#e50914',
+        normal: { bg: ['#121212', '#1a1a1a'], text: '#f5f5f5', accent: '#e50914', subText: '#9e9e9e' },
+        reverse: { bg: ['#fff1f2', '#ffe4e6'], text: '#121212', accent: '#be123c', subText: '#4c0519' }
+      },
+      { id: 'teal-coral', name: 'ティール×コーラル', isTwoTone: true, color1: '#0083b0', color2: '#ff7e67',
+        normal: { bg: ['#0083b0', '#00b4db'], text: '#ffffff', accent: '#ff7e67', subText: '#e0f7fa' },
+        reverse: { bg: ['#ffedd5', '#fed7aa'], text: '#042f2e', accent: '#0f766e', subText: '#115e59' }
+      },
+      { id: 'mint-choco', name: 'ミント×チョコ', isTwoTone: true, color1: '#e0f2f1', color2: '#3e2723',
+        normal: { bg: ['#e0f2f1', '#b2dfdb'], text: '#3e2723', accent: '#d84315', subText: '#5d4037' },
+        reverse: { bg: ['#4e342e', '#3e2723'], text: '#e0f2f1', accent: '#80cbc4', subText: '#b2dfdb' }
+      }
     ];
+
+    function getSlideThemeColors(themeId, isReversed) {
+      const t = slideThemes.find(x => x.id === themeId) || slideThemes[0];
+      if (t.isTwoTone) {
+        return isReversed ? t.reverse : t.normal;
+      }
+      return {
+        bg: t.bg,
+        text: t.text,
+        accent: t.accent,
+        subText: t.subText
+      };
+    }
 
     // レポート用の設定定義 (DocCraftベースを統合)
     const reportLayouts = {
@@ -428,9 +471,11 @@
       slideData: [],
       currentSlideIndex: 0,
       currentThemeId: 'blue',
+      isSlideReversed: false,
       
       // レポート関連
-      reportPages: [],
+      reportPages: [], // 元のMarkdownテキスト配列
+      reportPagesHtml: [], // 編集可能なHTML文字列配列
       reportLayout: 'modern',
       reportThemeId: 'default',
       isReportReversed: false,
@@ -446,14 +491,10 @@
       document.getElementById('home-category-select').innerHTML += categoryOptions;
       document.getElementById('header-category-select').innerHTML += categoryOptions;
 
-      // スライドテーマセレクタの生成
-      const themeSelector = document.getElementById('theme-selector');
-      themeSelector.innerHTML = slideThemes.map(t => `
-        <button onclick="setTheme('${t.id}')" id="theme-btn-${t.id}" class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-gray-500 hover:scale-110 transition-transform shrink-0" style="background: linear-gradient(135deg, ${t.bg[0]} 50%, ${t.accent} 50%)" title="${t.name}"></button>
-      `).join('');
-
       // レポート設定セレクトボックスの生成
       document.getElementById('report-layout-select').innerHTML = Object.entries(reportLayouts).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
+
+      renderSlideThemeSelector();
 
       updateView();
       lucide.createIcons();
@@ -674,7 +715,7 @@
             </div>
             <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-4 flex-grow">${item.aiSummary}</p>
             <div class="mt-4 flex justify-between items-center text-xs text-gray-500 border-t border-gray-100 dark:border-gray-600 pt-3">
-              <span class="flex items-center"><i data-lucide="globe" class="h-3 w-3 mr-1"></i> 参考元 ${item.results.length}件</span>
+              <span class="flex items-center"><i data-lucide="globe" class="h-3 w-3 mr-1"></i> 参考元 ${(item.results || []).length}件</span>
               <span>${item.date}</span>
             </div>
           </div>
@@ -716,6 +757,7 @@
       state.aiSummary = '';
       state.slideData = [];
       state.reportPages = [];
+      state.reportPagesHtml = [];
       state.selectedFile = null;
       state.error = null;
       updateView();
@@ -890,6 +932,7 @@
       state.query = displayQuery;
       state.slideData = [];
       state.reportPages = [];
+      state.reportPagesHtml = [];
 
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${state.apiKey}`;
       const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -1186,7 +1229,7 @@
         category: state.selectedCategory, 
         fileName: state.selectedFile ? state.selectedFile.name : null,
         aiSummary: state.aiSummary, 
-        results: state.results,
+        results: state.results || [],
         date: new Date().toLocaleString('ja-JP')
       };
       state.savedItems.unshift(newItem);
@@ -1204,29 +1247,56 @@
       executeSearch();
     }
 
+    function loadSavedItem(id) {
+      const item = state.savedItems.find(i => i.id === id);
+      if(!item) return;
+      state.query = item.query;
+      state.searchInput = item.rawQuery || '';
+      state.selectedCategory = item.category || '';
+      state.selectedFile = null;
+      state.aiSummary = item.aiSummary;
+      state.results = item.results || [];
+      state.view = 'results';
+      state.slideData = [];
+      state.reportPages = [];
+      state.reportPagesHtml = [];
+      state.error = null;
+      updateView();
+    }
+
+    function handleDeleteSavedItem(id, e) {
+      e.stopPropagation();
+      if(window.confirm("この保存済み回答を削除してもよろしいですか？")) {
+        state.savedItems = state.savedItems.filter(item => item.id !== id);
+        localStorage.setItem('ai_search_saved_items', JSON.stringify(state.savedItems));
+        updateView();
+      }
+    }
+
     // --- レポート機能 ---
-    function parseMarkdownForReport(markdown, t) {
+    function parseMarkdownForReport(markdown) {
       if (!markdown) return '';
       let html = String(markdown);
       html = html
-        .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: ${t.textBold}">$1</h3>`)
-        .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid ${t.border}; color: ${t.textBold}">$1</h2>`)
-        .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: ${t.accent}">$1</h1>`)
-        .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid ${t.accent}; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0;">$1</blockquote>`)
-        .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);" />')
-        .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: ${t.textBold}">$1</strong>`)
-        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic;">$1</em>`);
+        .replace(/^### (.*$)/gim, `<h3>$1</h3>`)
+        .replace(/^## (.*$)/gim, `<h2>$1</h2>`)
+        .replace(/^# (.*$)/gim, `<h1>$1</h1>`)
+        .replace(/^\> (.*$)/gim, `<blockquote>$1</blockquote>`)
+        .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" />')
+        .replace(/\*\*(.*?)\*\*/gim, `<strong>$1</strong>`)
+        .replace(/\*(.*?)\*/gim, `<em>$1</em>`)
+        .replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank">$1</a>`);
 
-      html = html.replace(/^- (.*$)/gim, '<li style="margin-bottom: 0.5rem;">$1</li>');
-      html = html.replace(/^\d+\. (.*$)/gim, '<li style="margin-bottom: 0.5rem;">$1</li>');
+      html = html.replace(/^- (.*$)/gim, '<li>$1</li>');
+      html = html.replace(/^\d+\. (.*$)/gim, '<li>$1</li>');
       
-      html = html.replace(/(<li style="margin-bottom: 0.5rem;">.*<\/li>\n?)+/g, match => `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-position: outside; line-height: 1.8;">${match}</ul>`);
+      html = html.replace(/(<li>.*<\/li>\n?)+/g, match => `<ul>\n${match}</ul>\n`);
 
       const lines = html.split('\n');
       const parsedLines = lines.map(line => {
         const trimmed = line.trim();
         if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div|<img)/.test(trimmed)) return line;
-        return `<p style="line-height: 1.8; margin-bottom: 1rem;">${line}</p>`;
+        return `<p>${line}</p>`;
       });
 
       return parsedLines.join('\n');
@@ -1320,6 +1390,9 @@
       const maxWeight = state.slideLogoText ? 34 : 36;
       state.reportPages = splitTextIntoPages(fullText, maxWeight);
       
+      // MarkdownからHTMLを生成し、状態として保持する（以降の編集ベースとなる）
+      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page));
+      
       renderReportThemeSelector();
       renderReport();
     }
@@ -1332,6 +1405,11 @@
       state.reportLayout = document.getElementById('report-layout-select').value;
       renderReport();
     }
+    
+    // レポートプレビュー上の直接編集内容を状態に反映
+    window.handleReportEdit = function(index, html) {
+      state.reportPagesHtml[index] = html;
+    };
 
     function renderReport() {
       const container = document.getElementById('report-preview-container');
@@ -1340,14 +1418,15 @@
       const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
       
       let html = '';
-      state.reportPages.forEach((page, idx) => {
+      state.reportPagesHtml.forEach((pageHtml, idx) => {
         html += `
-          <div class="report-page shadow-2xl mb-8 w-full max-w-[210mm] relative overflow-hidden ${layout.classes}" style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; color: ${t.text}; background-color: ${t.container};">
-            <div class="max-w-none">
-              ${parseMarkdownForReport(page, t)}
+          <div class="report-page shadow-2xl mb-8 w-full max-w-[210mm] relative overflow-hidden ${layout.classes}" 
+               style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; color: ${t.text}; background-color: ${t.container}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border};">
+            <div class="report-content" contenteditable="true" onblur="handleReportEdit(${idx}, this.innerHTML)" onkeydown="handleKeyDownOnEditable(event)">
+              ${pageHtml}
             </div>
             ${state.slideLogoText ? `<div class="absolute right-[20mm] bottom-[20mm] text-xs opacity-60" style="color: ${t.textMuted}">${state.slideLogoText}</div>` : ''}
-            <div class="absolute left-[20mm] bottom-[20mm] text-xs opacity-60 font-mono" style="color: ${t.textMuted}">${idx + 1} / ${state.reportPages.length}</div>
+            <div class="absolute left-[20mm] bottom-[20mm] text-xs opacity-60 font-mono" style="color: ${t.textMuted}">${idx + 1} / ${state.reportPagesHtml.length}</div>
           </div>
         `;
       });
@@ -1360,6 +1439,7 @@
         alert("PDF生成ライブラリを読み込み中です。少し待ってから再度お試しください。");
         return;
       }
+      if (state.reportPagesHtml.length === 0) return;
       
       const btn = document.getElementById('btn-export-pdf');
       const originalHtml = btn.innerHTML;
@@ -1383,13 +1463,34 @@
         container.style.opacity = '0.01';
         container.style.pointerEvents = 'none';
         container.style.width = '794px'; 
+        
+        const styleHTML = `
+          <style>
+            * { box-sizing: border-box; }
+            .report-content { white-space: pre-wrap; }
+            .report-content h1 { font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent); }
+            .report-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold); }
+            .report-content h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
+            .report-content p { line-height: 1.8; margin-bottom: 1rem; }
+            .report-content ul { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: disc; }
+            .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; }
+            .report-content li { margin-bottom: 0.5rem; display: list-item; }
+            .report-content blockquote { border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
+            .report-content img { max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; }
+            .report-content strong { font-weight: bold; color: var(--color-text-bold); }
+            .report-content em { font-style: italic; }
+            .report-content a { color: var(--color-accent); text-decoration: underline; }
+          </style>
+        `;
 
-        const elementsHTML = state.reportPages.map((pageContent, index) => {
+        const elementsHTML = state.reportPagesHtml.map((pageHtml, index) => {
           const logoHtml = state.slideLogoText ? `<div style="position: absolute; right: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: inherit; color: ${t.textMuted}">${escapedLogo}</div>` : '';
-          const pageNumHtml = `<div style="position: absolute; left: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: monospace; color: ${t.textMuted}">${index + 1} / ${state.reportPages.length}</div>`;
+          const pageNumHtml = `<div style="position: absolute; left: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: monospace; color: ${t.textMuted}">${index + 1} / ${state.reportPagesHtml.length}</div>`;
           return `
-            <div class="pdf-page-element" style="background-color: ${t.container}; color: ${t.text}; width: 794px; height: 1122px; padding: 75px; position: relative; overflow: hidden; box-sizing: border-box; margin-bottom: 10px;">
-              ${parseMarkdownForReport(pageContent, t)}
+            <div class="pdf-page-element ${layoutConfig.classes}" style="background-color: ${t.container}; color: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border}; width: 794px; height: 1122px; padding: 75px; position: relative; overflow: hidden; box-sizing: border-box; margin-bottom: 10px;">
+              <div class="report-content">
+                ${pageHtml}
+              </div>
               ${logoHtml}
               ${pageNumHtml}
             </div>
@@ -1397,6 +1498,7 @@
         }).join('');
 
         container.innerHTML = `<div style="font-family: ${fontFamily}; margin: 0; padding: 0; display: block; width: 794px;">
+          ${styleHTML}
           ${elementsHTML}
         </div>`;
         document.body.appendChild(container);
@@ -1432,7 +1534,7 @@
     }
 
     async function handleExportReportWord() {
-      if (state.reportPages.length === 0) return;
+      if (state.reportPagesHtml.length === 0) return;
 
       const btn = document.getElementById('btn-export-word');
       const originalHtml = btn ? btn.innerHTML : '';
@@ -1471,66 +1573,69 @@
         
         const docFontFamily = layoutConfig.fontFamily.split(',')[0].replace(/['"]/g, '');
         // # を確実に除去してWordライブラリに渡す
-        const wText = (t.text || '333333').replace('#', '');
-        const wTextBold = (t.textBold || '111827').replace('#', '');
-        const wTextMuted = (t.textMuted || '888888').replace('#', '');
-        const wAccent = (t.accent || '1d4ed8').replace('#', '');
-        const bgColorHex = (t.container || 'ffffff').replace('#', '');
+        const wText = (t.text || '#333333').replace('#', '');
+        const wTextBold = (t.textBold || '#111827').replace('#', '');
+        const wTextMuted = (t.textMuted || '#888888').replace('#', '');
+        const wAccent = (t.accent || '#1d4ed8').replace('#', '');
+        const bgColorHex = (t.container || '#ffffff').replace('#', '');
 
         const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink, Footer } = window.docx;
-        
         const docChildren = [];
-        
-        docChildren.push(
-          new Paragraph({ text: state.query, heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER, spacing: { after: 400 } }),
-          new Paragraph({ children: [new TextRun({ text: `作成日時: ${new Date().toLocaleString('ja-JP')}`, color: wTextMuted })], alignment: AlignmentType.RIGHT, spacing: { after: 400 } }),
-          new Paragraph({ text: "分析結果のレポート", heading: HeadingLevel.HEADING_1 })
-        );
+        const parser = new DOMParser();
 
-        const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
-        let fullText = state.aiSummary;
-        if (includeSources && state.results.length > 0) {
-          fullText += "\n\n## 参考としたWEBサイト一覧\n";
-          state.results.forEach((r, i) => {
-            fullText += `\n### [${i + 1}] ${r.title}\n`;
-            if (r.siteName) fullText += `サイト名: ${r.siteName}\n`;
-            fullText += `URL: ${r.url}\n`;
-            if (r.description) fullText += `概要: ${r.description}\n`;
-          });
-        }
-
-        const lines = fullText.split('\n');
-        for (const line of lines) {
-          if (!line.trim()) {
-             docChildren.push(new Paragraph({ text: "", spacing: { after: 200 } }));
-             continue;
-          }
-
-          if (line.startsWith('### ')) {
-             docChildren.push(new Paragraph({ text: line.substring(4), heading: HeadingLevel.HEADING_3 }));
-          } else if (line.startsWith('## ')) {
-             docChildren.push(new Paragraph({ text: line.substring(3), heading: HeadingLevel.HEADING_2 }));
-          } else if (line.startsWith('# ')) {
-             docChildren.push(new Paragraph({ text: line.substring(2), heading: HeadingLevel.HEADING_1 }));
-          } else if (line.startsWith('URL: ')) {
-             const urlLink = line.substring(5);
-             docChildren.push(new Paragraph({
-                children: [ new ExternalHyperlink({ children: [ new TextRun({ text: urlLink, color: wAccent, underline: {} }) ], link: urlLink }) ],
-                spacing: { after: 50 }
-             }));
-          } else {
-             const runs = [];
-             const parts = line.split(/(\*\*.*?\*\*)/g);
-             for (const part of parts) {
-               if (part.startsWith('**') && part.endsWith('**')) {
-                 runs.push(new TextRun({ text: part.substring(2, part.length - 2), bold: true, color: wTextBold }));
-               } else if (part) {
-                 runs.push(new TextRun({ text: part }));
-               }
-             }
-             docChildren.push(new Paragraph({ children: runs, spacing: { after: 120 } }));
-          }
-        }
+        state.reportPagesHtml.forEach((htmlStr, pageIdx) => {
+            if (pageIdx > 0) {
+               docChildren.push(new Paragraph({ text: "", pageBreakBefore: true }));
+            }
+            const docEl = parser.parseFromString(htmlStr, 'text/html');
+            
+            const processNode = (node) => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const text = node.textContent.trim();
+                    if (text) docChildren.push(new Paragraph({ children: [new TextRun({ text, color: wText })] }));
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    const tag = node.tagName.toLowerCase();
+                    if (tag === 'h1') {
+                        docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_1 }));
+                    } else if (tag === 'h2') {
+                        docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_2 }));
+                    } else if (tag === 'h3') {
+                        docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_3 }));
+                    } else if (tag === 'p') {
+                        const runs = [];
+                        node.childNodes.forEach(child => {
+                            if (child.nodeType === Node.TEXT_NODE) {
+                                runs.push(new TextRun({ text: child.textContent, color: wText }));
+                            } else if (child.nodeType === Node.ELEMENT_NODE) {
+                                const cTag = child.tagName.toLowerCase();
+                                if (cTag === 'strong' || cTag === 'b') {
+                                    runs.push(new TextRun({ text: child.textContent, bold: true, color: wTextBold }));
+                                } else if (cTag === 'em' || cTag === 'i') {
+                                    runs.push(new TextRun({ text: child.textContent, italics: true, color: wText }));
+                                } else if (cTag === 'a') {
+                                    runs.push(new TextRun({ text: child.textContent, color: wAccent, underline: {} }));
+                                } else {
+                                    runs.push(new TextRun({ text: child.textContent, color: wText }));
+                                }
+                            }
+                        });
+                        if (runs.length > 0) docChildren.push(new Paragraph({ children: runs, spacing: { after: 150 } }));
+                    } else if (tag === 'ul' || tag === 'ol') {
+                        node.childNodes.forEach(li => {
+                            if (li.nodeType === Node.ELEMENT_NODE && li.tagName.toLowerCase() === 'li') {
+                                docChildren.push(new Paragraph({ text: li.textContent, bullet: { level: 0 }, color: wText }));
+                            }
+                        });
+                    } else if (tag === 'blockquote') {
+                        docChildren.push(new Paragraph({ text: node.textContent, indent: { left: 720 }, italics: true, color: wText }));
+                    } else {
+                        node.childNodes.forEach(processNode);
+                    }
+                }
+            };
+            
+            docEl.body.childNodes.forEach(processNode);
+        });
 
         const doc = new Document({
           creator: "AI Word Search",
@@ -1543,7 +1648,7 @@
               },
               paragraphStyles: [
                   { id: "Title", name: "Title", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 44, bold: true, color: wAccent } },
-                  { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 32, bold: true, color: wTextBold }, paragraph: { spacing: { before: 400, after: 200 } } },
+                  { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 32, bold: true, color: wAccent }, paragraph: { spacing: { before: 400, after: 200 } } },
                   { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 28, bold: true, color: wTextBold }, paragraph: { spacing: { before: 300, after: 150 } } },
                   { id: "Heading3", name: "Heading 3", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 24, bold: true, color: wTextBold }, paragraph: { spacing: { before: 200, after: 100 } } }
               ]
@@ -1587,7 +1692,7 @@
     }
 
     function handleExportReportHTML() {
-      if (state.reportPages.length === 0) return;
+      if (state.reportPagesHtml.length === 0) return;
       const layout = reportLayouts[state.reportLayout];
       const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
 
@@ -1609,16 +1714,31 @@
     .print-btn-container { display: none; }
     .page { box-shadow: none; border-radius: 0; margin: 0; page-break-after: always; min-height: auto; height: 100vh; }
   }
+  
+  /* レポート用コンテンツスタイル */
+  .report-content { white-space: pre-wrap; }
+  .report-content h1 { font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: ${t.accent}; }
+  .report-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid ${t.border}; color: ${t.textBold}; }
+  .report-content h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: ${t.textBold}; }
+  .report-content p { line-height: 1.8; margin-bottom: 1rem; }
+  .report-content ul { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: disc; }
+  .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; }
+  .report-content li { margin-bottom: 0.5rem; display: list-item; }
+  .report-content blockquote { border-left: 4px solid ${t.accent}; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
+  .report-content img { max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; }
+  .report-content strong { font-weight: bold; color: ${t.textBold}; }
+  .report-content em { font-style: italic; }
+  .report-content a { color: ${t.accent}; text-decoration: underline; }
 </style>
 </head>
 <body>
 <div class="print-btn-container"><button class="print-btn" onclick="window.print()">この資料を印刷・PDF保存</button></div>
 `;
       
-      state.reportPages.forEach((page, idx) => {
+      state.reportPagesHtml.forEach((pageHtml, idx) => {
         htmlStr += `<div class="page">\n`;
-        htmlStr += parseMarkdownForReport(page, t);
-        htmlStr += `<div class="page-num">${idx + 1} / ${state.reportPages.length}</div>`;
+        htmlStr += `<div class="report-content">${pageHtml}</div>`;
+        htmlStr += `<div class="page-num">${idx + 1} / ${state.reportPagesHtml.length}</div>`;
         if(state.slideLogoText) htmlStr += `<div class="logo">${state.slideLogoText}</div>\n`;
         htmlStr += `</div>\n`;
       });
@@ -1634,12 +1754,23 @@
     }
 
     function handleExportReportText() {
-      if (!state.aiSummary) return;
+      if (state.reportPagesHtml.length === 0) return;
+
+      const parser = new DOMParser();
+      let editedText = '';
+      state.reportPagesHtml.forEach((htmlStr, idx) => {
+        const doc = parser.parseFromString(htmlStr, 'text/html');
+        editedText += doc.body.textContent.trim() + '\n\n';
+        if (idx < state.reportPagesHtml.length - 1) {
+            editedText += '---\n\n';
+        }
+      });
 
       const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
       let content = `■ 検索キーワード: ${state.query}\n`;
       content += `■ 生成日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
-      content += `■ 分析結果のレポート\n${state.aiSummary}\n\n`;
+      content += `■ 分析結果のレポート\n${editedText.trim()}\n\n`;
+      
       if (includeSources && state.results && state.results.length > 0) {
         content += `■ 参考としたWEBサイト一覧\n`;
         state.results.forEach((r, i) => { 
@@ -1651,6 +1782,7 @@
         });
       }
       content += `\n${state.slideLogoText}\n`;
+      
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1662,7 +1794,7 @@
 
     function handleExportText() {
       if (!state.aiSummary) return;
-
+      
       const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
       let content = `■ 検索キーワード: ${state.query}\n`;
       content += `■ 生成日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
@@ -1746,6 +1878,7 @@
 
     function openSlideModal() {
       document.getElementById('slide-modal').classList.remove('hidden');
+      renderSlideThemeSelector();
       renderSlide();
     }
 
@@ -1753,27 +1886,53 @@
       document.getElementById('slide-modal').classList.add('hidden');
     }
 
-    function setTheme(themeId) {
-      state.currentThemeId = themeId;
+    function renderSlideThemeSelector() {
+      const selector = document.getElementById('slide-theme-selector');
+      if (!selector) return;
       
-      // ボタンのハイライト更新
-      slideThemes.forEach(t => {
-        const btn = document.getElementById(`theme-btn-${t.id}`);
-        if(t.id === themeId) {
-          btn.classList.add('scale-125', 'border-white', 'ring-1', 'ring-white');
-          btn.classList.remove('border-gray-500', 'hover:scale-110');
-        } else {
-          btn.classList.remove('scale-125', 'border-white', 'ring-1', 'ring-white');
-          btn.classList.add('border-gray-500', 'hover:scale-110');
+      selector.innerHTML = slideThemes.map(t => {
+        let bg1 = t.isTwoTone ? t.color1 : t.bg[0];
+        let bg2 = t.isTwoTone ? t.color2 : t.accent;
+        
+        if (t.isTwoTone && state.currentThemeId === t.id && state.isSlideReversed) {
+          bg1 = t.color2;
+          bg2 = t.color1;
         }
-      });
+        
+        const activeClass = state.currentThemeId === t.id ? 'scale-125 border-white ring-1 ring-white' : 'border-gray-500 hover:scale-110';
+        return `<button 
+          onclick="setTheme('${t.id}')"
+          id="theme-btn-${t.id}"
+          class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border transition-transform shrink-0 ${activeClass}"
+          style="background: linear-gradient(135deg, ${bg1} 50%, ${bg2} 50%)"
+          title="${t.name}${t.isTwoTone ? ' (クリックで反転)' : ''}"
+        ></button>`;
+      }).join('');
+    }
+
+    function setTheme(themeId) {
+      const t = slideThemes.find(x => x.id === themeId);
+      if (t && t.isTwoTone && state.currentThemeId === themeId) {
+        state.isSlideReversed = !state.isSlideReversed;
+      } else {
+        state.currentThemeId = themeId;
+        state.isSlideReversed = false;
+      }
+      renderSlideThemeSelector();
       renderSlide();
     }
 
     function renderSlide() {
       if (state.slideData.length === 0) return;
       
-      const theme = slideThemes.find(t => t.id === state.currentThemeId) || slideThemes[0];
+      const themeConfig = getSlideThemeColors(state.currentThemeId, state.isSlideReversed);
+      const theme = {
+        bg: themeConfig.bg,
+        text: themeConfig.text,
+        accent: themeConfig.accent,
+        subText: themeConfig.subText
+      };
+      
       const slide = state.slideData[state.currentSlideIndex];
       const container = document.getElementById('slide-container');
       const isTitle = state.currentSlideIndex === 0;
@@ -1838,7 +1997,13 @@
     // --- ダウンロード ---
     function handleDownloadHTML() {
       if (state.slideData.length === 0) return;
-      const theme = slideThemes.find(t => t.id === state.currentThemeId) || slideThemes[0];
+      const themeConfig = getSlideThemeColors(state.currentThemeId, state.isSlideReversed);
+      const theme = {
+        bg: themeConfig.bg,
+        text: themeConfig.text,
+        accent: themeConfig.accent,
+        subText: themeConfig.subText
+      };
 
       let htmlStr = `<!DOCTYPE html>
 <html lang="ja">
@@ -1894,7 +2059,14 @@
 
     async function handleDownloadPPTX() {
       if (state.slideData.length === 0) return;
-      const theme = slideThemes.find(t => t.id === state.currentThemeId) || slideThemes[0];
+      const themeConfig = getSlideThemeColors(state.currentThemeId, state.isSlideReversed);
+      const theme = {
+        bg: themeConfig.bg,
+        text: themeConfig.text,
+        accent: themeConfig.accent,
+        subText: themeConfig.subText
+      };
+      
       const hexToPptx = (hex) => hex.replace('#', '').toUpperCase();
       
       const loadScript = (src) => {
