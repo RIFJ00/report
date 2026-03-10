@@ -262,6 +262,7 @@
             userApiKey: "",
             organizationName: DEFAULT_ORG_NAME,
             isSettingsOpen: false,
+            isManualOpen: false,
             keywords: [],
             newKeyword: "",
             researchData: [],
@@ -297,6 +298,7 @@
         window.AppActions = {
             setSettingsOpen: (val) => updateState({ isSettingsOpen: val }),
             setBackupModalOpen: (val) => updateState({ isBackupModalOpen: val }),
+            setManualOpen: (val) => updateState({ isManualOpen: val }),
             setUserApiKey: (val) => { State.userApiKey = val; }, 
             setOrganizationName: (val) => { State.organizationName = val; },
             resetOrganizationName: () => {
@@ -1252,6 +1254,117 @@ ${JSON.stringify(selectedData, null, 2)}
             `;
         };
 
+        const renderManualModal = () => {
+            if (!State.isManualOpen) return "";
+            return `
+                <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-0 relative animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh]">
+                        <div class="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 rounded-t-2xl shrink-0">
+                            <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                ${Icon('book-open', 28, "text-indigo-600")} Auto Researcher 使い方マニュアル
+                            </h2>
+                            <button onclick="AppActions.setManualOpen(false)" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-200">
+                                ${Icon('x', 24)}
+                            </button>
+                        </div>
+                        
+                        <div class="flex-1 overflow-y-auto p-8 text-slate-700 leading-relaxed space-y-8">
+                            <section>
+                                <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 flex items-center gap-2">
+                                    <span class="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full inline-flex items-center justify-center text-sm">0</span>
+                                    まずは初期設定（必須）
+                                </h3>
+                                <p class="mb-2">このツールを利用するには、AIを動かすための「Gemini APIキー」が必要です。</p>
+                                <ol class="list-decimal pl-5 space-y-1 text-sm bg-amber-50 border border-amber-200 p-4 rounded-lg text-amber-900">
+                                    <li>左下の<strong class="text-amber-700">「設定 (APIキー)」</strong>ボタンをクリックします。</li>
+                                    <li>取得したAPIキーを入力し、「保存して閉じる」を押してください。</li>
+                                    <li class="text-xs mt-2 text-amber-700/80">※APIキーは <a href="https://aistudio.google.com/" target="_blank" class="underline hover:text-indigo-600">Google AI Studio</a> から無料で取得できます。</li>
+                                </ol>
+                            </section>
+
+                            <section>
+                                <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 flex items-center gap-2">
+                                    <span class="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full inline-flex items-center justify-center text-sm">1</span>
+                                    情報を収集する
+                                </h3>
+                                <p class="mb-2">資料のもとになる情報を集めます。2つの方法があります。</p>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                        <h4 class="font-bold text-indigo-700 mb-1 flex items-center gap-1">${Icon('search', 16)} キーワードで検索</h4>
+                                        <p class="text-sm">左上の入力欄にキーワードを入れ「＋」ボタンを押すか、ジャンルを選択します。AIがWebから最新情報を検索し、要約して一覧に追加します。</p>
+                                    </div>
+                                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                        <h4 class="font-bold text-emerald-700 mb-1 flex items-center gap-1">${Icon('upload', 16)} ファイルを読み込む</h4>
+                                        <p class="text-sm">お手持ちのPDF、Word、PowerPoint、Excelなどを左サイドバーからアップロードすると、AIが内容を分析して一覧に追加します。</p>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section>
+                                <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 flex items-center gap-2">
+                                    <span class="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full inline-flex items-center justify-center text-sm">2</span>
+                                    資料に使うデータを選ぶ
+                                </h3>
+                                <p class="mb-2 text-sm">「収集データ」タブに集まった情報リストから、スライドやレポートに<strong class="text-indigo-600">使いたい情報のチェックボックス（四角い枠）</strong>をクリックして選択します。選択されたものは青い枠でハイライトされます。</p>
+                            </section>
+
+                            <section>
+                                <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 flex items-center gap-2">
+                                    <span class="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full inline-flex items-center justify-center text-sm">3</span>
+                                    資料を自動生成する
+                                </h3>
+                                <p class="mb-3 text-sm">画面上部のタブから作りたい形式を選びます。</p>
+                                <div class="space-y-4 pl-2">
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 flex items-center gap-1">${Icon('presentation', 18, 'text-indigo-500')} スライド作成</h4>
+                                        <p class="text-sm">テーマカラー、情報の粒度（概要のみ/詳細）、スタイル（箇条書き/図解ベース）を選び、<strong class="text-slate-900">「この設定でスライドを生成する」</strong>ボタンを押します。</p>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 flex items-center gap-1">${Icon('book-open', 18, 'text-indigo-500')} レポート作成</h4>
+                                        <p class="text-sm">テーマカラー、ボリューム（詳細/簡潔）、文体（論文調/ビジネス調）を選び、<strong class="text-slate-900">「この設定でレポートを生成する」</strong>ボタンを押します。</p>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section>
+                                <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 flex items-center gap-2">
+                                    <span class="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full inline-flex items-center justify-center text-sm">4</span>
+                                    エクスポート（ダウンロード）
+                                </h3>
+                                <p class="text-sm mb-2">生成が完了すると、画面下部にプレビューが表示されます。プレビューの右上にあるボタンから出力が可能です。</p>
+                                <ul class="list-disc pl-5 space-y-1 text-sm">
+                                    <li><strong>PDF:</strong> そのまま印刷・配布できる形式です。</li>
+                                    <li><strong>HTML:</strong> Webブラウザで閲覧・共有できる形式です。</li>
+                                    <li><strong>PPTX (スライドのみ):</strong> PowerPointで後から編集可能な形式です。</li>
+                                </ul>
+                            </section>
+
+                            <section>
+                                <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 flex items-center gap-2">
+                                    <span class="text-xl">💡</span>
+                                    その他の便利機能
+                                </h3>
+                                <ul class="space-y-3 text-sm">
+                                    <li>
+                                        <strong class="text-slate-900">署名の変更:</strong><br/>
+                                        左下の「設定 (APIキー)」画面から、出力資料に印字される組織名（デフォルトは「一般社団法人日本みらい研」）を自由に変更できます。
+                                    </li>
+                                    <li>
+                                        <strong class="text-slate-900">バックアップ機能:</strong><br/>
+                                        左サイドバー下の「ブラウザ保存」を押すと現在の状態が保存され、後から「ブラウザ復元」で再開できます。他のPCへ移動する場合は「ファイル保存/復元」が便利です。
+                                    </li>
+                                </ul>
+                            </section>
+                        </div>
+                        
+                        <div class="px-8 py-5 border-t border-slate-100 bg-slate-50 flex justify-end rounded-b-2xl shrink-0">
+                            <button onclick="AppActions.setManualOpen(false)" class="px-8 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm">理解しました（閉じる）</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
         const renderSidebar = () => {
             return `
                 <aside class="w-80 bg-white border-r border-slate-200 flex flex-col shadow-sm z-10 print:hidden">
@@ -1343,6 +1456,10 @@ ${JSON.stringify(selectedData, null, 2)}
                         </button>
                     </div>
                     <div class="flex items-center gap-3 ml-4 shrink-0">
+                        <button onclick="AppActions.setManualOpen(true)" class="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
+                            ${Icon('info', 18, "text-indigo-500")} 使い方
+                        </button>
+                        <div class="w-px h-6 bg-slate-200 mx-1"></div>
                         ${State.activeTab === 'research' ? `
                             <button onclick="AppActions.fetchAdditionalResearch()" ${State.isResearching || State.keywords.length === 0 ? 'disabled' : ''} class="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 text-indigo-700 text-sm font-medium rounded-lg hover:bg-indigo-100 disabled:opacity-50 transition-colors">
                                 ${Icon('refresh-cw', 16, State.isResearching ? "animate-spin" : "")} ${State.isResearching ? "取得中..." : "最新情報を追加取得"}
@@ -1680,6 +1797,7 @@ ${JSON.stringify(selectedData, null, 2)}
                 <div class="flex h-screen bg-slate-50 font-sans text-slate-800">
                     ${renderSettingsModal()}
                     ${renderBackupModal()}
+                    ${renderManualModal()}
                     ${renderSidebar()}
                     <main class="flex-1 flex flex-col overflow-hidden print:overflow-visible">
                         ${renderMainHeader()}
