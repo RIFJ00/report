@@ -1647,112 +1647,108 @@
         const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
         
         const docFontFamily = layoutConfig.fontFamily.split(',')[0].replace(/['"]/g, '');
-        // # を確実に除去してWordライブラリに渡す
         const wText = (t.text || '#333333').replace('#', '');
         const wTextBold = (t.textBold || '#111827').replace('#', '');
         const wTextMuted = (t.textMuted || '#888888').replace('#', '');
         const wAccent = (t.accent || '#1d4ed8').replace('#', '');
         const bgColorHex = (t.container || '#ffffff').replace('#', '');
 
-        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink, Footer } = window.docx;
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Footer } = window.docx;
         const docChildren = [];
-        const parser = new DOMParser();
-
+        
         docChildren.push(
-          new Paragraph({ text: state.query, heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER, spacing: { after: 400 } }),
-          new Paragraph({ children: [new TextRun({ text: `作成日時: ${new Date().toLocaleString('ja-JP')}`, color: wTextMuted })], alignment: AlignmentType.RIGHT, spacing: { after: 400 } }),
+          new Paragraph({ text: state.query, heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }),
+          new Paragraph({ children: [new TextRun({ text: `作成日時: ${new Date().toLocaleString('ja-JP')}`, color: wTextMuted })], alignment: AlignmentType.RIGHT }),
           new Paragraph({ text: "分析結果のレポート", heading: HeadingLevel.HEADING_1 })
         );
 
-        // プレビューのHTML(編集内容を含む)を解析してWordドキュメントを構築する
+        const parseInlineText = (textStr) => {
+          const parts = textStr.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+          return parts.map(part => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+              return new TextRun({ text: part.slice(2, -2), bold: true, color: wTextBold });
+            } else if (part.startsWith('*') && part.endsWith('*')) {
+              return new TextRun({ text: part.slice(1, -1), italics: true, color: wText });
+            } else if (part.match(/https?:\/\/[^\s]+/)) {
+              return new TextRun({ text: part, color: wAccent });
+            } else {
+              return new TextRun({ text: part, color: wText });
+            }
+          }).filter(run => run.text !== "");
+        };
+
+        const tempDiv = document.createElement('div');
+
         state.reportPagesHtml.forEach((htmlStr, pageIdx) => {
             if (pageIdx > 0) {
-               docChildren.push(new Paragraph({ text: "", pageBreakBefore: true }));
+               docChildren.push(new Paragraph({ pageBreakBefore: true }));
             }
-            const docEl = parser.parseFromString(htmlStr, 'text/html');
+            
+            tempDiv.innerHTML = htmlStr;
             
             const processNode = (node) => {
                 if (node.nodeType === Node.ELEMENT_NODE) {
                     const tag = node.tagName.toLowerCase();
+                    const textContent = node.textContent.trim();
+                    if (!textContent && tag !== 'img' && tag !== 'br') return;
+
                     if (tag === 'h1') {
-                        docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_1 }));
+                        docChildren.push(new Paragraph({ children: parseInlineText(textContent), heading: HeadingLevel.HEADING_1 }));
                     } else if (tag === 'h2') {
-                        docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_2 }));
+                        docChildren.push(new Paragraph({ children: parseInlineText(textContent), heading: HeadingLevel.HEADING_2 }));
                     } else if (tag === 'h3') {
-                        docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_3 }));
+                        docChildren.push(new Paragraph({ children: parseInlineText(textContent), heading: HeadingLevel.HEADING_3 }));
                     } else if (tag === 'p') {
-                        const runs = [];
-                        node.childNodes.forEach(child => {
-                            if (child.nodeType === Node.TEXT_NODE) {
-                                if (child.textContent) runs.push(new TextRun({ text: child.textContent, color: wText }));
-                            } else if (child.nodeType === Node.ELEMENT_NODE) {
-                                const cTag = child.tagName.toLowerCase();
-                                if (cTag === 'strong' || cTag === 'b') {
-                                    runs.push(new TextRun({ text: child.textContent, bold: true, color: wTextBold }));
-                                } else if (cTag === 'em' || cTag === 'i') {
-                                    runs.push(new TextRun({ text: child.textContent, italics: true, color: wText }));
-                                } else if (cTag === 'a') {
-                                    runs.push(new TextRun({ text: child.textContent, color: wAccent }));
-                                } else {
-                                    runs.push(new TextRun({ text: child.textContent, color: wText }));
-                                }
-                            }
-                        });
-                        if (runs.length > 0) docChildren.push(new Paragraph({ children: runs, spacing: { after: 150 } }));
+                        docChildren.push(new Paragraph({ children: parseInlineText(textContent) }));
                     } else if (tag === 'ul' || tag === 'ol') {
                         node.childNodes.forEach(li => {
                             if (li.nodeType === Node.ELEMENT_NODE && li.tagName.toLowerCase() === 'li') {
-                                docChildren.push(new Paragraph({ 
-                                    children: [new TextRun({ text: li.textContent, color: wText })],
-                                    bullet: { level: 0 } 
-                                }));
+                                const liText = li.textContent.trim();
+                                if(liText) {
+                                    docChildren.push(new Paragraph({ children: parseInlineText(liText), bullet: { level: 0 } }));
+                                }
                             }
                         });
                     } else if (tag === 'blockquote') {
-                        docChildren.push(new Paragraph({ 
-                            children: [new TextRun({ text: node.textContent, italics: true, color: wText })],
-                            indent: { left: 720 } 
-                        }));
+                        docChildren.push(new Paragraph({ children: parseInlineText(textContent), indent: { left: 720 }, italics: true }));
                     } else if (tag === 'img') {
                          const alt = node.getAttribute('alt') || '画像';
                          docChildren.push(new Paragraph({
                              children: [new TextRun({ text: `[画像: ${alt}]`, italics: true, color: wTextMuted })],
-                             alignment: AlignmentType.CENTER,
-                             spacing: { before: 150, after: 150 }
+                             alignment: AlignmentType.CENTER
                          }));
                     } else {
-                        node.childNodes.forEach(processNode);
+                        node.childNodes.forEach(child => processNode(child));
                     }
                 } else if (node.nodeType === Node.TEXT_NODE) {
                     const text = node.textContent.trim();
                     if (text) {
-                        docChildren.push(new Paragraph({ children: [new TextRun({ text, color: wText })] }));
+                        docChildren.push(new Paragraph({ children: parseInlineText(text) }));
                     }
                 }
             };
             
-            docEl.body.childNodes.forEach(processNode);
+            tempDiv.childNodes.forEach(child => processNode(child));
         });
 
         const doc = new Document({
           creator: "AI Word Search",
           background: { color: bgColorHex },
           styles: {
-              default: {
-                  document: {
-                      run: { font: docFontFamily, color: wText },
-                  },
+            default: {
+              document: {
+                run: { font: docFontFamily, color: wText },
+                paragraph: { spacing: { line: 360, after: 120 } },
               },
-              paragraphStyles: [
-                  { id: "Title", name: "Title", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 44, bold: true, color: wAccent } },
-                  { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 32, bold: true, color: wAccent }, paragraph: { spacing: { before: 400, after: 200 } } },
-                  { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 28, bold: true, color: wTextBold }, paragraph: { spacing: { before: 300, after: 150 } } },
-                  { id: "Heading3", name: "Heading 3", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 24, bold: true, color: wTextBold }, paragraph: { spacing: { before: 200, after: 100 } } }
-              ]
+              title: { run: { size: 44, bold: true, color: wAccent }, paragraph: { spacing: { after: 400 } } },
+              heading1: { run: { size: 36, bold: true, color: wAccent }, paragraph: { spacing: { before: 400, after: 200 } } },
+              heading2: { run: { size: 32, bold: true, color: wTextBold }, paragraph: { spacing: { before: 300, after: 150 } } },
+              heading3: { run: { size: 28, bold: true, color: wTextBold }, paragraph: { spacing: { before: 200, after: 100 } } },
+            }
           },
           sections: [{
             properties: {
-              page: { size: { width: 11906, height: 16838 } } // A4
+              page: { size: { orientation: "portrait", width: 11906, height: 16838 } } // A4 portrait
             },
             footers: state.slideLogoText ? {
               default: new Footer({
