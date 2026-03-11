@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Word (.docx) 解析用ライブラリ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-  <!-- Word (.docx) 生成用ライブラリ (ブラウザ用UMD版) -->
+  <!-- Word (.docx) 生成用ライブラリ (安定版の8.2.3に固定) -->
   <script src="https://unpkg.com/docx@8.2.3/build/index.umd.js"></script>
   <!-- PDF 生成用ライブラリ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -381,6 +381,10 @@
         <button onclick="handleDownloadPPTX()" class="flex items-center space-x-1.5 sm:space-x-2 bg-orange-600 hover:bg-orange-700 text-white px-2 sm:px-4 py-2 rounded-md transition-colors text-xs sm:text-sm font-medium shadow-md" title="PowerPointファイルを保存">
           <i data-lucide="download" class="h-4 w-4"></i>
           <span class="hidden sm:inline">PPTX</span>
+        </button>
+        <button id="btn-export-slide-pdf" onclick="handleDownloadSlidePDF()" class="flex items-center space-x-1.5 sm:space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-2 sm:px-4 py-2 rounded-md transition-colors text-xs sm:text-sm font-medium shadow-md" title="PDFファイルを保存">
+          <i data-lucide="file-text" class="h-4 w-4"></i>
+          <span class="hidden sm:inline">PDF</span>
         </button>
         <button onclick="closeSlideModal()" class="text-gray-400 hover:text-white transition-colors p-1 ml-1 sm:ml-2"><i data-lucide="x-circle" class="h-6 w-6 sm:h-8 sm:w-8"></i></button>
       </div>
@@ -1466,7 +1470,8 @@
       state.reportPages = splitTextIntoPages(fullText, maxWeight);
       
       // MarkdownからHTMLを生成し、状態として保持する（以降の編集ベースとなる）
-      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page));
+      const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
+      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page, t));
       
       renderReportThemeSelector();
       renderReport();
@@ -1486,37 +1491,6 @@
       state.reportPagesHtml[index] = html;
     };
 
-    // --- レポート機能 ---
-    function parseMarkdownForReport(markdown) {
-      if (!markdown) return '';
-      let html = String(markdown);
-      
-      // インラインスタイルではなく、親要素のCSS変数を参照させることでテーマ切り替えに追従させる
-      html = html
-        .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold)">$1</h3>`)
-        .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold)">$1</h2>`)
-        .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent)">$1</h1>`)
-        .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: var(--color-text)">$1</blockquote>`)
-        .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);" />')
-        .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: var(--color-text-bold)">$1</strong>`)
-        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic; color: var(--color-text)">$1</em>`)
-        .replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank" style="color: var(--color-accent); text-decoration: underline;">$1</a>`);
-
-      html = html.replace(/^- (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: var(--color-text)">$1</li>`);
-      html = html.replace(/^\d+\. (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: var(--color-text)">$1</li>`);
-      
-      html = html.replace(/(<li style="margin-bottom: 0.5rem; color: var\(--color-text\)">.*<\/li>\n?)+/g, match => `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-position: outside; line-height: 1.8; color: var(--color-text)">${match}</ul>`);
-
-      const lines = html.split('\n');
-      const parsedLines = lines.map(line => {
-        const trimmed = line.trim();
-        if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div|<img)/.test(trimmed)) return line;
-        return `<p style="line-height: 1.8; margin-bottom: 1rem; color: var(--color-text)">${line}</p>`;
-      });
-
-      return parsedLines.join('\n');
-    }
-
     function renderReport() {
       const container = document.getElementById('report-preview-container');
       if (!container) return;
@@ -1527,7 +1501,7 @@
       state.reportPagesHtml.forEach((pageHtml, idx) => {
         html += `
           <div class="report-page shadow-2xl mb-8 w-full max-w-[210mm] relative overflow-hidden ${layout.classes}" 
-               style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; background-color: ${t.container}; --color-text: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border}; color: var(--color-text);">
+               style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; color: ${t.text}; background-color: ${t.container}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border};">
             <div class="report-content" contenteditable="true" onblur="handleReportEdit(${idx}, this.innerHTML)" onkeydown="handleKeyDownOnEditable(event)">
               ${pageHtml}
             </div>
@@ -1686,62 +1660,64 @@
 
         const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Footer } = window.docx;
         const docChildren = [];
-        
+        const parser = new DOMParser();
+
         docChildren.push(
-          new Paragraph({ text: state.query, heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }),
-          new Paragraph({ children: [new TextRun({ text: `作成日時: ${new Date().toLocaleString('ja-JP')}`, color: wTextMuted })], alignment: AlignmentType.RIGHT }),
+          new Paragraph({ text: state.query, heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER, spacing: { after: 400 } }),
+          new Paragraph({ children: [new TextRun({ text: `作成日時: ${new Date().toLocaleString('ja-JP')}`, color: wTextMuted })], alignment: AlignmentType.RIGHT, spacing: { after: 400 } }),
           new Paragraph({ text: "分析結果のレポート", heading: HeadingLevel.HEADING_1 })
         );
 
-        const parseInlineText = (textStr) => {
-          const parts = textStr.split(/(\*\*.*?\*\*|\*.*?\*)/g);
-          return parts.map(part => {
-            if (part.startsWith('**') && part.endsWith('**')) {
-              return new TextRun({ text: part.slice(2, -2), bold: true, color: wTextBold });
-            } else if (part.startsWith('*') && part.endsWith('*')) {
-              return new TextRun({ text: part.slice(1, -1), italics: true, color: wText });
-            } else if (part.match(/https?:\/\/[^\s]+/)) {
-              return new TextRun({ text: part, color: wAccent });
-            } else {
-              return new TextRun({ text: part, color: wText });
-            }
-          }).filter(run => run.text !== "");
-        };
-
-        const tempDiv = document.createElement('div');
-
+        // プレビューのHTML(編集内容を含む)を解析してWordドキュメントを構築する
         state.reportPagesHtml.forEach((htmlStr, pageIdx) => {
             if (pageIdx > 0) {
-               docChildren.push(new Paragraph({ pageBreakBefore: true }));
+               docChildren.push(new Paragraph({ text: "", pageBreakBefore: true }));
             }
-            
-            tempDiv.innerHTML = htmlStr;
+            const docEl = parser.parseFromString(htmlStr, 'text/html');
             
             const processNode = (node) => {
                 if (node.nodeType === Node.ELEMENT_NODE) {
                     const tag = node.tagName.toLowerCase();
-                    const textContent = node.textContent.trim();
-                    if (!textContent && tag !== 'img' && tag !== 'br') return;
-
                     if (tag === 'h1') {
-                        docChildren.push(new Paragraph({ children: parseInlineText(textContent), heading: HeadingLevel.HEADING_1 }));
+                        // HeadingLevelのプロパティ名を修正
+                        docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_1 }));
                     } else if (tag === 'h2') {
-                        docChildren.push(new Paragraph({ children: parseInlineText(textContent), heading: HeadingLevel.HEADING_2 }));
+                        docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_2 }));
                     } else if (tag === 'h3') {
-                        docChildren.push(new Paragraph({ children: parseInlineText(textContent), heading: HeadingLevel.HEADING_3 }));
+                        docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_3 }));
                     } else if (tag === 'p') {
-                        docChildren.push(new Paragraph({ children: parseInlineText(textContent) }));
+                        const runs = [];
+                        node.childNodes.forEach(child => {
+                            if (child.nodeType === Node.TEXT_NODE) {
+                                if (child.textContent) runs.push(new TextRun({ text: child.textContent, color: wText }));
+                            } else if (child.nodeType === Node.ELEMENT_NODE) {
+                                const cTag = child.tagName.toLowerCase();
+                                if (cTag === 'strong' || cTag === 'b') {
+                                    runs.push(new TextRun({ text: child.textContent, bold: true, color: wTextBold }));
+                                } else if (cTag === 'em' || cTag === 'i') {
+                                    runs.push(new TextRun({ text: child.textContent, italics: true, color: wText }));
+                                } else if (cTag === 'a') {
+                                    runs.push(new TextRun({ text: child.textContent, color: wAccent }));
+                                } else {
+                                    runs.push(new TextRun({ text: child.textContent, color: wText }));
+                                }
+                            }
+                        });
+                        if (runs.length > 0) docChildren.push(new Paragraph({ children: runs, spacing: { after: 150 } }));
                     } else if (tag === 'ul' || tag === 'ol') {
                         node.childNodes.forEach(li => {
                             if (li.nodeType === Node.ELEMENT_NODE && li.tagName.toLowerCase() === 'li') {
                                 const liText = li.textContent.trim();
                                 if(liText) {
-                                    docChildren.push(new Paragraph({ children: parseInlineText(liText), bullet: { level: 0 } }));
+                                    docChildren.push(new Paragraph({ 
+                                        children: [new TextRun({ text: liText, color: wText })], 
+                                        bullet: { level: 0 } 
+                                    }));
                                 }
                             }
                         });
                     } else if (tag === 'blockquote') {
-                        docChildren.push(new Paragraph({ children: parseInlineText(textContent), indent: { left: 720 }, italics: true }));
+                        docChildren.push(new Paragraph({ children: [new TextRun({ text: node.textContent, italics: true, color: wText })], indent: { left: 720 } }));
                     } else if (tag === 'img') {
                          const alt = node.getAttribute('alt') || '画像';
                          docChildren.push(new Paragraph({
@@ -1754,32 +1730,33 @@
                 } else if (node.nodeType === Node.TEXT_NODE) {
                     const text = node.textContent.trim();
                     if (text) {
-                        docChildren.push(new Paragraph({ children: parseInlineText(text) }));
+                        docChildren.push(new Paragraph({ children: [new TextRun({ text, color: wText })] }));
                     }
                 }
             };
             
-            tempDiv.childNodes.forEach(child => processNode(child));
+            docEl.body.childNodes.forEach(processNode);
         });
 
         const doc = new Document({
           creator: "AI Word Search",
           background: { color: bgColorHex },
           styles: {
-            default: {
-              document: {
-                run: { font: docFontFamily, color: wText },
-                paragraph: { spacing: { line: 360, after: 120 } },
+              default: {
+                  document: {
+                      run: { font: docFontFamily, color: wText },
+                  },
               },
-              title: { run: { size: 44, bold: true, color: wAccent }, paragraph: { spacing: { after: 400 } } },
-              heading1: { run: { size: 36, bold: true, color: wAccent }, paragraph: { spacing: { before: 400, after: 200 } } },
-              heading2: { run: { size: 32, bold: true, color: wTextBold }, paragraph: { spacing: { before: 300, after: 150 } } },
-              heading3: { run: { size: 28, bold: true, color: wTextBold }, paragraph: { spacing: { before: 200, after: 100 } } },
-            }
+              paragraphStyles: [
+                  { id: "Title", name: "Title", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 44, bold: true, color: wAccent } },
+                  { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 32, bold: true, color: wAccent }, paragraph: { spacing: { before: 400, after: 200 } } },
+                  { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 28, bold: true, color: wTextBold }, paragraph: { spacing: { before: 300, after: 150 } } },
+                  { id: "Heading3", name: "Heading 3", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 24, bold: true, color: wTextBold }, paragraph: { spacing: { before: 200, after: 100 } } }
+              ]
           },
           sections: [{
             properties: {
-              page: { size: { orientation: "portrait", width: 11906, height: 16838 } } // A4 portrait
+              page: { size: { width: 11906, height: 16838 } } // A4
             },
             footers: state.slideLogoText ? {
               default: new Footer({
@@ -1956,7 +1933,7 @@
       updateView();
       
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${state.apiKey}`;
-      const prompt = `以下のテーマと内容をもとに、プレゼンテーション用スライドの構成を作成し、必ず有効なJSON形式で出力してください。\n\nテーマ: ${state.query}\n内容: ${state.aiSummary}\n\n【厳格な要件】\n1. JSONのルートは "slides" というキーを持つオブジェクトにしてください。\n2. "slides" の値は配列とし、各要素が1ページ分のスライドを表します。\n3. 各スライドオブジェクトは "title" (文字列) と "content" (文字列の配列。1要素が1つの箇条書き項目) を持ってください。\n4. 1ページ目はタイトルスライドとしてください ("content" にはテーマの説明を短い1文で入れてください)。\n5. 2ページ目以降は詳細な内容をバランスよく分割して配置してください（1スライドにつき箇条書きは3〜4つまで）。\n6. 情報は省略せず全て網羅してください。\n7. スライド内のテキスト（タイトル、概要、箇条書きの各項目）は、すべて「だ・である」調（常体）で統一して簡潔にまとめてください。\n8. 返却するのはJSONデータのみです。Markdownのブロック記法（\`\`\`json など）は絶対に含めず、純粋なJSON文字列だけを出力してください。`;
+      const prompt = `以下のテーマと内容をもとに、プレゼンテーション用スライドの構成を作成し、必ず有効なJSON形式で出力してください。\n\nテーマ: ${state.query}\n内容: ${state.aiSummary}\n\n【厳格な要件】\n1. JSONのルートは "slides" というキーを持つオブジェクトにしてください。\n2. "slides" の値は配列とし、各要素が1ページ分のスライドを表します。\n3. 各スライドオブジェクトは "title" (文字列) と "content" (文字列の配列。1要素が1つの箇条書き項目) を持ってください。\n4. 1ページ目はタイトルスライドとしてください ("content" にはテーマの説明を短い1文で入れてください)。\n5. 2ページ目以降は詳細な内容をバランスよく分割して配置してください（1スライドにつき箇条書きは3〜4つまで）。\n6. MathMLやLaTeXのような数式記法は使わず、一般的なテキストのみを使用してください。\n7. スライド内のテキスト（タイトル、概要、箇条書きの各項目）は、すべて「だ・である」調（常体）で統一して簡潔にまとめてください。\n8. 返却するのはJSONデータのみです。Markdownのブロック記法（\`\`\`json など）は絶対に含めず、純粋なJSON文字列だけを出力してください。`;
 
       const payload = { contents: [{ parts: [{ text: prompt }] }] };
 
@@ -2117,116 +2094,111 @@
       renderSlide();
     }
 
-    // スライド内テキスト編集
-    window.handleSlideTitleChange = function(index, el) { state.slideData[index].title = el.innerText; };
-    window.handleSlideTitleContentChange = function(index, el) { state.slideData[index].content = [el.innerText]; };
-    window.handleSlideListContentChange = function(slideIndex, listIndex, el) { state.slideData[slideIndex].content[listIndex] = el.innerText; };
-    window.handleKeyDownOnEditable = function(e) {
-      if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
-    };
-
-    function handleDownloadHTML() {
+    async function handleDownloadSlidePDF() {
+      if (!window.jspdf || !window.html2canvas) {
+        alert("PDF生成ライブラリを読み込み中です。少し待ってから再度お試しください。");
+        return;
+      }
       if (state.slideData.length === 0) return;
-      const themeConfig = getSlideThemeColors(state.currentThemeId, state.isSlideReversed);
-      const theme = {
-        bg: themeConfig.bg,
-        text: themeConfig.text,
-        accent: themeConfig.accent,
-        subText: themeConfig.subText
-      };
 
-      let htmlStr = `<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${state.query} - スライド資料</title>
-<style>
-  body { margin: 0; padding: 2vw; font-family: 'Helvetica Neue', Arial, sans-serif; background: #e9ecef; color: ${theme.text}; display: flex; flex-direction: column; align-items: center; gap: 3vw; }
-  .container-query { container-type: inline-size; width: 100%; max-width: 1200px; }
-  .slide-container { width: 100%; aspect-ratio: 16 / 9; background: linear-gradient(135deg, ${theme.bg[0]} 0%, ${theme.bg[1]} 100%); position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; padding: 6cqw; box-sizing: border-box; justify-content: flex-start; }
-  .title-slide { justify-content: center; align-items: center; text-align: center; }
-  .title { font-size: 3.5cqw; color: ${theme.accent}; margin-bottom: 3cqw; font-weight: bold; border-bottom: 2px solid ${theme.accent}; padding-bottom: 1cqw; }
-  .title-slide .title { font-size: 5cqw; border-bottom: none; margin-bottom: 2cqw; }
-  .title-slide .content-text { font-size: 2cqw; color: ${theme.subText}; }
-  .content { font-size: 2.2cqw; color: ${theme.text}; line-height: 1.8; margin-left: 2cqw; }
-  .content li { margin-bottom: 1.5cqw; }
-  .page-num { position: absolute; bottom: 2cqw; left: 2cqw; font-size: 1.2cqw; color: ${theme.subText}; font-weight: bold; }
-  .logo-text { position: absolute; bottom: 2cqw; right: 2cqw; font-size: 1cqw; color: ${theme.subText}; }
-</style>
-</head>
-<body>
-`;
-      state.slideData.forEach((slide, idx) => {
-        const isTitleSlide = idx === 0;
-        htmlStr += `<div class="container-query"><div class="slide-container ${isTitleSlide ? 'title-slide' : ''}"><div class="title">${slide.title}</div>\n`;
-        if (isTitleSlide) htmlStr += `    <div class="content-text">${slide.content.join('<br>')}</div>\n`;
-        else htmlStr += `    <ul class="content">\n${slide.content.map(c => `      <li>${c}</li>`).join('\n')}\n    </ul>\n`;
-        htmlStr += `    <div class="page-num">${idx + 1} / ${state.slideData.length}</div>`;
-        htmlStr += `    <div class="logo-text">${state.slideLogoText}</div></div></div>\n`;
-      });
-      htmlStr += `</body></html>`;
-
-      const blob = new Blob([htmlStr], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_スライド資料.html`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    async function handleDownloadPPTX() {
-      if (state.slideData.length === 0) return;
-      const themeConfig = getSlideThemeColors(state.currentThemeId, state.isSlideReversed);
-      const theme = {
-        bg: themeConfig.bg,
-        text: themeConfig.text,
-        accent: themeConfig.accent,
-        subText: themeConfig.subText
-      };
-      
-      const hexToPptx = (hex) => hex.replace('#', '').toUpperCase();
-      
-      const loadScript = (src) => {
-        return new Promise((resolve, reject) => {
-          if (window.PptxGenJS) return resolve();
-          const script = document.createElement('script');
-          script.src = src;
-          script.onload = resolve;
-          script.onerror = reject;
-          document.body.appendChild(script);
-        });
-      };
+      const btn = document.getElementById('btn-export-slide-pdf');
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = `<i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i><span class="hidden sm:inline">生成中...</span>`;
+      lucide.createIcons({ root: btn });
+      btn.disabled = true;
 
       try {
-        await loadScript("https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js");
-        const pptx = new window.PptxGenJS();
-        pptx.layout = 'LAYOUT_16x9';
+        const { jsPDF } = window.jspdf;
+        const themeConfig = getSlideThemeColors(state.currentThemeId, state.isSlideReversed);
+        const theme = {
+          bg: themeConfig.bg,
+          text: themeConfig.text,
+          accent: themeConfig.accent,
+          subText: themeConfig.subText
+        };
 
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.zIndex = '-9999';
+        container.style.opacity = '0.01';
+        container.style.pointerEvents = 'none';
+        container.style.width = '1280px'; 
+        
+        const styleHTML = `
+          <style>
+            * { box-sizing: border-box; }
+            .pdf-slide-element { width: 1280px; height: 720px; position: relative; overflow: hidden; display: flex; flex-direction: column; padding: 76.8px; justify-content: flex-start; font-family: 'Helvetica Neue', Arial, sans-serif; }
+            .title-slide { justify-content: center; align-items: center; text-align: center; }
+            .pdf-slide-element h1 { font-size: 64px; font-weight: 800; line-height: 1.2; margin-bottom: 38.4px; letter-spacing: -0.025em; margin-top: 0; }
+            .pdf-slide-element .divider { width: 96px; height: 6px; margin-bottom: 51.2px; border-radius: 9999px; }
+            .pdf-slide-element .subtitle { font-size: 28px; line-height: 1.625; max-width: 80%; font-weight: 500; margin: 0 auto; }
+            .pdf-slide-element h2 { font-size: 44.8px; font-weight: bold; border-bottom: 3px solid; padding-bottom: 12.8px; margin-bottom: 38.4px; margin-top: 0; }
+            .pdf-slide-element ul { font-size: 28.16px; line-height: 1.8; margin-left: 38.4px; padding-left: 20px; list-style-type: disc; margin-top: 0; font-weight: 500; }
+            .pdf-slide-element li { margin-bottom: 19.2px; }
+            .pdf-slide-element .page-num { position: absolute; bottom: 38.4px; left: 51.2px; font-size: 19.2px; font-weight: bold; }
+            .pdf-slide-element .logo { position: absolute; bottom: 38.4px; right: 51.2px; font-size: 15.36px; }
+          </style>
+        `;
+
+        let elementsHTML = '';
         state.slideData.forEach((slide, idx) => {
-          const slidePptx = pptx.addSlide();
-          slidePptx.background = { color: hexToPptx(theme.bg[0]) };
-
-          if (idx === 0) {
-            slidePptx.addText(slide.title, { x: 0.5, y: 2.0, w: "90%", fontSize: 44, bold: true, color: hexToPptx(theme.accent), align: "center" });
-            if (slide.content.length > 0) slidePptx.addText(slide.content.join("\n"), { x: 0.5, y: 3.5, w: "90%", fontSize: 24, color: hexToPptx(theme.subText), align: "center" });
+          const isTitleSlide = idx === 0;
+          let slideContent = '';
+          if (isTitleSlide) {
+            slideContent = `
+              <h1 style="color: ${theme.accent}">${slide.title}</h1>
+              <div class="divider" style="background-color: ${theme.accent}; margin-left: auto; margin-right: auto;"></div>
+              <p class="subtitle" style="color: ${theme.subText}">${slide.content.join(" ")}</p>
+            `;
           } else {
-            slidePptx.addText(slide.title, { x: 0.5, y: 0.5, w: "90%", h: 0.8, fontSize: 32, bold: true, color: hexToPptx(theme.accent), align: "left" });
-            slidePptx.addShape(pptx.ShapeType.line, { x: 0.5, y: 1.3, w: "90%", h: 0, line: { color: hexToPptx(theme.accent), width: 2 } });
-            if (slide.content.length > 0) {
-              const bullets = slide.content.map(text => ({ text, options: { bullet: true, breakLine: true } }));
-              slidePptx.addText(bullets, { x: 0.5, y: 1.6, w: "90%", h: 5.0, fontSize: 24, color: hexToPptx(theme.text), align: "left", valign: "top", lineSpacing: 35 });
-            }
+            slideContent = `
+              <h2 style="color: ${theme.accent}; border-bottom-color: ${theme.accent}">${slide.title}</h2>
+              <ul style="color: ${theme.text}">
+                ${slide.content.map(c => `<li>${c}</li>`).join('')}
+              </ul>
+            `;
           }
-          slidePptx.addText(`${idx + 1} / ${state.slideData.length}`, { x: 0.5, y: 6.8, w: "30%", fontSize: 12, color: hexToPptx(theme.subText), align: "left" });
-          slidePptx.addText(state.slideLogoText, { x: 6.5, y: 6.8, w: "30%", fontSize: 10, color: hexToPptx(theme.subText), align: "right" });
+
+          elementsHTML += `
+            <div class="pdf-slide-element ${isTitleSlide ? 'title-slide' : ''}" style="background: linear-gradient(135deg, ${theme.bg[0]} 0%, ${theme.bg[1]} 100%);">
+              ${slideContent}
+              <div class="page-num" style="color: ${theme.subText}">${idx + 1} / ${state.slideData.length}</div>
+              <div class="logo" style="color: ${theme.subText}">${state.slideLogoText}</div>
+            </div>
+          `;
         });
 
-        pptx.writeFile({ fileName: `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_slide.pptx` });
+        container.innerHTML = `<div>${styleHTML}${elementsHTML}</div>`;
+        document.body.appendChild(container);
+
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        const pageElements = container.querySelectorAll('.pdf-slide-element');
+        const pdf = new jsPDF({ unit: 'px', format: [1280, 720], orientation: 'landscape' });
+
+        for (let i = 0; i < pageElements.length; i++) {
+          const canvas = await window.html2canvas(pageElements[i], {
+            scale: 2,
+            useCORS: true,
+            logging: false
+          });
+          const imgData = canvas.toDataURL('image/jpeg', 0.98);
+          if (i > 0) pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', 0, 0, 1280, 720);
+        }
+
+        pdf.save(`${state.query.replace(/[\\/:*?"<>|]/g, '_')}_スライド.pdf`);
+        document.body.removeChild(container);
+
       } catch (error) {
-        alert("PPTXの生成に失敗しました。ネットワーク環境を確認してください。");
         console.error(error);
+        alert("PDFの生成中にエラーが発生しました。");
+      } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+        lucide.createIcons({ root: btn });
       }
     }
 
