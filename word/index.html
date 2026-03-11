@@ -1353,29 +1353,31 @@
     }
 
     // --- レポート機能 ---
-    function parseMarkdownForReport(markdown, t) {
+    function parseMarkdownForReport(markdown) {
       if (!markdown) return '';
       let html = String(markdown);
-      html = html
-        .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: ${t.textBold}">$1</h3>`)
-        .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid ${t.border}; color: ${t.textBold}">$1</h2>`)
-        .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: ${t.accent}">$1</h1>`)
-        .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid ${t.accent}; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: ${t.text}">$1</blockquote>`)
-        .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);" />')
-        .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: ${t.textBold}">$1</strong>`)
-        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic; color: ${t.text}">$1</em>`)
-        .replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank" style="color: ${t.accent}; text-decoration: underline;">$1</a>`);
-
-      html = html.replace(/^- (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: ${t.text}">$1</li>`);
-      html = html.replace(/^\d+\. (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: ${t.text}">$1</li>`);
       
-      html = html.replace(/(<li style="margin-bottom: 0.5rem; color: .*?">.*<\/li>\n?)+/g, match => `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-position: outside; line-height: 1.8; color: ${t.text}">${match}</ul>`);
+      // インラインスタイルではなく、親要素のCSS変数を参照させることでテーマ切り替えに追従させる
+      html = html
+        .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold)">$1</h3>`)
+        .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold)">$1</h2>`)
+        .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent)">$1</h1>`)
+        .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: var(--color-text)">$1</blockquote>`)
+        .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);" />')
+        .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: var(--color-text-bold)">$1</strong>`)
+        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic; color: var(--color-text)">$1</em>`)
+        .replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank" style="color: var(--color-accent); text-decoration: underline;">$1</a>`);
+
+      html = html.replace(/^- (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: var(--color-text)">$1</li>`);
+      html = html.replace(/^\d+\. (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: var(--color-text)">$1</li>`);
+      
+      html = html.replace(/(<li style="margin-bottom: 0.5rem; color: var\(--color-text\)">.*<\/li>\n?)+/g, match => `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-position: outside; line-height: 1.8; color: var(--color-text)">${match}</ul>`);
 
       const lines = html.split('\n');
       const parsedLines = lines.map(line => {
         const trimmed = line.trim();
         if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div|<img)/.test(trimmed)) return line;
-        return `<p style="line-height: 1.8; margin-bottom: 1rem; color: ${t.text}">${line}</p>`;
+        return `<p style="line-height: 1.8; margin-bottom: 1rem; color: var(--color-text)">${line}</p>`;
       });
 
       return parsedLines.join('\n');
@@ -1470,8 +1472,7 @@
       state.reportPages = splitTextIntoPages(fullText, maxWeight);
       
       // MarkdownからHTMLを生成し、状態として保持する（以降の編集ベースとなる）
-      const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
-      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page, t));
+      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page));
       
       renderReportThemeSelector();
       renderReport();
@@ -1501,7 +1502,7 @@
       state.reportPagesHtml.forEach((pageHtml, idx) => {
         html += `
           <div class="report-page shadow-2xl mb-8 w-full max-w-[210mm] relative overflow-hidden ${layout.classes}" 
-               style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; color: ${t.text}; background-color: ${t.container}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border};">
+               style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; color: ${t.text}; background-color: ${t.container}; --color-text: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border};">
             <div class="report-content" contenteditable="true" onblur="handleReportEdit(${idx}, this.innerHTML)" onkeydown="handleKeyDownOnEditable(event)">
               ${pageHtml}
             </div>
