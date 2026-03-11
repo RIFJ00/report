@@ -97,7 +97,7 @@
           <ul class="list-disc pl-5 space-y-1.5 text-sm">
             <li>検索結果として、詳しい説明と参考にしたWebサイトの一覧が表示されます。</li>
             <li><strong>もう少し詳しく</strong>: 回答が短いと感じた場合は、このボタンを押すとさらに深掘りした長文の解説を生成します。</li>
-            <li><strong>保存</strong>: 良い回答が得られたら保存ボタンを押しましょう。右上の「保存済みデータ一覧」からいつでも呼び出せます。</li>
+            <li><strong>保存と移行</strong>: 良い回答が得られたら保存ボタンを押しましょう。右上の「保存済みデータ一覧」からいつでも呼び出せます。さらに、一覧画面の「書出」「読込」ボタンを使うことで、別のブラウザや端末へデータを移行できます。</li>
           </ul>
         </section>
 
@@ -107,11 +107,13 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
             <div class="bg-gray-50 dark:bg-[#202124] p-3 rounded-lg border border-gray-200 dark:border-gray-600">
               <h4 class="font-bold flex items-center text-sm mb-1"><i data-lucide="file-text" class="w-3.5 h-3.5 mr-1 text-blue-500"></i>レポート生成</h4>
-              <p class="text-xs text-gray-600 dark:text-gray-400">A4縦長の文書レイアウトで表示されます。テキストをクリックして直接修正・加筆ができ、レイアウトや色も変更可能です。完成したらWordやPDF形式でダウンロードできます。</p>
+              <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">A4縦長の文書レイアウトで表示されます。テキストをクリックして直接修正・加筆ができ、レイアウトや色を変更可能です。2色のテーマはクリックするごとに色が反転します。</p>
+              <p class="text-xs text-gray-600 dark:text-gray-400"><strong>出力形式</strong>: テキスト(プレーン/MD記号付)、HTML、Word、PDF</p>
             </div>
             <div class="bg-gray-50 dark:bg-[#202124] p-3 rounded-lg border border-gray-200 dark:border-gray-600">
               <h4 class="font-bold flex items-center text-sm mb-1"><i data-lucide="presentation" class="w-3.5 h-3.5 mr-1 text-blue-500"></i>スライド生成</h4>
-              <p class="text-xs text-gray-600 dark:text-gray-400">AIが内容を要約し、16:9の横長スライド形式（複数ページ）に自動分割します。こちらもテキストの直接編集や色の変更ができ、PowerPoint（PPTX）形式でダウンロードできます。</p>
+              <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">AIが内容を要約し、16:9の横長スライド形式（複数ページ）に自動分割します。こちらもテキストの直接編集や色の変更（2色テーマの反転）が可能です。</p>
+              <p class="text-xs text-gray-600 dark:text-gray-400"><strong>出力形式</strong>: HTML、PowerPoint(PPTX)、PDF</p>
             </div>
           </div>
         </section>
@@ -283,9 +285,20 @@
 
     <!-- 保存済み一覧エリア -->
     <main id="saved-main" class="hidden flex-grow p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full">
-      <div class="flex items-center space-x-3 mb-8 text-gray-800 dark:text-gray-100">
-        <i data-lucide="library" class="h-8 w-8 text-blue-500"></i>
-        <h2 class="text-3xl font-bold">保存済みデータ一覧</h2>
+      <div class="flex items-center justify-between mb-8 border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div class="flex items-center space-x-3 text-gray-800 dark:text-gray-100">
+          <i data-lucide="library" class="h-8 w-8 text-blue-500"></i>
+          <h2 class="text-2xl sm:text-3xl font-bold">保存済みデータ</h2>
+        </div>
+        <div class="flex space-x-2">
+          <button onclick="exportSavedData()" class="flex items-center space-x-1 px-3 py-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors text-gray-700 dark:text-gray-300 shadow-sm" title="保存データをファイルに書き出す">
+            <i data-lucide="download" class="h-4 w-4"></i><span class="hidden sm:inline">書出</span>
+          </button>
+          <input type="file" id="import-saved-data" accept=".json" class="hidden" onchange="importSavedData(event)">
+          <label for="import-saved-data" class="flex items-center space-x-1 px-3 py-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors text-gray-700 dark:text-gray-300 cursor-pointer shadow-sm" title="ファイルから保存データを読み込む">
+            <i data-lucide="upload" class="h-4 w-4"></i><span class="hidden sm:inline">読込</span>
+          </label>
+        </div>
       </div>
       <div id="saved-content"></div>
     </main>
@@ -339,16 +352,22 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
-        <button onclick="handleExportReportText()" class="flex items-center space-x-1.5 text-sm bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium">
-          <i data-lucide="file" class="h-4 w-4"></i><span class="hidden sm:inline">テキスト</span>
-        </button>
-        <button onclick="handleExportReportHTML()" class="flex items-center space-x-1.5 text-sm bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+        <!-- テキスト出力（プレーンとMarkdownの選択） -->
+        <div class="flex items-center bg-white border border-gray-300 text-gray-700 rounded-lg h-[38px]">
+          <button onclick="handleExportReportText(false)" class="flex items-center justify-center space-x-1.5 text-sm px-3 hover:bg-gray-50 transition-colors font-medium border-r border-gray-300 h-full rounded-l-lg" title="プレーンテキストで出力">
+            <i data-lucide="file" class="h-4 w-4"></i><span class="hidden sm:inline">TXT</span>
+          </button>
+          <button onclick="handleExportReportText(true)" class="flex items-center justify-center space-x-1.5 text-sm px-3 hover:bg-gray-50 transition-colors font-medium h-full rounded-r-lg" title="マークダウン記号付きで出力">
+            <span class="font-bold font-mono text-[10px] mt-0.5 mr-1">MD</span><span class="hidden sm:inline text-xs">記号付</span>
+          </button>
+        </div>
+        <button onclick="handleExportReportHTML()" class="flex items-center space-x-1.5 text-sm bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium h-[38px]">
           <i data-lucide="file-code" class="h-4 w-4"></i><span class="hidden sm:inline">HTML</span>
         </button>
-        <button id="btn-export-word" onclick="handleExportReportWord()" class="flex items-center space-x-1.5 text-sm bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors font-medium shadow-sm">
+        <button id="btn-export-word" onclick="handleExportReportWord()" class="flex items-center space-x-1.5 text-sm bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors font-medium shadow-sm h-[38px]">
           <i data-lucide="file-text" class="h-4 w-4"></i><span>Word</span>
         </button>
-        <button id="btn-export-pdf" onclick="handleExportReportPDF()" class="flex items-center space-x-1.5 text-sm bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm">
+        <button id="btn-export-pdf" onclick="handleExportReportPDF()" class="flex items-center space-x-1.5 text-sm bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm h-[38px]">
           <i data-lucide="download" class="h-4 w-4"></i><span>PDF出力</span>
         </button>
       </div>
@@ -778,7 +797,7 @@
         `;
       } else {
         const itemsHtml = state.savedItems.map(item => `
-          <div onclick="loadSavedItem('${item.id}')" class="bg-white dark:bg-[#303134] p-5 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer group flex flex-col h-64">
+          <div onclick="loadSavedItem('${item.id}')" class="bg-white dark:bg-[#303134] p-5 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-blue-400 dark:hover:border-blue-50 transition-all cursor-pointer group flex flex-col h-64">
             <div class="flex justify-between items-start mb-3">
               <h3 class="font-bold text-lg text-blue-700 dark:text-blue-400 line-clamp-2">${item.query}</h3>
               <button onclick="handleDeleteSavedItem('${item.id}', event)" class="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100"><i data-lucide="trash-2" class="h-5 w-5"></i></button>
@@ -1352,32 +1371,73 @@
       }
     }
 
+    function exportSavedData() {
+      if (state.savedItems.length === 0) {
+        alert("書き出す保存データがありません。");
+        return;
+      }
+      const dataStr = JSON.stringify(state.savedItems, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ai_word_search_backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importSavedData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          if (!Array.isArray(importedData)) throw new Error("無効なデータ形式です。");
+          
+          const existingIds = new Set(state.savedItems.map(item => item.id));
+          const newItems = importedData.filter(item => item.id && !existingIds.has(item.id));
+          
+          if (newItems.length === 0) {
+            alert("新しく追加できるデータがありませんでした（すべて既存のデータです）。");
+          } else {
+            state.savedItems = [...newItems, ...state.savedItems];
+            localStorage.setItem('ai_search_saved_items', JSON.stringify(state.savedItems));
+            alert(`${newItems.length}件のデータを読み込みました。`);
+            updateView();
+          }
+        } catch (err) {
+          console.error(err);
+          alert("データの読み込みに失敗しました。正しいJSONファイルを選択してください。");
+        }
+        event.target.value = null; // リセット
+      };
+      reader.readAsText(file);
+    }
+
     // --- レポート機能 ---
-    function parseMarkdownForReport(markdown) {
+    function parseMarkdownForReport(markdown, t) {
       if (!markdown) return '';
       let html = String(markdown);
-      
-      // インラインスタイルではなく、親要素のCSS変数を参照させることでテーマ切り替えに追従させる
       html = html
-        .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold)">$1</h3>`)
-        .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold)">$1</h2>`)
-        .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent)">$1</h1>`)
-        .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: var(--color-text)">$1</blockquote>`)
+        .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: ${t.textBold}">$1</h3>`)
+        .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid ${t.border}; color: ${t.textBold}">$1</h2>`)
+        .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: ${t.accent}">$1</h1>`)
+        .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid ${t.accent}; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: ${t.text}">$1</blockquote>`)
         .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);" />')
-        .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: var(--color-text-bold)">$1</strong>`)
-        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic; color: var(--color-text)">$1</em>`)
-        .replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank" style="color: var(--color-accent); text-decoration: underline;">$1</a>`);
+        .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: ${t.textBold}">$1</strong>`)
+        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic; color: ${t.text}">$1</em>`);
 
-      html = html.replace(/^- (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: var(--color-text)">$1</li>`);
-      html = html.replace(/^\d+\. (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: var(--color-text)">$1</li>`);
+      html = html.replace(/^- (.*$)/gim, '<li style="margin-bottom: 0.5rem; color: ${t.text}">$1</li>');
+      html = html.replace(/^\d+\. (.*$)/gim, '<li style="margin-bottom: 0.5rem; color: ${t.text}">$1</li>');
       
-      html = html.replace(/(<li style="margin-bottom: 0.5rem; color: var\(--color-text\)">.*<\/li>\n?)+/g, match => `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-position: outside; line-height: 1.8; color: var(--color-text)">${match}</ul>`);
+      html = html.replace(/(<li style="margin-bottom: 0.5rem; color: .*?">.*<\/li>\n?)+/g, match => `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-position: outside; line-height: 1.8; color: ${t.text}">${match}</ul>`);
 
       const lines = html.split('\n');
       const parsedLines = lines.map(line => {
         const trimmed = line.trim();
         if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div|<img)/.test(trimmed)) return line;
-        return `<p style="line-height: 1.8; margin-bottom: 1rem; color: var(--color-text)">${line}</p>`;
+        return `<p style="line-height: 1.8; margin-bottom: 1rem; color: ${t.text}">${line}</p>`;
       });
 
       return parsedLines.join('\n');
@@ -1472,7 +1532,8 @@
       state.reportPages = splitTextIntoPages(fullText, maxWeight);
       
       // MarkdownからHTMLを生成し、状態として保持する（以降の編集ベースとなる）
-      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page));
+      const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
+      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page, t));
       
       renderReportThemeSelector();
       renderReport();
@@ -1653,13 +1714,14 @@
         const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
         
         const docFontFamily = layoutConfig.fontFamily.split(',')[0].replace(/['"]/g, '');
+        // # を確実に除去してWordライブラリに渡す
         const wText = (t.text || '#333333').replace('#', '');
         const wTextBold = (t.textBold || '#111827').replace('#', '');
         const wTextMuted = (t.textMuted || '#888888').replace('#', '');
         const wAccent = (t.accent || '#1d4ed8').replace('#', '');
         const bgColorHex = (t.container || '#ffffff').replace('#', '');
 
-        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Footer } = window.docx;
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink, Footer } = window.docx;
         const docChildren = [];
         const parser = new DOMParser();
 
@@ -1680,7 +1742,6 @@
                 if (node.nodeType === Node.ELEMENT_NODE) {
                     const tag = node.tagName.toLowerCase();
                     if (tag === 'h1') {
-                        // HeadingLevelのプロパティ名を修正
                         docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_1 }));
                     } else if (tag === 'h2') {
                         docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_2 }));
@@ -1708,25 +1769,26 @@
                     } else if (tag === 'ul' || tag === 'ol') {
                         node.childNodes.forEach(li => {
                             if (li.nodeType === Node.ELEMENT_NODE && li.tagName.toLowerCase() === 'li') {
-                                const liText = li.textContent.trim();
-                                if(liText) {
-                                    docChildren.push(new Paragraph({ 
-                                        children: [new TextRun({ text: liText, color: wText })], 
-                                        bullet: { level: 0 } 
-                                    }));
-                                }
+                                docChildren.push(new Paragraph({ 
+                                    children: [new TextRun({ text: li.textContent, color: wText })],
+                                    bullet: { level: 0 } 
+                                }));
                             }
                         });
                     } else if (tag === 'blockquote') {
-                        docChildren.push(new Paragraph({ children: [new TextRun({ text: node.textContent, italics: true, color: wText })], indent: { left: 720 } }));
+                        docChildren.push(new Paragraph({ 
+                            children: [new TextRun({ text: node.textContent, italics: true, color: wText })],
+                            indent: { left: 720 } 
+                        }));
                     } else if (tag === 'img') {
                          const alt = node.getAttribute('alt') || '画像';
                          docChildren.push(new Paragraph({
                              children: [new TextRun({ text: `[画像: ${alt}]`, italics: true, color: wTextMuted })],
-                             alignment: AlignmentType.CENTER
+                             alignment: AlignmentType.CENTER,
+                             spacing: { before: 150, after: 150 }
                          }));
                     } else {
-                        node.childNodes.forEach(child => processNode(child));
+                        node.childNodes.forEach(processNode);
                     }
                 } else if (node.nodeType === Node.TEXT_NODE) {
                     const text = node.textContent.trim();
@@ -1862,14 +1924,30 @@
       URL.revokeObjectURL(url);
     }
 
-    function handleExportReportText() {
+    function handleExportReportText(isMarkdown = false) {
       if (state.reportPagesHtml.length === 0) return;
 
       const parser = new DOMParser();
       let editedText = '';
       state.reportPagesHtml.forEach((htmlStr, idx) => {
-        const doc = parser.parseFromString(htmlStr, 'text/html');
-        editedText += doc.body.textContent.trim() + '\n\n';
+        if (isMarkdown) {
+          // HTMLを簡易的にMarkdownに逆変換
+          let md = htmlStr;
+          md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n');
+          md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n');
+          md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n');
+          md = md.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n');
+          md = md.replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, '> $1\n');
+          md = md.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
+          md = md.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
+          md = md.replace(/<br\s*[\/]?>/gi, '\n');
+          const doc = parser.parseFromString(md, 'text/html');
+          editedText += doc.body.textContent.trim() + '\n\n';
+        } else {
+          const doc = parser.parseFromString(htmlStr, 'text/html');
+          editedText += doc.body.textContent.trim() + '\n\n';
+        }
+        
         if (idx < state.reportPagesHtml.length - 1) {
             editedText += '---\n\n';
         }
@@ -1901,32 +1979,8 @@
       URL.revokeObjectURL(url);
     }
 
-    function handleExportText() {
-      if (!state.aiSummary) return;
-      
-      const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
-      let content = `■ 検索キーワード: ${state.query}\n`;
-      content += `■ 生成日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
-      content += `■ 分析結果のレポート\n${state.aiSummary}\n\n`;
-      if (includeSources && state.results && state.results.length > 0) {
-        content += `■ 参考としたWEBサイト一覧\n`;
-        state.results.forEach((r, i) => { 
-          content += `[${i + 1}] ${r.title}\n`; 
-          if (r.siteName) content += `    サイト名: ${r.siteName}\n`;
-          content += `    URL: ${r.url}\n`;
-          if (r.description) content += `    概要: ${r.description}\n`;
-          content += `\n`;
-        });
-      }
-      content += `\n${state.slideLogoText}\n`;
-      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_回答.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
+    // 古い不要な関数を削除
+    // function handleExportText() { ... }
 
     // --- スライド生成機能 ---
     async function generateSlide() {
