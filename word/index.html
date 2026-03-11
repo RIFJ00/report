@@ -1466,8 +1466,7 @@
       state.reportPages = splitTextIntoPages(fullText, maxWeight);
       
       // MarkdownからHTMLを生成し、状態として保持する（以降の編集ベースとなる）
-      const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
-      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page, t));
+      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page));
       
       renderReportThemeSelector();
       renderReport();
@@ -1487,6 +1486,37 @@
       state.reportPagesHtml[index] = html;
     };
 
+    // --- レポート機能 ---
+    function parseMarkdownForReport(markdown) {
+      if (!markdown) return '';
+      let html = String(markdown);
+      
+      // インラインスタイルではなく、親要素のCSS変数を参照させることでテーマ切り替えに追従させる
+      html = html
+        .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold)">$1</h3>`)
+        .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold)">$1</h2>`)
+        .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent)">$1</h1>`)
+        .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: var(--color-text)">$1</blockquote>`)
+        .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);" />')
+        .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: var(--color-text-bold)">$1</strong>`)
+        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic; color: var(--color-text)">$1</em>`)
+        .replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank" style="color: var(--color-accent); text-decoration: underline;">$1</a>`);
+
+      html = html.replace(/^- (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: var(--color-text)">$1</li>`);
+      html = html.replace(/^\d+\. (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: var(--color-text)">$1</li>`);
+      
+      html = html.replace(/(<li style="margin-bottom: 0.5rem; color: var\(--color-text\)">.*<\/li>\n?)+/g, match => `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-position: outside; line-height: 1.8; color: var(--color-text)">${match}</ul>`);
+
+      const lines = html.split('\n');
+      const parsedLines = lines.map(line => {
+        const trimmed = line.trim();
+        if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div|<img)/.test(trimmed)) return line;
+        return `<p style="line-height: 1.8; margin-bottom: 1rem; color: var(--color-text)">${line}</p>`;
+      });
+
+      return parsedLines.join('\n');
+    }
+
     function renderReport() {
       const container = document.getElementById('report-preview-container');
       if (!container) return;
@@ -1497,7 +1527,7 @@
       state.reportPagesHtml.forEach((pageHtml, idx) => {
         html += `
           <div class="report-page shadow-2xl mb-8 w-full max-w-[210mm] relative overflow-hidden ${layout.classes}" 
-               style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; color: ${t.text}; background-color: ${t.container}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border};">
+               style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; background-color: ${t.container}; --color-text: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border}; color: var(--color-text);">
             <div class="report-content" contenteditable="true" onblur="handleReportEdit(${idx}, this.innerHTML)" onkeydown="handleKeyDownOnEditable(event)">
               ${pageHtml}
             </div>
@@ -1547,14 +1577,14 @@
             .report-content h1 { font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent); }
             .report-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold); }
             .report-content h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
-            .report-content p { line-height: 1.8; margin-bottom: 1rem; }
-            .report-content ul { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: disc; }
-            .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; }
-            .report-content li { margin-bottom: 0.5rem; display: list-item; }
-            .report-content blockquote { border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
+            .report-content p { line-height: 1.8; margin-bottom: 1rem; color: var(--color-text); }
+            .report-content ul { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: disc; color: var(--color-text); }
+            .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; color: var(--color-text); }
+            .report-content li { margin-bottom: 0.5rem; display: list-item; color: var(--color-text); }
+            .report-content blockquote { border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: var(--color-text); }
             .report-content img { max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; }
             .report-content strong { font-weight: bold; color: var(--color-text-bold); }
-            .report-content em { font-style: italic; }
+            .report-content em { font-style: italic; color: var(--color-text); }
             .report-content a { color: var(--color-accent); text-decoration: underline; }
           </style>
         `;
@@ -1563,7 +1593,7 @@
           const logoHtml = state.slideLogoText ? `<div style="position: absolute; right: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: inherit; color: ${t.textMuted}">${escapedLogo}</div>` : '';
           const pageNumHtml = `<div style="position: absolute; left: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: monospace; color: ${t.textMuted}">${index + 1} / ${state.reportPagesHtml.length}</div>`;
           return `
-            <div class="pdf-page-element ${layoutConfig.classes}" style="background-color: ${t.container}; color: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border}; width: 794px; height: 1122px; padding: 75px; position: relative; overflow: hidden; box-sizing: border-box; margin-bottom: 10px;">
+            <div class="pdf-page-element ${layoutConfig.classes}" style="background-color: ${t.container}; color: ${t.text}; --color-text: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border}; width: 794px; height: 1122px; padding: 75px; position: relative; overflow: hidden; box-sizing: border-box; margin-bottom: 10px;">
               <div class="report-content">
                 ${pageHtml}
               </div>
@@ -1797,12 +1827,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${state.query} - レポート資料</title>
 <style>
-  body { margin: 0; padding: 20px; font-family: ${layout.fontFamily}; background: #e9ecef; color: ${t.text}; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  :root {
+    --color-text: ${t.text};
+    --color-text-bold: ${t.textBold};
+    --color-accent: ${t.accent};
+    --color-border: ${t.border};
+    --color-text-muted: ${t.textMuted};
+  }
+  body { margin: 0; padding: 20px; font-family: ${layout.fontFamily}; background: #e9ecef; color: var(--color-text); display: flex; flex-direction: column; align-items: center; gap: 20px; }
   .page { width: 210mm; min-height: 297mm; background: ${t.container}; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-radius: 8px; padding: 20mm; box-sizing: border-box; position: relative; }
-  .logo { position: absolute; right: 20mm; bottom: 20mm; font-size: 0.8rem; opacity: 0.6; color: ${t.textMuted}; }
-  .page-num { position: absolute; left: 20mm; bottom: 20mm; font-size: 0.8rem; opacity: 0.6; color: ${t.textMuted}; font-family: monospace; }
+  .logo { position: absolute; right: 20mm; bottom: 20mm; font-size: 0.8rem; opacity: 0.6; color: var(--color-text-muted); }
+  .page-num { position: absolute; left: 20mm; bottom: 20mm; font-size: 0.8rem; opacity: 0.6; color: var(--color-text-muted); font-family: monospace; }
   .print-btn-container { width: 100%; max-width: 210mm; text-align: right; margin-bottom: 10px; }
-  .print-btn { padding: 10px 20px; background: ${t.accent}; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+  .print-btn { padding: 10px 20px; background: var(--color-accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
   @media print {
     body { background: white; padding: 0; gap: 0; display: block; }
     .print-btn-container { display: none; }
@@ -1811,18 +1848,18 @@
   
   /* レポート用コンテンツスタイル */
   .report-content { white-space: pre-wrap; }
-  .report-content h1 { font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: ${t.accent}; }
-  .report-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid ${t.border}; color: ${t.textBold}; }
-  .report-content h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: ${t.textBold}; }
-  .report-content p { line-height: 1.8; margin-bottom: 1rem; }
-  .report-content ul { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: disc; }
-  .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; }
-  .report-content li { margin-bottom: 0.5rem; display: list-item; }
-  .report-content blockquote { border-left: 4px solid ${t.accent}; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
+  .report-content h1 { font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent); }
+  .report-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold); }
+  .report-content h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
+  .report-content p { line-height: 1.8; margin-bottom: 1rem; color: var(--color-text); }
+  .report-content ul { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: disc; color: var(--color-text); }
+  .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; color: var(--color-text); }
+  .report-content li { margin-bottom: 0.5rem; display: list-item; color: var(--color-text); }
+  .report-content blockquote { border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: var(--color-text); }
   .report-content img { max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; }
-  .report-content strong { font-weight: bold; color: ${t.textBold}; }
-  .report-content em { font-style: italic; }
-  .report-content a { color: ${t.accent}; text-decoration: underline; }
+  .report-content strong { font-weight: bold; color: var(--color-text-bold); }
+  .report-content em { font-style: italic; color: var(--color-text); }
+  .report-content a { color: var(--color-accent); text-decoration: underline; }
 </style>
 </head>
 <body>
