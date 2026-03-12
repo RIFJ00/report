@@ -815,23 +815,6 @@
         return text;
     }
 
-    // --- 出力用にクリーンなHTML配列を生成する処理 ---
-    function getCleanPagesHtml(autoBreak = true) {
-      const container = document.createElement('div');
-      container.innerHTML = state.reportHtml;
-      let combinedText = extractTextWithImagesAndBreaks(container);
-      
-      // 連続する空行を整理
-      combinedText = combinedText.replace(/\n{3,}/g, '\n\n').trim();
-
-      const maxWeight = state.slideLogoText ? 28 : 32; 
-      const pages = splitTextIntoPages(combinedText, maxWeight, autoBreak);
-      
-      const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
-      return pages.map(page => parseMarkdownForReport(page, t));
-    }
-
-
     // --- UI更新関連 ---
     function updateView() {
       const homeView = document.getElementById('home-view');
@@ -1800,7 +1783,7 @@
         });
       }
       
-      const maxWeight = state.slideLogoText ? 36 : 40;
+      const maxWeight = state.slideLogoText ? 28 : 32;
       const pages = splitTextIntoPages(fullText, maxWeight, true);
       const combinedMarkdown = pages.join('\n\n---\n\n');
       
@@ -1842,22 +1825,6 @@
       `;
     }
 
-    // --- 出力用にクリーンなHTML配列を生成する処理 ---
-    function getCleanPagesHtml(autoBreak = true) {
-      const container = document.createElement('div');
-      container.innerHTML = state.reportHtml;
-      let combinedText = extractTextWithImagesAndBreaks(container);
-      
-      // 連続する空行を整理
-      combinedText = combinedText.replace(/\n{3,}/g, '\n\n').trim();
-
-      const maxWeight = state.slideLogoText ? 32 : 34; 
-      const pages = splitTextIntoPages(combinedText, maxWeight, autoBreak);
-      
-      const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
-      return pages.map(page => parseMarkdownForReport(page, t));
-    }
-
     async function handleExportReportPDF() {
       if (!window.jspdf || !window.html2canvas) {
         alert("PDF生成ライブラリを読み込み中です。少し待ってから再度お試しください。");
@@ -1879,8 +1846,8 @@
         const fontFamily = layoutConfig.fontFamily;
         const escapedLogo = state.slideLogoText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
         
-        // 編集内容をパースして安全にA4ページ配列に分割
-        const pagesHtml = getCleanPagesHtml(true);
+        // エディタの見た目をそのまま保持するため、現在のHTMLを改ページマーカーで分割する
+        const pagesHtml = state.reportHtml.split(/<hr[^>]*class="manual-page-break"[^>]*>/gi);
 
         const container = document.createElement('div');
         container.style.position = 'absolute';
@@ -1946,8 +1913,22 @@
           });
           const imgData = canvas.toDataURL('image/jpeg', 0.98);
           
+          const pdfWidth = 794;
+          const a4Height = 1122;
+          const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
           if (i > 0) pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, 0, 794, 1122);
+          
+          // PDFの高さがA4サイズを超える場合は、A4に収まるように全体を縮小して配置する
+          if (pdfHeight > a4Height) {
+            const ratio = a4Height / pdfHeight;
+            const scaledWidth = pdfWidth * ratio;
+            const scaledHeight = a4Height;
+            const x = (pdfWidth - scaledWidth) / 2; // 中央揃え
+            pdf.addImage(imgData, 'JPEG', x, 0, scaledWidth, scaledHeight);
+          } else {
+            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+          }
         }
 
         pdf.save(`${state.query.replace(/[\\/:*?"<>|]/g, '_')}_レポート.pdf`);
@@ -2018,9 +1999,8 @@
           new Paragraph({ text: "分析結果のレポート", heading: HeadingLevel.HEADING_1 })
         );
 
-        // 編集内容をパースして安全にA4ページ配列に分割
-        const pagesHtml = getCleanPagesHtml(true);
-        const fullHtml = pagesHtml.join('<hr class="manual-page-break" data-page-break="true" />');
+        // エディタの見た目をそのまま保持する
+        const fullHtml = state.reportHtml;
 
         const docEl = parser.parseFromString(fullHtml, 'text/html');
         
@@ -2236,7 +2216,7 @@
 <div class="print-btn-container"><button class="print-btn" onclick="window.print()">この資料を印刷・PDF保存</button></div>
 `;
       
-      const pagesHtml = getCleanPagesHtml(true);
+      const pagesHtml = state.reportHtml.split(/<hr[^>]*class="manual-page-break"[^>]*>/gi);
       
       pagesHtml.forEach((pageHtml, idx) => {
         htmlStr += `<div class="page">\n`;
@@ -2262,7 +2242,7 @@
       const parser = new DOMParser();
       let editedText = '';
       
-      const pagesHtml = getCleanPagesHtml(true);
+      const pagesHtml = state.reportHtml.split(/<hr[^>]*class="manual-page-break"[^>]*>/gi);
       
       pagesHtml.forEach((htmlStr, idx) => {
         if (isMarkdown) {
