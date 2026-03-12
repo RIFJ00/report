@@ -783,7 +783,9 @@
                     const width = node.getAttribute('data-width') || '';
                     const height = node.getAttribute('data-height') || '';
                     const style = node.getAttribute('style') || '';
-                    text += `\n![${alt}](${src}){w:${width},h:${height},s:${style}}\n`;
+                    // styleの中の " などをエスケープしてMarkdownに埋め込む
+                    const cleanStyle = style.replace(/"/g, "'");
+                    text += `\n![${alt}](${src}){w:${width},h:${height},s:${cleanStyle}}\n`;
                 } else if (tag === 'h1') {
                     text += '\n# ' + node.textContent + '\n';
                 } else if (tag === 'h2') {
@@ -822,8 +824,7 @@
       // 連続する空行を整理
       combinedText = combinedText.replace(/\n{3,}/g, '\n\n').trim();
 
-      // 安全のため1ページのウェイトを少し減らす
-      const maxWeight = state.slideLogoText ? 32 : 34; 
+      const maxWeight = state.slideLogoText ? 28 : 32; 
       const pages = splitTextIntoPages(combinedText, maxWeight, autoBreak);
       
       const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
@@ -1688,7 +1689,7 @@
       let currentLines = [];
       let currentWeight = 0;
       
-      const targetMaxWeight = maxWeight || 40;
+      const targetMaxWeight = maxWeight || 32;
       
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -1915,7 +1916,7 @@
           const logoHtml = state.slideLogoText ? `<div style="position: absolute; right: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: inherit; color: ${t.textMuted}">${escapedLogo}</div>` : '';
           const pageNumHtml = `<div style="position: absolute; left: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: monospace; color: ${t.textMuted}">${index + 1} / ${pagesHtml.length}</div>`;
           return `
-            <div class="pdf-page-element ${layoutConfig.classes}" style="background-color: ${t.container}; color: ${t.text}; --color-text: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border}; width: 794px; height: 1122px; padding: 75px; padding-bottom: 100px; position: relative; box-sizing: border-box; margin-bottom: 10px; overflow: hidden;">
+            <div class="pdf-page-element ${layoutConfig.classes}" style="background-color: ${t.container}; color: ${t.text}; --color-text: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border}; width: 794px; min-height: 1122px; height: auto; padding: 75px; padding-bottom: 100px; position: relative; box-sizing: border-box; margin-bottom: 10px; overflow: hidden;">
               <div class="report-content">
                 ${pageHtml}
               </div>
