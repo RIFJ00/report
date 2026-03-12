@@ -679,9 +679,12 @@
                e.target.style.maxHeight = ''; 
            }
 
-           // 保存処理
+           // 保存処理と自動再レイアウト
            if (parentReport) {
                handleReportEdit(parentReport.innerHTML);
+               setTimeout(() => {
+                   handleReLayout();
+               }, 100);
            } else if (parentSlide) {
                parentSlide.dispatchEvent(new Event('blur'));
            }
@@ -735,6 +738,10 @@
           
           if (lastFocusedEditable.classList.contains('report-content')) {
              handleReportEdit(lastFocusedEditable.innerHTML);
+             // 画像挿入後、自動的に再レイアウトを実行して改ページ位置を整える
+             setTimeout(() => {
+                 handleReLayout();
+             }, 100);
           } else {
              const blurEvent = new Event('blur');
              lastFocusedEditable.dispatchEvent(blurEvent);
@@ -761,6 +768,72 @@
       
       if (lastFocusedEditable.classList.contains('report-content')) {
          handleReportEdit(lastFocusedEditable.innerHTML);
+         setTimeout(() => {
+             handleReLayout();
+         }, 100);
+      }
+    }
+
+    // --- 自動ページ再調整（再レイアウト）機能 ---
+    function handleReLayout() {
+      const container = document.querySelector('.report-content');
+      if (!container) return;
+      
+      let html = container.innerHTML;
+      
+      // HTMLからMarkdown風テキストに変換しつつ、画像タグを保持
+      let md = html;
+      md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n');
+      md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n');
+      md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n');
+      md = md.replace(/<h4[^>]*>(.*?)<\/h4>/gi, '#### $1\n');
+      md = md.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n');
+      md = md.replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, '> $1\n');
+      md = md.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
+      md = md.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
+      
+      // 既存の改ページマーカーをリセット
+      md = md.replace(/<hr[^>]*class="manual-page-break"[^>]*>/gi, '');
+      
+      // img-wrapper などのコンテナを外し、imgタグだけを独立した行にする
+      md = md.replace(/<div[^>]*class="img-wrapper"[^>]*>([\s\S]*?)<\/div>/gi, '\n$1\n');
+      md = md.replace(/<br\s*[\/]?>/gi, '\n');
+      
+      // <img>以外の不要なHTMLタグを改行等に変換
+      md = md.replace(/<p[^>]*>/gi, '');
+      md = md.replace(/<\/p>/gi, '\n');
+      md = md.replace(/<span[^>]*>/gi, '');
+      md = md.replace(/<\/span>/gi, '');
+      md = md.replace(/<ul[^>]*>/gi, '');
+      md = md.replace(/<\/ul>/gi, '');
+      md = md.replace(/<ol[^>]*>/gi, '');
+      md = md.replace(/<\/ol>/gi, '');
+      md = md.replace(/<div[^>]*>/gi, '\n');
+      md = md.replace(/<\/div>/gi, '\n');
+
+      let combinedText = md.trim();
+
+      // 連続する空行を整理
+      combinedText = combinedText.replace(/\n{3,}/g, '\n\n').trim();
+
+      // 目安となる最大行数（1ページ40行前後、ロゴがある場合は少し減らす）
+      const maxWeight = state.slideLogoText ? 36 : 40;
+      const pages = splitTextIntoPages(combinedText, maxWeight, true);
+      const combinedMarkdown = pages.join('\n\n---\n\n');
+      
+      const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
+      state.reportHtml = parseMarkdownForReport(combinedMarkdown, t);
+      
+      container.innerHTML = state.reportHtml;
+
+      // 再描画後にキャレットを末尾に置くための簡易処理
+      const range = document.createRange();
+      const sel = window.getSelection();
+      if (container.lastChild) {
+        range.setStartAfter(container.lastChild);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
       }
     }
 
