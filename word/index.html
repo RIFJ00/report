@@ -1846,8 +1846,8 @@
         const fontFamily = layoutConfig.fontFamily;
         const escapedLogo = state.slideLogoText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
         
-        // エディタの見た目をそのまま保持するため、現在のHTMLを改ページマーカーで分割する
-        const pagesHtml = state.reportHtml.split(/<hr[^>]*class="manual-page-break"[^>]*>/gi);
+        // 編集内容をパースして安全にA4ページ配列に分割
+        const pagesHtml = getCleanPagesHtml(true);
 
         const container = document.createElement('div');
         container.style.position = 'absolute';
@@ -1904,6 +1904,9 @@
         const pageElements = container.querySelectorAll('.pdf-page-element');
         const pdf = new jsPDF({ unit: 'px', format: [794, 1122], orientation: 'portrait' });
 
+        // グローバルな縮小率を保持する変数。一度縮小されたら、それ以降のページも同じ率を使う。
+        let globalScaleRatio = 1.0;
+
         for (let i = 0; i < pageElements.length; i++) {
           const canvas = await window.html2canvas(pageElements[i], {
             scale: 2,
@@ -1915,19 +1918,29 @@
           
           const pdfWidth = 794;
           const a4Height = 1122;
-          const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+          const canvasHeight = (canvas.height * pdfWidth) / canvas.width;
+
+          // このページが必要とする縮小率を計算
+          let currentPageRatio = 1.0;
+          if (canvasHeight > a4Height) {
+            currentPageRatio = a4Height / canvasHeight;
+          }
+
+          // これまでの縮小率よりも、さらに小さくする必要がある場合は更新する
+          if (currentPageRatio < globalScaleRatio) {
+             globalScaleRatio = currentPageRatio;
+          }
 
           if (i > 0) pdf.addPage();
           
-          // PDFの高さがA4サイズを超える場合は、A4に収まるように全体を縮小して配置する
-          if (pdfHeight > a4Height) {
-            const ratio = a4Height / pdfHeight;
-            const scaledWidth = pdfWidth * ratio;
-            const scaledHeight = a4Height;
+          // 全ページで統一された縮小率を適用して描画
+          if (globalScaleRatio < 1.0) {
+            const scaledWidth = pdfWidth * globalScaleRatio;
+            const scaledHeight = canvasHeight * globalScaleRatio;
             const x = (pdfWidth - scaledWidth) / 2; // 中央揃え
             pdf.addImage(imgData, 'JPEG', x, 0, scaledWidth, scaledHeight);
           } else {
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, canvasHeight);
           }
         }
 
