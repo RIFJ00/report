@@ -1852,9 +1852,8 @@
         const container = document.createElement('div');
         container.style.position = 'absolute';
         container.style.top = '0';
-        container.style.left = '0';
+        container.style.left = '-9999px'; // キャプチャに影響が出ないように画面外へ
         container.style.zIndex = '-9999';
-        container.style.opacity = '0.01';
         container.style.pointerEvents = 'none';
         container.style.width = '794px'; 
         
@@ -1899,14 +1898,17 @@
         </div>`;
         document.body.appendChild(container);
 
+        // 画像の読み込みなどを考慮して待機
         await new Promise(resolve => setTimeout(resolve, 800));
 
         const pageElements = container.querySelectorAll('.pdf-page-element');
-        const pdf = new jsPDF({ unit: 'px', format: [794, 1122], orientation: 'portrait' });
+        // 標準のA4サイズ(pt単位)でPDFを生成する
+        const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const a4Height = pdf.internal.pageSize.getHeight();
 
-        // グローバルな縮小率を保持する変数。一度縮小されたら、それ以降のページも同じ率を使う。
-        let globalScaleRatio = 1.0;
-
+        const canvases = [];
+        // まず全てのページをレンダリングしてキャンバスを取得
         for (let i = 0; i < pageElements.length; i++) {
           const canvas = await window.html2canvas(pageElements[i], {
             scale: 2,
@@ -1914,33 +1916,37 @@
             logging: false,
             backgroundColor: t.container
           });
+          canvases.push(canvas);
+        }
+
+        // 全ページの中で最も小さくしなければならない縮小率を計算する
+        let globalScaleRatio = 1.0;
+        for (let i = 0; i < canvases.length; i++) {
+          const canvas = canvases[i];
+          const canvasHeightInPdf = (canvas.height * pdfWidth) / canvas.width;
+          if (canvasHeightInPdf > a4Height) {
+            const ratio = a4Height / canvasHeightInPdf;
+            if (ratio < globalScaleRatio) {
+              globalScaleRatio = ratio;
+            }
+          }
+        }
+
+        // 計算した統一縮小率でPDFに書き込む
+        for (let i = 0; i < canvases.length; i++) {
+          const canvas = canvases[i];
           const imgData = canvas.toDataURL('image/jpeg', 0.98);
+          const canvasHeightInPdf = (canvas.height * pdfWidth) / canvas.width;
           
-          const pdfWidth = 794;
-          const a4Height = 1122;
-          const canvasHeight = (canvas.height * pdfWidth) / canvas.width;
-
-          // このページが必要とする縮小率を計算
-          let currentPageRatio = 1.0;
-          if (canvasHeight > a4Height) {
-            currentPageRatio = a4Height / canvasHeight;
-          }
-
-          // これまでの縮小率よりも、さらに小さくする必要がある場合は更新する
-          if (currentPageRatio < globalScaleRatio) {
-             globalScaleRatio = currentPageRatio;
-          }
-
           if (i > 0) pdf.addPage();
           
-          // 全ページで統一された縮小率を適用して描画
           if (globalScaleRatio < 1.0) {
             const scaledWidth = pdfWidth * globalScaleRatio;
-            const scaledHeight = canvasHeight * globalScaleRatio;
+            const scaledHeight = canvasHeightInPdf * globalScaleRatio;
             const x = (pdfWidth - scaledWidth) / 2; // 中央揃え
             pdf.addImage(imgData, 'JPEG', x, 0, scaledWidth, scaledHeight);
           } else {
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, canvasHeight);
+            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, canvasHeightInPdf);
           }
         }
 
@@ -1949,7 +1955,7 @@
 
       } catch (error) {
         console.error(error);
-        alert("PDFの生成中にエラーが発生しました。");
+        alert("PDFの生成中にエラーが発生しました。\n" + error.message);
       } finally {
         btn.innerHTML = originalHtml;
         btn.disabled = false;
@@ -2508,9 +2514,8 @@
         const container = document.createElement('div');
         container.style.position = 'absolute';
         container.style.top = '0';
-        container.style.left = '0';
+        container.style.left = '-9999px'; // 描画影響を避けるため画面外へ
         container.style.zIndex = '-9999';
-        container.style.opacity = '0.01';
         container.style.pointerEvents = 'none';
         container.style.width = '1280px'; 
         
@@ -2565,7 +2570,9 @@
         await new Promise(resolve => setTimeout(resolve, 800));
 
         const pageElements = container.querySelectorAll('.pdf-slide-element');
-        const pdf = new jsPDF({ unit: 'px', format: [1280, 720], orientation: 'landscape' });
+        const pdfWidth = 1280;
+        const pdfHeight = 720;
+        const pdf = new jsPDF({ unit: 'px', format: [pdfWidth, pdfHeight], orientation: 'landscape' });
 
         for (let i = 0; i < pageElements.length; i++) {
           const canvas = await window.html2canvas(pageElements[i], {
@@ -2575,7 +2582,7 @@
           });
           const imgData = canvas.toDataURL('image/jpeg', 0.98);
           if (i > 0) pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, 0, 1280, 720);
+          pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
         }
 
         pdf.save(`${state.query.replace(/[\\/:*?"<>|]/g, '_')}_スライド.pdf`);
@@ -2583,7 +2590,7 @@
 
       } catch (error) {
         console.error(error);
-        alert("PDFの生成中にエラーが発生しました。");
+        alert("PDFの生成中にエラーが発生しました。\n" + error.message);
       } finally {
         btn.innerHTML = originalHtml;
         btn.disabled = false;
