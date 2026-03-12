@@ -40,7 +40,7 @@
     .report-content em { font-style: italic; }
     .report-content a { color: var(--color-accent); text-decoration: underline; }
 
-    /* 手動改ページマーカーのスタイル */
+    /* 手動改ページマーカーのスタイル (バックスペースで消しやすいようにhrタグを使用) */
     .manual-page-break { border: none; border-top: 2px dashed var(--color-border); margin: 3rem 0; position: relative; overflow: visible; display: block; clear: both; width: 100%; }
     .manual-page-break::after { content: '✂ 改ページ (出力時にここで分割されます)'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: inherit; padding: 0 15px; border-radius: 4px; color: var(--color-text-muted); font-size: 0.85rem; font-weight: bold; }
 
@@ -822,7 +822,8 @@
       // 連続する空行を整理
       combinedText = combinedText.replace(/\n{3,}/g, '\n\n').trim();
 
-      const maxWeight = state.slideLogoText ? 36 : 40;
+      // 安全のため1ページのウェイトを少し減らす
+      const maxWeight = state.slideLogoText ? 32 : 34; 
       const pages = splitTextIntoPages(combinedText, maxWeight, autoBreak);
       
       const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
@@ -1708,13 +1709,13 @@
           let lineWeight = 1;
           
           if (trimmed.match(/!\[([^\]]*)\]\((.*?)\)/) || trimmed.includes('<img')) {
-            lineWeight = 15;
+            lineWeight = 16; 
             const match = trimmed.match(/\{w:[^,]*,h:[^,]*,s:([^}]*)\}/);
             if (match && match[1]) {
-               if (match[1].includes('width: 100%')) lineWeight = 25;
-               else if (match[1].includes('width: 80%')) lineWeight = 20;
-               else if (match[1].includes('width: 50%')) lineWeight = 12;
-               else if (match[1].includes('width: 30%')) lineWeight = 8;
+               if (match[1].includes('width: 100%')) lineWeight = 26;
+               else if (match[1].includes('width: 80%')) lineWeight = 22;
+               else if (match[1].includes('width: 50%')) lineWeight = 14;
+               else if (match[1].includes('width: 30%')) lineWeight = 10;
             }
           } else if (trimmed === '') {
             lineWeight = 1;
@@ -1849,7 +1850,7 @@
       // 連続する空行を整理
       combinedText = combinedText.replace(/\n{3,}/g, '\n\n').trim();
 
-      const maxWeight = state.slideLogoText ? 36 : 40;
+      const maxWeight = state.slideLogoText ? 32 : 34; 
       const pages = splitTextIntoPages(combinedText, maxWeight, autoBreak);
       
       const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
@@ -1914,7 +1915,7 @@
           const logoHtml = state.slideLogoText ? `<div style="position: absolute; right: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: inherit; color: ${t.textMuted}">${escapedLogo}</div>` : '';
           const pageNumHtml = `<div style="position: absolute; left: 75px; bottom: 75px; font-size: 0.75rem; opacity: 0.6; font-family: monospace; color: ${t.textMuted}">${index + 1} / ${pagesHtml.length}</div>`;
           return `
-            <div class="pdf-page-element ${layoutConfig.classes}" style="background-color: ${t.container}; color: ${t.text}; --color-text: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border}; width: 794px; min-height: 1122px; height: auto; padding: 75px; padding-bottom: 100px; position: relative; box-sizing: border-box; margin-bottom: 10px; overflow: hidden;">
+            <div class="pdf-page-element ${layoutConfig.classes}" style="background-color: ${t.container}; color: ${t.text}; --color-text: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border}; width: 794px; height: 1122px; padding: 75px; padding-bottom: 100px; position: relative; box-sizing: border-box; margin-bottom: 10px; overflow: hidden;">
               <div class="report-content">
                 ${pageHtml}
               </div>
@@ -1944,28 +1945,8 @@
           });
           const imgData = canvas.toDataURL('image/jpeg', 0.98);
           
-          const pdfWidth = 794;
-          const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-          const a4Height = 1122;
-
           if (i > 0) pdf.addPage();
-          
-          if (pdfHeight <= a4Height) {
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-          } else {
-            let position = 0;
-            let heightLeft = pdfHeight;
-            
-            pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-            heightLeft -= a4Height;
-            
-            while (heightLeft > 0) {
-              position -= a4Height;
-              pdf.addPage();
-              pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-              heightLeft -= a4Height;
-            }
-          }
+          pdf.addImage(imgData, 'JPEG', 0, 0, 794, 1122);
         }
 
         pdf.save(`${state.query.replace(/[\\/:*?"<>|]/g, '_')}_レポート.pdf`);
