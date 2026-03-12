@@ -28,6 +28,7 @@
     .report-content h1 { font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent); }
     .report-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold); }
     .report-content h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
+    .report-content h4 { font-size: 1rem; font-weight: bold; margin-top: 1.25rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
     .report-content p { line-height: 1.8; margin-bottom: 1rem; }
     .report-content ul { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: disc; }
     .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; }
@@ -723,7 +724,8 @@
           
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
           // Word出力時のサイズ計算用に元サイズを属性として持たせる
-          const imgTag = `<img src="${dataUrl}" alt="挿入画像" title="クリックでサイズ変更" data-width="${width}" data-height="${height}" style="width: auto;" />`;
+          // 画像の前後に改行（<br>）を入れ、後続のテキストが自動的に次の行へ送られるようにする
+          const imgTag = `<br><img src="${dataUrl}" alt="挿入画像" title="クリックでサイズ変更" data-width="${width}" data-height="${height}" style="width: auto;" /><br><br>`;
 
           lastFocusedEditable.focus();
           restoreSelection(savedSelection);
@@ -1569,13 +1571,15 @@
       if (!markdown) return '';
       let html = String(markdown);
       html = html
+        .replace(/^#### (.*$)/gim, `<h4 style="font-size: 1rem; font-weight: bold; margin-top: 1.25rem; margin-bottom: 0.5rem; color: ${t.textBold}">$1</h4>`)
         .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: ${t.textBold}">$1</h3>`)
         .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid ${t.border}; color: ${t.textBold}">$1</h2>`)
         .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: ${t.accent}">$1</h1>`)
         .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid ${t.accent}; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: ${t.text}">$1</blockquote>`)
         .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);" />')
         .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: ${t.textBold}">$1</strong>`)
-        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic; color: ${t.text}">$1</em>`);
+        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic; color: ${t.text}">$1</em>`)
+        .replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank" style="color: ${t.accent}; text-decoration: underline;">$1</a>`);
 
       html = html.replace(/^- (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: ${t.text}">$1</li>`);
       html = html.replace(/^\d+\. (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: ${t.text}">$1</li>`);
@@ -1606,7 +1610,7 @@
           lineWeight = 1;
         } else if (trimmed.startsWith('# ')) {
           lineWeight = 3;
-        } else if (trimmed.startsWith('## ') || trimmed.startsWith('### ')) {
+        } else if (trimmed.startsWith('## ') || trimmed.startsWith('### ') || trimmed.startsWith('#### ')) {
           lineWeight = 2;
         } else {
           lineWeight = Math.max(1, Math.ceil(trimmed.length / 40) * 1.2);
@@ -1712,7 +1716,7 @@
       state.reportPagesHtml.forEach((pageHtml, idx) => {
         html += `
           <div class="report-page shadow-2xl mb-8 w-full max-w-[210mm] relative overflow-hidden ${layout.classes}" 
-               style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; color: ${t.text}; background-color: ${t.container}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border};">
+               style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; color: ${t.text}; background-color: ${t.container}; --color-text: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border};">
             <div class="report-content" contenteditable="true" onblur="handleReportEdit(${idx}, this.innerHTML)" onkeydown="handleKeyDownOnEditable(event)">
               ${pageHtml}
             </div>
@@ -1762,6 +1766,7 @@
             .report-content h1 { font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent); }
             .report-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold); }
             .report-content h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
+            .report-content h4 { font-size: 1rem; font-weight: bold; margin-top: 1.25rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
             .report-content p { line-height: 1.8; margin-bottom: 1rem; color: var(--color-text); }
             .report-content ul { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: disc; color: var(--color-text); }
             .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; color: var(--color-text); }
@@ -1895,6 +1900,8 @@
                         docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_2 }));
                     } else if (tag === 'h3') {
                         docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_3 }));
+                    } else if (tag === 'h4') {
+                        docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_4 }));
                     } else if (tag === 'p') {
                         const runs = [];
                         node.childNodes.forEach(child => {
@@ -2000,7 +2007,8 @@
                   { id: "Title", name: "Title", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 44, bold: true, color: wAccent } },
                   { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 32, bold: true, color: wAccent }, paragraph: { spacing: { before: 400, after: 200 } } },
                   { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 28, bold: true, color: wTextBold }, paragraph: { spacing: { before: 300, after: 150 } } },
-                  { id: "Heading3", name: "Heading 3", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 24, bold: true, color: wTextBold }, paragraph: { spacing: { before: 200, after: 100 } } }
+                  { id: "Heading3", name: "Heading 3", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 24, bold: true, color: wTextBold }, paragraph: { spacing: { before: 200, after: 100 } } },
+                  { id: "Heading4", name: "Heading 4", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 20, bold: true, color: wTextBold }, paragraph: { spacing: { before: 150, after: 100 } } }
               ]
           },
           sections: [{
@@ -2077,6 +2085,7 @@
   .report-content h1 { font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent); }
   .report-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold); }
   .report-content h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
+  .report-content h4 { font-size: 1rem; font-weight: bold; margin-top: 1.25rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
   .report-content p { line-height: 1.8; margin-bottom: 1rem; color: var(--color-text); }
   .report-content ul { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: disc; color: var(--color-text); }
   .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; color: var(--color-text); }
@@ -2122,6 +2131,7 @@
           md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n');
           md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n');
           md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n');
+          md = md.replace(/<h4[^>]*>(.*?)<\/h4>/gi, '#### $1\n');
           md = md.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n');
           md = md.replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, '> $1\n');
           md = md.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
@@ -2332,6 +2342,14 @@
       renderSlide();
     }
 
+    // スライド内テキスト編集
+    window.handleSlideTitleChange = function(index, el) { state.slideData[index].title = el.innerText; };
+    window.handleSlideTitleContentChange = function(index, el) { state.slideData[index].content = [el.innerText]; };
+    window.handleSlideListContentChange = function(slideIndex, listIndex, el) { state.slideData[slideIndex].content[listIndex] = el.innerText; };
+    window.handleKeyDownOnEditable = function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+    };
+
     async function handleDownloadSlidePDF() {
       if (!window.jspdf || !window.html2canvas) {
         alert("PDF生成ライブラリを読み込み中です。少し待ってから再度お試しください。");
@@ -2438,6 +2456,86 @@
         btn.innerHTML = originalHtml;
         btn.disabled = false;
         lucide.createIcons({ root: btn });
+      }
+    }
+
+    async function handleDownloadPPTX() {
+      if (state.slideData.length === 0) return;
+      const themeConfig = getSlideThemeColors(state.currentThemeId, state.isSlideReversed);
+      const theme = {
+        bg: themeConfig.bg,
+        text: themeConfig.text,
+        accent: themeConfig.accent,
+        subText: themeConfig.subText
+      };
+      
+      const hexToPptx = (hex) => hex.replace('#', '').toUpperCase();
+      
+      const loadScript = (src) => {
+        return new Promise((resolve, reject) => {
+          if (window.PptxGenJS) return resolve();
+          const script = document.createElement('script');
+          script.src = src;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      };
+
+      try {
+        await loadScript("https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js");
+        const pptx = new window.PptxGenJS();
+        pptx.layout = 'LAYOUT_16x9';
+
+        state.slideData.forEach((slide, idx) => {
+          const slidePptx = pptx.addSlide();
+          slidePptx.background = { color: hexToPptx(theme.bg[0]) };
+
+          if (idx === 0) {
+            slidePptx.addText(slide.title, { x: 0.5, y: 2.0, w: "90%", fontSize: 44, bold: true, color: hexToPptx(theme.accent), align: "center" });
+            if (slide.content.length > 0) slidePptx.addText(slide.content.join("\n"), { x: 0.5, y: 3.5, w: "90%", fontSize: 24, color: hexToPptx(theme.subText), align: "center" });
+          } else {
+            slidePptx.addText(slide.title, { x: 0.5, y: 0.5, w: "90%", h: 0.8, fontSize: 32, bold: true, color: hexToPptx(theme.accent), align: "left" });
+            slidePptx.addShape(pptx.ShapeType.line, { x: 0.5, y: 1.3, w: "90%", h: 0, line: { color: hexToPptx(theme.accent), width: 2 } });
+            if (slide.content.length > 0) {
+              const textRuns = [];
+              slide.content.forEach(line => {
+                let text = line;
+                let baseOptions = { fontSize: 24, color: hexToPptx(theme.text), breakLine: true };
+                
+                if (text.startsWith('#### ')) {
+                  text = text.slice(5);
+                  baseOptions.fontSize = 18;
+                  baseOptions.bold = true;
+                } else if (text.startsWith('### ')) {
+                  text = text.slice(4);
+                  baseOptions.fontSize = 20;
+                  baseOptions.bold = true;
+                } else if (text.startsWith('## ')) {
+                  text = text.slice(3);
+                  baseOptions.fontSize = 22;
+                  baseOptions.bold = true;
+                } else if (text.startsWith('# ')) {
+                  text = text.slice(2);
+                  baseOptions.fontSize = 26;
+                  baseOptions.bold = true;
+                } else {
+                  baseOptions.bullet = true;
+                }
+                
+                textRuns.push({ text: text, options: baseOptions });
+              });
+              slidePptx.addText(textRuns, { x: 0.5, y: 1.6, w: "90%", h: 5.0, align: "left", valign: "top", lineSpacing: 35 });
+            }
+          }
+          slidePptx.addText(`${idx + 1} / ${state.slideData.length}`, { x: 0.5, y: 6.8, w: "30%", fontSize: 12, color: hexToPptx(theme.subText), align: "left" });
+          slidePptx.addText(state.slideLogoText, { x: 6.5, y: 6.8, w: "30%", fontSize: 10, color: hexToPptx(theme.subText), align: "right" });
+        });
+
+        pptx.writeFile({ fileName: `${state.query.replace(/[\\/:*?"<>|]/g, '_')}_slide.pptx` });
+      } catch (error) {
+        alert("PPTXの生成に失敗しました。ネットワーク環境を確認してください。");
+        console.error(error);
       }
     }
 
