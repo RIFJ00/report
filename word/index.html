@@ -40,6 +40,10 @@
     .report-content em { font-style: italic; }
     .report-content a { color: var(--color-accent); text-decoration: underline; }
 
+    /* 手動改ページマーカーのスタイル */
+    .manual-page-break { width: 100%; border-top: 2px dashed var(--color-border); margin: 2rem 0; text-align: center; font-size: 0.8rem; position: relative; user-select: none; }
+    .manual-page-break::after { content: '✂ 改ページ'; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--color-container, #fff); padding: 0 10px; opacity: 0.7; }
+
     /* スライド内画像スタイル */
     .slide-container img { max-width: 100%; max-height: 40cqw; object-fit: contain; margin: 1cqw auto; display: block; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: pointer; transition: width 0.2s ease-in-out; }
     .slide-container img:hover { outline: 2px solid currentColor; outline-offset: 2px; }
@@ -125,7 +129,8 @@
           <div class="mt-3 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800 text-sm text-gray-700 dark:text-gray-300">
             <strong>💡 便利機能</strong>
             <ul class="list-disc pl-5 mt-1.5 space-y-1">
-              <li><strong>画像挿入とサイズ変更</strong>: 画像を入れたい箇所（テキスト）を一度クリックしてカーソルを合わせてから、「画像挿入」ボタンを押すことで好きな場所に図表を追加できます。また、挿入された画像を再度クリックするたびにサイズ（自動→30%→50%→80%→100%）が切り替わります。</li>
+              <li><strong>画像挿入とサイズ変更</strong>: 画像を入れたい箇所（テキスト）を一度クリックしてカーソルを合わせてから、「画像挿入」ボタンを押すことで好きな場所に図表を追加できます。画像の挿入後、はみ出た文章は自動で次ページに繰り下がります。</li>
+              <li><strong>改ページ機能</strong>: レポートの好きな位置で「改ページ」ボタンを押すと、そこでページを強制的に分割できます。</li>
               <li><strong>PDF出力</strong>: レポートもスライドも、画面で見たままのデザインで高品質なPDFとして保存できるようになりました。</li>
             </ul>
           </div>
@@ -361,6 +366,10 @@
         <input type="file" id="report-image-upload" accept="image/*" class="hidden" onchange="handleInsertImage(event)">
         <button onclick="document.getElementById('report-image-upload').click()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors font-medium shadow-sm" title="カーソル位置に画像を挿入します">
           <i data-lucide="image" class="h-4 w-4"></i><span class="hidden sm:inline">画像挿入</span>
+        </button>
+
+        <button onclick="handleInsertPageBreak()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors font-medium shadow-sm" title="カーソル位置で強制的にページを分割します">
+          <i data-lucide="scissors" class="h-4 w-4"></i><span class="hidden sm:inline">改ページ</span>
         </button>
 
         <button onclick="handleReLayout()" class="flex items-center space-x-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors font-medium shadow-sm" title="編集してはみ出た文章を、自動的に次ページに繰り下げて整えます">
@@ -626,7 +635,7 @@
       });
     }
 
-    // --- 画像挿入とリサイズ機能 ---
+    // --- 画像挿入とリサイズ、改ページ機能 ---
     let lastFocusedEditable = null;
     let savedSelection = null;
 
@@ -727,20 +736,18 @@
           ctx.drawImage(img, 0, 0, width, height);
           
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-          // 画像を独立したブロック（div）にし、その後に空の段落を作ることでテキストが横に回り込まないようにする
+          // 画像を独立したブロックにし、その後に空の段落を作ることでテキストが横に回り込まないようにする
           const imgTag = `<div class="img-wrapper" style="margin: 1rem 0; width: 100%; text-align: center;"><img src="${dataUrl}" alt="挿入画像" title="クリックでサイズ変更" data-width="${width}" data-height="${height}" style="width: auto; display: inline-block; max-width: 100%;" /></div><p><br></p>`;
 
           lastFocusedEditable.focus();
           restoreSelection(savedSelection);
           document.execCommand('insertHTML', false, imgTag);
           
-          // 状態の更新をトリガーする
+          // レポートの場合は、画像挿入によってはみ出る可能性が高いため自動で再レイアウトをかける
           if (lastFocusedEditable.classList.contains('report-content')) {
-             const pages = document.querySelectorAll('.report-content');
-             let index = Array.from(pages).indexOf(lastFocusedEditable);
-             if(index !== -1) {
-               handleReportEdit(index, lastFocusedEditable.innerHTML);
-             }
+             setTimeout(() => {
+                 handleReLayout();
+             }, 100);
           } else {
              const blurEvent = new Event('blur');
              lastFocusedEditable.dispatchEvent(blurEvent);
@@ -750,6 +757,25 @@
       };
       reader.readAsDataURL(file);
       event.target.value = ''; // リセット
+    }
+
+    function handleInsertPageBreak() {
+      if (!lastFocusedEditable || !lastFocusedEditable.classList.contains('report-content')) {
+        alert("改ページを挿入するテキスト部分（レポート内）をクリックしてカーソルを合わせてから実行してください。");
+        return;
+      }
+
+      // 手動改ページ用のマーカーを挿入
+      const breakTag = `<div class="manual-page-break" data-page-break="true"></div><p><br></p>`;
+      
+      lastFocusedEditable.focus();
+      restoreSelection(savedSelection);
+      document.execCommand('insertHTML', false, breakTag);
+      
+      // 改ページ挿入後、自動的に再レイアウトしてページを実際に分割する
+      setTimeout(() => {
+        handleReLayout();
+      }, 100);
     }
 
     // --- UI更新関連 ---
@@ -1582,7 +1608,8 @@
         .replace(/!\[([^\]]*)\]\((.*?)\)/gim, `<div class="img-wrapper" style="margin: 1rem 0; width: 100%; text-align: center;"><img src="$2" alt="$1" style="max-width: 100%; max-height: 250px; object-fit: contain; margin: 0 auto; display: inline-block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);" /></div>`)
         .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: ${t.textBold}">$1</strong>`)
         .replace(/\*(.*?)\*/gim, `<em style="font-style: italic; color: ${t.text}">$1</em>`)
-        .replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank" style="color: ${t.accent}; text-decoration: underline;">$1</a>`);
+        .replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank" style="color: ${t.accent}; text-decoration: underline;">$1</a>`)
+        .replace(/^(?:===|---)$/gim, `<div class="manual-page-break" data-page-break="true" style="width: 100%; border-top: 2px dashed ${t.border}; margin: 2rem 0; text-align: center; color: ${t.textMuted}; font-size: 0.8rem; user-select: none;">改ページ</div>`);
 
       html = html.replace(/^- (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: ${t.text}">$1</li>`);
       html = html.replace(/^\d+\. (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: ${t.text}">$1</li>`);
@@ -1608,6 +1635,19 @@
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const trimmed = line.trim();
+        
+        // 手動改ページタグまたはMarkdownの区切り線を検知して強制改ページ
+        if (trimmed === '---' || trimmed === '===') {
+          if (currentLines.length > 0) {
+            pages.push(currentLines.join('\n'));
+          } else {
+            pages.push(''); // 連続改ページに対応
+          }
+          currentLines = [];
+          currentWeight = 0;
+          continue; // マーカー自体は出力しない
+        }
+
         let lineWeight = 1;
         
         // はみ出しを防ぐため、要素ごとのウェイト（高さ）を厳格に計算
@@ -1656,11 +1696,15 @@
          md = md.replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, '> $1\n');
          md = md.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
          md = md.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
-         md = md.replace(/<br\s*[\/]?>/gi, '\n');
          
+         // 手動改ページタグの復元
+         md = md.replace(/<div[^>]*data-page-break="true"[^>]*>.*?<\/div>/gi, '\n---\n');
+
          // 画像タグの復元
          md = md.replace(/<div[^>]*>\s*<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>\s*<\/div>/gi, '![$2]($1)\n');
          md = md.replace(/<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/gi, '![$2]($1)\n');
+         
+         md = md.replace(/<br\s*[\/]?>/gi, '\n');
          
          const temp = document.createElement('div');
          temp.innerHTML = md;
@@ -1827,6 +1871,7 @@
             .report-content strong { font-weight: bold; color: var(--color-text-bold); }
             .report-content em { font-style: italic; color: var(--color-text); }
             .report-content a { color: var(--color-accent); text-decoration: underline; }
+            .manual-page-break { display: none; } /* PDF出力時は非表示 */
           </style>
         `;
 
@@ -1986,6 +2031,8 @@
                             children: [new TextRun({ text: node.textContent, italics: true, color: wText })],
                             indent: { left: 720 } 
                         }));
+                    } else if (tag === 'div' && node.classList.contains('manual-page-break')) {
+                        // Word出力ではスキップ（既にレイアウト分割されているため）
                     } else if (tag === 'img') {
                          const alt = node.getAttribute('alt') || '画像';
                          const src = node.getAttribute('src');
@@ -2125,6 +2172,7 @@
   .page-num { position: absolute; left: 20mm; bottom: 20mm; font-size: 0.8rem; opacity: 0.6; color: var(--color-text-muted); font-family: monospace; }
   .print-btn-container { width: 100%; max-width: 210mm; text-align: right; margin-bottom: 10px; }
   .print-btn { padding: 10px 20px; background: var(--color-accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+  .manual-page-break { display: none; }
   @media print {
     body { background: white; padding: 0; gap: 0; display: block; }
     .print-btn-container { display: none; }
@@ -2188,6 +2236,7 @@
           md = md.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
           md = md.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
           md = md.replace(/<br\s*[\/]?>/gi, '\n');
+          md = md.replace(/<div[^>]*data-page-break="true"[^>]*>.*?<\/div>/gi, ''); // 手動改ページタグは削除
           const doc = parser.parseFromString(md, 'text/html');
           editedText += doc.body.textContent.trim() + '\n\n';
         } else {
