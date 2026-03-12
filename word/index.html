@@ -33,13 +33,15 @@
     .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; }
     .report-content li { margin-bottom: 0.5rem; display: list-item; }
     .report-content blockquote { border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
-    .report-content img { max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); }
+    .report-content img { max-width: 100%; max-height: 400px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); cursor: pointer; transition: width 0.2s ease-in-out; }
+    .report-content img:hover { outline: 2px solid var(--color-accent); outline-offset: 2px; }
     .report-content strong { font-weight: bold; color: var(--color-text-bold); }
     .report-content em { font-style: italic; }
     .report-content a { color: var(--color-accent); text-decoration: underline; }
 
     /* スライド内画像スタイル */
-    .slide-container img { max-width: 100%; max-height: 25cqw; object-fit: contain; margin: 1cqw auto; display: block; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .slide-container img { max-width: 100%; max-height: 40cqw; object-fit: contain; margin: 1cqw auto; display: block; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: pointer; transition: width 0.2s ease-in-out; }
+    .slide-container img:hover { outline: 2px solid currentColor; outline-offset: 2px; }
   </style>
 </head>
 <body class="min-h-screen bg-white text-gray-900 font-sans dark:bg-[#202124] dark:text-gray-100 transition-colors duration-200">
@@ -122,7 +124,7 @@
           <div class="mt-3 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800 text-sm text-gray-700 dark:text-gray-300">
             <strong>💡 便利機能</strong>
             <ul class="list-disc pl-5 mt-1.5 space-y-1">
-              <li><strong>画像挿入</strong>: 画像を入れたい箇所（テキスト）を一度クリックしてカーソルを合わせてから、「画像挿入」ボタンを押すことで好きな場所に図表を追加できます。</li>
+              <li><strong>画像挿入とサイズ変更</strong>: 画像を入れたい箇所（テキスト）を一度クリックしてカーソルを合わせてから、「画像挿入」ボタンを押すことで好きな場所に図表を追加できます。また、挿入された画像を再度クリックするたびにサイズ（自動→30%→50%→80%→100%）が切り替わります。</li>
               <li><strong>PDF出力</strong>: レポートもスライドも、画面で見たままのデザインで高品質なPDFとして保存できるようになりました。</li>
             </ul>
           </div>
@@ -518,7 +520,7 @@
       { id: 'nature-green', name: 'グリーン', container: '#ffffff', text: '#064e3b', textBold: '#022c22', accent: '#10b981', border: '#a7f3d0', isTwoTone: false, bg1: '#ffffff', bg2: '#10b981' },
       { id: 'sakura-pink', name: 'サクラ', container: '#ffffff', text: '#831843', textBold: '#4c0519', accent: '#db2777', border: '#fbcfe8', isTwoTone: false, bg1: '#ffffff', bg2: '#db2777' },
 
-      // ツートンテーマ
+      // ツートンテーマ (コントラストを改善)
       { id: 'navy_gold', name: 'ネイビー×ゴールド', isTwoTone: true, 
         color1: '#0f172a', color2: '#fbbf24', 
         normal:  { container: '#0f172a', text: '#fef3c7', textBold: '#fbbf24', textMuted: '#94a3b8', accent: '#fbbf24', border: '#334155' },
@@ -619,7 +621,7 @@
       });
     }
 
-    // --- 画像挿入機能 ---
+    // --- 画像挿入とリサイズ機能 ---
     let lastFocusedEditable = null;
     let savedSelection = null;
 
@@ -649,6 +651,38 @@
             savedSelection = saveSelection();
             lastFocusedEditable = activeEl;
         }
+    });
+
+    // 画像クリックでサイズ変更をトグルするグローバルリスナー
+    document.addEventListener('click', function(e) {
+      if (e.target.tagName && e.target.tagName.toLowerCase() === 'img') {
+        const parentReport = e.target.closest('.report-content');
+        const parentSlide = e.target.closest('[contenteditable="true"]');
+        
+        if (parentReport || parentSlide) {
+           const widths = ['auto', '30%', '50%', '80%', '100%'];
+           let currentWidth = e.target.style.width || 'auto';
+           let nextIndex = (widths.indexOf(currentWidth) + 1) % widths.length;
+           
+           e.target.style.width = widths[nextIndex];
+           if(widths[nextIndex] !== 'auto') {
+               e.target.style.maxHeight = 'none'; // 指定サイズ時は高さ上限を解除
+           } else {
+               e.target.style.maxHeight = ''; // autoの時はデフォルトCSSを適用
+           }
+
+           // 保存処理
+           if (parentReport) {
+               const pages = document.querySelectorAll('.report-content');
+               let index = Array.from(pages).indexOf(parentReport);
+               if(index !== -1) {
+                   handleReportEdit(index, parentReport.innerHTML);
+               }
+           } else if (parentSlide) {
+               parentSlide.dispatchEvent(new Event('blur'));
+           }
+        }
+      }
     });
 
     function handleInsertImage(event) {
@@ -688,8 +722,8 @@
           ctx.drawImage(img, 0, 0, width, height);
           
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-          // レポート用とスライド用で画像のスタイルが異なるが、今回はシンプルなHTMLタグにしてCSSクラスに任せる
-          const imgTag = `<img src="${dataUrl}" alt="挿入画像" />`;
+          // Word出力時のサイズ計算用に元サイズを属性として持たせる
+          const imgTag = `<img src="${dataUrl}" alt="挿入画像" title="クリックでサイズ変更" data-width="${width}" data-height="${height}" style="width: auto;" />`;
 
           lastFocusedEditable.focus();
           restoreSelection(savedSelection);
@@ -1531,31 +1565,28 @@
     }
 
     // --- レポート機能 ---
-    function parseMarkdownForReport(markdown) {
+    function parseMarkdownForReport(markdown, t) {
       if (!markdown) return '';
       let html = String(markdown);
-      
-      // インラインスタイルではなく、親要素のCSS変数を参照させることでテーマ切り替えに追従させる
       html = html
-        .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold)">$1</h3>`)
-        .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold)">$1</h2>`)
-        .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent)">$1</h1>`)
-        .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: var(--color-text)">$1</blockquote>`)
+        .replace(/^### (.*$)/gim, `<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: ${t.textBold}">$1</h3>`)
+        .replace(/^## (.*$)/gim, `<h2 style="font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid ${t.border}; color: ${t.textBold}">$1</h2>`)
+        .replace(/^# (.*$)/gim, `<h1 style="font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: ${t.accent}">$1</h1>`)
+        .replace(/^\> (.*$)/gim, `<blockquote style="border-left: 4px solid ${t.accent}; padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: ${t.text}">$1</blockquote>`)
         .replace(/!\[([^\]]*)\]\((.*?)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; max-height: 250px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);" />')
-        .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: var(--color-text-bold)">$1</strong>`)
-        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic; color: var(--color-text)">$1</em>`)
-        .replace(/(https?:\/\/[^\s]+)/g, `<a href="$1" target="_blank" style="color: var(--color-accent); text-decoration: underline;">$1</a>`);
+        .replace(/\*\*(.*?)\*\*/gim, `<strong style="font-weight: bold; color: ${t.textBold}">$1</strong>`)
+        .replace(/\*(.*?)\*/gim, `<em style="font-style: italic; color: ${t.text}">$1</em>`);
 
-      html = html.replace(/^- (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: var(--color-text)">$1</li>`);
-      html = html.replace(/^\d+\. (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: var(--color-text)">$1</li>`);
+      html = html.replace(/^- (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: ${t.text}">$1</li>`);
+      html = html.replace(/^\d+\. (.*$)/gim, `<li style="margin-bottom: 0.5rem; color: ${t.text}">$1</li>`);
       
-      html = html.replace(/(<li style="margin-bottom: 0.5rem; color: var\(--color-text\)">.*<\/li>\n?)+/g, match => `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-position: outside; line-height: 1.8; color: var(--color-text)">${match}</ul>`);
+      html = html.replace(/(<li style="margin-bottom: 0.5rem; color: .*?">.*<\/li>\n?)+/g, match => `<ul style="margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-position: outside; line-height: 1.8; color: ${t.text}">${match}</ul>`);
 
       const lines = html.split('\n');
       const parsedLines = lines.map(line => {
         const trimmed = line.trim();
         if (!trimmed || /^(<h|<ul|<ol|<li|<blockquote|<hr|<div|<img)/.test(trimmed)) return line;
-        return `<p style="line-height: 1.8; margin-bottom: 1rem; color: var(--color-text)">${line}</p>`;
+        return `<p style="line-height: 1.8; margin-bottom: 1rem; color: ${t.text}">${line}</p>`;
       });
 
       return parsedLines.join('\n');
@@ -1650,7 +1681,8 @@
       state.reportPages = splitTextIntoPages(fullText, maxWeight);
       
       // MarkdownからHTMLを生成し、状態として保持する（以降の編集ベースとなる）
-      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page));
+      const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
+      state.reportPagesHtml = state.reportPages.map(page => parseMarkdownForReport(page, t));
       
       renderReportThemeSelector();
       renderReport();
@@ -1680,7 +1712,7 @@
       state.reportPagesHtml.forEach((pageHtml, idx) => {
         html += `
           <div class="report-page shadow-2xl mb-8 w-full max-w-[210mm] relative overflow-hidden ${layout.classes}" 
-               style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; background-color: ${t.container}; --color-text: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border}; color: var(--color-text);">
+               style="min-height: 297mm; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; color: ${t.text}; background-color: ${t.container}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border};">
             <div class="report-content" contenteditable="true" onblur="handleReportEdit(${idx}, this.innerHTML)" onkeydown="handleKeyDownOnEditable(event)">
               ${pageHtml}
             </div>
@@ -1831,7 +1863,6 @@
         const t = getReportThemeColors(state.reportThemeId, state.isReportReversed);
         
         const docFontFamily = layoutConfig.fontFamily.split(',')[0].replace(/['"]/g, '');
-        // # を確実に除去してWordライブラリに渡す
         const wText = (t.text || '#333333').replace('#', '');
         const wTextBold = (t.textBold || '#111827').replace('#', '');
         const wTextMuted = (t.textMuted || '#888888').replace('#', '');
@@ -1900,6 +1931,21 @@
                     } else if (tag === 'img') {
                          const alt = node.getAttribute('alt') || '画像';
                          const src = node.getAttribute('src');
+                         const originalW = parseInt(node.getAttribute('data-width')) || 400;
+                         const originalH = parseInt(node.getAttribute('data-height')) || 300;
+                         
+                         let targetW = 400;
+                         const styleWidth = node.style.width;
+                         if (styleWidth === '100%') targetW = 600;
+                         else if (styleWidth === '80%') targetW = 480;
+                         else if (styleWidth === '50%') targetW = 300;
+                         else if (styleWidth === '30%') targetW = 180;
+                         else {
+                             targetW = Math.min(originalW, 400); // auto時は控えめなサイズに
+                         }
+                         
+                         const targetH = Math.round(targetW * (originalH / originalW));
+
                          if (src && src.startsWith('data:image')) {
                              try {
                                  const base64Data = src.split(',')[1];
@@ -1907,7 +1953,7 @@
                                      children: [
                                          new window.docx.ImageRun({
                                              data: Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)),
-                                             transformation: { width: 400, height: 300 }
+                                             transformation: { width: targetW, height: targetH }
                                          })
                                      ],
                                      alignment: AlignmentType.CENTER,
