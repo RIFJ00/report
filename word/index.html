@@ -371,6 +371,10 @@
           <i data-lucide="scissors" class="h-4 w-4"></i><span class="hidden sm:inline">改ページ</span>
         </button>
 
+        <button onclick="handleAutoPaginate()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors font-medium shadow-sm" title="テキスト量と画像サイズに合わせて全体を自動で改ページし直します">
+          <i data-lucide="refresh-cw" class="h-4 w-4"></i><span class="hidden sm:inline">自動改ページ</span>
+        </button>
+
         <label class="flex items-center space-x-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none ml-2 border-l border-gray-300 pl-3">
           <input type="checkbox" id="report-include-sources" onchange="openReportModal()" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" checked>
           <span>参考データを付ける</span>
@@ -734,10 +738,10 @@
           document.execCommand('insertHTML', false, imgTag);
           
           if (lastFocusedEditable.classList.contains('report-content')) {
-             handleReportEdit(lastFocusedEditable.innerHTML);
+              handleReportEdit(lastFocusedEditable.innerHTML);
           } else {
-             const blurEvent = new Event('blur');
-             lastFocusedEditable.dispatchEvent(blurEvent);
+              const blurEvent = new Event('blur');
+              lastFocusedEditable.dispatchEvent(blurEvent);
           }
         };
         img.src = e.target.result;
@@ -762,6 +766,127 @@
       if (lastFocusedEditable.classList.contains('report-content')) {
          handleReportEdit(lastFocusedEditable.innerHTML);
       }
+    }
+
+    function handleAutoPaginate() {
+      const container = document.querySelector('.report-content');
+      if (!container) return;
+
+      if (!confirm("テキストの行数を最適化し、全体を自動で改ページし直します。よろしいですか？")) {
+        return;
+      }
+
+      // 1. 既存の手動・自動で入れた改ページマーカーをすべて削除
+      const existingBreaks = container.querySelectorAll('.manual-page-break');
+      existingBreaks.forEach(br => br.remove());
+
+      // 改ページを削除した状態を一度反映させる
+      handleReportEdit(container.innerHTML);
+
+      // 2. DOMの更新と描画を待機してから、画像サイズを維持したまま高さを測って分割する
+      setTimeout(() => {
+          const contentWidth = container.getBoundingClientRect().width;
+          let maxPageHeight = contentWidth * (257 / 170); // A4コンテンツの縦横比から高さを算出
+
+          if (state.slideLogoText) {
+              maxPageHeight -= contentWidth * (15 / 170); // ロゴ分の余白を確保
+          }
+
+          let children = Array.from(container.children);
+          if (children.length === 0) return;
+
+          let pageTop = children[0].getBoundingClientRect().top;
+          let i = 0;
+          let safetyCounter = 0; 
+          const MAX_ITERATIONS = 2000; // 無限ループ防止用
+
+          while (i < children.length && safetyCounter < MAX_ITERATIONS) {
+              safetyCounter++;
+              
+              // テキスト分割などで要素が動的に増える場合があるため、最新の状態を取得
+              children = Array.from(container.children);
+              if (i >= children.length) break;
+
+              const child = children[i];
+              if (child.classList.contains('manual-page-break')) {
+                  i++;
+                  continue;
+              }
+
+              const rect = child.getBoundingClientRect();
+              
+              // 要素の底がページの許容高さを超えたら
+              if (rect.bottom - pageTop > maxPageHeight) {
+                  const availableHeight = maxPageHeight - (rect.top - pageTop);
+                  
+                  // 1. 巨大な要素（大きい画像など）がページの先頭にある場合
+                  // 前には送れないので、この要素の「直後」に改ページを入れる
+                  if (rect.top - pageTop <= 20) {
+                      const hr = document.createElement('hr');
+                      hr.className = 'manual-page-break';
+                      hr.setAttribute('data-page-break', 'true');
+                      child.after(hr);
+                      
+                      const nextSibling = hr.nextElementSibling;
+                      if (nextSibling) {
+                          pageTop = nextSibling.getBoundingClientRect().top;
+                      }
+                      i++;
+                      continue;
+                  }
+
+                  // 2. 長文テキスト(Pタグ)の分割・順送処理
+                  let splitSuccess = false;
+                  if (child.tagName === 'P' && availableHeight > 40 && !child.innerHTML.includes('<')) {
+                      const text = child.innerText;
+                      // 高さに応じた文字数の割合を計算 (安全マージンとして0.85を掛ける)
+                      const ratio = (availableHeight / rect.height) * 0.85;
+                      const splitIndex = Math.floor(text.length * ratio);
+                      
+                      // 極端に短い分割にならないように制御
+                      if (splitIndex > 5 && splitIndex < text.length - 5) {
+                          // 前半部分を今の要素に残す
+                          child.innerText = text.slice(0, splitIndex);
+                          
+                          // はみ出た後半部分を新しい段落として作成
+                          const newEl = document.createElement('p');
+                          newEl.style.cssText = child.getAttribute('style');
+                          newEl.className = child.className;
+                          newEl.innerText = text.slice(splitIndex);
+                          
+                          // 改ページ要素を作成
+                          const hr = document.createElement('hr');
+                          hr.className = 'manual-page-break';
+                          hr.setAttribute('data-page-break', 'true');
+                          
+                          // 要素の挿入 (child -> hr -> newEl)
+                          child.after(hr);
+                          hr.after(newEl);
+                          
+                          pageTop = newEl.getBoundingClientRect().top;
+                          splitSuccess = true;
+                      }
+                  }
+
+                  // 3. 分割できなかった場合（画像や短い行など）は、要素の直前に改ページを挿入
+                  if (!splitSuccess) {
+                      const hr = document.createElement('hr');
+                      hr.className = 'manual-page-break';
+                      hr.setAttribute('data-page-break', 'true');
+                      container.insertBefore(hr, child);
+                      
+                      // 新しいページの基準点を取得して、同じ要素を再チェックする
+                      pageTop = child.getBoundingClientRect().top;
+                      continue; 
+                  }
+              }
+              
+              i++;
+          }
+
+          // 変更されたHTML状態をアプリに保存
+          handleReportEdit(container.innerHTML);
+      }, 150); // レイアウトの確定を確実に待機
     }
 
     // --- DOMからテキストと画像状態を抽出する汎用関数 ---
@@ -1961,6 +2086,13 @@
         btn.disabled = false;
         lucide.createIcons({ root: btn });
       }
+    }
+
+    // 補助関数
+    function getCleanPagesHtml(forPdf) {
+      const htmlStr = state.reportHtml;
+      let pagesHtml = htmlStr.split(/<hr[^>]*class="manual-page-break"[^>]*>/gi);
+      return pagesHtml;
     }
 
     async function handleExportReportWord() {
