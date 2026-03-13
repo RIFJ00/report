@@ -848,68 +848,33 @@
                       continue;
                   }
 
-                  // 2. 長文テキスト(Pタグ)の分割・順送処理
-                  let splitSuccess = false;
-                  if (child.tagName === 'P' && availableHeight > 40 && !child.innerHTML.includes('<')) {
-                      const text = child.innerText;
-                      // 高さに応じた文字数の割合を計算 (安全マージンとして0.85を掛ける)
-                      const ratio = (availableHeight / rect.height) * 0.85;
-                      const splitIndex = Math.floor(text.length * ratio);
-                      
-                      // 極端に短い分割にならないように制御
-                      if (splitIndex > 5 && splitIndex < text.length - 5) {
-                          // 前半部分を今の要素に残す
-                          child.innerText = text.slice(0, splitIndex);
-                          
-                          // はみ出た後半部分を新しい段落として作成
-                          const newEl = document.createElement('p');
-                          newEl.style.cssText = child.getAttribute('style');
-                          newEl.className = child.className;
-                          newEl.innerText = text.slice(splitIndex);
-                          
-                          // 改ページ要素を作成
-                          const hr = document.createElement('hr');
-                          hr.className = 'manual-page-break';
-                          hr.setAttribute('data-page-break', 'true');
-                          
-                          // 要素の挿入 (child -> hr -> newEl)
-                          child.after(hr);
-                          hr.after(newEl);
-                          
-                          pageTop = newEl.getBoundingClientRect().top;
-                          splitSuccess = true;
+                  // はみ出た要素は途中で分割せず、要素全体を次ページに送る
+                  let targetNode = child;
+                  // 孤立を防ぐため、直前の要素が見出しだった場合は見出しの前まで改ページ位置を遡る
+                  while (targetNode.previousElementSibling) {
+                      const prev = targetNode.previousElementSibling;
+                      if (prev.classList.contains('manual-page-break')) break;
+                      const prevTag = prev.tagName.toLowerCase();
+                      if (['h1', 'h2', 'h3', 'h4'].includes(prevTag)) {
+                          targetNode = prev;
+                      } else {
+                          break;
                       }
                   }
 
-                  // 3. 分割できなかった場合（画像や短い行など）は、要素の直前に改ページを挿入
-                  if (!splitSuccess) {
-                      let targetNode = child;
-                      // 孤立を防ぐため、直前の要素が見出しだった場合は見出しの前まで改ページ位置を遡る
-                      while (targetNode.previousElementSibling) {
-                          const prev = targetNode.previousElementSibling;
-                          if (prev.classList.contains('manual-page-break')) break;
-                          const prevTag = prev.tagName.toLowerCase();
-                          if (['h1', 'h2', 'h3', 'h4'].includes(prevTag)) {
-                              targetNode = prev;
-                          } else {
-                              break;
-                          }
-                      }
+                  const hr = document.createElement('hr');
+                  hr.className = 'manual-page-break';
+                  hr.setAttribute('data-page-break', 'true');
+                  container.insertBefore(hr, targetNode);
+                  
+                  // 新しいページの基準点を取得して、同じ要素を再チェックする
+                  pageTop = targetNode.getBoundingClientRect().top;
 
-                      const hr = document.createElement('hr');
-                      hr.className = 'manual-page-break';
-                      hr.setAttribute('data-page-break', 'true');
-                      container.insertBefore(hr, targetNode);
-                      
-                      // 新しいページの基準点を取得して、同じ要素を再チェックする
-                      pageTop = targetNode.getBoundingClientRect().top;
-
-                      if (targetNode !== child) {
-                          children = Array.from(container.children);
-                          i = children.indexOf(targetNode);
-                      }
-                      continue; 
+                  if (targetNode !== child) {
+                      children = Array.from(container.children);
+                      i = children.indexOf(targetNode);
                   }
+                  continue; 
               }
               
               i++;
