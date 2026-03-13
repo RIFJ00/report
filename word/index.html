@@ -814,6 +814,19 @@
               }
 
               const rect = child.getBoundingClientRect();
+              const tagName = child.tagName.toLowerCase();
+              const isHeading = ['h1', 'h2', 'h3', 'h4'].includes(tagName);
+
+              // 見出し要素がページ下部に位置し、直後に本文を配置する十分な余白(約80px)がない場合は次ページへ送る
+              if (isHeading && (maxPageHeight - (rect.top - pageTop) < rect.height + 80)) {
+                  const hr = document.createElement('hr');
+                  hr.className = 'manual-page-break';
+                  hr.setAttribute('data-page-break', 'true');
+                  container.insertBefore(hr, child);
+                  
+                  pageTop = child.getBoundingClientRect().top;
+                  continue;
+              }
               
               // 要素の底がページの許容高さを超えたら
               if (rect.bottom - pageTop > maxPageHeight) {
@@ -870,13 +883,31 @@
 
                   // 3. 分割できなかった場合（画像や短い行など）は、要素の直前に改ページを挿入
                   if (!splitSuccess) {
+                      let targetNode = child;
+                      // 孤立を防ぐため、直前の要素が見出しだった場合は見出しの前まで改ページ位置を遡る
+                      while (targetNode.previousElementSibling) {
+                          const prev = targetNode.previousElementSibling;
+                          if (prev.classList.contains('manual-page-break')) break;
+                          const prevTag = prev.tagName.toLowerCase();
+                          if (['h1', 'h2', 'h3', 'h4'].includes(prevTag)) {
+                              targetNode = prev;
+                          } else {
+                              break;
+                          }
+                      }
+
                       const hr = document.createElement('hr');
                       hr.className = 'manual-page-break';
                       hr.setAttribute('data-page-break', 'true');
-                      container.insertBefore(hr, child);
+                      container.insertBefore(hr, targetNode);
                       
                       // 新しいページの基準点を取得して、同じ要素を再チェックする
-                      pageTop = child.getBoundingClientRect().top;
+                      pageTop = targetNode.getBoundingClientRect().top;
+
+                      if (targetNode !== child) {
+                          children = Array.from(container.children);
+                          i = children.indexOf(targetNode);
+                      }
                       continue; 
                   }
               }
@@ -1816,6 +1847,7 @@
 
         if (autoBreak) {
           let lineWeight = 1;
+          let isHeading = false;
           
           if (trimmed.match(/!\[([^\]]*)\]\((.*?)\)/) || trimmed.includes('<img')) {
             lineWeight = 16; 
@@ -1830,8 +1862,10 @@
             lineWeight = 1;
           } else if (trimmed.startsWith('# ')) {
             lineWeight = 4;
+            isHeading = true;
           } else if (trimmed.startsWith('## ') || trimmed.startsWith('### ') || trimmed.startsWith('#### ')) {
             lineWeight = 3;
+            isHeading = true;
           } else {
             lineWeight = Math.max(1, Math.ceil(trimmed.length / 40));
           }
@@ -1841,7 +1875,7 @@
             isNextLineHeading = true;
           }
 
-          if (currentWeight > 0 && (currentWeight + lineWeight > targetMaxWeight || (isNextLineHeading && currentWeight > targetMaxWeight - 5))) {
+          if (currentWeight > 0 && (currentWeight + lineWeight > targetMaxWeight || (isNextLineHeading && currentWeight > targetMaxWeight - 5) || (isHeading && currentWeight > targetMaxWeight - 5))) {
             pages.push(currentLines.join('\n'));
             currentLines = [];
             currentWeight = 0;
