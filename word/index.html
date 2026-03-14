@@ -44,6 +44,14 @@
     .manual-page-break { border: none; border-top: 2px dashed var(--color-border); margin: 3rem 0; position: relative; overflow: visible; display: block; clear: both; width: 100%; }
     .manual-page-break::after { content: '✂ 改ページ (出力時にここで分割されます)'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: inherit; padding: 0 15px; border-radius: 4px; color: var(--color-text-muted); font-size: 0.85rem; font-weight: bold; }
 
+    /* スライド内エディタスタイル */
+    .slide-content-editor { outline: none; }
+    .slide-content-editor:empty:before { content: "テキストを入力..."; opacity: 0.5; cursor: text; }
+    .slide-content-editor ul { list-style-type: disc; padding-left: 1.5em; margin-top: 0.2em; margin-bottom: 0.2em; }
+    .slide-content-editor ol { list-style-type: decimal; padding-left: 1.5em; margin-top: 0.2em; margin-bottom: 0.2em; }
+    .slide-content-editor li { margin-bottom: 0.3em; }
+    .slide-content-editor p { margin-bottom: 0.5em; }
+
     /* スライド内画像スタイル */
     .slide-container img { max-width: 100%; max-height: 40cqw; object-fit: contain; margin: 1cqw auto; display: block; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: pointer; transition: width 0.2s ease-in-out; }
     .slide-container img:hover { outline: 2px solid currentColor; outline-offset: 2px; }
@@ -456,7 +464,7 @@
 
   <!-- スライドプレビューモーダル -->
   <div id="slide-modal" class="hidden fixed inset-0 z-50 flex flex-col bg-gray-900 backdrop-blur-md animate-in duration-300">
-    <div class="flex items-center justify-between p-3 sm:p-4 bg-gray-950 text-white border-b border-gray-800 shadow-xl z-20">
+    <div class="flex items-center justify-between p-3 sm:p-4 bg-gray-950 text-white border-b border-gray-800 shadow-xl z-20 shrink-0">
       <div class="flex items-center space-x-3">
         <i data-lucide="presentation" class="h-6 w-6 text-blue-400 hidden sm:block"></i>
         <div>
@@ -495,6 +503,49 @@
         </button>
         <button onclick="closeSlideModal()" class="text-gray-400 hover:text-white transition-colors p-1 ml-1 sm:ml-2"><i data-lucide="x-circle" class="h-6 w-6 sm:h-8 sm:w-8"></i></button>
       </div>
+    </div>
+
+    <!-- スライド用編集ツールバー -->
+    <div class="bg-gray-900 border-b border-gray-800 p-2 flex flex-wrap items-center justify-center gap-2 z-20 shrink-0 shadow-sm">
+      <button onmousedown="event.preventDefault();" onclick="formatText('bold')" class="p-1.5 text-gray-300 hover:bg-gray-700 rounded transition-colors" title="太字">
+        <i data-lucide="bold" class="h-4 w-4"></i>
+      </button>
+      <button onmousedown="event.preventDefault();" onclick="formatText('italic')" class="p-1.5 text-gray-300 hover:bg-gray-700 rounded transition-colors" title="斜体">
+        <i data-lucide="italic" class="h-4 w-4"></i>
+      </button>
+      <button onmousedown="event.preventDefault();" onclick="formatText('underline')" class="p-1.5 text-gray-300 hover:bg-gray-700 rounded transition-colors" title="下線">
+        <i data-lucide="underline" class="h-4 w-4"></i>
+      </button>
+      <div class="w-px h-5 bg-gray-700 mx-1"></div>
+      
+      <button onmousedown="event.preventDefault();" onclick="formatText('justifyLeft')" class="p-1.5 text-gray-300 hover:bg-gray-700 rounded transition-colors" title="左揃え">
+        <i data-lucide="align-left" class="h-4 w-4"></i>
+      </button>
+      <button onmousedown="event.preventDefault();" onclick="formatText('justifyCenter')" class="p-1.5 text-gray-300 hover:bg-gray-700 rounded transition-colors" title="中央揃え">
+        <i data-lucide="align-center" class="h-4 w-4"></i>
+      </button>
+      <button onmousedown="event.preventDefault();" onclick="formatText('justifyRight')" class="p-1.5 text-gray-300 hover:bg-gray-700 rounded transition-colors" title="右揃え">
+        <i data-lucide="align-right" class="h-4 w-4"></i>
+      </button>
+      <div class="w-px h-5 bg-gray-700 mx-1"></div>
+
+      <button onmousedown="event.preventDefault();" onclick="formatText('insertUnorderedList')" class="p-1.5 text-gray-300 hover:bg-gray-700 rounded transition-colors" title="箇条書き">
+        <i data-lucide="list" class="h-4 w-4"></i>
+      </button>
+      <button onmousedown="event.preventDefault();" onclick="formatText('insertOrderedList')" class="p-1.5 text-gray-300 hover:bg-gray-700 rounded transition-colors" title="番号付きリスト">
+        <i data-lucide="list-ordered" class="h-4 w-4"></i>
+      </button>
+      <div class="w-px h-5 bg-gray-700 mx-1"></div>
+      
+      <div class="flex items-center space-x-1.5 bg-gray-800 px-2 py-1 rounded border border-gray-700" title="文字色を変更">
+        <i data-lucide="palette" class="h-3.5 w-3.5 text-gray-400"></i>
+        <input type="color" onchange="formatTextColor(this.value)" class="w-5 h-5 p-0 border-0 rounded cursor-pointer bg-transparent">
+      </div>
+      <div class="w-px h-5 bg-gray-700 mx-1"></div>
+
+      <button onmousedown="event.preventDefault();" onclick="formatText('removeFormat')" class="p-1.5 text-gray-300 hover:bg-gray-700 rounded transition-colors" title="書式をクリア">
+        <i data-lucide="eraser" class="h-4 w-4"></i>
+      </button>
     </div>
 
     <div class="flex-grow w-full relative flex items-center justify-center p-4 sm:p-8 cursor-pointer overflow-hidden" onclick="nextSlide()">
@@ -2076,8 +2127,15 @@
         restoreSelection(savedSelection);
       }
       document.execCommand(command, false, null);
-      if (lastFocusedEditable && lastFocusedEditable.classList.contains('report-content')) {
-        handleReportEdit(lastFocusedEditable.innerHTML);
+      if (lastFocusedEditable) {
+        if (lastFocusedEditable.classList.contains('report-content')) {
+          handleReportEdit(lastFocusedEditable.innerHTML);
+        } else if (lastFocusedEditable.classList.contains('slide-content-editor')) {
+          const slideIndex = lastFocusedEditable.getAttribute('data-slide-index');
+          if (slideIndex !== null && state.slideData[slideIndex]) {
+            state.slideData[slideIndex].contentHtml = lastFocusedEditable.innerHTML;
+          }
+        }
       }
     };
 
@@ -2088,8 +2146,33 @@
         restoreSelection(savedSelection);
       }
       document.execCommand('formatBlock', false, tag);
-      if (lastFocusedEditable && lastFocusedEditable.classList.contains('report-content')) {
-        handleReportEdit(lastFocusedEditable.innerHTML);
+      if (lastFocusedEditable) {
+        if (lastFocusedEditable.classList.contains('report-content')) {
+          handleReportEdit(lastFocusedEditable.innerHTML);
+        } else if (lastFocusedEditable.classList.contains('slide-content-editor')) {
+          const slideIndex = lastFocusedEditable.getAttribute('data-slide-index');
+          if (slideIndex !== null && state.slideData[slideIndex]) {
+            state.slideData[slideIndex].contentHtml = lastFocusedEditable.innerHTML;
+          }
+        }
+      }
+    };
+    
+    window.formatTextColor = function(color) {
+      if (lastFocusedEditable) {
+        lastFocusedEditable.focus();
+        restoreSelection(savedSelection);
+      }
+      document.execCommand('foreColor', false, color);
+      if (lastFocusedEditable) {
+        if (lastFocusedEditable.classList.contains('report-content')) {
+          handleReportEdit(lastFocusedEditable.innerHTML);
+        } else if (lastFocusedEditable.classList.contains('slide-content-editor')) {
+          const slideIndex = lastFocusedEditable.getAttribute('data-slide-index');
+          if (slideIndex !== null && state.slideData[slideIndex]) {
+            state.slideData[slideIndex].contentHtml = lastFocusedEditable.innerHTML;
+          }
+        }
       }
     };
 
@@ -2641,7 +2724,20 @@
           const parsedData = JSON.parse(rawText);
           
           if (parsedData && parsedData.slides) {
-            state.slideData = parsedData.slides;
+            // HTMLベースのデータ構造に変換
+            state.slideData = parsedData.slides.map((s, i) => {
+              let html = '';
+              if (i === 0) {
+                html = `<p>${s.content.join("<br>")}</p>`;
+              } else {
+                html = `<ul>` + s.content.map(c => `<li>${c}</li>`).join('') + `</ul>`;
+              }
+              return {
+                title: s.title,
+                contentHtml: html,
+                images: []
+              };
+            });
             state.currentSlideIndex = 0;
             state.isGeneratingSlide = false;
             updateView();
@@ -2748,23 +2844,21 @@
       let innerHtml = '';
       if (isTitle) {
         innerHtml = `
-          <div class="flex-grow flex flex-col items-center justify-center text-center animate-in duration-500 relative z-10">
-            <h1 contenteditable="true" onblur="handleSlideTitleChange(${state.currentSlideIndex}, this)" onkeydown="handleKeyDownOnEditable(event)" class="text-[5cqw] font-extrabold leading-tight mb-[3cqw] tracking-tight transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" style="color: ${theme.accent}">${slide.title}</h1>
+          <div class="flex-grow flex flex-col items-center justify-center text-center animate-in duration-500 relative z-10 w-full">
+            <h1 contenteditable="true" onblur="handleSlideTitleChange(${state.currentSlideIndex}, this)" onkeydown="handleKeyDownOnEditable(event)" class="text-[5cqw] font-extrabold leading-tight mb-[3cqw] tracking-tight transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2 w-full" style="color: ${theme.accent}">${slide.title}</h1>
             <div class="w-24 h-1.5 mb-[4cqw] rounded-full transition-colors duration-500" style="background-color: ${theme.accent}"></div>
-            <p contenteditable="true" onblur="handleSlideTitleContentChange(${state.currentSlideIndex}, this)" onkeydown="handleKeyDownOnEditable(event)" class="text-[2.2cqw] leading-relaxed max-w-[80%] font-medium transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" style="color: ${theme.subText}">${slide.content.join(" ")}</p>
+            <div contenteditable="true" data-slide-index="${state.currentSlideIndex}" onblur="handleSlideContentChange(${state.currentSlideIndex}, this)" class="slide-content-editor text-[2.2cqw] leading-relaxed max-w-[90%] font-medium transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 rounded px-4 py-2 w-full text-center" style="color: ${theme.subText}">${slide.contentHtml || ''}</div>
             ${imagesHtml}
           </div>
         `;
       } else {
-        const listItems = slide.content.map((text, i) => `
-          <li contenteditable="true" onblur="handleSlideListContentChange(${state.currentSlideIndex}, ${i}, this)" onkeydown="handleKeyDownOnEditable(event)" class="cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-1 -ml-1">${text}</li>
-        `).join('');
-
         innerHtml = `
-          <div class="flex-grow flex flex-col animate-in duration-500 relative z-10">
-            <h2 contenteditable="true" onblur="handleSlideTitleChange(${state.currentSlideIndex}, this)" onkeydown="handleKeyDownOnEditable(event)" class="text-[3.5cqw] font-bold border-b-[3px] pb-[1cqw] mb-[3cqw] transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2" style="color: ${theme.accent}; border-bottom-color: ${theme.accent}">${slide.title}</h2>
-            <div class="flex-grow flex flex-col justify-start">
-              <ul class="text-[2.2cqw] leading-[1.8] list-disc ml-[3cqw] space-y-[1.5cqw] font-medium transition-colors duration-500" style="color: ${theme.text}">${listItems}</ul>
+          <div class="flex-grow flex flex-col animate-in duration-500 relative z-10 w-full h-full">
+            <h2 contenteditable="true" onblur="handleSlideTitleChange(${state.currentSlideIndex}, this)" onkeydown="handleKeyDownOnEditable(event)" class="text-[3.5cqw] font-bold border-b-[3px] pb-[1cqw] mb-[3cqw] transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 focus:outline-none rounded px-2 w-full shrink-0" style="color: ${theme.accent}; border-bottom-color: ${theme.accent}">${slide.title}</h2>
+            <div class="flex-grow flex flex-col justify-start w-full overflow-y-auto hide-scrollbar">
+              <div contenteditable="true" data-slide-index="${state.currentSlideIndex}" onblur="handleSlideContentChange(${state.currentSlideIndex}, this)" class="slide-content-editor text-[2.2cqw] leading-[1.8] font-medium transition-colors duration-500 cursor-text hover:bg-black/5 focus:bg-black/5 rounded px-2 w-full" style="color: ${theme.text}">
+                ${slide.contentHtml || ''}
+              </div>
               ${imagesHtml}
             </div>
           </div>
@@ -2800,7 +2894,8 @@
       if (state.slideData.length === 0) return;
       const newSlide = {
         title: "新しいスライド",
-        content: ["テキストを入力してください"]
+        contentHtml: `<ul><li>テキストを入力してください</li></ul>`,
+        images: []
       };
       // 現在のスライドの直後に新しいスライドを挿入
       state.slideData.splice(state.currentSlideIndex + 1, 0, newSlide);
@@ -2862,8 +2957,9 @@
 
     // スライド内テキスト編集
     window.handleSlideTitleChange = function(index, el) { state.slideData[index].title = el.innerText; };
-    window.handleSlideTitleContentChange = function(index, el) { state.slideData[index].content = [el.innerText]; };
-    window.handleSlideListContentChange = function(slideIndex, listIndex, el) { state.slideData[slideIndex].content[listIndex] = el.innerText; };
+    window.handleSlideContentChange = function(index, el) { state.slideData[index].contentHtml = el.innerHTML; };
+    
+    // タイトル部分のみ改行を防止
     window.handleKeyDownOnEditable = function(e) {
       if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
     };
@@ -2906,10 +3002,15 @@
             .title-slide { justify-content: center; align-items: center; text-align: center; }
             .pdf-slide-element h1 { font-size: 64px; font-weight: 800; line-height: 1.2; margin-bottom: 38.4px; letter-spacing: -0.025em; margin-top: 0; }
             .pdf-slide-element .divider { width: 96px; height: 6px; margin-bottom: 51.2px; border-radius: 9999px; }
-            .pdf-slide-element .subtitle { font-size: 28px; line-height: 1.625; max-width: 80%; font-weight: 500; margin: 0 auto; }
             .pdf-slide-element h2 { font-size: 44.8px; font-weight: bold; border-bottom: 3px solid; padding-bottom: 12.8px; margin-bottom: 38.4px; margin-top: 0; }
-            .pdf-slide-element ul { font-size: 28.16px; line-height: 1.8; margin-left: 38.4px; padding-left: 20px; list-style-type: disc; margin-top: 0; font-weight: 500; }
-            .pdf-slide-element li { margin-bottom: 19.2px; }
+            
+            /* HTML編集に対応したスタイル */
+            .pdf-slide-element .slide-content-wrapper { font-size: 28.16px; line-height: 1.8; font-weight: 500; }
+            .pdf-slide-element .slide-content-wrapper ul { margin-left: 38.4px; padding-left: 20px; list-style-type: disc; margin-top: 0; }
+            .pdf-slide-element .slide-content-wrapper ol { margin-left: 38.4px; padding-left: 20px; list-style-type: decimal; margin-top: 0; }
+            .pdf-slide-element .slide-content-wrapper li { margin-bottom: 19.2px; }
+            .pdf-slide-element .subtitle { font-size: 28px; line-height: 1.625; max-width: 80%; font-weight: 500; margin: 0 auto; text-align: center; }
+
             .pdf-slide-element img { max-width: 100%; max-height: 320px; object-fit: contain; margin: 12.8px auto; display: block; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
             .pdf-slide-element .page-num { position: absolute; bottom: 38.4px; left: 51.2px; font-size: 19.2px; font-weight: bold; }
             .pdf-slide-element .logo { position: absolute; bottom: 38.4px; right: 51.2px; font-size: 15.36px; }
@@ -2924,21 +3025,21 @@
             slideContent = `
               <h1 style="color: ${theme.accent}">${slide.title}</h1>
               <div class="divider" style="background-color: ${theme.accent}; margin-left: auto; margin-right: auto;"></div>
-              <p class="subtitle" style="color: ${theme.subText}">${slide.content.join(" ")}</p>
+              <div class="subtitle" style="color: ${theme.subText}">${slide.contentHtml || ''}</div>
             `;
           } else {
             slideContent = `
               <h2 style="color: ${theme.accent}; border-bottom-color: ${theme.accent}">${slide.title}</h2>
-              <ul style="color: ${theme.text}">
-                ${slide.content.map(c => `<li>${c}</li>`).join('')}
-              </ul>
+              <div class="slide-content-wrapper" style="color: ${theme.text}">
+                ${slide.contentHtml || ''}
+              </div>
             `;
           }
 
           elementsHTML += `
             <div class="pdf-slide-element ${isTitleSlide ? 'title-slide' : ''}" style="background: linear-gradient(135deg, ${theme.bg[0]} 0%, ${theme.bg[1]} 100%);">
               ${slideContent}
-              ${slide.images ? `<div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">${slide.images.map(img => `<img src="${img.src}" style="${img.width !== 'auto' ? `width: ${img.width}; max-height: none;` : ''}">`).join('')}</div>` : ''}
+              ${slide.images && slide.images.length > 0 ? `<div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">${slide.images.map(img => `<img src="${img.src}" style="${img.width !== 'auto' ? `width: ${img.width}; max-height: none;` : ''}">`).join('')}</div>` : ''}
               <div class="page-num" style="color: ${theme.subText}">${idx + 1} / ${state.slideData.length}</div>
               <div class="logo" style="color: ${theme.subText}">${state.slideLogoText}</div>
             </div>
@@ -3013,39 +3114,54 @@
 
           if (idx === 0) {
             slidePptx.addText(slide.title, { x: 0.5, y: 2.0, w: "90%", fontSize: 44, bold: true, color: hexToPptx(theme.accent), align: "center" });
-            if (slide.content.length > 0) slidePptx.addText(slide.content.join("\n"), { x: 0.5, y: 3.5, w: "90%", fontSize: 24, color: hexToPptx(theme.subText), align: "center" });
           } else {
             slidePptx.addText(slide.title, { x: 0.5, y: 0.5, w: "90%", h: 0.8, fontSize: 32, bold: true, color: hexToPptx(theme.accent), align: "left" });
             slidePptx.addShape(pptx.ShapeType.line, { x: 0.5, y: 1.3, w: "90%", h: 0, line: { color: hexToPptx(theme.accent), width: 2 } });
-            if (slide.content.length > 0) {
-              const textRuns = [];
-              slide.content.forEach(line => {
-                let text = line;
-                let baseOptions = { fontSize: 24, color: hexToPptx(theme.text), breakLine: true };
-                
-                if (text.startsWith('#### ')) {
-                  text = text.slice(5);
-                  baseOptions.fontSize = 18;
-                  baseOptions.bold = true;
-                } else if (text.startsWith('### ')) {
-                  text = text.slice(4);
-                  baseOptions.fontSize = 20;
-                  baseOptions.bold = true;
-                } else if (text.startsWith('## ')) {
-                  text = text.slice(3);
-                  baseOptions.fontSize = 22;
-                  baseOptions.bold = true;
-                } else if (text.startsWith('# ')) {
-                  text = text.slice(2);
-                  baseOptions.fontSize = 26;
-                  baseOptions.bold = true;
+          }
+
+          // HTMLをパースしてPPTXのテキスト要素に変換する簡易パーサー
+          if (slide.contentHtml) {
+            const textRuns = [];
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = slide.contentHtml;
+            
+            const processNode = (node, currentOptions) => {
+                if (node.nodeName.toLowerCase() === 'ul' || node.nodeName.toLowerCase() === 'ol') {
+                    node.childNodes.forEach(li => {
+                        if (li.nodeName.toLowerCase() === 'li') {
+                            let liText = li.innerText || li.textContent;
+                            if (liText.trim()) {
+                              textRuns.push({ text: liText.trim(), options: { ...currentOptions, bullet: true, breakLine: true } });
+                            }
+                        }
+                    });
+                } else if (node.nodeName.toLowerCase() === 'p' || node.nodeName.toLowerCase() === 'div') {
+                    let pText = node.innerText || node.textContent;
+                    if (pText.trim()) {
+                      textRuns.push({ text: pText.trim(), options: { ...currentOptions, breakLine: true } });
+                    }
+                } else if (node.nodeName === '#text') {
+                    if (node.textContent.trim()) {
+                       textRuns.push({ text: node.textContent.trim(), options: { ...currentOptions, breakLine: true } });
+                    }
                 } else {
-                  baseOptions.bullet = true;
+                    node.childNodes.forEach(child => processNode(child, currentOptions));
                 }
-                
-                textRuns.push({ text: text, options: baseOptions });
-              });
-              slidePptx.addText(textRuns, { x: 0.5, y: 1.6, w: "90%", h: 5.0, align: "left", valign: "top", lineSpacing: 35 });
+            };
+
+            let baseOptions = { fontSize: 24, color: hexToPptx(theme.text) };
+            if (idx === 0) {
+               baseOptions = { fontSize: 24, color: hexToPptx(theme.subText), align: 'center' };
+            }
+            
+            processNode(tempDiv, baseOptions);
+
+            if (textRuns.length > 0) {
+               if (idx === 0) {
+                  slidePptx.addText(textRuns, { x: 0.5, y: 3.5, w: "90%", align: "center" });
+               } else {
+                  slidePptx.addText(textRuns, { x: 0.5, y: 1.6, w: "90%", h: 5.0, align: "left", valign: "top", lineSpacing: 35 });
+               }
             }
           }
           
