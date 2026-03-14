@@ -372,6 +372,22 @@
         <i data-lucide="underline" class="h-4 w-4"></i>
       </button>
       <div class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+      
+      <!-- 配置ボタンの追加 -->
+      <button onmousedown="event.preventDefault();" onclick="formatText('justifyLeft')" class="p-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors" title="左揃え">
+        <i data-lucide="align-left" class="h-4 w-4"></i>
+      </button>
+      <button onmousedown="event.preventDefault();" onclick="formatText('justifyCenter')" class="p-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors" title="中央揃え">
+        <i data-lucide="align-center" class="h-4 w-4"></i>
+      </button>
+      <button onmousedown="event.preventDefault();" onclick="formatText('justifyRight')" class="p-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors" title="右揃え">
+        <i data-lucide="align-right" class="h-4 w-4"></i>
+      </button>
+      <button onmousedown="event.preventDefault();" onclick="formatText('justifyFull')" class="p-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors" title="均等割付">
+        <i data-lucide="align-justify" class="h-4 w-4"></i>
+      </button>
+      <div class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+
       <select onchange="formatBlock(this.value); this.selectedIndex = 0;" class="text-sm bg-white dark:bg-[#202124] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded px-2 py-1 focus:outline-none cursor-pointer">
         <option value="" disabled selected>段落形式...</option>
         <option value="P">標準テキスト</option>
@@ -429,7 +445,7 @@
       </button>
 
       <label class="flex items-center space-x-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none ml-auto border-l border-gray-300 dark:border-gray-600 pl-4">
-        <input type="checkbox" id="report-include-sources" onchange="openReportModal()" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" checked>
+        <input type="checkbox" id="report-include-sources" onchange="openReportModal()" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
         <span>参考データを付ける</span>
       </label>
     </div>
@@ -1980,7 +1996,7 @@
       document.getElementById('report-modal').classList.remove('hidden');
       
       let fullText = state.aiSummary;
-      const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+      const includeSources = document.getElementById('report-include-sources')?.checked ?? false;
       if (includeSources && state.results.length > 0) {
         fullText += "\n\n## 参考としたWEBサイト一覧\n";
         state.results.forEach((r, i) => {
@@ -2265,15 +2281,23 @@
         const processNode = (node) => {
             if (node.nodeType === Node.ELEMENT_NODE) {
                 const tag = node.tagName.toLowerCase();
+                
+                // 配置の取得
+                let alignment = AlignmentType.LEFT;
+                const alignAttr = node.getAttribute('align') || node.style.textAlign;
+                if (alignAttr === 'center') alignment = AlignmentType.CENTER;
+                else if (alignAttr === 'right') alignment = AlignmentType.RIGHT;
+                else if (alignAttr === 'justify') alignment = AlignmentType.JUSTIFY;
+
                 if (tag === 'h1') {
-                    docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_1 }));
+                    docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_1, alignment }));
                 } else if (tag === 'h2') {
-                    docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_2 }));
+                    docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_2, alignment }));
                 } else if (tag === 'h3') {
-                    docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_3 }));
+                    docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_3, alignment }));
                 } else if (tag === 'h4') {
-                    docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_4 }));
-                } else if (tag === 'p') {
+                    docChildren.push(new Paragraph({ text: node.textContent, heading: HeadingLevel.HEADING_4, alignment }));
+                } else if (tag === 'p' || tag === 'div') { // formatTextでdivが生成されることがあるためdivも追加
                     const runs = [];
                     node.childNodes.forEach(child => {
                         if (child.nodeType === Node.TEXT_NODE) {
@@ -2291,12 +2315,13 @@
                             }
                         }
                     });
-                    if (runs.length > 0) docChildren.push(new Paragraph({ children: runs, spacing: { after: 150 } }));
+                    if (runs.length > 0) docChildren.push(new Paragraph({ children: runs, alignment, spacing: { after: 150 } }));
                 } else if (tag === 'ul' || tag === 'ol') {
                     node.childNodes.forEach(li => {
                         if (li.nodeType === Node.ELEMENT_NODE && li.tagName.toLowerCase() === 'li') {
                             docChildren.push(new Paragraph({ 
                                 children: [new TextRun({ text: li.textContent, color: wText })],
+                                alignment,
                                 bullet: { level: 0 } 
                             }));
                         }
@@ -2304,6 +2329,7 @@
                 } else if (tag === 'blockquote') {
                     docChildren.push(new Paragraph({ 
                         children: [new TextRun({ text: node.textContent, italics: true, color: wText })],
+                        alignment,
                         indent: { left: 720 } 
                     }));
                 } else if (tag === 'hr' && (node.classList.contains('manual-page-break') || node.getAttribute('data-page-break') === 'true')) {
@@ -2526,7 +2552,7 @@
         }
       });
 
-      const includeSources = document.getElementById('report-include-sources')?.checked ?? true;
+      const includeSources = document.getElementById('report-include-sources')?.checked ?? false;
       let content = `■ 検索キーワード: ${state.query}\n`;
       content += `■ 生成日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
       content += `■ 分析結果のレポート\n${editedText.trim()}\n\n`;
