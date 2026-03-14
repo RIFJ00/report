@@ -336,7 +336,28 @@
           <p class="text-xs text-gray-500 hidden sm:block">テキストをクリックすると直接編集できます</p>
         </div>
       </div>
-      <button onclick="closeReportModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1"><i data-lucide="x-circle" class="h-6 w-6 sm:h-8 sm:w-8"></i></button>
+      
+      <!-- 出力関連ボタンを上部へ移動 -->
+      <div class="flex items-center space-x-1.5 sm:space-x-2">
+        <div class="flex items-center bg-gray-50 dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg h-8 sm:h-9">
+          <button onclick="handleExportReportText(false)" class="flex items-center justify-center space-x-1 text-xs sm:text-sm px-2 sm:px-3 hover:bg-gray-100 dark:hover:bg-[#404144] transition-colors font-medium border-r border-gray-300 dark:border-gray-600 h-full rounded-l-lg" title="プレーンテキストで出力">
+            <i data-lucide="file" class="h-3 w-3 sm:h-4 sm:w-4"></i><span class="hidden lg:inline">TXT</span>
+          </button>
+          <button onclick="handleExportReportText(true)" class="flex items-center justify-center px-2 sm:px-3 hover:bg-gray-100 dark:hover:bg-[#404144] transition-colors font-medium h-full rounded-r-lg" title="マークダウン記号付きで出力">
+            <span class="font-bold font-mono text-[10px] mt-0.5">MD</span>
+          </button>
+        </div>
+        <button onclick="handleExportReportHTML()" class="flex items-center space-x-1 text-xs sm:text-sm bg-gray-50 dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-2 sm:px-3 h-8 sm:h-9 rounded-lg hover:bg-gray-100 dark:hover:bg-[#404144] transition-colors font-medium" title="HTML出力">
+          <i data-lucide="file-code" class="h-3 w-3 sm:h-4 sm:w-4"></i><span class="hidden lg:inline">HTML</span>
+        </button>
+        <button id="btn-export-word" onclick="handleExportReportWord()" class="flex items-center space-x-1 text-xs sm:text-sm bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 px-2 sm:px-3 h-8 sm:h-9 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors font-medium shadow-sm" title="Word出力">
+          <i data-lucide="file-text" class="h-3 w-3 sm:h-4 sm:w-4"></i><span class="hidden sm:inline">Word</span>
+        </button>
+        <button id="btn-export-pdf" onclick="handleExportReportPDF()" class="flex items-center space-x-1 text-xs sm:text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-2 sm:px-4 h-8 sm:h-9 rounded-lg transition-colors font-medium shadow-sm" title="PDF出力">
+          <i data-lucide="download" class="h-3 w-3 sm:h-4 sm:w-4"></i><span class="hidden sm:inline">PDF</span>
+        </button>
+        <button onclick="closeReportModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1 ml-1 sm:ml-2"><i data-lucide="x-circle" class="h-6 w-6 sm:h-8 sm:w-8"></i></button>
+      </div>
     </div>
 
     <!-- テキスト編集ツールバー -->
@@ -377,63 +398,40 @@
        <!-- JSでレポート要素を描画 -->
     </div>
 
-    <!-- 下部操作バー -->
-    <div class="bg-white dark:bg-[#202124] border-t border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 z-20 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-      <div class="flex flex-wrap items-center gap-3">
-        <div class="flex items-center bg-gray-50 dark:bg-[#303134] rounded-lg p-1 border border-gray-200 dark:border-gray-600">
-          <i data-lucide="layout-template" class="h-4 w-4 text-gray-500 mx-2"></i>
-          <select id="report-layout-select" onchange="updateReportSettings()" class="bg-transparent text-sm text-gray-700 dark:text-gray-300 focus:outline-none pr-2 py-1 cursor-pointer appearance-none font-medium">
-             <!-- JSで生成 -->
-          </select>
+    <!-- 下部操作バー (出力ボタンを上へ移動したためスッキリ化) -->
+    <div class="bg-white dark:bg-[#202124] border-t border-gray-200 dark:border-gray-700 p-4 flex flex-wrap items-center gap-3 z-20 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <div class="flex items-center bg-gray-50 dark:bg-[#303134] rounded-lg p-1 border border-gray-200 dark:border-gray-600">
+        <i data-lucide="layout-template" class="h-4 w-4 text-gray-500 mx-2"></i>
+        <select id="report-layout-select" onchange="updateReportSettings()" class="bg-transparent text-sm text-gray-700 dark:text-gray-300 focus:outline-none pr-2 py-1 cursor-pointer appearance-none font-medium">
+           <!-- JSで生成 -->
+        </select>
+      </div>
+      
+      <!-- レポート用：丸いカラーボタンリスト -->
+      <div class="flex items-center bg-gray-50 dark:bg-[#303134] rounded-lg p-1 border border-gray-200 dark:border-gray-600" title="テーマカラーを選択">
+        <i data-lucide="palette" class="h-4 w-4 text-gray-400 mx-2 shrink-0"></i>
+        <div id="report-theme-selector" class="flex items-center space-x-1.5 overflow-x-auto hide-scrollbar px-1">
+          <!-- JSで生成 -->
         </div>
-        
-        <!-- レポート用：丸いカラーボタンリスト -->
-        <div class="flex items-center bg-gray-50 dark:bg-[#303134] rounded-lg p-1 border border-gray-200 dark:border-gray-600" title="テーマカラーを選択">
-          <i data-lucide="palette" class="h-4 w-4 text-gray-400 mx-2 shrink-0"></i>
-          <div id="report-theme-selector" class="flex items-center space-x-1.5 overflow-x-auto hide-scrollbar px-1">
-            <!-- JSで生成 -->
-          </div>
-        </div>
-
-        <input type="file" id="report-image-upload" accept="image/*" class="hidden" onchange="handleInsertImage(event)">
-        <button onclick="document.getElementById('report-image-upload').click()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors font-medium shadow-sm" title="カーソル位置に画像を挿入します">
-          <i data-lucide="image" class="h-4 w-4"></i><span class="hidden sm:inline">画像挿入</span>
-        </button>
-
-        <button onclick="handleInsertPageBreak()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors font-medium shadow-sm" title="カーソル位置で強制的にページを分割します">
-          <i data-lucide="scissors" class="h-4 w-4"></i><span class="hidden sm:inline">改ページ</span>
-        </button>
-
-        <button onclick="handleAutoPaginate()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors font-medium shadow-sm" title="テキスト量と画像サイズに合わせて全体を自動で改ページし直します">
-          <i data-lucide="refresh-cw" class="h-4 w-4"></i><span class="hidden sm:inline">自動改ページ</span>
-        </button>
-
-        <label class="flex items-center space-x-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none ml-2 border-l border-gray-300 pl-3">
-          <input type="checkbox" id="report-include-sources" onchange="openReportModal()" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" checked>
-          <span>参考データを付ける</span>
-        </label>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2">
-        <!-- テキスト出力（プレーンとMarkdownの選択） -->
-        <div class="flex items-center bg-white border border-gray-300 text-gray-700 rounded-lg h-[38px]">
-          <button onclick="handleExportReportText(false)" class="flex items-center justify-center space-x-1.5 text-sm px-3 hover:bg-gray-50 transition-colors font-medium border-r border-gray-300 h-full rounded-l-lg" title="プレーンテキストで出力">
-            <i data-lucide="file" class="h-4 w-4"></i><span class="hidden sm:inline">TXT</span>
-          </button>
-          <button onclick="handleExportReportText(true)" class="flex items-center justify-center space-x-1.5 text-sm px-3 hover:bg-gray-50 transition-colors font-medium h-full rounded-r-lg" title="マークダウン記号付きで出力">
-            <span class="font-bold font-mono text-[10px] mt-0.5 mr-1">MD</span><span class="hidden sm:inline text-xs">記号付</span>
-          </button>
-        </div>
-        <button onclick="handleExportReportHTML()" class="flex items-center space-x-1.5 text-sm bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium h-[38px]">
-          <i data-lucide="file-code" class="h-4 w-4"></i><span class="hidden sm:inline">HTML</span>
-        </button>
-        <button id="btn-export-word" onclick="handleExportReportWord()" class="flex items-center space-x-1.5 text-sm bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors font-medium shadow-sm h-[38px]">
-          <i data-lucide="file-text" class="h-4 w-4"></i><span>Word</span>
-        </button>
-        <button id="btn-export-pdf" onclick="handleExportReportPDF()" class="flex items-center space-x-1.5 text-sm bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm h-[38px]">
-          <i data-lucide="download" class="h-4 w-4"></i><span>PDF出力</span>
-        </button>
-      </div>
+      <input type="file" id="report-image-upload" accept="image/*" class="hidden" onchange="handleInsertImage(event)">
+      <button onclick="document.getElementById('report-image-upload').click()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors font-medium shadow-sm" title="カーソル位置に画像を挿入します">
+        <i data-lucide="image" class="h-4 w-4"></i><span class="hidden sm:inline">画像挿入</span>
+      </button>
+
+      <button onclick="handleInsertPageBreak()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors font-medium shadow-sm" title="カーソル位置で強制的にページを分割します">
+        <i data-lucide="scissors" class="h-4 w-4"></i><span class="hidden sm:inline">改ページ</span>
+      </button>
+
+      <button onclick="handleAutoPaginate()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors font-medium shadow-sm" title="テキスト量と画像サイズに合わせて全体を自動で改ページし直します">
+        <i data-lucide="refresh-cw" class="h-4 w-4"></i><span class="hidden sm:inline">自動改ページ</span>
+      </button>
+
+      <label class="flex items-center space-x-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none ml-auto border-l border-gray-300 dark:border-gray-600 pl-4">
+        <input type="checkbox" id="report-include-sources" onchange="openReportModal()" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" checked>
+        <span>参考データを付ける</span>
+      </label>
     </div>
   </div>
 
@@ -511,44 +509,77 @@
     ];
 
     const slideThemes = [
-      { id: 'blue', name: 'ブルー', bg: ['#f8f9fa', '#e9ecef'], text: '#202124', accent: '#1a73e8', subText: '#5f6368', isTwoTone: false },
-      { id: 'green', name: 'グリーン', bg: ['#f4fdf8', '#e6f6ec'], text: '#1b2e22', accent: '#0f9d58', subText: '#4d5156', isTwoTone: false },
-      { id: 'dark', name: 'ダーク', bg: ['#202124', '#303134'], text: '#e8eaed', accent: '#8ab4f8', subText: '#9aa0a6', isTwoTone: false },
-      { id: 'purple', name: 'パープル', bg: ['#fdf8ff', '#f3e8fa'], text: '#2a1b38', accent: '#9333ea', subText: '#6b5a7a', isTwoTone: false },
-      { id: 'orange', name: 'オレンジ', bg: ['#fff8f3', '#faebe1'], text: '#382216', accent: '#ea580c', subText: '#7a5a4a', isTwoTone: false },
-      { id: 'navy-yellow', name: 'ネイビー×イエロー', isTwoTone: true, color1: '#0f2027', color2: '#f2c94c',
+      // 単色（反転あり）
+      { id: 'monochrome', name: 'モノクロ', color1: '#ffffff', color2: '#000000',
+        normal: { bg: ['#ffffff', '#f8f9fa'], text: '#111827', accent: '#000000', subText: '#4b5563' },
+        reverse: { bg: ['#000000', '#111827'], text: '#f9fafb', accent: '#ffffff', subText: '#9ca3af' }
+      },
+      { id: 'blue', name: 'ブルー', color1: '#f8f9fa', color2: '#1a73e8',
+        normal: { bg: ['#f8f9fa', '#e9ecef'], text: '#202124', accent: '#1a73e8', subText: '#5f6368' },
+        reverse: { bg: ['#1a73e8', '#155db0'], text: '#ffffff', accent: '#ffffff', subText: '#e8eaed' }
+      },
+      { id: 'green', name: 'グリーン', color1: '#f4fdf8', color2: '#0f9d58',
+        normal: { bg: ['#f4fdf8', '#e6f6ec'], text: '#1b2e22', accent: '#0f9d58', subText: '#4d5156' },
+        reverse: { bg: ['#0f9d58', '#0b8043'], text: '#ffffff', accent: '#ffffff', subText: '#e6f6ec' }
+      },
+      { id: 'purple', name: 'パープル', color1: '#fdf8ff', color2: '#9333ea',
+        normal: { bg: ['#fdf8ff', '#f3e8fa'], text: '#2a1b38', accent: '#9333ea', subText: '#6b5a7a' },
+        reverse: { bg: ['#9333ea', '#7e22ce'], text: '#ffffff', accent: '#ffffff', subText: '#f3e8fa' }
+      },
+      { id: 'orange', name: 'オレンジ', color1: '#fff8f3', color2: '#ea580c',
+        normal: { bg: ['#fff8f3', '#faebe1'], text: '#382216', accent: '#ea580c', subText: '#7a5a4a' },
+        reverse: { bg: ['#ea580c', '#c2410c'], text: '#ffffff', accent: '#ffffff', subText: '#faebe1' }
+      },
+      { id: 'pastel-blue', name: 'パステルブルー', color1: '#f0f9ff', color2: '#0284c7',
+        normal: { bg: ['#f0f9ff', '#e0f2fe'], text: '#0f172a', accent: '#0284c7', subText: '#475569' },
+        reverse: { bg: ['#0284c7', '#0369a1'], text: '#ffffff', accent: '#ffffff', subText: '#e0f2fe' }
+      },
+      { id: 'ivory', name: 'アイボリー', color1: '#fffbeb', color2: '#d97706',
+        normal: { bg: ['#fffbeb', '#fef9c3'], text: '#451a03', accent: '#d97706', subText: '#78350f' },
+        reverse: { bg: ['#d97706', '#b45309'], text: '#ffffff', accent: '#ffffff', subText: '#fef9c3' }
+      },
+      // ツートン
+      { id: 'navy-yellow', name: 'ネイビー×イエロー', color1: '#0f2027', color2: '#f2c94c',
         normal: { bg: ['#0f2027', '#203a43'], text: '#ffffff', accent: '#f2c94c', subText: '#b0bec5' },
         reverse: { bg: ['#fefce8', '#fef08a'], text: '#0f172a', accent: '#0f172a', subText: '#713f12' }
       },
-      { id: 'pink-blue', name: 'ピンク×ブルー', isTwoTone: true, color1: '#ff9a9e', color2: '#3498db',
+      { id: 'pink-blue', name: 'ピンク×ブルー', color1: '#ff9a9e', color2: '#3498db',
         normal: { bg: ['#ff9a9e', '#fecfef'], text: '#2c3e50', accent: '#3498db', subText: '#34495e' },
         reverse: { bg: ['#e0f2fe', '#bae6fd'], text: '#0f172a', accent: '#be185d', subText: '#334155' }
       },
-      { id: 'black-red', name: 'ブラック×レッド', isTwoTone: true, color1: '#121212', color2: '#e50914',
+      { id: 'black-red', name: 'ブラック×レッド', color1: '#121212', color2: '#e50914',
         normal: { bg: ['#121212', '#1a1a1a'], text: '#f5f5f5', accent: '#e50914', subText: '#9e9e9e' },
         reverse: { bg: ['#fff1f2', '#ffe4e6'], text: '#121212', accent: '#be123c', subText: '#4c0519' }
       },
-      { id: 'teal-coral', name: 'ティール×コーラル', isTwoTone: true, color1: '#0083b0', color2: '#ff7e67',
+      { id: 'teal-coral', name: 'ティール×コーラル', color1: '#0083b0', color2: '#ff7e67',
         normal: { bg: ['#0083b0', '#00b4db'], text: '#ffffff', accent: '#ff7e67', subText: '#e0f7fa' },
         reverse: { bg: ['#ffedd5', '#fed7aa'], text: '#042f2e', accent: '#0f766e', subText: '#115e59' }
       },
-      { id: 'mint-choco', name: 'ミント×チョコ', isTwoTone: true, color1: '#e0f2f1', color2: '#3e2723',
+      { id: 'mint-choco', name: 'ミント×チョコ', color1: '#e0f2f1', color2: '#3e2723',
         normal: { bg: ['#e0f2f1', '#b2dfdb'], text: '#3e2723', accent: '#d84315', subText: '#5d4037' },
         reverse: { bg: ['#4e342e', '#3e2723'], text: '#e0f2f1', accent: '#80cbc4', subText: '#b2dfdb' }
+      },
+      { id: 'purple-orange', name: 'パープル×オレンジ', color1: '#2e1065', color2: '#fb923c',
+        normal: { bg: ['#2e1065', '#4c1d95'], text: '#ffffff', accent: '#fb923c', subText: '#d8b4fe' },
+        reverse: { bg: ['#fff7ed', '#ffedd5'], text: '#431407', accent: '#7e22ce', subText: '#9a3412' }
+      },
+      { id: 'brown-beige', name: 'ブラウン×ベージュ', color1: '#431407', color2: '#fde68a',
+        normal: { bg: ['#431407', '#78350f'], text: '#fde68a', accent: '#fde68a', subText: '#fed7aa' },
+        reverse: { bg: ['#fefce8', '#fef9c3'], text: '#431407', accent: '#78350f', subText: '#713f12' }
+      },
+      { id: 'indigo-rose', name: 'インディゴ×ローズ', color1: '#1e1b4b', color2: '#f43f5e',
+        normal: { bg: ['#1e1b4b', '#312e81'], text: '#ffffff', accent: '#f43f5e', subText: '#c7d2fe' },
+        reverse: { bg: ['#fff1f2', '#ffe4e6'], text: '#1e1b4b', accent: '#e11d48', subText: '#4c1d95' }
+      },
+      { id: 'olive-terracotta', name: 'オリーブ×テラコッタ', color1: '#3f6212', color2: '#ea580c',
+        normal: { bg: ['#3f6212', '#4d7c0f'], text: '#ffffff', accent: '#ea580c', subText: '#d9f99d' },
+        reverse: { bg: ['#fff7ed', '#ffedd5'], text: '#14532d', accent: '#c2410c', subText: '#ea580c' }
       }
     ];
 
     function getSlideThemeColors(themeId, isReversed) {
       const t = slideThemes.find(x => x.id === themeId) || slideThemes[0];
-      if (t.isTwoTone) {
-        return isReversed ? t.reverse : t.normal;
-      }
-      return {
-        bg: t.bg,
-        text: t.text,
-        accent: t.accent,
-        subText: t.subText
-      };
+      return isReversed ? t.reverse : t.normal;
     }
 
     // レポート用の設定定義
@@ -559,49 +590,70 @@
     };
 
     const reportThemes = [
-      // 単色テーマ
-      { id: 'default', name: '標準', container: '#ffffff', text: '#333333', textBold: '#111827', accent: '#1d4ed8', border: '#e5e7eb', isTwoTone: false, bg1: '#ffffff', bg2: '#1d4ed8' },
-      { id: 'modern-blue', name: 'ブルー', container: '#ffffff', text: '#1e293b', textBold: '#0f172a', accent: '#0ea5e9', border: '#e2e8f0', isTwoTone: false, bg1: '#ffffff', bg2: '#0ea5e9' },
-      { id: 'elegant-dark', name: 'ダーク', container: '#1f2937', text: '#d1d5db', textBold: '#f3f4f6', accent: '#60a5fa', border: '#374151', isTwoTone: false, bg1: '#1f2937', bg2: '#60a5fa' },
-      { id: 'nature-green', name: 'グリーン', container: '#ffffff', text: '#064e3b', textBold: '#022c22', accent: '#10b981', border: '#a7f3d0', isTwoTone: false, bg1: '#ffffff', bg2: '#10b981' },
-      { id: 'sakura-pink', name: 'サクラ', container: '#ffffff', text: '#831843', textBold: '#4c0519', accent: '#db2777', border: '#fbcfe8', isTwoTone: false, bg1: '#ffffff', bg2: '#db2777' },
+      // 単色テーマ（反転あり）
+      { id: 'monochrome', name: 'モノクロ', color1: '#ffffff', color2: '#000000',
+        normal:  { container: '#ffffff', text: '#333333', textBold: '#000000', textMuted: '#6b7280', accent: '#000000', border: '#e5e7eb' },
+        reverse: { container: '#000000', text: '#f9fafb', textBold: '#ffffff', textMuted: '#9ca3af', accent: '#ffffff', border: '#374151' } 
+      },
+      { id: 'modern-blue', name: 'ブルー', color1: '#ffffff', color2: '#0ea5e9',
+        normal:  { container: '#ffffff', text: '#1e293b', textBold: '#0f172a', textMuted: '#64748b', accent: '#0ea5e9', border: '#e2e8f0' },
+        reverse: { container: '#0ea5e9', text: '#f8fafc', textBold: '#ffffff', textMuted: '#e0f2fe', accent: '#ffffff', border: '#38bdf8' } 
+      },
+      { id: 'nature-green', name: 'グリーン', color1: '#ffffff', color2: '#10b981',
+        normal:  { container: '#ffffff', text: '#064e3b', textBold: '#022c22', textMuted: '#34d399', accent: '#10b981', border: '#a7f3d0' },
+        reverse: { container: '#10b981', text: '#ffffff', textBold: '#ffffff', textMuted: '#d1fae5', accent: '#ffffff', border: '#34d399' } 
+      },
+      { id: 'sakura-pink', name: 'サクラ', color1: '#ffffff', color2: '#fbcfe8',
+        normal:  { container: '#ffffff', text: '#831843', textBold: '#4c0519', textMuted: '#f9a8d4', accent: '#ec4899', border: '#fdf2f8' },
+        reverse: { container: '#fce7f3', text: '#831843', textBold: '#4c0519', textMuted: '#f9a8d4', accent: '#db2777', border: '#fbcfe8' } 
+      },
+      { id: 'pastel-blue', name: 'パステルブルー', color1: '#f0f9ff', color2: '#0284c7',
+        normal:  { container: '#f0f9ff', text: '#1e293b', textBold: '#0f172a', textMuted: '#64748b', accent: '#0284c7', border: '#bae6fd' },
+        reverse: { container: '#0284c7', text: '#f8fafc', textBold: '#ffffff', textMuted: '#e0f2fe', accent: '#ffffff', border: '#38bdf8' } 
+      },
+      { id: 'ivory', name: 'アイボリー', color1: '#fffbeb', color2: '#d97706',
+        normal:  { container: '#fffbeb', text: '#451a03', textBold: '#290f00', textMuted: '#92400e', accent: '#d97706', border: '#fde047' },
+        reverse: { container: '#d97706', text: '#fffbeb', textBold: '#ffffff', textMuted: '#fef3c7', accent: '#ffffff', border: '#b45309' } 
+      },
 
       // ツートンテーマ
-      { id: 'navy_gold', name: 'ネイビー×ゴールド', isTwoTone: true, 
-        color1: '#0f172a', color2: '#fbbf24', 
+      { id: 'navy_gold', name: 'ネイビー×ゴールド', color1: '#0f172a', color2: '#fbbf24', 
         normal:  { container: '#0f172a', text: '#fef3c7', textBold: '#fbbf24', textMuted: '#94a3b8', accent: '#fbbf24', border: '#334155' },
         reverse: { container: '#fbbf24', text: '#0f172a', textBold: '#020617', textMuted: '#475569', accent: '#0f172a', border: '#d97706' } 
       },
-      { id: 'black_green', name: 'ブラック×グリーン', isTwoTone: true, 
-        color1: '#000000', color2: '#4ade80', 
+      { id: 'black_green', name: 'ブラック×グリーン', color1: '#000000', color2: '#4ade80', 
         normal:  { container: '#000000', text: '#f0fdf4', textBold: '#4ade80', textMuted: '#9ca3af', accent: '#4ade80', border: '#1f2937' },
         reverse: { container: '#4ade80', text: '#000000', textBold: '#000000', textMuted: '#1f2937', accent: '#000000', border: '#22c55e' } 
       },
-      { id: 'wine_gold', name: 'ワイン×ゴールド', isTwoTone: true, 
-        color1: '#4c0519', color2: '#facc15', 
+      { id: 'wine_gold', name: 'ワイン×ゴールド', color1: '#4c0519', color2: '#facc15', 
         normal:  { container: '#4c0519', text: '#fef9c3', textBold: '#facc15', textMuted: '#fca5a5', accent: '#facc15', border: '#881337' },
         reverse: { container: '#facc15', text: '#4c0519', textBold: '#22000a', textMuted: '#881337', accent: '#4c0519', border: '#ca8a04' } 
       },
-      { id: 'forest_sand', name: 'フォレスト×サンド', isTwoTone: true, 
-        color1: '#022c22', color2: '#e7e5e4', 
+      { id: 'forest_sand', name: 'フォレスト×サンド', color1: '#022c22', color2: '#e7e5e4', 
         normal:  { container: '#022c22', text: '#f5f5f4', textBold: '#e7e5e4', textMuted: '#a8a29e', accent: '#e7e5e4', border: '#064e3b' },
         reverse: { container: '#e7e5e4', text: '#022c22', textBold: '#000000', textMuted: '#115e59', accent: '#022c22', border: '#d6d3d1' } 
+      },
+      { id: 'teal_gray', name: 'ティール×グレー', color1: '#115e59', color2: '#f3f4f6', 
+        normal:  { container: '#115e59', text: '#f3f4f6', textBold: '#ffffff', textMuted: '#9ca3af', accent: '#ffffff', border: '#0f766e' },
+        reverse: { container: '#f3f4f6', text: '#115e59', textBold: '#042f2e', textMuted: '#4b5563', accent: '#0f766e', border: '#d1d5db' } 
+      },
+      { id: 'purple_amber', name: 'パープル×アンバー', color1: '#4c1d95', color2: '#fef3c7', 
+        normal:  { container: '#4c1d95', text: '#fef3c7', textBold: '#f59e0b', textMuted: '#a78bfa', accent: '#f59e0b', border: '#5b21b6' },
+        reverse: { container: '#fef3c7', text: '#4c1d95', textBold: '#2e1065', textMuted: '#7c3aed', accent: '#4c1d95', border: '#fde68a' } 
+      },
+      { id: 'indigo_rose', name: 'インディゴ×ローズ', color1: '#1e1b4b', color2: '#f43f5e', 
+        normal:  { container: '#1e1b4b', text: '#f8fafc', textBold: '#f43f5e', textMuted: '#94a3b8', accent: '#f43f5e', border: '#312e81' },
+        reverse: { container: '#f43f5e', text: '#ffffff', textBold: '#1e1b4b', textMuted: '#ffe4e6', accent: '#1e1b4b', border: '#e11d48' } 
+      },
+      { id: 'olive_terracotta', name: 'オリーブ×テラコッタ', color1: '#3f6212', color2: '#ea580c', 
+        normal:  { container: '#3f6212', text: '#f0fdf4', textBold: '#ea580c', textMuted: '#bbf7d0', accent: '#ea580c', border: '#4d7c0f' },
+        reverse: { container: '#ea580c', text: '#ffffff', textBold: '#14532d', textMuted: '#ffedd5', accent: '#14532d', border: '#c2410c' } 
       }
     ];
 
     function getReportThemeColors(themeId, isReversed) {
       const t = reportThemes.find(x => x.id === themeId) || reportThemes[0];
-      if (t.isTwoTone) {
-        return isReversed ? t.reverse : t.normal;
-      }
-      return {
-        container: t.container,
-        text: t.text,
-        textBold: t.textBold,
-        textMuted: t.border,
-        accent: t.accent,
-        border: t.border
-      };
+      return isReversed ? t.reverse : t.normal;
     }
 
     const getDomain = (url) => {
@@ -628,13 +680,13 @@
       isGeneratingSlide: false,
       slideData: [],
       currentSlideIndex: 0,
-      currentThemeId: 'blue',
+      currentThemeId: 'monochrome',
       isSlideReversed: false,
       
       // レポート関連
       reportHtml: '', 
       reportLayout: 'modern',
-      reportThemeId: 'default',
+      reportThemeId: 'monochrome',
       isReportReversed: false,
       
       isElaborating: false,
@@ -1891,8 +1943,7 @@
     }
 
     function setReportTheme(themeId) {
-      const t = reportThemes.find(x => x.id === themeId);
-      if (t && t.isTwoTone && state.reportThemeId === themeId) {
+      if (state.reportThemeId === themeId) {
         state.isReportReversed = !state.isReportReversed;
       } else {
         state.reportThemeId = themeId;
@@ -1907,11 +1958,11 @@
       if (!selector) return;
       
       selector.innerHTML = reportThemes.map(t => {
-        let bg1 = t.bg1;
-        let bg2 = t.bg2;
-        if (t.isTwoTone) {
-           bg1 = (state.reportThemeId === t.id && state.isReportReversed) ? t.color2 : t.color1;
-           bg2 = (state.reportThemeId === t.id && state.isReportReversed) ? t.color1 : t.color2;
+        let bg1 = t.color1;
+        let bg2 = t.color2;
+        if (state.reportThemeId === t.id && state.isReportReversed) {
+           bg1 = t.color2;
+           bg2 = t.color1;
         }
         
         const activeClass = state.reportThemeId === t.id ? 'scale-125 border-white ring-1 ring-gray-400' : 'border-gray-300 hover:scale-110';
@@ -1919,7 +1970,7 @@
           onclick="setReportTheme('${t.id}')"
           class="w-5 h-5 sm:w-6 sm:h-6 rounded-full border transition-transform shrink-0 shadow-sm ${activeClass}"
           style="background: linear-gradient(135deg, ${bg1} 50%, ${bg2} 50%)"
-          title="${t.name}${t.isTwoTone ? ' (クリックで反転)' : ''}"
+          title="${t.name} (クリックで反転)"
         ></button>`;
       }).join('');
     }
@@ -2573,10 +2624,10 @@
       if (!selector) return;
       
       selector.innerHTML = slideThemes.map(t => {
-        let bg1 = t.isTwoTone ? t.color1 : t.bg[0];
-        let bg2 = t.isTwoTone ? t.color2 : t.accent;
+        let bg1 = t.color1;
+        let bg2 = t.color2;
         
-        if (t.isTwoTone && state.currentThemeId === t.id && state.isSlideReversed) {
+        if (state.currentThemeId === t.id && state.isSlideReversed) {
           bg1 = t.color2;
           bg2 = t.color1;
         }
@@ -2587,14 +2638,13 @@
           id="theme-btn-${t.id}"
           class="w-4 h-4 sm:w-5 sm:h-5 rounded-full border transition-transform shrink-0 ${activeClass}"
           style="background: linear-gradient(135deg, ${bg1} 50%, ${bg2} 50%)"
-          title="${t.name}${t.isTwoTone ? ' (クリックで反転)' : ''}"
+          title="${t.name} (クリックで反転)"
         ></button>`;
       }).join('');
     }
 
     function setTheme(themeId) {
-      const t = slideThemes.find(x => x.id === themeId);
-      if (t && t.isTwoTone && state.currentThemeId === themeId) {
+      if (state.currentThemeId === themeId) {
         state.isSlideReversed = !state.isSlideReversed;
       } else {
         state.currentThemeId = themeId;
