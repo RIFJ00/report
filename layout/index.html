@@ -1504,10 +1504,9 @@ AIアシスタントを導入することで、これらの課題を以下のよ
 
         // 既存の改ページ記号を完全に削除し、一度プレーンな状態にする
         const linesBefore = targetText.split('\n');
-        const cleanedLines = linesBefore.map(line => {
+        const cleanedLines = linesBefore.filter(line => {
           const trimmed = line.trim();
-          if (/^(?:===|---+|ーーー|—-|——)$/.test(trimmed)) return '';
-          return line;
+          return !/^(?:===|---+|ーーー|—-|——)$/.test(trimmed);
         });
         
         targetText = cleanedLines.join('\n');
@@ -1518,8 +1517,9 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         const newLines = [];
         let currentWeight = 0;
         
-        // A4用紙やスライドに確実に収まるように、文字サイズとマージンを考慮した最大ウェイトを設定
-        const maxWeight = mode === 'report' ? (logoText ? 16.5 : 18) : (logoText ? 6 : 7); 
+        const isReport = mode === 'report';
+        // 各要素の高さをピクセル換算し、10px = ウェイト1 として正確な容量を定義
+        const maxWeight = isReport ? (logoText ? 88 : 93) : (logoText ? 33 : 37); 
         
         let breakMark = '---';
         if (slideBreakMode === 'hr_eq') breakMark = '===';
@@ -1534,37 +1534,51 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           const line = lines[i];
           const trimmed = line.trim();
 
-          // 要素の種類ごとに占有する高さ（ウェイト）をより正確に見積もる
-          let lineWeight = 1;
+          // 新しいページの先頭に空行が来ないようにスキップ
+          if (currentWeight === 0 && trimmed === '') {
+             i++;
+             continue;
+          }
+
+          // 要素の種類ごとに占有する高さ（ウェイト）をマージン込みで精緻に計算
+          let lineWeight = 0;
           if (trimmed === '') {
-            lineWeight = 0.5; // 空行
+            lineWeight = isReport ? 2.5 : 3.0; // 空行の余白
           } else if (trimmed.match(/^!\[([^\]]*)\]\((.*?)\)$/)) {
-            lineWeight = 6.0; // 画像
+            lineWeight = isReport ? 35 : 30; // 画像（最大高+マージン）
           } else if (trimmed.startsWith('# ')) {
-            lineWeight = 2.5; // 見出し1
+            lineWeight = 8.0; // 見出し1
           } else if (trimmed.startsWith('## ')) {
-            lineWeight = 2.0; // 見出し2
+            lineWeight = 7.0; // 見出し2
           } else if (trimmed.startsWith('### ')) {
-            lineWeight = 1.5; // 見出し3
+            lineWeight = 5.0; // 見出し3
           } else if (trimmed.startsWith('#### ')) {
-            lineWeight = 1.2; // 見出し4
+            lineWeight = 4.5; // 見出し4
           } else if (trimmed.startsWith('- ') || /^\d+\.\s/.test(trimmed)) {
-            const charPerLine = mode === 'report' ? 45 : 35;
-            lineWeight = 0.7 + Math.floor(trimmed.length / charPerLine) * 0.5;
+            const charPerLine = isReport ? 45 : 32;
+            const linesCount = 1 + Math.floor(trimmed.length / charPerLine);
+            lineWeight = (isReport ? 3.5 : 4.5) * linesCount; // リストの1項目
+          } else if (trimmed.startsWith('> ')) {
+            const charPerLine = isReport ? 40 : 28;
+            const linesCount = 1 + Math.floor(trimmed.length / charPerLine);
+            lineWeight = (isReport ? 5.5 : 6.5) * linesCount; // 引用ブロック
           } else {
-            const charPerLine = mode === 'report' ? 40 : 30;
-            // 1段落の基本ウェイト1.0 ＋ 折り返し分の追加
-            lineWeight = 1.0 + Math.floor(trimmed.length / charPerLine) * 0.5;
+            // 通常のテキスト段落（折り返し行数＋上下マージン）
+            const charPerLine = isReport ? 42 : 30;
+            const linesCount = 1 + Math.floor(trimmed.length / charPerLine);
+            const baseMargin = 2.4; 
+            const textHeight = (isReport ? 2.8 : 3.5) * linesCount;
+            lineWeight = baseMargin + textHeight;
           }
 
           if (currentWeight > 0) {
             let shouldBreak = false;
             
-            // 限界を超えそうなら改ページ (わずかな計算誤差を吸収するため +0.2 のバッファを設ける)
-            if (currentWeight + lineWeight > maxWeight + 0.2) {
+            // 限界を超えそうなら改ページを挿入
+            if (currentWeight + lineWeight > maxWeight) {
               shouldBreak = true;
-            } else if (!isStrict && currentWeight > maxWeight * 0.75 && trimmed.match(/^#{1,4}\s/)) {
-              // 文意モードの場合のみ、ページの下部に見出しだけが孤立するのを防ぐために早期改ページ
+            } else if (!isStrict && currentWeight > maxWeight * 0.65 && trimmed.match(/^#{1,4}\s/)) {
+              // 文意モードの場合、ページの下部に見出しだけが孤立するのを防ぐために早期改ページ
               shouldBreak = true;
             }
 
@@ -1578,14 +1592,17 @@ AIアシスタントを導入することで、これらの課題を以下のよ
               newLines.push(breakMark);
               newLines.push('');
               currentWeight = 0;
+              
+              // もし上限を超えた原因が空行だった場合は、次のページの先頭にならないようにスキップ
+              if (trimmed === '') {
+                i++;
+                continue;
+              }
             }
           }
 
           newLines.push(line);
-          // 連続する空行はウェイトを加算しないことで、意図しない改ページを防ぐ
-          if (!(trimmed === '' && i > 0 && lines[i-1].trim() === '')) {
-             currentWeight += lineWeight;
-          }
+          currentWeight += lineWeight;
           i++;
         }
 
