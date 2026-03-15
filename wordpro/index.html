@@ -279,6 +279,7 @@
             reportData: null,
             isGeneratingReport: false,
             isExportingReportPDF: false,
+            isExportingReportWord: false,
             reportConfig: { theme: 'slate', volume: 'detailed', tone: 'academic' },
             // Backups
             isBackupModalOpen: false,
@@ -781,6 +782,24 @@ ${JSON.stringify(selectedData, null, 2)}
                 }
             },
 
+            loadDocxLibrary: async () => {
+                const loadScript = (src) => new Promise((resolve, reject) => {
+                    if (document.querySelector(`script[src="${src}"]`)) {
+                        resolve();
+                        return;
+                    }
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.onload = resolve;
+                    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+                    document.head.appendChild(script);
+                });
+
+                if (!window.docx) {
+                    await loadScript('https://unpkg.com/docx@8.2.3/build/index.umd.js');
+                }
+            },
+
             // ==================
             // Slide Exports
             // ==================
@@ -1151,6 +1170,108 @@ ${JSON.stringify(selectedData, null, 2)}
                 const blob = new Blob([htmlStart + element.innerHTML + htmlEnd], { type: 'text/html' });
                 const url = URL.createObjectURL(blob); const a = document.createElement('a');
                 a.href = url; a.download = `report_${style}_${new Date().getTime()}.html`; a.click(); URL.revokeObjectURL(url);
+            },
+
+            handleExportReportWord: async () => {
+                updateState({ isExportingReportWord: true });
+                try {
+                    await AppActions.loadDocxLibrary();
+                    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Footer } = window.docx;
+                    
+                    const r = State.reportData;
+                    if (!r) throw new Error("レポートデータがありません。");
+
+                    const children = [];
+
+                    // Title
+                    children.push(new Paragraph({
+                        text: r.title,
+                        heading: HeadingLevel.TITLE,
+                        alignment: AlignmentType.CENTER,
+                        spacing: { after: 400 }
+                    }));
+
+                    // Introduction
+                    if (r.introduction) {
+                        const introLines = r.introduction.split('\n');
+                        introLines.forEach(line => {
+                            if (line.trim()) {
+                                children.push(new Paragraph({ text: line, spacing: { after: 200 } }));
+                            } else {
+                                children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+                            }
+                        });
+                    }
+
+                    // Sections
+                    if (r.sections) {
+                        r.sections.forEach(sec => {
+                            children.push(new Paragraph({
+                                text: sec.heading,
+                                heading: HeadingLevel.HEADING_1,
+                                spacing: { before: 400, after: 200 }
+                            }));
+
+                            const secLines = sec.content.split('\n');
+                            secLines.forEach(line => {
+                                if (line.trim()) {
+                                    children.push(new Paragraph({ text: line, spacing: { after: 200 } }));
+                                } else {
+                                    children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+                                }
+                            });
+                        });
+                    }
+
+                    // Conclusion
+                    if (r.conclusion) {
+                        children.push(new Paragraph({
+                            text: "まとめ・結論",
+                            heading: HeadingLevel.HEADING_1,
+                            spacing: { before: 400, after: 200 }
+                        }));
+                        const concLines = r.conclusion.split('\n');
+                        concLines.forEach(line => {
+                            if (line.trim()) {
+                                children.push(new Paragraph({ text: line, spacing: { after: 200 } }));
+                            } else {
+                                children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+                            }
+                        });
+                    }
+
+                    const doc = new Document({
+                        creator: "Auto Researcher",
+                        sections: [{
+                            properties: {},
+                            footers: {
+                                default: new Footer({
+                                    children: [
+                                        new Paragraph({
+                                            text: `${State.organizationName} - ${new Date().toLocaleDateString('ja-JP')}`,
+                                            alignment: AlignmentType.RIGHT,
+                                        })
+                                    ]
+                                })
+                            },
+                            children: children
+                        }]
+                    });
+
+                    const blob = await Packer.toBlob(doc);
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `report_${new Date().getTime()}.docx`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+
+                } catch (error) {
+                    console.error(error);
+                    alert("Wordファイルの生成に失敗しました。");
+                } finally {
+                    updateState({ isExportingReportWord: false });
+                }
             }
         };
 
@@ -1334,6 +1455,7 @@ ${JSON.stringify(selectedData, null, 2)}
                                 <p class="text-sm mb-2">生成が完了すると、画面下部にプレビューが表示されます。プレビューの右上にあるボタンから出力が可能です。</p>
                                 <ul class="list-disc pl-5 space-y-1 text-sm">
                                     <li><strong>PDF:</strong> そのまま印刷・配布できる形式です。</li>
+                                    <li><strong>Word (レポートのみ):</strong> 後から自由にテキストを編集・加筆できる形式です。</li>
                                     <li><strong>HTML:</strong> Webブラウザで閲覧・共有できる形式です。</li>
                                     <li><strong>PPTX (スライドのみ):</strong> PowerPointで後から編集可能な形式です。</li>
                                 </ul>
@@ -1727,6 +1849,9 @@ ${JSON.stringify(selectedData, null, 2)}
                         <button onclick="AppActions.handleExportReportPDF()" ${State.isExportingReportPDF ? 'disabled' : ''} class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-50">
                             ${State.isExportingReportPDF ? Icon('loader-2', 16, "text-slate-500 animate-spin") : Icon('printer', 16, "text-slate-500")} ${State.isExportingReportPDF ? "PDF生成中..." : "PDF出力"}
                         </button>
+                        <button onclick="AppActions.handleExportReportWord()" ${State.isExportingReportWord ? 'disabled' : ''} class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-50">
+                            ${State.isExportingReportWord ? Icon('loader-2', 16, "text-blue-500 animate-spin") : Icon('file-text', 16, "text-blue-500")} ${State.isExportingReportWord ? "Word生成中..." : "Word出力"}
+                        </button>
                         <button onclick="AppActions.handleExportReportHTML('standard')" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg transition-colors shadow-sm">
                             ${Icon('file', 16, "text-slate-500")} HTML(標準)
                         </button>
@@ -1769,7 +1894,7 @@ ${JSON.stringify(selectedData, null, 2)}
                             <div class="mt-10 pt-8 border-t border-slate-200">
                                 <div class="${currentTheme.light} p-6 rounded-xl" style="background-color: ${hexColors.light};">
                                     <h3 class="text-lg font-bold mb-3 ${currentTheme.text} flex items-center gap-2" style="color: ${hexColors.main};">${Icon('info', 18)} まとめ・結論</h3>
-                                    <p class="leading-relaxed text-slate-700 whitespace-pre-wrap">${escapeHtml(r.conclusion)}</p>
+                                    <p class="leading-relaxed text-slate-700 whitespace-pre-wrap m-0">${escapeHtml(r.conclusion)}</p>
                                 </div>
                             </div>
                         ` : ''}
