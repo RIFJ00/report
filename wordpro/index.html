@@ -285,7 +285,7 @@
             isBackupModalOpen: false,
             savedBackups: [],
             // UI
-            activeTab: 'research', // 'research' | 'slides' | 'report'
+            activeTab: 'research', // 'research' | 'report' | 'slides'
             viewMode: 'card',
             isAnalyzingFile: false,
             fileUploadError: null
@@ -1005,7 +1005,6 @@ ${JSON.stringify(selectedData, null, 2)}
                                 </h2>
                             `);
                             
-                            // 本文は改行ごとに段落として分割し、ページまたぎで切れないようにする
                             const paragraphs = sec.content.split('\n').filter(p => p.trim().length > 0);
                             paragraphs.forEach(p => {
                                 blocks.push(`<p class="mb-4 leading-relaxed text-slate-700 whitespace-pre-wrap">${escapeHtml(p)}</p>`);
@@ -1059,42 +1058,34 @@ ${JSON.stringify(selectedData, null, 2)}
 
                     createPage();
 
-                    // 要素をページに詰め込み、はみ出す場合は行（文字）単位で分割する再帰関数
                     const processBlock = (blockEl) => {
                         currentContentDiv.appendChild(blockEl);
                         
-                        // 最大高さを超えた場合の処理
                         if (currentContentDiv.offsetHeight > MAX_H) {
-                            // 段落（pタグ）またはdivタグの場合はテキストを分割して行をまたがせる
                             if (blockEl.tagName.toLowerCase() === 'p' || blockEl.tagName.toLowerCase() === 'div') {
                                 const fullText = blockEl.textContent;
                                 let low = 0;
                                 let high = fullText.length;
                                 let bestFitLength = 0;
                                 
-                                // 二分探索（バイナリサーチ）でページに収まる最大の文字数を算出
                                 while (low <= high) {
                                     const mid = Math.floor((low + high) / 2);
                                     blockEl.textContent = fullText.substring(0, mid);
                                     if (currentContentDiv.offsetHeight <= MAX_H) {
                                         bestFitLength = mid;
-                                        low = mid + 1; // まだ入るなら増やす
+                                        low = mid + 1;
                                     } else {
-                                        high = mid - 1; // はみ出たら減らす
+                                        high = mid - 1;
                                     }
                                 }
                                 
-                                // ページの一番上でほとんど文字が入らない場合は、丸ごと次のページへ
                                 if (bestFitLength < 5) {
                                     currentContentDiv.removeChild(blockEl);
                                     createPage();
                                     blockEl.textContent = fullText;
                                     processBlock(blockEl);
                                 } else {
-                                    // ページに収まる前半部分を現在のページに残す
                                     blockEl.textContent = fullText.substring(0, bestFitLength);
-                                    
-                                    // 残りの後半部分を新しいページに引き継ぐ
                                     createPage();
                                     const nextBlock = document.createElement(blockEl.tagName.toLowerCase());
                                     nextBlock.className = blockEl.className;
@@ -1102,7 +1093,6 @@ ${JSON.stringify(selectedData, null, 2)}
                                     processBlock(nextBlock);
                                 }
                             } else {
-                                // 見出しなど、分割したくない要素の場合は丸ごと次のページへ送る
                                 currentContentDiv.removeChild(blockEl);
                                 createPage();
                                 currentContentDiv.appendChild(blockEl);
@@ -1110,19 +1100,17 @@ ${JSON.stringify(selectedData, null, 2)}
                         }
                     };
 
-                    // 各ブロックを順番に処理
                     for (const blockHtml of blocks) {
                         const tempDiv = document.createElement('div');
                         tempDiv.innerHTML = blockHtml;
                         const blockEl = tempDiv.firstElementChild;
-                        processBlock(blockEl);
+                        if (blockEl) processBlock(blockEl);
                     }
 
                     if (window.lucide) {
                         window.lucide.createIcons({ root: container });
                     }
 
-                    // レンダリング待機
                     await new Promise(resolve => setTimeout(resolve, 800));
 
                     const pages = container.querySelectorAll('.pdf-page-element');
@@ -1487,6 +1475,13 @@ ${JSON.stringify(selectedData, null, 2)}
                                     <div>
                                         <h4 class="font-bold text-slate-800 flex items-center gap-1">${Icon('presentation', 18, 'text-indigo-500')} スライド作成</h4>
                                         <p class="text-sm">テーマカラー、情報の粒度（概要のみ/詳細）、スタイル（箇条書き/図解ベース）を選び、<strong class="text-slate-900">「この設定でスライドを生成する」</strong>ボタンを押します。</p>
+                                        <div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-xs flex items-start gap-2 mt-3">
+                                            ${Icon('alert-triangle', 16, "shrink-0 mt-0.5 text-amber-600")}
+                                            <div>
+                                                <strong>注意:</strong> 多数のデータを選択した場合や「情報の粒度: 詳細」にした場合、AIの処理に時間がかかったり、生成できないことがあります。<br/>
+                                                生成が遅い・失敗する場合は、選択するデータ数を減らすか、粒度を「概要のみ」にして再度お試しください。
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </section>
@@ -1927,13 +1922,13 @@ ${JSON.stringify(selectedData, null, 2)}
                 
                 content += `
                     <div id="report-document" class="max-w-3xl mx-auto bg-white p-10 md:p-16 shadow-xl rounded-xl text-slate-800 print:shadow-none print:p-0">
-                        <h1 class="text-3xl font-bold mb-8 pb-4 border-b-4 ${currentTheme.border} ${currentTheme.text} leading-tight" style="border-bottom-color: ${hexColors.border}; color: ${hexColors.main};">${escapeHtml(r.title)}</h1>
+                        <h1 class="text-3xl font-bold mb-8 pb-4 border-b-4 ${currentTheme.border} ${currentTheme.text} leading-tight" style="border-bottom-color: ${hexColors.border}; color: ${hexColors.main}; margin-top: 0;">${escapeHtml(r.title)}</h1>
                         
                         ${r.introduction ? `<div class="mb-10 text-lg leading-relaxed text-slate-700 whitespace-pre-wrap">${escapeHtml(r.introduction)}</div>` : ''}
                         
                         ${(r.sections || []).map(sec => `
                             <div class="mb-8">
-                                <h2 class="text-xl font-bold mb-4 pb-2 border-b-2 ${currentTheme.border} ${currentTheme.text} flex items-center gap-2" style="border-bottom-color: ${hexColors.border}; color: ${hexColors.main};">
+                                <h2 class="text-xl font-bold mt-6 mb-4 pb-2 border-b-2 ${currentTheme.border} ${currentTheme.text} flex items-center gap-2" style="border-bottom-color: ${hexColors.border}; color: ${hexColors.main};">
                                     <span class="w-1.5 h-6 ${currentTheme.bg} inline-block rounded-sm" style="background-color: ${hexColors.main};"></span>
                                     ${escapeHtml(sec.heading)}
                                 </h2>
@@ -1979,8 +1974,8 @@ ${JSON.stringify(selectedData, null, 2)}
                         ${renderMainHeader()}
                         <div id="main-scroll-area" class="flex-1 overflow-y-auto p-6 print:overflow-visible print:p-0">
                             ${State.activeTab === 'research' ? renderResearchTab() : ''}
-                            ${State.activeTab === 'slides' ? renderSlidesTab() : ''}
                             ${State.activeTab === 'report' ? renderReportTab() : ''}
+                            ${State.activeTab === 'slides' ? renderSlidesTab() : ''}
                         </div>
                         <footer class="bg-white border-t border-slate-200 py-2.5 text-center print:hidden z-0 shrink-0">
                             <p class="text-xs font-medium text-slate-500">&copy; ${new Date().getFullYear()} 一般社団法人日本みらい研 All Rights Reserved.</p>
