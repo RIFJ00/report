@@ -1059,19 +1059,63 @@ ${JSON.stringify(selectedData, null, 2)}
 
                     createPage();
 
-                    // 要素を1つずつページに詰め込み、高さを超えたら新しいページを作る
+                    // 要素をページに詰め込み、はみ出す場合は行（文字）単位で分割する再帰関数
+                    const processBlock = (blockEl) => {
+                        currentContentDiv.appendChild(blockEl);
+                        
+                        // 最大高さを超えた場合の処理
+                        if (currentContentDiv.offsetHeight > MAX_H) {
+                            // 段落（pタグ）またはdivタグの場合はテキストを分割して行をまたがせる
+                            if (blockEl.tagName.toLowerCase() === 'p' || blockEl.tagName.toLowerCase() === 'div') {
+                                const fullText = blockEl.textContent;
+                                let low = 0;
+                                let high = fullText.length;
+                                let bestFitLength = 0;
+                                
+                                // 二分探索（バイナリサーチ）でページに収まる最大の文字数を算出
+                                while (low <= high) {
+                                    const mid = Math.floor((low + high) / 2);
+                                    blockEl.textContent = fullText.substring(0, mid);
+                                    if (currentContentDiv.offsetHeight <= MAX_H) {
+                                        bestFitLength = mid;
+                                        low = mid + 1; // まだ入るなら増やす
+                                    } else {
+                                        high = mid - 1; // はみ出たら減らす
+                                    }
+                                }
+                                
+                                // ページの一番上でほとんど文字が入らない場合は、丸ごと次のページへ
+                                if (bestFitLength < 5) {
+                                    currentContentDiv.removeChild(blockEl);
+                                    createPage();
+                                    blockEl.textContent = fullText;
+                                    processBlock(blockEl);
+                                } else {
+                                    // ページに収まる前半部分を現在のページに残す
+                                    blockEl.textContent = fullText.substring(0, bestFitLength);
+                                    
+                                    // 残りの後半部分を新しいページに引き継ぐ
+                                    createPage();
+                                    const nextBlock = document.createElement(blockEl.tagName.toLowerCase());
+                                    nextBlock.className = blockEl.className;
+                                    nextBlock.textContent = fullText.substring(bestFitLength);
+                                    processBlock(nextBlock);
+                                }
+                            } else {
+                                // 見出しなど、分割したくない要素の場合は丸ごと次のページへ送る
+                                currentContentDiv.removeChild(blockEl);
+                                createPage();
+                                currentContentDiv.appendChild(blockEl);
+                            }
+                        }
+                    };
+
+                    // 各ブロックを順番に処理
                     for (const blockHtml of blocks) {
                         const tempDiv = document.createElement('div');
                         tempDiv.innerHTML = blockHtml;
                         const blockEl = tempDiv.firstElementChild;
-                        
-                        currentContentDiv.appendChild(blockEl);
-                        
-                        if (currentContentDiv.offsetHeight > MAX_H) {
-                            currentContentDiv.removeChild(blockEl);
-                            createPage();
-                            currentContentDiv.appendChild(blockEl);
-                        }
+                        processBlock(blockEl);
                     }
 
                     if (window.lucide) {
