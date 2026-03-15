@@ -1502,7 +1502,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         let targetText = splitByEOF[0];
         const eofText = splitByEOF.length > 1 ? '\n\n[EOF]' + splitByEOF[1] : '';
 
-        // 既存の改ページ記号を完全に削除し、一度プレーンな状態にする
+        // 既存の改ページ記号を完全に削除
         const linesBefore = targetText.split('\n');
         const cleanedLines = linesBefore.filter(line => {
           const trimmed = line.trim();
@@ -1510,7 +1510,6 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         });
         
         targetText = cleanedLines.join('\n');
-        // 改ページ削除によって生じた余分な空行を整理する
         targetText = targetText.replace(/\n{3,}/g, '\n\n').trim();
 
         const lines = targetText.split('\n');
@@ -1518,8 +1517,8 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         let currentWeight = 0;
         
         const isReport = mode === 'report';
-        // 各要素の高さをピクセル換算し、10px = ウェイト1 として正確な容量を定義
-        const maxWeight = isReport ? (logoText ? 88 : 93) : (logoText ? 33 : 37); 
+        // 単位を「1行の高さ」とし、1ページに入る最大行数を設定
+        const maxWeight = isReport ? (logoText ? 33 : 36) : (logoText ? 10 : 12); 
         
         let breakMark = '---';
         if (slideBreakMode === 'hr_eq') breakMark = '===';
@@ -1528,6 +1527,15 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         else if (mode === 'report') breakMark = '===';
 
         const isStrict = autoPageBreakMode === 'strict';
+
+        // 全角半角を考慮して表示上の長さを計算する関数
+        const getDisplayLength = (str) => {
+          let len = 0;
+          for (let k = 0; k < str.length; k++) {
+            len += str.charCodeAt(k) > 255 ? 1 : 0.55;
+          }
+          return len;
+        };
 
         let i = 0;
         while (i < lines.length) {
@@ -1540,64 +1548,84 @@ AIアシスタントを導入することで、これらの課題を以下のよ
              continue;
           }
 
-          // 要素の種類ごとに占有する高さ（ウェイト）をマージン込みで精緻に計算
+          // 要素の種類ごとに占有する高さを「行数換算」で精緻に計算
           let lineWeight = 0;
+          let isHeading = false;
+
           if (trimmed === '') {
-            lineWeight = isReport ? 2.5 : 3.0; // 空行の余白
+            lineWeight = 1.0; 
           } else if (trimmed.match(/^!\[([^\]]*)\]\((.*?)\)$/)) {
-            lineWeight = isReport ? 35 : 30; // 画像（最大高+マージン）
-          } else if (trimmed.startsWith('# ')) {
-            lineWeight = 8.0; // 見出し1
-          } else if (trimmed.startsWith('## ')) {
-            lineWeight = 7.0; // 見出し2
-          } else if (trimmed.startsWith('### ')) {
-            lineWeight = 5.0; // 見出し3
-          } else if (trimmed.startsWith('#### ')) {
-            lineWeight = 4.5; // 見出し4
+            lineWeight = isReport ? 12.0 : 8.0; 
+          } else if (trimmed.match(/^#{1,4}\s/)) {
+            isHeading = true;
+            if (trimmed.startsWith('# ')) lineWeight = 3.5;
+            else if (trimmed.startsWith('## ')) lineWeight = 2.5;
+            else if (trimmed.startsWith('### ')) lineWeight = 2.0;
+            else if (trimmed.startsWith('#### ')) lineWeight = 1.5;
           } else if (trimmed.startsWith('- ') || /^\d+\.\s/.test(trimmed)) {
-            const charPerLine = isReport ? 45 : 32;
-            const linesCount = 1 + Math.floor(trimmed.length / charPerLine);
-            lineWeight = (isReport ? 3.5 : 4.5) * linesCount; // リストの1項目
+            const charPerLine = isReport ? 38 : 45;
+            const content = trimmed.replace(/^(?:-\s+|\d+\.\s+)/, '');
+            const len = getDisplayLength(content);
+            const linesCount = Math.max(1, Math.ceil(len / charPerLine));
+            lineWeight = linesCount + 0.5; // リスト間マージン
           } else if (trimmed.startsWith('> ')) {
-            const charPerLine = isReport ? 40 : 28;
-            const linesCount = 1 + Math.floor(trimmed.length / charPerLine);
-            lineWeight = (isReport ? 5.5 : 6.5) * linesCount; // 引用ブロック
+            const charPerLine = isReport ? 36 : 40;
+            const content = trimmed.replace(/^>\s*/, '');
+            const len = getDisplayLength(content);
+            const linesCount = Math.max(1, Math.ceil(len / charPerLine));
+            lineWeight = linesCount + 1.0; 
           } else {
-            // 通常のテキスト段落（折り返し行数＋上下マージン）
-            const charPerLine = isReport ? 42 : 30;
-            const linesCount = 1 + Math.floor(trimmed.length / charPerLine);
-            const baseMargin = 2.4; 
-            const textHeight = (isReport ? 2.8 : 3.5) * linesCount;
-            lineWeight = baseMargin + textHeight;
+            // 通常のテキスト段落
+            const charPerLine = isReport ? 40 : 45;
+            const len = getDisplayLength(trimmed);
+            const linesCount = Math.max(1, Math.ceil(len / charPerLine));
+            lineWeight = linesCount + 1.0; // 段落間マージン込
           }
 
-          if (currentWeight > 0) {
-            let shouldBreak = false;
-            
-            // 限界を超えそうなら改ページを挿入
-            if (currentWeight + lineWeight > maxWeight) {
-              shouldBreak = true;
-            } else if (!isStrict && currentWeight > maxWeight * 0.65 && trimmed.match(/^#{1,4}\s/)) {
-              // 文意モードの場合、ページの下部に見出しだけが孤立するのを防ぐために早期改ページ
+          let shouldBreak = false;
+          
+          // 上限を超えたら改ページ
+          if (currentWeight + lineWeight > maxWeight) {
+            shouldBreak = true;
+          } else if (!isStrict && isHeading) {
+            // 【文意モード】見出しが来た場合、次の段落も一緒に収まるか先読みチェック（繰り上げ機能）
+            let nextWeight = 0;
+            let j = i + 1;
+            while (j < lines.length && lines[j].trim() === '') {
+              nextWeight += 1.0; 
+              j++;
+            }
+            if (j < lines.length) {
+               const nextTrimmed = lines[j].trim();
+               if (nextTrimmed.match(/^!\[([^\]]*)\]\((.*?)\)$/)) nextWeight += (isReport ? 12.0 : 8.0);
+               else if (nextTrimmed.match(/^#{1,4}\s/)) nextWeight += 2.5;
+               else {
+                  const len = getDisplayLength(nextTrimmed);
+                  const charPerLine = isReport ? 40 : 45;
+                  nextWeight += Math.max(1, Math.ceil(len / charPerLine)) + 1.0;
+               }
+            }
+            // 見出し + 次の段落 が入り切らないなら、見出しから次のページへ繰り上げ
+            if (currentWeight + lineWeight + nextWeight > maxWeight) {
               shouldBreak = true;
             }
+          }
 
-            if (shouldBreak) {
-              // 改ページ前の余分な空行を削除
-              while (newLines.length > 0 && newLines[newLines.length - 1].trim() === '') {
-                 newLines.pop();
-              }
-              // 改ページを挿入
-              newLines.push('');
-              newLines.push(breakMark);
-              newLines.push('');
-              currentWeight = 0;
-              
-              // もし上限を超えた原因が空行だった場合は、次のページの先頭にならないようにスキップ
-              if (trimmed === '') {
-                i++;
-                continue;
-              }
+          if (shouldBreak) {
+            // 改ページ前の余分な空行を削除
+            while (newLines.length > 0 && newLines[newLines.length - 1].trim() === '') {
+               newLines.pop();
+            }
+            // 改ページを挿入
+            newLines.push('');
+            newLines.push(breakMark);
+            newLines.push('');
+            currentWeight = 0;
+            
+            // 空行が原因で改ページになった場合は、その空行自体を次ページ先頭から排除するためスキップ
+            if (trimmed === '') {
+              i++;
+              continue;
             }
           }
 
