@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>最新順 YouTube プレイリスト自動再生ツール</title>
+    <title>政策リサーチ関連動画</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -33,16 +33,26 @@
     <header class="bg-white shadow-md z-10">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <h1 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-                <i class="fab fa-youtube text-red-600 mr-2 text-2xl"></i> 最新順オートプレイヤー
+                <i class="fab fa-youtube text-red-600 mr-2 text-2xl"></i> 政策リサーチ関連動画
             </h1>
             
             <div class="flex flex-col md:flex-row gap-4 items-end">
                 <div class="flex-1 w-full">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">再生リストの選択</label>
-                    <select id="playlistSelect" class="block w-full rounded-md border-gray-300 border px-3 py-2 focus:border-red-500 focus:ring-red-500 outline-none transition bg-white cursor-pointer font-medium">
-                        <option value="PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_">本日のポイント（会議等概要説明動画）</option>
-                        <option value="PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2">政策レポート（政策レポート等解説動画）</option>
-                    </select>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">再生リストの選択</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="playlistSelect" value="PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_" class="peer sr-only" checked>
+                            <div class="h-full rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 peer-checked:border-red-500 peer-checked:bg-red-50 peer-checked:text-red-700 shadow-sm flex items-center justify-center">
+                                会議等概要説明動画
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="playlistSelect" value="PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2" class="peer sr-only">
+                            <div class="h-full rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 peer-checked:border-red-500 peer-checked:bg-red-50 peer-checked:text-red-700 shadow-sm flex items-center justify-center">
+                                政策レポート等解説動画
+                            </div>
+                        </label>
+                    </div>
                 </div>
                 
                 <div class="w-full md:w-32 shrink-0">
@@ -274,7 +284,8 @@
         }
 
         async function fetchPlaylistData(isAutoUpdate = false) {
-            const playlistId = document.getElementById('playlistSelect').value;
+            const selectedRadio = document.querySelector('input[name="playlistSelect"]:checked');
+            const playlistId = selectedRadio ? selectedRadio.value : null;
             const apiKey = document.getElementById('apiKey').value.trim();
             
             if (!playlistId) {
@@ -316,7 +327,7 @@
                 const currentVideoId = videoList[currentIndex]?.id;
                 
                 videoList = videos;
-                document.getElementById('playlistInfo').textContent = `全 ${videoList.length} 件 (最終取得: ${new Date().toLocaleTimeString()})`;
+                document.getElementById('playlistInfo').textContent = `直近 ${videoList.length} 件 (最終取得: ${new Date().toLocaleTimeString()})`;
                 
                 // リスト更新時の再生位置の調整
                 let newIndex = videoList.findIndex(v => v.id === currentVideoId);
@@ -753,10 +764,8 @@
             const savedApiKey = localStorage.getItem('yt_auto_api_key');
             
             if (savedSelect) {
-                const selectEl = document.getElementById('playlistSelect');
-                // 選択肢の中に保存された値が存在するか確認してからセット
-                const optionExists = Array.from(selectEl.options).some(opt => opt.value === savedSelect);
-                if (optionExists) selectEl.value = savedSelect;
+                const radio = document.querySelector(`input[name="playlistSelect"][value="${savedSelect}"]`);
+                if (radio) radio.checked = true;
             }
             if (savedApiKey) document.getElementById('apiKey').value = savedApiKey;
             
@@ -764,8 +773,10 @@
             document.getElementById('startBtn').addEventListener('click', () => fetchPlaylistData(false));
             document.getElementById('refreshBtn').addEventListener('click', () => fetchPlaylistData(false));
             
-            // ドロップダウンの選択を変更した際に自動で取得を開始する
-            document.getElementById('playlistSelect').addEventListener('change', () => fetchPlaylistData(false));
+            // 選択を変更した際に自動で取得を開始する
+            document.querySelectorAll('input[name="playlistSelect"]').forEach(radio => {
+                radio.addEventListener('change', () => fetchPlaylistData(false));
+            });
             
             document.getElementById('updateInterval').addEventListener('change', () => {
                 if(videoList.length > 0) resetAutoUpdateTimer();
