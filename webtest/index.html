@@ -129,7 +129,82 @@
 
     </main>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase 初期化 ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04",
+          authDomain: "import-b6097.firebaseapp.com",
+          projectId: "import-b6097",
+          storageBucket: "import-b6097.firebasestorage.app",
+          messagingSenderId: "462510788117",
+          appId: "1:462510788117:web:44ff1fd1af583f67bc081c",
+          measurementId: "G-Z5ZNMKGTTK"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // Firebase認証（匿名ログイン）
+        let user = null;
+        async function initAuth() {
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Firebase Authentication failed:", error);
+            }
+        }
+        initAuth();
+        onAuthStateChanged(auth, (u) => { user = u; });
+
+        // 保存先パス用のAppID
+        const envAppId = typeof __app_id !== 'undefined' ? __app_id : 'youtube-playlist-app';
+
+        // Firebaseからリストを読み込む
+        async function loadFromFirebase(playlistId) {
+            if (!user) return null;
+            try {
+                const docRef = doc(db, 'artifacts', envAppId, 'public', 'data', 'playlists', playlistId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    // Firebaseに保存したタイムスタンプ(数値)をDate型に戻す
+                    return data.videos.map(v => ({
+                        ...v,
+                        pubDate: new Date(v.pubDate)
+                    }));
+                }
+            } catch (e) {
+                console.error("Firebaseからの読み込みエラー:", e);
+            }
+            return null;
+        }
+
+        // Firebaseへリストを保存する
+        async function saveToFirebase(playlistId, videos) {
+            if (!user) return;
+            try {
+                const docRef = doc(db, 'artifacts', envAppId, 'public', 'data', 'playlists', playlistId);
+                // Date型をタイムスタンプ(数値)に変換して保存
+                const dataToSave = videos.map(v => ({
+                    id: v.id,
+                    title: v.title,
+                    description: v.description || "",
+                    thumbnail: v.thumbnail || "",
+                    pubDate: v.pubDate.getTime(),
+                    isEstimated: !!v.isEstimated
+                }));
+                await setDoc(docRef, { videos: dataToSave, updatedAt: Date.now() });
+                console.log("動画リストをFirebaseに保存しました。");
+            } catch (e) {
+                console.error("Firebaseへの保存エラー:", e);
+            }
+        }
+
         let player = null;
         let isPlayerReady = false;
         let videoList = [];
@@ -144,9 +219,10 @@
         const firstScriptTag = document.getElementsByTagName('script')[0];
         firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-        function onYouTubeIframeAPIReady() {
+        // module化によりグローバルスコープから外れるため、windowに明示的に登録
+        window.onYouTubeIframeAPIReady = function() {
             isPlayerReady = true;
-        }
+        };
 
         function initPlayer() {
             if (player) return; // 既に存在する場合は無視
@@ -283,7 +359,7 @@
             return id && /^[a-zA-Z0-9_-]{11}$/.test(id);
         }
 
-        async function fetchPlaylistData(isAutoUpdate = false) {
+        async function fetchPlaylistData(isAutoUpdate = false, forceYouTube = false) {
             const selectedRadio = document.querySelector('input[name="playlistSelect"]:checked');
             const playlistId = selectedRadio ? selectedRadio.value : null;
             const apiKey = document.getElementById('apiKey').value.trim();
@@ -305,20 +381,36 @@
             btn.disabled = true;
 
             try {
-                let videos = [];
-                if (apiKey) {
-                    videos = await fetchWithApi(playlistId, apiKey);
-                } else {
-                    try {
-                        videos = await fetchWithRss(playlistId);
-                        if (!videos || videos.length === 0) throw new Error("RSS Empty");
-                    } catch (rssError) {
-                        console.warn("RSSからの取得に失敗したため、限定公開用のHTML解析を試行します。", rssError);
-                        videos = await fetchWithHtmlScraping(playlistId);
+                let videos = null;
+                let source = "Firebase";
+
+                // 1. まずはFirebaseから読み込み（強制YouTube取得フラグがオフの場合）
+                if (!forceYouTube) {
+                    videos = await loadFromFirebase(playlistId);
+                }
+
+                // 2. Firebaseに無かった場合、または強制更新の場合はYouTubeから取得
+                if (!videos || videos.length === 0) {
+                    source = "YouTube";
+                    if (apiKey) {
+                        videos = await fetchWithApi(playlistId, apiKey);
+                    } else {
+                        try {
+                            videos = await fetchWithRss(playlistId);
+                            if (!videos || videos.length === 0) throw new Error("RSS Empty");
+                        } catch (rssError) {
+                            console.warn("RSSからの取得に失敗したため、限定公開用のHTML解析を試行します。", rssError);
+                            videos = await fetchWithHtmlScraping(playlistId);
+                        }
+                    }
+
+                    // 取得できたら結果を直ちにFirebaseに保存
+                    if (videos && videos.length > 0) {
+                        await saveToFirebase(playlistId, videos);
                     }
                 }
 
-                if (videos.length === 0) {
+                if (!videos || videos.length === 0) {
                     showToast("動画が見つかりませんでした。", true);
                     return;
                 }
@@ -327,7 +419,8 @@
                 const currentVideoId = videoList[currentIndex]?.id;
                 
                 videoList = videos;
-                document.getElementById('playlistInfo').textContent = `直近 ${videoList.length} 件 (最終取得: ${new Date().toLocaleTimeString()})`;
+                const timeStr = new Date().toLocaleTimeString();
+                document.getElementById('playlistInfo').textContent = `直近 ${videoList.length} 件 (取得元: ${source} / ${timeStr})`;
                 
                 // リスト更新時の再生位置の調整
                 let newIndex = videoList.findIndex(v => v.id === currentVideoId);
@@ -714,7 +807,8 @@
             
             updateIntervalId = setInterval(() => {
                 console.log("バックグラウンド更新を実行します...");
-                fetchPlaylistData(true);
+                // 自動更新時はYouTubeから強制再取得してFirebaseを上書きする
+                fetchPlaylistData(true, true);
             }, intervalMs);
 
             // カウントダウン表示の更新
@@ -769,13 +863,14 @@
             }
             if (savedApiKey) document.getElementById('apiKey').value = savedApiKey;
             
-            // イベントリスナー
-            document.getElementById('startBtn').addEventListener('click', () => fetchPlaylistData(false));
-            document.getElementById('refreshBtn').addEventListener('click', () => fetchPlaylistData(false));
+            // イベントリスナー (false: 手動表示更新, false: YouTube強制取得なし[Firebase優先])
+            document.getElementById('startBtn').addEventListener('click', () => fetchPlaylistData(false, false));
+            // 🔄更新ボタンは、強制的にYouTubeから再取得させる
+            document.getElementById('refreshBtn').addEventListener('click', () => fetchPlaylistData(false, true));
             
             // 選択を変更した際に自動で取得を開始する
             document.querySelectorAll('input[name="playlistSelect"]').forEach(radio => {
-                radio.addEventListener('change', () => fetchPlaylistData(false));
+                radio.addEventListener('change', () => fetchPlaylistData(false, false));
             });
             
             document.getElementById('updateInterval').addEventListener('change', () => {
