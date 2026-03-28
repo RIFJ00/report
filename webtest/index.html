@@ -158,7 +158,7 @@
                 console.error("Firebase Authentication failed:", error);
             }
         }
-        initAuth();
+        // ここでの initAuth() の呼び出しは削除し、初期化処理内で await するよう変更します
         onAuthStateChanged(auth, (u) => { user = u; });
 
         // 保存先パス用のAppID
@@ -382,31 +382,55 @@
 
             try {
                 let videos = null;
+                let existingVideos = null;
                 let source = "Firebase";
 
-                // 1. まずはFirebaseから読み込み（強制YouTube取得フラグがオフの場合）
+                // 1. まずはFirebaseから既存データを読み込み
+                existingVideos = await loadFromFirebase(playlistId);
+
+                // 強制取得フラグがオフなら、とりあえず既存データを表示用にセット
                 if (!forceYouTube) {
-                    videos = await loadFromFirebase(playlistId);
+                    videos = existingVideos;
                 }
 
-                // 2. Firebaseに無かった場合、または強制更新の場合はYouTubeから取得
-                if (!videos || videos.length === 0) {
-                    source = "YouTube";
+                // 2. Firebaseに無かった場合、または強制更新の場合はYouTubeから取得し、統合する
+                if (!videos || videos.length === 0 || forceYouTube) {
+                    source = forceYouTube && existingVideos ? "YouTube + Firebase(蓄積)" : "YouTube";
+                    let newVideos = [];
                     if (apiKey) {
-                        videos = await fetchWithApi(playlistId, apiKey);
+                        newVideos = await fetchWithApi(playlistId, apiKey);
                     } else {
                         try {
-                            videos = await fetchWithRss(playlistId);
-                            if (!videos || videos.length === 0) throw new Error("RSS Empty");
+                            newVideos = await fetchWithRss(playlistId);
+                            if (!newVideos || newVideos.length === 0) throw new Error("RSS Empty");
                         } catch (rssError) {
                             console.warn("RSSからの取得に失敗したため、限定公開用のHTML解析を試行します。", rssError);
-                            videos = await fetchWithHtmlScraping(playlistId);
+                            newVideos = await fetchWithHtmlScraping(playlistId);
                         }
                     }
 
-                    // 取得できたら結果を直ちにFirebaseに保存
-                    if (videos && videos.length > 0) {
+                    // 取得できたら、Firebaseの既存データとマージ（統合）して保存
+                    if (newVideos && newVideos.length > 0) {
+                        if (existingVideos && existingVideos.length > 0) {
+                            // IDをキーにして重複を排除しつつ統合
+                            const videoMap = new Map();
+                            // まず既存データを入れる
+                            existingVideos.forEach(v => videoMap.set(v.id, v));
+                            // 新しいデータで上書き／追加する
+                            newVideos.forEach(v => videoMap.set(v.id, v));
+                            
+                            // Mapから配列に戻して、新しい順（降順）にソート
+                            videos = Array.from(videoMap.values());
+                            videos.sort((a, b) => b.pubDate - a.pubDate);
+                        } else {
+                            videos = newVideos;
+                        }
+                        
+                        // マージされたすべての動画リストをFirebaseに保存（蓄積）
                         await saveToFirebase(playlistId, videos);
+                    } else if (!videos) {
+                        // 新規取得に失敗したが既存データがある場合のフォールバック
+                        videos = existingVideos; 
                     }
                 }
 
@@ -420,7 +444,7 @@
                 
                 videoList = videos;
                 const timeStr = new Date().toLocaleTimeString();
-                document.getElementById('playlistInfo').textContent = `直近 ${videoList.length} 件 (取得元: ${source} / ${timeStr})`;
+                document.getElementById('playlistInfo').textContent = `全 ${videoList.length} 件 (取得元: ${source} / ${timeStr})`;
                 
                 // リスト更新時の再生位置の調整
                 let newIndex = videoList.findIndex(v => v.id === currentVideoId);
@@ -678,15 +702,13 @@
             return videos;
         }
 
-        // 方法2: YouTube Data API v3 を利用（APIキー必要、全件可能だがこのコードでは最新50件程度を対象）
+        // 方法2: YouTube Data API v3 を利用（APIキー必要、ページネーションで全件取得）
         async function fetchWithApi(playlistId, apiKey) {
             let videos = [];
             let nextPageToken = '';
             const maxResults = 50; 
-            let fetchCount = 0;
-            const maxFetches = 3; // 最大150件まで取得
             
-            while (fetchCount < maxFetches) {
+            while (true) {
                 // partパラメータに contentDetails を追加し、動画の元の公開日を取得できるようにする
                 const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=${maxResults}&playlistId=${playlistId}&key=${apiKey}&pageToken=${nextPageToken}`;
                 const res = await fetch(url);
@@ -711,7 +733,6 @@
                 
                 nextPageToken = data.nextPageToken;
                 if (!nextPageToken) break;
-                fetchCount++;
             }
             
             // プライベート動画や削除済み動画を除外
@@ -852,7 +873,7 @@
         }
 
         // --- 初期化 ---
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             // 保存された設定の復元
             const savedSelect = localStorage.getItem('yt_auto_playlist_select');
             const savedApiKey = localStorage.getItem('yt_auto_api_key');
@@ -876,6 +897,11 @@
             document.getElementById('updateInterval').addEventListener('change', () => {
                 if(videoList.length > 0) resetAutoUpdateTimer();
             });
+
+            // === ページ読み込み時にFirebaseから自動でリストを呼び出す ===
+            await initAuth();
+            user = auth.currentUser;
+            fetchPlaylistData(false, false);
         });
     </script>
 </body>
