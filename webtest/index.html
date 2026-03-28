@@ -74,11 +74,12 @@
     </header>
 
     <!-- メインコンテンツ -->
-    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col md:flex-row gap-6 h-[calc(100vh-180px)]">
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col md:flex-row gap-6 h-auto md:h-[calc(100vh-180px)]">
         
-        <!-- プレイヤーエリア -->
-        <div class="w-full md:w-2/3 flex flex-col h-[40vh] md:h-full">
-            <div class="bg-black rounded-xl overflow-hidden shadow-lg relative flex-1">
+        <!-- プレイヤー＆概要エリア -->
+        <div class="w-full md:w-2/3 flex flex-col gap-4 h-full overflow-hidden">
+            <!-- 16:9 プレイヤー -->
+            <div class="bg-black rounded-xl overflow-hidden shadow-lg relative w-full aspect-video shrink-0">
                 <div id="player" class="absolute inset-0"></div>
                 <div id="player-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-500 pointer-events-none">
                     <div class="text-center">
@@ -87,10 +88,17 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 概要パネル -->
+            <div class="bg-white rounded-xl shadow-lg p-4 md:p-6 flex-1 overflow-y-auto border border-gray-200 min-h-[150px]">
+                <h2 id="currentTitle" class="text-xl md:text-2xl font-bold text-gray-900 mb-2 leading-tight">動画を選択してください</h2>
+                <p id="currentDate" class="text-sm text-gray-500 mb-4 border-b border-gray-100 pb-2"></p>
+                <div id="currentDescription" class="text-sm text-gray-700 whitespace-pre-wrap break-words leading-relaxed"></div>
+            </div>
         </div>
         
         <!-- 再生リストエリア -->
-        <div class="w-full md:w-1/3 bg-white rounded-xl shadow-lg flex flex-col h-[50vh] md:h-full border border-gray-200 overflow-hidden">
+        <div class="w-full md:w-1/3 bg-white rounded-xl shadow-lg flex flex-col h-[60vh] md:h-full border border-gray-200 overflow-hidden shrink-0">
             <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
                 <h2 class="text-lg font-bold text-gray-800"><i class="fas fa-list-ul mr-2 text-gray-600"></i>再生リスト (新しい順)</h2>
                 <button id="refreshBtn" class="text-gray-500 hover:text-blue-600 transition" title="今すぐリストを更新">
@@ -152,7 +160,7 @@
                 playerVars: {
                     'playsinline': 1,
                     'autoplay': 1,
-                    'mute': 1, // ブラウザの自動再生ポリシーを回避するため、初期ミュートを設定
+                    'mute': 0, // 音が出るように初期ミュートを解除
                     'rel': 0,
                     'enablejsapi': 1
                 },
@@ -166,13 +174,19 @@
 
         function onPlayerReady(event) {
             renderPlaylist();
-            // サンドボックス環境では自動再生がブロックされることがあるため、明示的に再生を試みる
-            try {
-                event.target.playVideo();
-                showToast("自動再生のためミュートで開始しました。プレイヤーの音量アイコンで解除してください。");
-            } catch (e) {
-                console.warn("自動再生が制限されています", e);
-            }
+            
+            // 音声ありの自動再生はブラウザにブロックされる可能性が高いため、その旨を通知する
+            const playPromise = event.target.playVideo();
+            
+            // プレイヤーの音量を100%に設定し、確実にミュートを解除
+            setTimeout(() => {
+                if(player && typeof player.unMute === 'function') {
+                    player.unMute();
+                    player.setVolume(100);
+                }
+            }, 500);
+
+            showToast("再生を開始します。※自動で始まらない場合は、動画画面をクリックしてください。");
         }
 
         function onPlayerStateChange(event) {
@@ -217,6 +231,31 @@
             const video = videoList[currentIndex];
             player.loadVideoById(video.id);
             renderPlaylist();
+            updateCurrentVideoInfo(); // 再生時に概要を更新
+        }
+
+        // --- 概要パネルの更新 ---
+        function updateCurrentVideoInfo() {
+            if (videoList.length === 0) return;
+            const video = videoList[currentIndex];
+            
+            document.getElementById('currentTitle').textContent = video.title;
+            
+            // 公開日のフォーマット
+            const dateStr = video.pubDate.toLocaleDateString('ja-JP', { 
+                year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+            });
+            document.getElementById('currentDate').textContent = `公開日: ${dateStr}`;
+            
+            // 概要の表示
+            const descEl = document.getElementById('currentDescription');
+            if (video.description) {
+                descEl.textContent = video.description;
+            } else {
+                descEl.textContent = "この動画に概要はありません。";
+                descEl.classList.add("text-gray-400");
+            }
+            descEl.classList.remove("text-gray-400");
         }
 
         // --- データ取得ロジック ---
@@ -368,12 +407,24 @@
                 const titleNode = entry.querySelector("title");
                 const title = titleNode ? titleNode.textContent : "無題の動画";
                 
+                // 動画の正確な作成日（公開日）を取得
                 const publishedNode = entry.querySelector("published");
                 const pubDateText = publishedNode ? publishedNode.textContent : new Date().toISOString();
+                
+                // 概要（Description）を取得
+                let description = "";
+                const descNodes = entry.getElementsByTagNameNS("http://search.yahoo.com/mrss/", "description");
+                if (descNodes && descNodes.length > 0) {
+                    description = descNodes[0].textContent;
+                } else {
+                    const mediaDesc = entry.getElementsByTagName("media:description")[0];
+                    if (mediaDesc) description = mediaDesc.textContent;
+                }
                 
                 return {
                     id: vid,
                     title: title,
+                    description: description,
                     thumbnail: `https://i.ytimg.com/vi/${vid}/mqdefault.jpg`,
                     pubDate: new Date(pubDateText)
                 };
@@ -466,6 +517,7 @@
                     videos.push({
                         id: vidRenderer.videoId,
                         title: vidRenderer.title?.runs?.[0]?.text || "無題の動画",
+                        description: "", // HTMLスクレイピングからは長文の概要が取れないため空とする
                         thumbnail: `https://i.ytimg.com/vi/${vidRenderer.videoId}/mqdefault.jpg`,
                         pubDate: new Date(Date.now() - (index * 1000))
                     });
@@ -498,6 +550,7 @@
                     videos.push({
                         id: item.snippet.resourceId.videoId,
                         title: item.snippet.title,
+                        description: item.snippet.description, // APIから概要を取得
                         thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
                         pubDate: new Date(item.snippet.publishedAt)
                     });
