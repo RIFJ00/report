@@ -801,7 +801,19 @@
             const container = document.getElementById('playlistContainer');
             container.innerHTML = '';
             
-            const queryStr = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+            // 同義語を正規化するヘルパー関数（略称を正式名称に統一して検索しやすくする）
+            const normalizeText = (text) => {
+                if (!text) return "";
+                return text.toLowerCase()
+                    .replace(/経産省/g, "経済産業省")
+                    .replace(/国交省/g, "国土交通省")
+                    .replace(/文科省/g, "文部科学省")
+                    .replace(/厚労省/g, "厚生労働省")
+                    .replace(/農水省/g, "農林水産省");
+            };
+            
+            const rawQuery = document.getElementById('searchInput')?.value || '';
+            const queryStr = normalizeText(rawQuery).trim();
             // 全角・半角スペースで分割し、空の文字列を除外した配列を作成
             const queries = queryStr ? queryStr.split(/[\s　]+/).filter(q => q.length > 0) : [];
             let displayedCount = 0;
@@ -814,8 +826,8 @@
             videoList.forEach((video, index) => {
                 // 検索クエリがある場合、AND検索（すべての単語が含まれているか）を実行
                 if (queries.length > 0) {
-                    const titleLower = video.title.toLowerCase();
-                    const descLower = video.description ? video.description.toLowerCase() : '';
+                    const titleLower = normalizeText(video.title);
+                    const descLower = normalizeText(video.description);
                     
                     const isMatch = queries.every(q => titleLower.includes(q) || descLower.includes(q));
                     
