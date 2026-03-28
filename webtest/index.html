@@ -62,7 +62,7 @@
                 </div>
                 
                 <button id="startBtn" class="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded shadow transition duration-200 flex items-center justify-center shrink-0">
-                    <i class="fas fa-play mr-2"></i>取得＆再生
+                    <i class="fas fa-sync-alt mr-2"></i>更新
                 </button>
             </div>
 
@@ -158,7 +158,7 @@
                 console.error("Firebase Authentication failed:", error);
             }
         }
-        // ここでの initAuth() の呼び出しは削除し、初期化処理内で await するよう変更します
+        
         onAuthStateChanged(auth, (u) => { user = u; });
 
         // 保存先パス用のAppID
@@ -190,18 +190,20 @@
             try {
                 const docRef = doc(db, 'artifacts', envAppId, 'public', 'data', 'playlists', playlistId);
                 // Date型をタイムスタンプ(数値)に変換して保存
+                // Firestoreの1ドキュメント容量上限(1MB)エラーを回避するため、長文になりがちなdescriptionは最大250文字に切り詰めて保存
                 const dataToSave = videos.map(v => ({
                     id: v.id,
                     title: v.title,
-                    description: v.description || "",
+                    description: v.description ? (v.description.length > 250 ? v.description.substring(0, 250) + "..." : v.description) : "",
                     thumbnail: v.thumbnail || "",
                     pubDate: v.pubDate.getTime(),
                     isEstimated: !!v.isEstimated
                 }));
                 await setDoc(docRef, { videos: dataToSave, updatedAt: Date.now() });
-                console.log("動画リストをFirebaseに保存しました。");
+                console.log(`動画リスト(${videos.length}件)をFirebaseに保存しました。`);
             } catch (e) {
                 console.error("Firebaseへの保存エラー:", e);
+                showToast("データベースの保存容量上限により、保存に失敗しました。", true);
             }
         }
 
@@ -397,16 +399,35 @@
                 if (!videos || videos.length === 0 || forceYouTube) {
                     source = forceYouTube && existingVideos ? "YouTube + Firebase(蓄積)" : "YouTube";
                     let newVideos = [];
+                    let usedScraping = false;
+                    let apiFailed = false;
+                    
                     if (apiKey) {
-                        newVideos = await fetchWithApi(playlistId, apiKey);
-                    } else {
+                        try {
+                            newVideos = await fetchWithApi(playlistId, apiKey);
+                        } catch (apiError) {
+                            console.warn("API取得エラー:", apiError);
+                            apiFailed = true;
+                            // APIキーの設定ミスなどの場合、処理を止めずに代替手段へフォールバックする
+                            showToast(`${apiError.message}。代替手段（RSS等）での取得を試行します。`, true);
+                        }
+                    } 
+
+                    // APIキーがない場合、もしくはAPI取得が失敗した場合に代替手段を実行
+                    if (!apiKey || apiFailed) {
                         try {
                             newVideos = await fetchWithRss(playlistId);
                             if (!newVideos || newVideos.length === 0) throw new Error("RSS Empty");
                         } catch (rssError) {
                             console.warn("RSSからの取得に失敗したため、限定公開用のHTML解析を試行します。", rssError);
                             newVideos = await fetchWithHtmlScraping(playlistId);
+                            usedScraping = true;
                         }
+                    }
+
+                    // APIキーなしのスクレイピング取得で上限の100件に達している場合、警告を出す
+                    if (usedScraping && newVideos && newVideos.length === 100) {
+                        setTimeout(() => showToast("APIキー未設定のため最新100件までしか取得できません。過去の全動画を取得するには高度な設定からAPIキーを入力してください。", true), 3500);
                     }
 
                     // 取得できたら、Firebaseの既存データとマージ（統合）して保存
@@ -714,7 +735,13 @@
                 const res = await fetch(url);
                 if (!res.ok) {
                     const err = await res.json();
-                    throw new Error(err.error?.message || "APIリクエストエラー");
+                    const msg = err.error?.message || "APIリクエストエラー";
+                    
+                    // 制限や無効化に関する具体的なエラーハンドリング
+                    if (msg.includes("blocked") || msg.includes("not enabled")) {
+                        throw new Error("GCPプロジェクトで「YouTube Data API v3」が有効になっていないか、APIキーが制限されています");
+                    }
+                    throw new Error(`APIエラー: ${msg}`);
                 }
                 const data = await res.json();
                 
@@ -884,8 +911,9 @@
             }
             if (savedApiKey) document.getElementById('apiKey').value = savedApiKey;
             
-            // イベントリスナー (false: 手動表示更新, false: YouTube強制取得なし[Firebase優先])
-            document.getElementById('startBtn').addEventListener('click', () => fetchPlaylistData(false, false));
+            // イベントリスナー (false: 手動表示更新, true: YouTube強制取得)
+            // ※ボタンを押した時はFirebaseの既存データではなく、必ずYouTubeから再取得するように修正
+            document.getElementById('startBtn').addEventListener('click', () => fetchPlaylistData(false, true));
             // 🔄更新ボタンは、強制的にYouTubeから再取得させる
             document.getElementById('refreshBtn').addEventListener('click', () => fetchPlaylistData(false, true));
             
