@@ -62,8 +62,8 @@
                     </summary>
                     <div class="mt-2 p-4 bg-gray-50 border border-gray-200 rounded-md">
                         <p class="mb-2 text-xs text-gray-500">
-                            ※デフォルト設定ではRSSフィードを利用し、最新15件の動画を取得します。<br>
-                            ※再生リストの全件を取得したい場合は、ご自身の「YouTube Data API v3」のAPIキーを入力してください。
+                            ※デフォルト設定では外部プロキシを利用して動画を取得します。<br>
+                            ※<span class="text-red-600 font-bold">限定公開</span>のプレイリストを正確な日時で並び替えたい場合や、安定して全件取得したい場合は、ご自身の「YouTube Data API v3」のAPIキーを入力してください。
                         </p>
                         <input type="text" id="apiKey" placeholder="AIzaSy... (任意)" 
                                class="block w-full rounded-md border-gray-300 border px-3 py-2 focus:border-red-500 focus:ring-red-500 outline-none">
@@ -131,14 +131,30 @@
 
         function initPlayer() {
             if (player) return; // 既に存在する場合は無視
+            
+            // YT APIがまだロードされていない場合は少し待ってから再試行する
+            if (typeof YT === 'undefined' || typeof YT.Player === 'undefined') {
+                setTimeout(initPlayer, 500);
+                return;
+            }
+
             document.getElementById('player-placeholder').style.display = 'none';
+            
+            // 最初から対象の動画IDを指定してプレイヤーを作成する
+            const initialVideoId = videoList.length > 0 ? videoList[currentIndex].id : '';
+
             player = new YT.Player('player', {
                 height: '100%',
                 width: '100%',
+                videoId: initialVideoId,
+                // サードパーティCookieブロックを回避するための nocookie ドメインを使用
+                host: 'https://www.youtube-nocookie.com',
                 playerVars: {
                     'playsinline': 1,
                     'autoplay': 1,
-                    'rel': 0
+                    'mute': 1, // ブラウザの自動再生ポリシーを回避するため、初期ミュートを設定
+                    'rel': 0,
+                    'enablejsapi': 1
                 },
                 events: {
                     'onReady': onPlayerReady,
@@ -149,7 +165,14 @@
         }
 
         function onPlayerReady(event) {
-            playCurrentVideo();
+            renderPlaylist();
+            // サンドボックス環境では自動再生がブロックされることがあるため、明示的に再生を試みる
+            try {
+                event.target.playVideo();
+                showToast("自動再生のためミュートで開始しました。プレイヤーの音量アイコンで解除してください。");
+            } catch (e) {
+                console.warn("自動再生が制限されています", e);
+            }
         }
 
         function onPlayerStateChange(event) {
@@ -160,9 +183,20 @@
         }
 
         function onPlayerError(event) {
-            console.warn("動画の再生エラー:", event.data);
-            showToast("動画を再生できませんでした。次の動画へスキップします。", true);
-            setTimeout(playNextVideo, 2000); // 2秒後に次へ
+            console.warn("動画の再生エラー コード:", event.data);
+            let errorMsg = "動画を再生できませんでした。";
+            
+            // エラーコードに応じたメッセージ
+            if (event.data === 101 || event.data === 150) {
+                errorMsg = "埋め込み再生が許可されていない動画です。";
+            } else if (event.data === 100) {
+                errorMsg = "動画が見つかりません（削除・非公開等）。";
+            } else if (event.data === 2) {
+                errorMsg = "動画IDが不正です。";
+            }
+
+            showToast(errorMsg + " 次へスキップします。", true);
+            setTimeout(playNextVideo, 2000); // 2秒後に自動で次へ
         }
 
         // --- 再生制御ロジック ---
@@ -179,7 +213,7 @@
         }
 
         function playCurrentVideo() {
-            if (videoList.length === 0 || !player || !player.loadVideoById) return;
+            if (videoList.length === 0 || !player || typeof player.loadVideoById !== 'function') return;
             const video = videoList[currentIndex];
             player.loadVideoById(video.id);
             renderPlaylist();
@@ -191,6 +225,11 @@
             const match = input.match(/[?&]list=([^&]+)/);
             if (match) return match[1];
             return input.trim();
+        }
+
+        // 11桁の正しいYouTube動画IDかチェックするバリデーション関数
+        function isValidVideoId(id) {
+            return id && /^[a-zA-Z0-9_-]{11}$/.test(id);
         }
 
         async function fetchPlaylistData(isAutoUpdate = false) {
@@ -219,7 +258,13 @@
                 if (apiKey) {
                     videos = await fetchWithApi(playlistId, apiKey);
                 } else {
-                    videos = await fetchWithRss(playlistId);
+                    try {
+                        videos = await fetchWithRss(playlistId);
+                        if (!videos || videos.length === 0) throw new Error("RSS Empty");
+                    } catch (rssError) {
+                        console.warn("RSSからの取得に失敗したため、限定公開用のHTML解析を試行します。", rssError);
+                        videos = await fetchWithHtmlScraping(playlistId);
+                    }
                 }
 
                 if (videos.length === 0) {
@@ -264,7 +309,12 @@
 
             } catch (e) {
                 console.error(e);
-                showToast("取得エラー: " + e.message, true);
+                let errorMsg = e.message;
+                // TypeError: Load failed 等ネットワーク系エラーのわかりやすい表示
+                if (e.name === 'TypeError' && e.message === 'Load failed') {
+                    errorMsg = "ネットワーク通信がブロックされました。APIキーの設定をお試しください。";
+                }
+                showToast("取得エラー: " + errorMsg, true);
             } finally {
                 btn.innerHTML = originalBtnText;
                 btn.disabled = false;
@@ -298,7 +348,7 @@
             }
 
             if (!xmlText || !xmlText.includes('<feed')) {
-                throw new Error("通信に失敗しました。プレイリストが非公開か、存在しない可能性があります。");
+                throw new Error("通信に失敗しました。プレイリストが非公開か、通信制限の可能性があります。");
             }
 
             // XMLの直接解析
@@ -324,14 +374,107 @@
                 return {
                     id: vid,
                     title: title,
-                    thumbnail: `https://i.ytimg.com/vi/${vid}/mqdefault.jpg`, // サムネイル画像を直接生成
+                    thumbnail: `https://i.ytimg.com/vi/${vid}/mqdefault.jpg`,
                     pubDate: new Date(pubDateText)
                 };
-            }).filter(item => item.id);
+            }).filter(item => isValidVideoId(item.id)); // 不正なIDを除外
             
             // 新しい順（降順）にソート
             items.sort((a, b) => b.pubDate - a.pubDate);
             return items;
+        }
+
+        // 方法3: HTMLスクレイピングを利用（限定公開プレイリスト等、RSSが取得できない場合の代替手段）
+        async function fetchWithHtmlScraping(playlistId) {
+            const url = `https://www.youtube.com/playlist?list=${playlistId}`;
+            
+            const proxies = [
+                { url: `https://api.allorigins.win/get?url=`, type: 'json' },
+                { url: `https://api.codetabs.com/v1/proxy/?quest=`, type: 'text' },
+                { url: `https://corsproxy.io/?`, type: 'text' }
+            ];
+            
+            let html = null;
+            
+            for (const proxy of proxies) {
+                try {
+                    const res = await fetch(proxy.url + encodeURIComponent(url));
+                    if (!res.ok) continue;
+                    
+                    if (proxy.type === 'json') {
+                        const data = await res.json();
+                        html = data.contents;
+                    } else {
+                        html = await res.text();
+                    }
+                    
+                    if (html && html.includes('ytInitialData')) break;
+                } catch (e) {
+                    console.warn(`Scraping proxy ${proxy.url} failed:`, e);
+                }
+            }
+            
+            if (!html) throw new Error("通信がブロックされました。ブラウザのセキュリティ設定を確認するか、APIキーを設定してください。");
+
+            // ytInitialData (YouTubeの動画データJSON) を抽出
+            let ytDataString = null;
+            const match1 = html.match(/var ytInitialData = (\{.*?\});<\/script>/);
+            const match2 = html.match(/window\["ytInitialData"\] = (\{.*?\});/);
+            
+            if (match1) ytDataString = match1[1];
+            else if (match2) ytDataString = match2[1];
+            
+            if (!ytDataString) {
+                throw new Error("解析不能。非公開設定になっているか、APIキーが必要です。");
+            }
+            
+            const ytData = JSON.parse(ytDataString);
+            let items = [];
+            
+            // より堅牢な再帰的検索（YouTubeのデータ構造変更に強い）
+            function extractVideoItems(obj) {
+                let found = [];
+                if (!obj || typeof obj !== 'object') return found;
+                if (Array.isArray(obj)) {
+                    for (const item of obj) found.push(...extractVideoItems(item));
+                } else {
+                    if (obj.playlistVideoRenderer) {
+                        found.push(obj);
+                    } else {
+                        for (const key in obj) found.push(...extractVideoItems(obj[key]));
+                    }
+                }
+                return found;
+            }
+            
+            try {
+                items = extractVideoItems(ytData);
+            } catch (e) {
+                throw new Error("データ抽出中のエラーです。");
+            }
+
+            if (items.length === 0) {
+                throw new Error("限定公開リスト内に動画が見つかりません。");
+            }
+            
+            let videos = [];
+            
+            items.forEach((item, index) => {
+                const vidRenderer = item.playlistVideoRenderer;
+                // 有効な動画IDが存在し、再生不能な動画でないものを抽出
+                if (vidRenderer && isValidVideoId(vidRenderer.videoId) && vidRenderer.isPlayable !== false) {
+                    videos.push({
+                        id: vidRenderer.videoId,
+                        title: vidRenderer.title?.runs?.[0]?.text || "無題の動画",
+                        thumbnail: `https://i.ytimg.com/vi/${vidRenderer.videoId}/mqdefault.jpg`,
+                        pubDate: new Date(Date.now() - (index * 1000))
+                    });
+                }
+            });
+            
+            // ダミー日時でソート（実質的にプレイリストの並び順を維持）
+            videos.sort((a, b) => b.pubDate - a.pubDate);
+            return videos;
         }
 
         // 方法2: YouTube Data API v3 を利用（APIキー必要、全件可能だがこのコードでは最新50件程度を対象）
@@ -369,7 +512,8 @@
             videos = videos.filter(v => 
                 v.title !== 'Private video' && 
                 v.title !== 'Deleted video' && 
-                v.thumbnail
+                v.thumbnail &&
+                isValidVideoId(v.id) // 不正なIDを除外
             );
             
             // 新しい順（降順）にソート
