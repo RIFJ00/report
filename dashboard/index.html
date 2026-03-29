@@ -1,661 +1,374 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WEB更新検知システム (Firebase連携)</title>
-  
-  <!-- Tailwind CSS (スタイリング用) -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- React & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  
-  <!-- Babel (ブラウザ上でReactコードを変換するため) -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <style>
-    @keyframes slideIn {
-      from { transform: translateX(100%); opacity: 0; }
-      to { transform: translateX(0); opacity: 1; }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>政策リサーチ関連ダッシュボード</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* カードのホバーアニメーション */
+        .hover-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .hover-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .status-loading {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        /* モーダルの表示制御用 */
+        .modal-overlay {
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+    </style>
 </head>
-<body class="bg-slate-50 font-sans text-slate-800">
-  
-  <!-- アプリケーションが描画される領域 -->
-  <div id="root"></div>
-
-  <!-- Reactのコード (Babelで処理され、ES ModulesとしてFirebaseを読み込む) -->
-  <script type="text/babel" data-type="module">
-    // FirebaseモジュールをCDN経由でインポート
-    import { initializeApp, getApps, getApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-
-    const { useState, useEffect, useCallback } = React;
-
-    // --- アイコンコンポーネントの定義 (外部ライブラリの依存をなくすため) ---
-    const createIcon = (paths) => ({ className, ...props }) => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props} dangerouslySetInnerHTML={{ __html: paths }} />
-    );
-
-    const Bell = createIcon('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>');
-    const BellRing = createIcon('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M4 2C2.8 3.7 2 5.7 2 8"/><path d="M22 8c0-2.3-.8-4.3-2-6"/>');
-    const ExternalLink = createIcon('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/>');
-    const RefreshCw = createIcon('<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>');
-    const CheckCircle2 = createIcon('<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>');
-    const Clock = createIcon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>');
-    const Info = createIcon('<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/>');
-    const X = createIcon('<line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/>');
-    const Activity = createIcon('<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>');
-    const Database = createIcon('<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>');
-    const Settings = createIcon('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>');
-    const Save = createIcon('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>');
-    const Plus = createIcon('<line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/>');
-    const Trash2 = createIcon('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>');
-    const ChevronLeft = createIcon('<polyline points="15 18 9 12 15 6"/>');
-    const ChevronDown = createIcon('<polyline points="6 9 12 15 18 9"/>');
-    const AlertCircle = createIcon('<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>');
-    // ----------------------------------------------------------------------
-
-    const DEFAULT_FIREBASE_CONFIG = {
-      apiKey: "",
-      authDomain: "",
-      projectId: "",
-      storageBucket: "",
-      messagingSenderId: "",
-      appId: ""
-    };
-
-    const DEFAULT_SITES = [
-      { id: 'policy', name: '政策レポート', url: 'https://report.rifj.jp/policy/', collectionName: 'policy_articles', firebaseConfig: { ...DEFAULT_FIREBASE_CONFIG }, lastUpdated: null },
-      { id: 'point', name: '本日のポイント', url: 'https://report.rifj.jp/point/', collectionName: 'point_articles', firebaseConfig: { ...DEFAULT_FIREBASE_CONFIG }, lastUpdated: null },
-      { id: 'blog', name: '開発者のブログ', url: 'https://report.rifj.jp/blog/', collectionName: 'blog_articles', firebaseConfig: { ...DEFAULT_FIREBASE_CONFIG }, lastUpdated: null },
-    ];
-
-    const isConfigValid = (config) => {
-      return config && 
-             config.apiKey && config.apiKey !== "YOUR_API_KEY" && config.apiKey.trim() !== "" &&
-             config.projectId && config.projectId.trim() !== "";
-    };
-
-    const extractFirebaseConfig = (text) => {
-      const newConfig = { ...DEFAULT_FIREBASE_CONFIG };
-      const keys = Object.keys(DEFAULT_FIREBASE_CONFIG);
-      keys.forEach(key => {
-        const regex = new RegExp(`['"]?${key}['"]?\\s*:\\s*['"\`]([^'"\`]+)['"\`]`, 'i');
-        const match = text.match(regex);
-        if (match && match[1]) {
-          newConfig[key] = match[1];
-        }
-      });
-      return newConfig;
-    };
-
-    const generateConfigText = (config) => {
-      if (!config || !config.apiKey || config.apiKey === "YOUR_API_KEY") return "";
-      return `const firebaseConfig = {\n  apiKey: "${config.apiKey || ''}",\n  authDomain: "${config.authDomain || ''}",\n  projectId: "${config.projectId || ''}",\n  storageBucket: "${config.storageBucket || ''}",\n  messagingSenderId: "${config.messagingSenderId || ''}",\n  appId: "${config.appId || ''}"\n};`;
-    };
-
-    function App() {
-      const [activeTab, setActiveTab] = useState('dashboard');
-      
-      const [sites, setSites] = useState(() => {
-        const saved = localStorage.getItem('notifier_sites_multi');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          return parsed.map(site => ({
-            ...site,
-            firebaseConfig: site.firebaseConfig || { ...DEFAULT_FIREBASE_CONFIG }
-          }));
-        }
-        return DEFAULT_SITES;
-      });
-
-      const [notifications, setNotifications] = useState([]);
-      const [toasts, setToasts] = useState([]);
-      const [isMonitoring, setIsMonitoring] = useState(true);
-      const [lastChecked, setLastChecked] = useState(new Date());
-      const [siteErrors, setSiteErrors] = useState({});
-
-      const saveSettings = async (newSites) => {
-        try {
-          const activeApps = getApps();
-          await Promise.all(activeApps.map(app => deleteApp(app)));
-        } catch (err) {
-          console.error("Firebase cleanup error:", err);
-        }
-
-        const sitesToSave = newSites.map(({ rawConfigText, ...rest }) => rest);
-        localStorage.setItem('notifier_sites_multi', JSON.stringify(sitesToSave));
-        
-        setSites(sitesToSave);
-        setSiteErrors({});
-        setActiveTab('dashboard');
-      };
-
-      const addToast = useCallback((site, message) => {
-        const id = Date.now().toString();
-        const newToast = { id, site, message, timestamp: new Date() };
-        setToasts((prev) => [...prev, newToast]);
-        setTimeout(() => {
-          setToasts((prev) => prev.filter((t) => t.id !== id));
-        }, 5000);
-      }, []);
-
-      const removeToast = (id) => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      };
-
-      const handleUpdateDetected = useCallback((siteId, articleTitle, timestamp) => {
-        const updateTime = timestamp || new Date();
-        
-        setSites((prevSites) => 
-          prevSites.map(site => 
-            site.id === siteId ? { ...site, lastUpdated: updateTime } : site
-          )
-        );
-
-        const site = sites.find(s => s.id === siteId);
-        if (!site) return;
-
-        addToast(site, `「${articleTitle}」が更新されました。`);
-
-        setNotifications((prev) => [
-          {
-            id: Date.now().toString() + Math.random(),
-            siteName: site.name,
-            siteUrl: site.url,
-            message: `データ更新: ${articleTitle}`,
-            timestamp: updateTime,
-            read: false
-          },
-          ...prev
-        ].slice(0, 50));
-      }, [sites, addToast]);
-
-      useEffect(() => {
-        if (!isMonitoring) return;
-
-        const unsubscribes = [];
-        setSiteErrors({});
-
-        const setupListeners = async () => {
-          for (const site of sites) {
-            if (!isConfigValid(site.firebaseConfig)) {
-              continue;
-            }
-
-            try {
-              const appName = `app_${site.id}`;
-              let app;
-              try {
-                app = getApp(appName);
-              } catch (e) {
-                app = initializeApp(site.firebaseConfig, appName);
-              }
-
-              const db = getFirestore(app);
-              const colRef = collection(db, site.collectionName);
-              let isFirstSnapshot = true;
-
-              const unsubscribe = onSnapshot(colRef, 
-                (snapshot) => {
-                  setSiteErrors(prev => {
-                    const newErrors = { ...prev };
-                    delete newErrors[site.id];
-                    return newErrors;
-                  });
-
-                  if (isFirstSnapshot) {
-                    isFirstSnapshot = false;
-                    setLastChecked(new Date());
-                    return; 
-                  }
-
-                  snapshot.docChanges().forEach((change) => {
-                    if (change.type === 'added' || change.type === 'modified') {
-                      const data = change.doc.data();
-                      const title = data.title || data.name || '名称未設定のデータ';
-                      const updateDate = data.updatedAt?.toDate() || data.createdAt?.toDate() || new Date();
-                      
-                      handleUpdateDetected(site.id, title, updateDate);
-                    }
-                  });
-                  setLastChecked(new Date());
-                },
-                (error) => {
-                  console.error(`[${site.name}] 監視エラー:`, error);
-                  setSiteErrors(prev => ({
-                    ...prev,
-                    [site.id]: `通信エラー: ${error.message}`
-                  }));
-                }
-              );
-              unsubscribes.push(unsubscribe);
-            } catch (err) {
-              console.error(`[${site.name}] Firebase初期化エラー:`, err);
-              setSiteErrors(prev => ({
-                ...prev,
-                [site.id]: `初期化エラー: ${err.message}`
-              }));
-            }
-          }
-        };
-
-        setupListeners();
-
-        return () => {
-          unsubscribes.forEach(unsub => unsub());
-        };
-      }, [isMonitoring, sites, handleUpdateDetected]);
-
-      const formatTime = (date) => {
-        if (!date) return '-';
-        return new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(date);
-      };
-
-      const formatDate = (date) => {
-        if (!date) return '-';
-        return new Intl.DateTimeFormat('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
-      };
-
-      const hasValidConfig = sites.some(s => isConfigValid(s.firebaseConfig));
-      const hasAnyError = Object.keys(siteErrors).length > 0;
-
-      return (
-        <div className="min-h-screen">
-          <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-            <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="bg-blue-600 p-2 rounded-lg">
-                  <Database className="w-5 h-5 text-white" />
-                </div>
-                <h1 className="text-xl font-bold text-slate-900">WEB更新検知 (Firebase版)</h1>
-              </div>
-              <div className="flex items-center gap-4 text-sm text-slate-500">
-                {activeTab === 'dashboard' ? (
-                  <React.Fragment>
-                    <span className="flex items-center gap-1 hidden md:flex">
-                      <RefreshCw className={`w-4 h-4 ${isMonitoring && !hasAnyError && hasValidConfig ? 'animate-spin' : ''}`} />
-                      最終確認: {formatTime(lastChecked)}
-                    </span>
-                    <button
-                      onClick={() => setIsMonitoring(!isMonitoring)}
-                      className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                        isMonitoring 
-                          ? 'bg-red-50 text-red-600 hover:bg-red-100' 
-                          : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
-                      disabled={!hasValidConfig}
-                    >
-                      {isMonitoring ? '監視を停止' : '監視を再開'}
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('settings')}
-                      className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
-                      title="設定"
-                    >
-                      <Settings className="w-5 h-5" />
-                    </button>
-                  </React.Fragment>
-                ) : (
-                  <button
-                    onClick={() => setActiveTab('dashboard')}
-                    className="flex items-center gap-1 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    ダッシュボードに戻る
-                  </button>
-                )}
-              </div>
-            </div>
-          </header>
-
-          {activeTab === 'dashboard' ? (
-            <main className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 space-y-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <h2 className="text-lg font-bold text-slate-800">監視対象コレクション</h2>
-                  <span className="bg-slate-200 text-slate-600 text-xs px-2 py-1 rounded-full">{sites.length}サイト</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {sites.map(site => {
-                    const isConfigured = isConfigValid(site.firebaseConfig);
-                    const errorMsg = siteErrors[site.id];
-                    
-                    return (
-                      <div key={site.id} className={`bg-white rounded-xl border ${errorMsg ? 'border-red-300' : 'border-slate-200'} p-5 shadow-sm hover:shadow-md transition-shadow`}>
-                        <div className="flex justify-between items-start mb-3">
-                          <h3 className="font-bold text-lg text-blue-900">{site.name}</h3>
-                          {isMonitoring && isConfigured && !errorMsg ? (
-                            <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                              </span>
-                              監視中
-                            </span>
-                          ) : (
-                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${errorMsg ? 'text-red-600 bg-red-50' : 'text-slate-400 bg-slate-100'}`}>
-                              {errorMsg ? 'エラー' : (!isConfigured ? '未設定' : '停止中')}
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="text-sm text-slate-500 mb-4">
-                          <span className="bg-slate-100 px-2 py-1 rounded font-mono text-xs text-slate-600 border border-slate-200">
-                            /{site.collectionName}
-                          </span>
-                        </div>
-
-                        {errorMsg ? (
-                          <div className="mb-4 text-xs text-red-600 bg-red-50 p-3 rounded-lg border border-red-100 leading-snug">
-                            <span className="font-bold flex items-center gap-1 mb-1">
-                              <AlertCircle className="w-3 h-3" /> 接続エラー
-                            </span>
-                            {errorMsg}
-                          </div>
-                        ) : null}
-
-                        <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                          <Clock className="w-4 h-4 text-slate-400" />
-                          <span>最新更新: {site.lastUpdated ? formatDate(site.lastUpdated) : '未検知'}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {!hasValidConfig ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mt-8">
-                    <h4 className="flex items-center gap-2 font-bold text-amber-800 mb-2">
-                      <Settings className="w-5 h-5" />
-                      Firebaseの初期設定が必要です
-                    </h4>
-                    <p className="text-sm text-amber-900 leading-relaxed mb-4">
-                      データベースを監視するには、Firebaseの接続情報が必要です。右上の「設定」ボタンから、各サイトのFirebaseプロジェクト情報を入力してください。
-                    </p>
-                    <button
-                      onClick={() => setActiveTab('settings')}
-                      className="bg-amber-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-amber-700 transition-colors"
-                    >
-                      設定画面を開く
-                    </button>
-                  </div>
-                ) : (
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 mt-8">
-                    <h4 className="flex items-center gap-2 font-bold text-blue-800 mb-2">
-                      <Info className="w-5 h-5" />
-                      運用状況
-                    </h4>
-                    <p className="text-sm text-blue-900 leading-relaxed">
-                      現在、設定されたFirebaseプロジェクトからのデータ更新を個別にリアルタイムで監視しています。対象コレクションに変更があると、右下にポップアップ通知が表示され、右側の履歴に記録されます。
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm h-[calc(100vh-8rem)] sticky top-24 flex flex-col">
-                <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 rounded-t-xl">
-                  <h2 className="font-bold flex items-center gap-2 text-slate-800">
-                    <BellRing className="w-5 h-5 text-amber-500" />
-                    通知履歴
-                  </h2>
-                  {notifications.length > 0 && (
-                    <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded-full">
-                      {notifications.length}件
-                    </span>
-                  )}
-                </div>
-                
-                <div className="overflow-y-auto flex-1 p-2">
-                  {notifications.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-3">
-                      <Bell className="w-12 h-12 text-slate-200" />
-                      <p className="text-sm">更新履歴はありません</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {notifications.map((note) => (
-                        <div key={note.id} className="p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-100 transition-colors group">
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                              {note.siteName}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              {formatTime(note.timestamp)}
-                            </span>
-                          </div>
-                          <p className="text-sm text-slate-700 font-medium leading-tight mt-2 mb-2">
-                            {note.message}
-                          </p>
-                          <a href={note.siteUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            確認する <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </main>
-          ) : (
-            <SettingsView initialSites={sites} onSave={saveSettings} />
-          )}
-
-          <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 w-80">
-            {toasts.map((toast) => (
-              <div 
-                key={toast.id} 
-                className="bg-slate-800 text-white p-4 rounded-xl shadow-2xl shadow-blue-900/20 transform transition-all duration-300 translate-y-0 opacity-100 flex items-start gap-3 border border-slate-700"
-                style={{ animation: 'slideIn 0.3s ease-out forwards' }}
-              >
-                <div className="bg-blue-500/20 p-2 rounded-full flex-shrink-0">
-                  <CheckCircle2 className="w-5 h-5 text-blue-400" />
-                </div>
-                <div className="flex-1 pr-2">
-                  <h4 className="font-bold text-sm text-blue-300 mb-1">{toast.site.name}</h4>
-                  <p className="text-sm text-slate-200 leading-snug">{toast.message}</p>
-                  <p className="text-xs text-slate-400 mt-2">{formatTime(toast.timestamp)}</p>
-                </div>
-                <button 
-                  onClick={() => removeToast(toast.id)}
-                  className="text-slate-400 hover:text-white transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-xl p-8 md:p-12 max-w-7xl w-full text-center border border-gray-200">
+        <div class="flex flex-col md:flex-row items-center justify-center gap-4 mb-10">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-800 leading-tight">
+                政策リサーチ関連ダッシュボード
+            </h1>
+            <button id="openManual" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-full text-sm font-bold transition-colors flex items-center gap-2 border border-gray-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                使い方
+            </button>
         </div>
-      );
-    }
 
-    function SettingsView({ initialSites, onSave }) {
-      const [sites, setSites] = useState(() => {
-        return initialSites.map(site => ({
-          ...site,
-          rawConfigText: generateConfigText(site.firebaseConfig)
-        }));
-      });
-
-      const handleSiteChange = (index, field, value) => {
-        const newSites = [...sites];
-        newSites[index][field] = value;
-        setSites(newSites);
-      };
-
-      const handleRawConfigChange = (index, value) => {
-        const newSites = [...sites];
-        newSites[index].rawConfigText = value;
-        newSites[index].firebaseConfig = extractFirebaseConfig(value);
-        setSites(newSites);
-      };
-
-      const addSite = () => {
-        setSites([...sites, { 
-          id: Date.now().toString(), 
-          name: '', 
-          url: '', 
-          collectionName: '', 
-          firebaseConfig: { ...DEFAULT_FIREBASE_CONFIG },
-          rawConfigText: '',
-          lastUpdated: null 
-        }]);
-      };
-
-      const removeSite = (index) => {
-        setSites(sites.filter((_, i) => i !== index));
-      };
-
-      const handleSubmit = (e) => {
-        e.preventDefault();
-        onSave(sites);
-      };
-
-      return (
-        <main className="max-w-4xl mx-auto px-4 py-8">
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center sticky top-16 z-10">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-emerald-600" />
-                    サイト別 監視設定
-                  </h2>
-                  <p className="text-sm text-slate-500 mt-1">
-                    サイトごとに個別のFirebaseプロジェクトとコレクションを指定できます。
-                  </p>
+        <!-- グリッドレイアウト: 8枚構成 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- 本日のポイント -->
+            <div class="hover-card bg-gradient-to-tr from-green-50 to-green-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-green-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
                 </div>
-                <button
-                  type="button"
-                  onClick={addSite}
-                  className="flex items-center gap-1 text-sm bg-emerald-50 text-emerald-700 px-3 py-2 rounded-md hover:bg-emerald-100 transition-colors font-medium"
-                >
-                  <Plus className="w-4 h-4" /> 新規追加
+                <button onclick="openUrlWithPassword('https://report.rifj.jp/point/', 'point')" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-green-300">
+                    本日のポイント
                 </button>
-              </div>
-              
-              <div className="p-6 space-y-8">
-                {sites.map((site, index) => (
-                  <div key={site.id} className="border border-slate-200 rounded-xl bg-white shadow-sm relative group overflow-hidden">
-                    <div className="p-5 bg-slate-50 border-b border-slate-200">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mr-8">
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">表示名</label>
-                            <input
-                              type="text"
-                              value={site.name}
-                              onChange={(e) => handleSiteChange(index, 'name', e.target.value)}
-                              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="例: 政策レポート"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">サイトURL (確認用リンク)</label>
-                            <input
-                              type="text"
-                              value={site.url}
-                              onChange={(e) => handleSiteChange(index, 'url', e.target.value)}
-                              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="https://..."
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">Firestore コレクション名</label>
-                            <input
-                              type="text"
-                              value={site.collectionName}
-                              onChange={(e) => handleSiteChange(index, 'collectionName', e.target.value)}
-                              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                              placeholder="例: articles"
-                              required
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeSite(index)}
-                        className="absolute top-4 right-4 p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                        title="このサイト設定を削除"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    <details className="group/details">
-                      <summary className="px-5 py-3 text-sm font-medium text-blue-700 cursor-pointer hover:bg-blue-50 flex items-center gap-2 select-none">
-                        <Database className="w-4 h-4" />
-                        このサイトの Firebase 接続設定 (コピー＆ペースト)
-                        <ChevronDown className="w-4 h-4 ml-auto transition-transform group-open/details:rotate-180" />
-                      </summary>
-                      <div className="p-5 border-t border-slate-100 bg-white">
-                        <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-                          Firebase Console の「プロジェクト設定」に表示されるコードブロック（<code>const firebaseConfig = &#123; ... &#125;;</code>）をそのまま下の枠に貼り付けてください。
-                        </p>
-                        <textarea
-                          value={site.rawConfigText}
-                          onChange={(e) => handleRawConfigChange(index, e.target.value)}
-                          className="w-full px-4 py-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono h-32 bg-slate-50 resize-y"
-                          placeholder={`const firebaseConfig = {\n  apiKey: "AIzaSy...",\n  authDomain: "...",\n  projectId: "...",\n  ...\n};`}
-                        />
-                        
-                        <div className="mt-4">
-                          <p className="text-xs font-medium text-slate-500 mb-2">抽出された設定値:</p>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                            {Object.keys(DEFAULT_FIREBASE_CONFIG).map((key) => {
-                              const val = site.firebaseConfig[key];
-                              return (
-                                <div key={key} className="text-xs flex flex-col bg-slate-50 p-2 rounded border border-slate-100 overflow-hidden">
-                                  <span className="text-slate-400 mb-0.5">{key}</span>
-                                  <span className={`truncate font-mono ${val ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
-                                    {val || '未設定'}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </details>
-                  </div>
-                ))}
-                
-                {sites.length === 0 && (
-                  <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                    <Database className="w-10 h-10 mx-auto text-slate-300 mb-3" />
-                    <p>監視対象のサイトがありません。</p>
-                    <p className="text-sm mt-1">「新規追加」ボタンから登録してください。</p>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <div className="flex justify-end pt-4 pb-10">
-              <button
-                type="submit"
-                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
-              >
-                <Save className="w-5 h-5" />
-                設定を保存して反映する
-              </button>
+                <p id="point-status" class="text-xs text-green-800 font-medium status-loading">読込中...</p>
             </div>
-          </form>
-        </main>
-      );
-    }
 
-    // Reactアプリの描画開始
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
+            <!-- 政策レポート -->
+            <div class="hover-card bg-gradient-to-tr from-purple-50 to-purple-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-purple-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17h6m-1-4v4m-2-4h2a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6a2 2 0 002 2h2m2 0h2a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6a2 2 0 002 2h2"></path>
+                    </svg>
+                </div>
+                <button onclick="openUrlWithPassword('https://report.rifj.jp/policy/', 'policy')" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-purple-300">
+                    政策レポート
+                </button>
+                <p id="policy-status" class="text-xs text-purple-800 font-medium status-loading">読込中...</p>
+            </div>
+
+            <!-- 開発者のブログ -->
+            <div class="hover-card bg-gradient-to-tr from-red-50 to-red-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-red-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                    </svg>
+                </div>
+                <button onclick="openUrlWithPassword('https://report.rifj.jp/blog/', 'blog')" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-red-300">
+                    開発者のブログ
+                </button>
+                <p id="blog-status" class="text-xs text-red-800 font-medium status-loading">読込中...</p>
+            </div>
+
+            <!-- 国会質問主意書 -->
+            <div class="hover-card bg-gradient-to-tr from-amber-50 to-amber-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-amber-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/shitsumonshui/', '_blank')" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-amber-300">
+                    国会質問主意書
+                </button>
+                <p id="diet-status" class="text-xs text-amber-800 font-medium status-loading">読込中...</p>
+            </div>
+
+            <!-- 関連動画チャネル -->
+            <div class="hover-card bg-gradient-to-tr from-rose-50 to-rose-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-rose-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/webtest/', '_blank')" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-rose-300">
+                    関連動画チャネル
+                </button>
+                <p id="video-status" class="text-xs text-rose-800 font-medium status-loading">読込中...</p>
+            </div>
+
+            <!-- 文脈解析アプリ -->
+            <div class="hover-card bg-gradient-to-tr from-blue-50 to-blue-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-blue-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
+                    </svg>
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/text/', '_blank')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    文脈解析アプリ
+                </button>
+                <p class="text-sm text-blue-800 font-medium">データ内容を分析</p>
+            </div>
+
+            <!-- レイアウトツール -->
+            <div class="hover-card bg-gradient-to-tr from-indigo-50 to-indigo-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-indigo-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path>
+                    </svg>
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/layout/', '_blank')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+                    レイアウトツール
+                </button>
+                <p class="text-sm text-indigo-800 font-medium">レイアウト構成を設計</p>
+            </div>
+
+            <!-- 調査＆レポート -->
+            <div class="hover-card bg-gradient-to-tr from-teal-50 to-teal-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-teal-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/word/', '_blank')" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-teal-300">
+                    調査＆レポート
+                </button>
+                <p class="text-sm text-teal-800 font-medium">調査と資料作成を自動化</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 使い方ガイドモーダル -->
+    <div id="manualModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div id="modalOverlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 modal-overlay"></div>
+        <div id="modalContent" class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden relative z-10 opacity-0 scale-95 modal-content flex flex-col">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <h2 class="text-2xl font-extrabold text-gray-800">使い方ガイド</h2>
+                <button id="closeManual" class="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="p-8 overflow-y-auto space-y-8">
+                <section>
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                        <span class="w-2 h-6 bg-blue-500 rounded-full"></span>
+                        更新状況の見方
+                    </h3>
+                    <div class="bg-blue-50 rounded-2xl p-4 space-y-3">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-black text-red-600 bg-white px-2 py-1 rounded border border-red-200">赤色・太字</span>
+                            <span class="text-sm text-gray-700 font-medium">今日（または昨日）更新された最新情報です。</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-medium text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">通常色</span>
+                            <span class="text-sm text-gray-700 font-medium">アーカイブデータです。</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                        <span class="w-2 h-6 bg-indigo-500 rounded-full"></span>
+                        各ボタンの内容
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-green-700 text-sm mb-1">本日のポイント</span>
+                            <p class="text-xs text-gray-600">日々の政策動向の要約を確認。（パスワード自動送信）</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-purple-700 text-sm mb-1">政策レポート</span>
+                            <p class="text-xs text-gray-600">特定のテーマに基づいた分析レポート。（パスワード自動送信）</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-red-700 text-sm mb-1">開発者のブログ</span>
+                            <p class="text-xs text-gray-600">システムの更新情報や開発背景。（パスワード自動送信）</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-amber-700 text-sm mb-1">国会質問主意書</span>
+                            <p class="text-xs text-gray-600">国会で提出された質問主意書の動向。</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-rose-700 text-sm mb-1">関連動画チャネル</span>
+                            <p class="text-xs text-gray-600">政策解説や会議概要の動画コンテンツ。</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-blue-700 text-sm mb-1">文脈解析アプリ</span>
+                            <p class="text-xs text-gray-600">データの文脈を読み取り分析を支援。</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-indigo-700 text-sm mb-1">レイアウトツール</span>
+                            <p class="text-xs text-gray-600">レポートや資料の構成を設計。</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-teal-700 text-sm mb-1">調査＆レポート</span>
+                            <p class="text-xs text-gray-600">調査から資料生成までを自動化するツール。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="text-center p-4 bg-gray-50 rounded-2xl text-xs text-gray-500">
+                    ※パスワード送信対応サイトへは自動ログインを試みます。
+                </div>
+            </div>
+            
+            <div class="p-6 bg-gray-50/50 border-t border-gray-100 text-center">
+                <button id="closeManualBtn" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all active:scale-95">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getFirestore, collection, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+
+        const firebaseConfigBlog = { apiKey: "AIzaSyD-2UK3S9QjydIIqcTwyfpZMh-Gy4fXlMA", authDomain: "blog-viewer-f83bc.firebaseapp.com", projectId: "blog-viewer-f83bc", storageBucket: "blog-viewer-f83bc.firebasestorage.app", messagingSenderId: "182374996524", appId: "1:182374996524:web:c6d9f3cfe32957a0bd4f89" };
+        const firebaseConfigDiet = { apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs", authDomain: "user-9b981.firebaseapp.com", projectId: "user-9b981" };
+        const firebaseConfigImport = { apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04", authDomain: "import-b6097.firebaseapp.com", projectId: "import-b6097", storageBucket: "import-b6097.firebasestorage.app", messagingSenderId: "462510788117", appId: "1:462510788117:web:44ff1fd1af583f67bc081c" };
+
+        const appBlog = initializeApp(firebaseConfigBlog, "blogApp");
+        const dbBlog = getFirestore(appBlog);
+        const appDiet = initializeApp(firebaseConfigDiet, "dietApp");
+        const dbDiet = getFirestore(appDiet);
+        const appImport = initializeApp(firebaseConfigImport, "importApp");
+        const dbImport = getFirestore(appImport);
+
+        function updateStatusDisplay(elementId, date) {
+            const el = document.getElementById(elementId);
+            if (!el || !date) return;
+            const formatted = date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+            const today = new Date();
+            const yesterday = new Date();
+            yesterday.setDate(today.getDate() - 1);
+            const isSameDay = (d1, d2) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
+            el.textContent = `最終更新: ${formatted}`;
+            el.classList.remove('status-loading');
+            if (isSameDay(date, today)) {
+                el.className = "text-xs font-black text-red-600";
+            } else if (isSameDay(date, yesterday)) {
+                el.className = "text-xs font-bold text-red-500";
+            } else {
+                if (elementId === 'point-status') el.className = "text-xs text-green-800 font-medium opacity-75";
+                else if (elementId === 'policy-status') el.className = "text-xs text-purple-800 font-medium opacity-75";
+                else if (elementId === 'blog-status') el.className = "text-xs text-red-800 font-medium opacity-75";
+                else if (elementId === 'diet-status') el.className = "text-xs text-amber-800 font-medium opacity-75";
+                else if (elementId === 'video-status') el.className = "text-xs text-rose-800 font-medium opacity-75";
+                else el.className = "text-xs font-medium opacity-75";
+            }
+        }
+
+        onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/point_last_import_metadata"), (snap) => {
+            if (snap.exists()) {
+                const ts = snap.data().lastImportTimestamp;
+                updateStatusDisplay('point-status', ts?.toDate ? ts.toDate() : new Date(ts));
+            }
+        });
+
+        onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/policy_last_import_metadata"), (snap) => {
+            if (snap.exists()) {
+                const ts = snap.data().lastImportTimestamp;
+                updateStatusDisplay('policy-status', ts?.toDate ? ts.toDate() : new Date(ts));
+            }
+        });
+
+        onSnapshot(collection(dbBlog, "posts"), (snapshot) => {
+            let latest = null;
+            snapshot.docs.forEach(d => {
+                const ts = d.data().createdAt;
+                const date = ts?.toDate ? ts.toDate() : new Date(ts);
+                if (!latest || date > latest) latest = date;
+            });
+            updateStatusDisplay('blog-status', latest);
+        });
+
+        const initDiet = async () => {
+            const auth = getAuth(appDiet);
+            await signInAnonymously(auth);
+            onSnapshot(doc(dbDiet, "dashboard_data", "config"), (snap) => {
+                if (snap.exists()) {
+                    const sessions = snap.data().sessions || [];
+                    if (sessions.length > 0) {
+                        const latestSession = sessions.reduce((max, s) => new Date(s.updatedAt) > new Date(max.updatedAt) ? s : max, sessions[0]);
+                        updateStatusDisplay('diet-status', new Date(latestSession.updatedAt));
+                    }
+                }
+            });
+        };
+        initDiet();
+
+        // --- Video Channel Logic: 最新の動画公開日を取得 ---
+        const videoUpdateTimes = { meeting: null, policy: null };
+        const videoAppId = 'youtube-playlist-app';
+        
+        const updateVideoChannelStatus = () => {
+            const times = [videoUpdateTimes.meeting, videoUpdateTimes.policy].filter(t => t !== null);
+            if (times.length === 0) return;
+            const latest = new Date(Math.max(...times.map(t => t.getTime())));
+            updateStatusDisplay('video-status', latest);
+        };
+
+        const getLatestVideoDate = (snap) => {
+            if (!snap.exists()) return null;
+            const videos = snap.data().videos || [];
+            if (videos.length === 0) return null;
+            // videos配列内の各videoにあるpubDateの最大値を抽出
+            const maxTs = Math.max(...videos.map(v => v.pubDate));
+            return new Date(maxTs);
+        };
+
+        // 会議等概要
+        onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_'), (snap) => {
+            const latest = getLatestVideoDate(snap);
+            if (latest) { videoUpdateTimes.meeting = latest; updateVideoChannelStatus(); }
+        });
+
+        // 政策レポート
+        onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2'), (snap) => {
+            const latest = getLatestVideoDate(snap);
+            if (latest) { videoUpdateTimes.policy = latest; updateVideoChannelStatus(); }
+        });
+    </script>
+
+    <script>
+        const modal = document.getElementById('manualModal');
+        const overlay = document.getElementById('modalOverlay');
+        const content = document.getElementById('modalContent');
+        const openBtn = document.getElementById('openManual');
+        const closeBtns = [document.getElementById('closeManual'), document.getElementById('closeManualBtn'), overlay];
+
+        function openModal() { modal.classList.remove('hidden'); setTimeout(() => { overlay.classList.add('opacity-100'); content.classList.add('opacity-100', 'scale-100'); content.classList.remove('scale-95'); }, 10); }
+        function closeModal() { overlay.classList.remove('opacity-100'); content.classList.remove('opacity-100', 'scale-100'); content.classList.add('scale-95'); setTimeout(() => { modal.classList.add('hidden'); }, 300); }
+
+        openBtn.addEventListener('click', openModal);
+        closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
+
+        function openUrlWithPassword(baseUrl, password) {
+            const targetUrl = `${baseUrl}?pw=${password}#${password}`;
+            window.open(targetUrl, '_blank');
+        }
+    </script>
 </body>
 </html>
