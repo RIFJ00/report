@@ -39,10 +39,10 @@
                 </h1>
                 
                 <div class="flex flex-col sm:flex-row items-end sm:items-center gap-4 w-full md:w-auto">
-                    <!-- APIキー設定 (ドロップダウン式) -->
-                    <details class="text-sm text-gray-600 group relative">
+                    <!-- API・データ設定 (ドロップダウン式) -->
+                    <details id="apiSettingsDetails" class="text-sm text-gray-600 group relative">
                         <summary class="cursor-pointer hover:text-red-600 font-medium select-none flex items-center py-2">
-                            <i class="fas fa-cog mr-1"></i> API設定
+                            <i class="fas fa-cog mr-1"></i> API・データ設定
                         </summary>
                         <div class="absolute right-0 top-full mt-1 p-4 bg-white border border-gray-200 rounded-md shadow-xl w-72 sm:w-80 z-[100]">
                             <p class="mb-3 text-xs text-gray-600 leading-relaxed">
@@ -50,6 +50,17 @@
                             </p>
                             <input type="text" id="apiKey" placeholder="AIzaSy... (任意)" 
                                    class="block w-full rounded-md border-gray-300 border px-3 py-2 focus:border-red-500 focus:ring-red-500 outline-none bg-white">
+                            
+                            <!-- データ強制上書き機能 -->
+                            <div class="mt-4 pt-4 border-t border-gray-200">
+                                <h4 class="font-bold text-gray-800 mb-2 text-sm"><i class="fas fa-database text-orange-500 mr-1"></i> データ管理</h4>
+                                <p class="mb-3 text-xs text-gray-500 leading-relaxed">
+                                    通常、動画はFirebaseに蓄積されます。YouTube側で削除・整理された状態を反映し、蓄積データをリセットして同期し直す場合は以下のボタンを押してください。
+                                </p>
+                                <button id="overwriteBtn" class="w-full bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold py-2.5 px-4 rounded shadow transition duration-200 flex items-center justify-center">
+                                    <i class="fas fa-sync text-white mr-2"></i>現在のリスト状態に上書き同期
+                                </button>
+                            </div>
                         </div>
                     </details>
                     
@@ -171,6 +182,37 @@
 
     </main>
 
+    <!-- 完全上書き 確認モーダル -->
+    <div id="confirmModal" class="fixed inset-0 bg-black/50 z-[300] hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden transform scale-95 transition-transform duration-300">
+            <div class="p-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-3"><i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i>データの完全上書き</h3>
+                <p class="text-sm text-gray-600 mb-4 leading-relaxed">
+                    現在選択中の再生リストについて、YouTubeから最新のデータを取得し、<strong>システムに蓄積されている過去のデータをすべて消去して上書き</strong>します。<br><br>
+                    YouTube側で削除・非公開にされた動画はリストから消えます。本当によろしいですか？
+                </p>
+                <div class="flex justify-end gap-3 mt-6">
+                    <button id="cancelOverwriteBtn" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md text-sm font-medium transition">キャンセル</button>
+                    <button id="executeOverwriteBtn" class="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-sm font-medium transition shadow-md">上書きを実行</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- パスワード認証モーダル -->
+    <div id="passwordModal" class="fixed inset-0 bg-black/50 z-[300] hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform scale-95 transition-transform duration-300 p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-3"><i class="fas fa-lock text-gray-500 mr-2"></i>管理者認証</h3>
+            <p class="text-sm text-gray-600 mb-4">設定を開くにはパスワードを入力してください。</p>
+            <input type="password" id="adminPasswordInput" placeholder="パスワード" class="w-full border border-gray-300 rounded-md px-3 py-2 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition">
+            <p id="passwordError" class="text-xs text-red-500 hidden mb-4">パスワードが間違っています。</p>
+            <div class="flex justify-end gap-3 mt-4">
+                <button id="cancelPasswordBtn" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md text-sm font-medium transition">キャンセル</button>
+                <button id="submitPasswordBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition shadow-md">ロック解除</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 使い方マニュアル モーダル -->
     <div id="helpModal" class="fixed inset-0 bg-black/50 z-[200] hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
         <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden transform scale-95 transition-transform duration-300">
@@ -204,11 +246,14 @@
                         <li>「経産省」「国交省」などの略称で入力しても、正式名称（経済産業省など）として検索ヒットします。</li>
                     </ul>
                 </div>
-                <div>
-                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-database text-green-500 mr-2"></i>データ・高度な設定</h3>
+                
+                <!-- 管理者のみ表示されるセクション (初期状態はhidden) -->
+                <div id="adminHelpSection" class="hidden">
+                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-database text-green-500 mr-2"></i>データ・高度な設定 (管理者用)</h3>
                     <ul class="list-disc pl-5 space-y-1.5 text-gray-600 mb-3">
                         <li>取得した動画リストはシステム内に蓄積され、過去の動画も検索・視聴可能です。</li>
-                        <li><strong>「API設定」</strong>からご自身の YouTube API キーを設定することで、より安定して全件の動画データ（非公開リスト含む）を取得できます。</li>
+                        <li><strong>「API・データ設定」</strong>からご自身の YouTube API キーを設定することで、より安定して全件の動画データ（非公開リスト含む）を取得できます。</li>
+                        <li>また「API・データ設定」から、蓄積された過去のデータを消去し、現在のYouTube上のリストと完全に同期（上書き）することも可能です。</li>
                     </ul>
                     <div class="bg-blue-50 p-4 rounded-md border border-blue-100 mt-2">
                         <h4 class="font-bold text-blue-800 mb-2 text-sm"><i class="fas fa-key mr-1"></i>YouTube APIキーの取得手順（無料）</h4>
@@ -437,10 +482,22 @@
             // 推定フラグがある場合はその旨を表示
             document.getElementById('currentDate').textContent = video.isEstimated ? `公開日: 約 ${dateStr} (推定)` : `公開日: ${dateStr}`;
             
+            // URLをリンク化する関数（セキュリティのためHTMLエスケープ処理を含む）
+            const linkify = (text) => {
+                const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({
+                    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+                }[tag] || tag));
+                
+                const escaped = escapeHTML(text);
+                const urlRegex = /(https?:\/\/[^\s]+)/g;
+                // リンクは青色にし、別タブで開くように設定
+                return escaped.replace(urlRegex, url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline font-medium">${url}</a>`);
+            };
+
             // 概要の表示
             const descEl = document.getElementById('currentDescription');
             if (video.description) {
-                descEl.textContent = video.description;
+                descEl.innerHTML = linkify(video.description);
             } else {
                 descEl.textContent = "この動画に概要はありません。";
                 descEl.classList.add("text-gray-400");
@@ -530,7 +587,7 @@
             }
         }
 
-        async function fetchPlaylistData(isAutoUpdate = false, forceYouTube = false) {
+        async function fetchPlaylistData(isAutoUpdate = false, forceYouTube = false, overwriteFirebase = false) {
             const selectedRadio = document.querySelector('input[name="playlistSelect"]:checked');
             const playlistId = selectedRadio ? selectedRadio.value : null;
             const apiKey = document.getElementById('apiKey').value.trim();
@@ -587,8 +644,13 @@
                             if (!newVideos || newVideos.length === 0) throw new Error("RSS Empty");
                         } catch (rssError) {
                             console.warn("RSSからの取得に失敗したため、限定公開用のHTML解析を試行します。", rssError);
-                            newVideos = await fetchWithHtmlScraping(playlistId);
-                            usedScraping = true;
+                            try {
+                                newVideos = await fetchWithHtmlScraping(playlistId);
+                                usedScraping = true;
+                            } catch (scrapeError) {
+                                console.warn("スクレイピング取得に失敗しました:", scrapeError);
+                                // エラーを握り潰し、既存データ（Firebase）へのフォールバックを機能させる
+                            }
                         }
                     }
 
@@ -599,7 +661,7 @@
 
                     // 取得できたら、Firebaseの既存データとマージ（統合）して保存
                     if (newVideos && newVideos.length > 0) {
-                        if (existingVideos && existingVideos.length > 0) {
+                        if (!overwriteFirebase && existingVideos && existingVideos.length > 0) {
                             // IDをキーにして重複を排除しつつ統合
                             const videoMap = new Map();
                             // まず既存データを入れる
@@ -611,11 +673,15 @@
                             videos = Array.from(videoMap.values());
                             videos.sort((a, b) => b.pubDate - a.pubDate);
                         } else {
+                            // 上書きモードの場合、過去のデータは破棄して新規取得データのみを利用する
                             videos = newVideos;
                         }
                         
-                        // マージされたすべての動画リストをFirebaseに保存（蓄積）
+                        // マージされた（または上書きされた）すべての動画リストをFirebaseに保存
                         await saveToFirebase(playlistId, videos);
+                        if (overwriteFirebase) {
+                            showToast("データを現在のYouTubeの状態で完全に上書き同期しました。");
+                        }
                     } else if (!videos) {
                         // 新規取得に失敗したが既存データがある場合のフォールバック
                         videos = existingVideos; 
@@ -628,15 +694,17 @@
                 }
 
                 // --- 変更検知ロジック：新しい取得結果と現在の表示リストを比較する ---
-                let isChanged = false;
-                if (!videoList || videoList.length !== videos.length) {
-                    isChanged = true;
-                } else {
-                    for (let i = 0; i < videos.length; i++) {
-                        // 1件でもIDが違う、または順番が変わっていれば「変更あり」とする
-                        if (videos[i].id !== videoList[i].id) {
-                            isChanged = true;
-                            break;
+                let isChanged = overwriteFirebase; // 上書き同期時は強制的に再描画する
+                if (!isChanged) {
+                    if (!videoList || videoList.length !== videos.length) {
+                        isChanged = true;
+                    } else {
+                        for (let i = 0; i < videos.length; i++) {
+                            // 1件でもIDが違う、または順番が変わっていれば「変更あり」とする
+                            if (videos[i].id !== videoList[i].id) {
+                                isChanged = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -796,14 +864,25 @@
                 if (Array.isArray(obj)) {
                     for (const item of obj) found.push(...extractVideoItems(item));
                 } else {
-                    if (obj.playlistVideoRenderer) found.push(obj);
-                    else for (const key in obj) found.push(...extractVideoItems(obj[key]));
+                    if (obj.playlistVideoRenderer) {
+                        found.push(obj);
+                    } else if (obj.playlistPanelVideoRenderer) {
+                        found.push({ playlistVideoRenderer: obj.playlistPanelVideoRenderer });
+                    } else if (obj.gridVideoRenderer) {
+                        found.push({ playlistVideoRenderer: obj.gridVideoRenderer });
+                    } else {
+                        for (const key in obj) found.push(...extractVideoItems(obj[key]));
+                    }
                 }
                 return found;
             }
             let items = [];
             try { items = extractVideoItems(ytData); } catch (e) { throw new Error("データ抽出中のエラーです。"); }
-            if (items.length === 0) throw new Error("限定公開リスト内に動画が見つかりません。");
+            
+            if (items.length === 0) {
+                console.warn("限定公開リスト内に動画が見つかりません。");
+                return []; // エラーを投げずに空の配列を返す
+            }
 
             function estimateDateFromRelativeTime(relativeTimeText) {
                 const now = new Date();
@@ -1128,6 +1207,119 @@
                 searchInput.value = '';
                 clearSearchBtn.classList.add('hidden');
                 renderPlaylist(); // クリアしてリスト全体を再描画
+            });
+
+            // API設定のパスワード保護
+            const apiSettingsDetails = document.getElementById('apiSettingsDetails');
+            const apiSettingsSummary = apiSettingsDetails.querySelector('summary');
+            const passwordModal = document.getElementById('passwordModal');
+            const passwordContent = passwordModal.querySelector('div.bg-white');
+            const adminPasswordInput = document.getElementById('adminPasswordInput');
+            const submitPasswordBtn = document.getElementById('submitPasswordBtn');
+            const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
+            const passwordError = document.getElementById('passwordError');
+            
+            let isAuthenticated = false;
+
+            apiSettingsSummary.addEventListener('click', (e) => {
+                if (!isAuthenticated) {
+                    e.preventDefault(); // クリックしても開かないようにする
+                    
+                    adminPasswordInput.value = '';
+                    passwordError.classList.add('hidden');
+                    passwordModal.classList.remove('hidden');
+                    setTimeout(() => {
+                        passwordModal.classList.remove('opacity-0');
+                        passwordContent.classList.remove('scale-95');
+                        adminPasswordInput.focus();
+                    }, 10);
+                }
+            });
+
+            const closePasswordModal = () => {
+                passwordModal.classList.add('opacity-0');
+                passwordContent.classList.add('scale-95');
+                setTimeout(() => {
+                    passwordModal.classList.add('hidden');
+                }, 300);
+            };
+
+            cancelPasswordBtn.addEventListener('click', closePasswordModal);
+
+            const checkPassword = () => {
+                if (adminPasswordInput.value === 'youtube') {
+                    isAuthenticated = true;
+                    closePasswordModal();
+                    
+                    // パスワード認証成功時に、使い方マニュアルの管理者セクションを表示状態にする
+                    document.getElementById('adminHelpSection').classList.remove('hidden');
+                    
+                    // 少し遅延させてからメニューを開く
+                    setTimeout(() => {
+                        apiSettingsDetails.setAttribute('open', '');
+                        // アイコンをアンロック状態に変更
+                        const icon = apiSettingsSummary.querySelector('.fas.fa-cog');
+                        if(icon) {
+                            icon.classList.remove('fa-cog');
+                            icon.classList.add('fa-unlock', 'text-blue-500');
+                        }
+                        showToast("管理者としてロックを解除しました。");
+                    }, 200);
+                } else {
+                    passwordError.classList.remove('hidden');
+                    // エラー時に少し揺らすアニメーションを追加
+                    passwordContent.classList.add('translate-x-1');
+                    setTimeout(() => passwordContent.classList.remove('translate-x-1'), 100);
+                }
+            };
+
+            submitPasswordBtn.addEventListener('click', checkPassword);
+            
+            // Enterキーでもパスワード送信できるようにする
+            adminPasswordInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    checkPassword();
+                }
+            });
+
+            // モーダルの外側をクリックで閉じる
+            passwordModal.addEventListener('click', (e) => {
+                if (e.target === passwordModal) closePasswordModal();
+            });
+
+            // 完全上書きモーダルの制御
+            const confirmModal = document.getElementById('confirmModal');
+            const confirmContent = confirmModal.querySelector('div.bg-white');
+            // const apiSettingsDetails = document.getElementById('apiSettingsDetails'); // 重複宣言を削除
+
+            document.getElementById('overwriteBtn').addEventListener('click', () => {
+                apiSettingsDetails.removeAttribute('open'); // ドロップダウンを閉じる
+                
+                confirmModal.classList.remove('hidden');
+                setTimeout(() => {
+                    confirmModal.classList.remove('opacity-0');
+                    confirmContent.classList.remove('scale-95');
+                }, 10);
+            });
+
+            const closeConfirm = () => {
+                confirmModal.classList.add('opacity-0');
+                confirmContent.classList.add('scale-95');
+                setTimeout(() => {
+                    confirmModal.classList.add('hidden');
+                }, 300);
+            };
+
+            document.getElementById('cancelOverwriteBtn').addEventListener('click', closeConfirm);
+            
+            document.getElementById('executeOverwriteBtn').addEventListener('click', () => {
+                closeConfirm();
+                // 既存データを無視し、YouTubeの最新データで完全に上書きする
+                fetchPlaylistData(false, true, true);
+            });
+            
+            confirmModal.addEventListener('click', (e) => {
+                if (e.target === confirmModal) closeConfirm();
             });
 
             // トップへ移動するボタンの制御
