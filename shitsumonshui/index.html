@@ -300,7 +300,7 @@
         <section class="bg-amber-50 p-4 rounded-lg border border-amber-100">
           <h3 class="text-base font-bold text-slate-800 mb-2 flex items-center gap-2"><i data-lucide="lightbulb" class="w-4 h-4 text-amber-500"></i>活用場面</h3>
           <ul class="list-disc list-inside space-y-1">
-            <li>特定の社会問題に対する政府の方針を調査する</li>
+            <li>特定の政策や社会問題に対する政府の方針を調査する</li>
             <li>ニュースで話題のトピックに関する詳細な事実関係を知る</li>
             <li>所属議員の国会での活動実績（関心事）を確認する</li>
           </ul>
@@ -322,7 +322,7 @@
         <h3 class="text-lg font-bold text-slate-800 mb-2" id="custom-dialog-title">確認</h3>
         <p class="text-sm text-slate-600 mb-4" id="custom-dialog-msg"></p>
         <div id="custom-dialog-input-container" style="display: none;">
-          <input type="password" id="custom-dialog-input" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="shitsumon">
+          <input type="password" id="custom-dialog-input" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="パスワードを入力">
           <p id="custom-dialog-error" class="text-xs text-red-500 mt-1" style="display: none;">パスワードが違います</p>
         </div>
       </div>
@@ -432,8 +432,11 @@
     };
 
     const renderLoading = (msg = "読込中...") => {
-      document.getElementById('data-container').innerHTML = `<div class="bg-white p-12 rounded-xl border border-slate-200 text-center flex flex-col items-center justify-center"><i data-lucide="loader-2" class="w-12 h-12 text-blue-500 animate-spin mb-4"></i><h3 class="text-lg font-medium text-slate-700">${msg}</h3></div>`;
-      lucide.createIcons();
+      const container = document.getElementById('data-container');
+      if (container) {
+        container.innerHTML = `<div class="bg-white p-12 rounded-xl border border-slate-200 text-center flex flex-col items-center justify-center"><i data-lucide="loader-2" class="w-12 h-12 text-blue-500 animate-spin mb-4"></i><h3 class="text-lg font-medium text-slate-700">${msg}</h3></div>`;
+        lucide.createIcons();
+      }
     };
 
     const refreshAllData = async () => {
@@ -570,12 +573,11 @@
       const stats = { '衆議院': 0, '参議院': 0 };
       const catCounts = {}; const qCounts = {};
       filtered.forEach(it => {
-        if (it.house) stats[it.house]++;
+        if (it.house) stats[it.house] = (stats[it.house] || 0) + 1;
         if (it.category) catCounts[it.category] = (catCounts[it.category] || 0) + 1;
         const q = formatQuestioner(it.questioner); if (q) qCounts[q] = (qCounts[q] || 0) + 1;
       });
 
-      // Render Stats
       const sortedCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,3);
       const sortedQs = Object.entries(qCounts).sort((a,b)=>b[1]-a[1]).slice(0,3);
       document.getElementById('stats-container').innerHTML = `
@@ -586,8 +588,8 @@
         <div class="bg-white p-5 rounded-xl border border-slate-200">
           <div class="flex justify-between items-start mb-3"><h3 class="text-xs font-medium text-slate-500 uppercase tracking-wider">院別</h3><i data-lucide="pie-chart" class="w-5 h-5 text-purple-500"></i></div>
           <div class="flex gap-4">
-            <div class="flex-1"><div class="text-[10px] text-slate-400">衆</div><div class="font-bold">${stats['衆議院']}</div></div>
-            <div class="flex-1"><div class="text-[10px] text-slate-400">参</div><div class="font-bold">${stats['参議院']}</div></div>
+            <div class="flex-1"><div class="text-[10px] text-slate-400">衆</div><div class="font-bold">${stats['衆議院'] || 0}</div></div>
+            <div class="flex-1"><div class="text-[10px] text-slate-400">参</div><div class="font-bold">${stats['参議院'] || 0}</div></div>
           </div>
         </div>
         <div class="bg-white p-5 rounded-xl border border-slate-200">
@@ -600,21 +602,19 @@
         </div>
       `;
 
-      // Render Insight
       const topCat = sortedCats[0];
       const insight = filtered.length ? `現在、**「${topCat ? topCat[0] : 'なし'}」**に関する質問が多い傾向にあります。政府答弁は現行制度の枠内での対応を求めるものが比較的多く見受けられます。` : "データがありません。";
       document.getElementById('analysis-container').innerHTML = `<div class="fade-in bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 flex gap-3"><i data-lucide="lightbulb" class="w-5 h-5 text-amber-500 flex-shrink-0"></i><div><h4 class="text-sm font-bold text-amber-800 mb-0.5">データ分析インサイト</h4><p class="text-sm text-slate-700 leading-relaxed">${insight.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</p></div></div>`;
 
-      // Render List
-      const container = document.getElementById('data-container');
+      const listContainer = document.getElementById('data-container');
       if (state.viewMode === 'table') {
         const rows = filtered.map(it => {
           const badge = (it.a_html_url || it.answer_point_summary) ? '<span class="text-red-600 font-bold ml-2">（答弁済み）</span>' : '';
           return `<tr class="hover:bg-blue-50/50 border-b border-slate-100 last:border-0 group cursor-pointer" onclick="window.openModal('${it.id}', '${it._session_id}')"><td class="p-4 align-top text-xs"><div class="text-slate-400 mb-1">${it._session_name}</div><span class="bg-slate-100 px-2 py-0.5 rounded font-mono font-bold">${it.id}</span></td><td class="p-4 align-top text-sm font-medium text-slate-700">${it.house}<br><span class="text-xs text-slate-400">${formatQuestioner(it.questioner)}</span></td><td class="p-4 align-top"><div class="font-bold text-blue-800">${it.title}${badge}</div><div class="text-xs text-slate-500 mt-1 line-clamp-2">${it.answer_point_summary || "要約なし"}</div></td><td class="p-4 align-top hidden md:table-cell"><span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full whitespace-nowrap">${it.category || '未分類'}</span></td></tr>`;
         }).join('');
-        container.innerHTML = `<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left"><thead><tr class="bg-slate-50 border-b text-[10px] uppercase font-bold text-slate-400 tracking-wider"><th class="p-4">ID</th><th class="p-4">提出者</th><th class="p-4">件名/概要</th><th class="p-4 hidden md:table-cell">分野</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+        listContainer.innerHTML = `<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left"><thead><tr class="bg-slate-50 border-b text-[10px] uppercase font-bold text-slate-400 tracking-wider"><th class="p-4">ID</th><th class="p-4">提出者</th><th class="p-4">件名/概要</th><th class="p-4 hidden md:table-cell">分野</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
       } else {
-        container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${filtered.map(it => {
+        listContainer.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${filtered.map(it => {
           const badge = (it.a_html_url || it.answer_point_summary) ? '<span class="text-red-600 font-bold ml-1 whitespace-nowrap">（答弁済み）</span>' : '';
           return `<div class="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-shadow cursor-pointer flex flex-col" onclick="window.openModal('${it.id}', '${it._session_id}')"><div class="flex justify-between items-start mb-3"><div class="text-[10px] text-slate-400 uppercase">${it._session_name} / ${it.id}</div><span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">${it.category}</span></div><h4 class="font-bold text-slate-800 mb-3 line-clamp-3">${it.title}${badge}</h4><div class="mt-auto text-[11px] text-slate-500">提出: ${formatQuestioner(it.questioner)}</div></div>`;
         }).join('')}</div>`;
@@ -624,22 +624,27 @@
     };
 
     const renderSessionList = () => {
-      document.getElementById('session-list-body').innerHTML = SESSION_METADATA.sessions.map(s => `<tr><td class="px-4 py-3 text-sm font-bold text-slate-900">${s.name}</td><td class="px-4 py-3 text-sm text-slate-500">${s.count} 件</td><td class="px-4 py-3 text-sm text-slate-500">${formatDate(new Date(s.updatedAt))}</td><td class="px-4 py-3 text-right"><button onclick="window.deleteSession('${s.id}')" class="text-red-600 bg-red-50 px-3 py-1 rounded">削除</button></td></tr>`).join('');
+      const body = document.getElementById('session-list-body');
+      if (body) {
+        body.innerHTML = SESSION_METADATA.sessions.map(s => `<tr><td class="px-4 py-3 text-sm font-bold text-slate-900">${s.name}</td><td class="px-4 py-3 text-sm text-slate-500">${s.count} 件</td><td class="px-4 py-3 text-sm text-slate-500">${formatDate(new Date(s.updatedAt))}</td><td class="px-4 py-3 text-right"><button onclick="window.deleteSession('${s.id}')" class="text-red-600 bg-red-50 px-3 py-1 rounded">削除</button></td></tr>`).join('');
+      }
     };
 
     const updateUIState = (count) => {
-      document.getElementById('footer-info').textContent = ALL_DATA.length ? `${count} 件表示中 (全 ${ALL_DATA.length} 件)` : "データ未登録";
+      const footer = document.getElementById('footer-info');
+      if (footer) footer.textContent = ALL_DATA.length ? `${count} 件表示中 (全 ${ALL_DATA.length} 件)` : "データ未登録";
       const btnT = document.getElementById('view-table'); const btnC = document.getElementById('view-card');
       const active = "p-1.5 rounded-md transition-all bg-white shadow text-blue-600";
       const inactive = "p-1.5 rounded-md transition-all text-slate-500 hover:text-slate-700";
-      btnT.className = state.viewMode === 'table' ? active : inactive;
-      btnC.className = state.viewMode === 'card' ? active : inactive;
-      document.getElementById('clear-all-filters').classList.toggle('hidden', count === ALL_DATA.length && state.filterText === "");
-      document.getElementById('session-select-header').value = state.selectedSession || 'all';
+      if (btnT) btnT.className = state.viewMode === 'table' ? active : inactive;
+      if (btnC) btnC.className = state.viewMode === 'card' ? active : inactive;
+      const clearBtn = document.getElementById('clear-all-filters');
+      if (clearBtn) clearBtn.classList.toggle('hidden', count === ALL_DATA.length && state.filterText === "");
+      const headerSelect = document.getElementById('session-select-header');
+      if (headerSelect) headerSelect.value = state.selectedSession || 'all';
     };
 
     const initListeners = () => {
-      const ids = ['search-input','house-select','category-select','session-select','session-select-header'];
       document.getElementById('search-input').oninput = (e) => { state.filterText = e.target.value; renderDashboard(); };
       document.getElementById('house-select').onchange = (e) => { state.selectedHouse = e.target.value; renderDashboard(); };
       document.getElementById('category-select').onchange = (e) => { state.selectedCategory = e.target.value; renderDashboard(); };
@@ -647,20 +652,28 @@
       document.getElementById('session-select-header').onchange = (e) => { state.selectedSession = e.target.value; document.getElementById('session-select').value = e.target.value; renderDashboard(); };
       document.getElementById('view-table').onclick = () => { state.viewMode = 'table'; renderDashboard(); };
       document.getElementById('view-card').onclick = () => { state.viewMode = 'card'; renderDashboard(); };
-      document.getElementById('clear-search').onclick = () => { state.filterText = ""; document.getElementById('search-input').value = ""; renderDashboard(); };
-      document.getElementById('clear-all-filters').onclick = () => { state.filterText = ""; state.selectedHouse = "all"; state.selectedCategory = "all"; state.selectedSession = SESSION_METADATA.sessions[0]?.id || "all"; state.sortKey = null; renderDashboard(); initFilterOptions(); };
-      document.getElementById('btn-execute-upload').onclick = handleUpload;
+      const clearSearchBtn = document.getElementById('clear-search');
+      if (clearSearchBtn) clearSearchBtn.onclick = () => { state.filterText = ""; document.getElementById('search-input').value = ""; renderDashboard(); };
+      const clearAllBtn = document.getElementById('clear-all-filters');
+      if (clearAllBtn) clearAllBtn.onclick = () => { state.filterText = ""; state.selectedHouse = "all"; state.selectedCategory = "all"; state.selectedSession = SESSION_METADATA.sessions[0]?.id || "all"; state.sortKey = null; renderDashboard(); initFilterOptions(); };
+      const uploadBtn = document.getElementById('btn-execute-upload');
+      if (uploadBtn) uploadBtn.onclick = handleUpload;
     };
 
-    // --- Init ---
-    try {
-      await signInAnonymously(auth);
-      initListeners();
-      await refreshAllData();
-    } catch (e) {
-      console.warn("Init Failure:", e);
-      initListeners();
-    }
+    // --- Init Execution ---
+    const runInit = async () => {
+      try {
+        await signInAnonymously(auth);
+        initListeners();
+        await refreshAllData();
+      } catch (e) {
+        console.warn("Init Failure:", e);
+        initListeners();
+      }
+    };
+    
+    runInit();
+
   </script>
 </body>
 </html>
