@@ -3,372 +3,1211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>政策リサーチ関連ダッシュボード</title>
-    <!-- Tailwind CSS CDN -->
+    <title>政策リサーチ関連動画</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts - Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
+        .active-video {
+            border-left: 4px solid #ef4444; /* red-500 */
+            background-color: #fee2e2; /* red-100 */
         }
-        /* カードのホバーアニメーション */
-        .hover-card {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        /* スクロールバーのスタイリング */
+        ::-webkit-scrollbar {
+            width: 8px;
         }
-        .hover-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
         }
-        .status-loading {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1; 
+            border-radius: 4px;
         }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .5; }
-        }
-        /* モーダルの表示制御用 */
-        .modal-overlay {
-            transition: opacity 0.3s ease;
-        }
-        .modal-content {
-            transition: transform 0.3s ease, opacity 0.3s ease;
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8; 
         }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl shadow-xl p-8 md:p-12 max-w-7xl w-full text-center border border-gray-200">
-        <div class="flex flex-col md:flex-row items-center justify-center gap-4 mb-10">
-            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-800 leading-tight">
-                政策リサーチ関連ダッシュボード
-            </h1>
-            <button id="openManual" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-full text-sm font-bold transition-colors flex items-center gap-2 border border-gray-300">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                使い方
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col">
+
+    <!-- ヘッダー＆コントロールパネル -->
+    <header class="bg-white shadow-md z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <!-- タイトル、APIキー、検索枠の行 -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4 relative z-50">
+                <h1 class="text-xl font-bold text-gray-900 flex items-center shrink-0">
+                    <i class="fab fa-youtube text-red-600 mr-2 text-2xl"></i> 政策リサーチ関連動画
+                </h1>
+                
+                <div class="flex flex-col sm:flex-row items-end sm:items-center gap-4 w-full md:w-auto">
+                    <!-- APIキー設定 (ドロップダウン式) -->
+                    <details class="text-sm text-gray-600 group relative">
+                        <summary class="cursor-pointer hover:text-red-600 font-medium select-none flex items-center py-2">
+                            <i class="fas fa-cog mr-1"></i> API設定
+                        </summary>
+                        <div class="absolute right-0 top-full mt-1 p-4 bg-white border border-gray-200 rounded-md shadow-xl w-72 sm:w-80 z-[100]">
+                            <p class="mb-3 text-xs text-gray-600 leading-relaxed">
+                                ※<span class="text-red-600 font-bold">限定公開</span>のプレイリストを正確な日時で並び替えたり、安定して全件取得したい場合は、ご自身の「YouTube Data API v3」のAPIキーを入力してください。
+                            </p>
+                            <input type="text" id="apiKey" placeholder="AIzaSy... (任意)" 
+                                   class="block w-full rounded-md border-gray-300 border px-3 py-2 focus:border-red-500 focus:ring-red-500 outline-none bg-white">
+                        </div>
+                    </details>
+                    
+                    <!-- 使い方マニュアルボタン -->
+                    <button id="openHelpBtn" class="text-sm text-gray-600 hover:text-blue-600 font-medium flex items-center py-2 transition shrink-0">
+                        <i class="fas fa-question-circle mr-1"></i> 使い方
+                    </button>
+
+                    <!-- 検索ボックス (長めに変更) -->
+                    <div class="relative w-full sm:w-80 shrink-0">
+                        <input type="text" id="searchInput" placeholder="複数ワードは空白区切り..." class="w-full pl-9 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:border-red-500 focus:ring-red-500 transition bg-white">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400"></i>
+                        </div>
+                        <button id="clearSearchBtn" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 hidden transition">
+                            <i class="fas fa-times-circle"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 操作パネル行 -->
+            <div class="flex flex-col md:flex-row gap-4 items-stretch relative z-10">
+                <div class="flex-1 w-full">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 h-full">
+                        <label class="cursor-pointer h-full">
+                            <input type="radio" name="playlistSelect" value="PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_" class="peer sr-only" checked>
+                            <div class="h-full rounded-md border border-gray-300 px-2 py-2 transition hover:bg-gray-50 peer-checked:border-blue-500 peer-checked:bg-blue-50 shadow-sm flex flex-col items-center justify-center text-center">
+                                <span class="text-base md:text-lg font-bold text-gray-700 peer-checked:text-blue-700 transition-colors">会議等概要説明動画</span>
+                                <span id="date-PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_" class="text-xs text-gray-500 mt-1 transition-colors">更新情報取得中...</span>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer h-full">
+                            <input type="radio" name="playlistSelect" value="PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2" class="peer sr-only">
+                            <div class="h-full rounded-md border border-gray-300 px-2 py-2 transition hover:bg-gray-50 peer-checked:border-blue-500 peer-checked:bg-blue-50 shadow-sm flex flex-col items-center justify-center text-center">
+                                <span class="text-base md:text-lg font-bold text-gray-700 peer-checked:text-blue-700 transition-colors">政策レポート等解説動画</span>
+                                <span id="date-PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2" class="text-xs text-gray-500 mt-1 transition-colors">更新情報取得中...</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- 自動更新の入力欄を非表示に (hidden クラスを追加) -->
+                <div class="w-full md:w-32 shrink-0 hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">自動更新 (分)</label>
+                    <input type="number" id="updateInterval" value="60" min="5" 
+                           class="block w-full rounded-md border-gray-300 border px-3 py-2 focus:border-red-500 focus:ring-red-500 outline-none transition">
+                </div>
+                
+                <button id="startBtn" class="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded shadow transition duration-200 flex items-center justify-center shrink-0">
+                    <i class="fas fa-sync-alt mr-2"></i>更新
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col md:flex-row gap-6 h-auto md:h-[calc(100vh-180px)]">
+        
+        <!-- プレイヤー＆概要エリア -->
+        <div class="w-full md:w-2/3 flex flex-col gap-4 h-full overflow-hidden">
+            <!-- 16:9 プレイヤー -->
+            <div class="bg-black rounded-xl overflow-hidden shadow-lg relative w-full aspect-video shrink-0">
+                <div id="player" class="absolute inset-0"></div>
+                <div id="player-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-500 pointer-events-none">
+                    <div class="text-center">
+                        <i class="fas fa-video text-4xl mb-2"></i>
+                        <p>上部の「取得＆再生」ボタンを押して開始してください</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 概要パネル -->
+            <div class="bg-white rounded-xl shadow-lg p-4 md:p-6 flex-1 overflow-y-auto border border-gray-200 min-h-[150px]">
+                <h2 id="currentTitle" class="text-xl md:text-2xl font-bold text-gray-900 mb-2 leading-tight">動画情報を読み込み中...</h2>
+                <p id="currentDate" class="text-sm text-gray-500 mb-4 border-b border-gray-100 pb-2"></p>
+                <div id="currentDescription" class="text-sm text-gray-700 whitespace-pre-wrap break-words leading-relaxed"></div>
+            </div>
+        </div>
+        
+        <!-- 再生リストエリア -->
+        <!-- relative クラスを追加してフローティングボタンの基準位置にする -->
+        <div class="w-full md:w-1/3 bg-white rounded-xl shadow-lg flex flex-col h-[60vh] md:h-full border border-gray-200 overflow-hidden shrink-0 relative">
+            <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+                <h2 class="text-lg font-bold text-gray-800 flex-1"><i class="fas fa-list-ul mr-2 text-gray-600"></i>再生リスト</h2>
+                <div class="flex items-center gap-2">
+                    <select id="sortSelect" class="text-sm border border-gray-300 rounded-md py-1.5 px-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white cursor-pointer text-gray-700 font-medium">
+                        <option value="date-desc">登録順 (新しい順)</option>
+                        <option value="date-asc">登録順 (古い順)</option>
+                        <option value="title-asc">タイトル (昇順)</option>
+                        <option value="title-desc">タイトル (降順)</option>
+                    </select>
+                    <!-- トップへ戻るボタン (ヘッダー部分) -->
+                    <button id="scrollTopBtnHeader" class="text-gray-500 hover:text-blue-600 transition ml-1" title="リストの先頭へ移動">
+                        <i class="fas fa-arrow-up"></i>
+                    </button>
+                    <button id="refreshBtn" class="text-gray-500 hover:text-blue-600 transition ml-1" title="並べ替えをデフォルトに戻す">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="px-4 py-2 bg-gray-100 text-xs text-gray-500 flex justify-between shrink-0">
+                <span id="playlistInfo">未取得</span>
+                <!-- 自動更新のカウントダウンを非表示に -->
+                <span id="nextUpdateInfo" class="hidden"></span>
+            </div>
+            <div id="playlistContainer" class="flex-1 overflow-y-auto">
+                <div class="p-6 text-center text-gray-400 text-sm">
+                    動画データがありません
+                </div>
+            </div>
+
+            <!-- フローティング トップへ戻るボタン (スクロール時に右下に表示される) -->
+            <button id="scrollTopBtnFloat" class="absolute bottom-4 right-4 bg-gray-700 hover:bg-gray-800 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-10" title="先頭へ戻る">
+                <i class="fas fa-arrow-up"></i>
             </button>
         </div>
 
-        <!-- グリッドレイアウト: 8枚構成 -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <!-- 本日のポイント -->
-            <div class="hover-card bg-gradient-to-tr from-green-50 to-green-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-green-200">
-                <div class="mb-6">
-                    <svg class="w-16 h-16 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                </div>
-                <button onclick="openUrlWithPassword('https://report.rifj.jp/point/', 'point')" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-green-300">
-                    本日のポイント
-                </button>
-                <p id="point-status" class="text-xs text-green-800 font-medium status-loading">読込中...</p>
-            </div>
+    </main>
 
-            <!-- 政策レポート -->
-            <div class="hover-card bg-gradient-to-tr from-purple-50 to-purple-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-purple-200">
-                <div class="mb-6">
-                    <svg class="w-16 h-16 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17h6m-1-4v4m-2-4h2a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6a2 2 0 002 2h2m2 0h2a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6a2 2 0 002 2h2"></path>
-                    </svg>
-                </div>
-                <button onclick="openUrlWithPassword('https://report.rifj.jp/policy/', 'policy')" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-purple-300">
-                    政策レポート
-                </button>
-                <p id="policy-status" class="text-xs text-purple-800 font-medium status-loading">読込中...</p>
+    <!-- 使い方マニュアル モーダル -->
+    <div id="helpModal" class="fixed inset-0 bg-black/50 z-[200] hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden transform scale-95 transition-transform duration-300">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                <h2 class="text-lg font-bold text-gray-800"><i class="fas fa-book-open mr-2 text-blue-600"></i>使い方ガイド</h2>
+                <button id="closeHelpBtn" class="text-gray-400 hover:text-gray-600 transition text-2xl leading-none">&times;</button>
             </div>
-
-            <!-- 開発者のブログ -->
-            <div class="hover-card bg-gradient-to-tr from-red-50 to-red-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-red-200">
-                <div class="mb-6">
-                    <svg class="w-16 h-16 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
-                    </svg>
+            <div class="p-6 overflow-y-auto text-sm text-gray-700 space-y-5">
+                <div>
+                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-play-circle text-red-500 mr-2"></i>基本的な使い方</h3>
+                    <ul class="list-disc pl-5 space-y-1.5 text-gray-600">
+                        <li>上部のボタンから<strong>「会議等概要説明動画」</strong>または<strong>「政策レポート等解説動画」</strong>を選択します。<br><span class="text-xs text-gray-500">※ボタン内にはリストの最新更新日が表示され、<strong class="text-red-500">今日更新された場合は赤色</strong>でお知らせします。</span></li>
+                        <li>自動的に動画リストが読み込まれ、左側のプレイヤーで再生が始まります。</li>
+                        <li>動画が終わると、リストの次の動画が<strong>自動的に再生</strong>されます。</li>
+                        <li>手動で最新の状態に更新したい場合は、赤い<strong>「更新」</strong>ボタンを押してください。</li>
+                    </ul>
                 </div>
-                <button onclick="openUrlWithPassword('https://report.rifj.jp/blog/', 'blog')" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-red-300">
-                    開発者のブログ
-                </button>
-                <p id="blog-status" class="text-xs text-red-800 font-medium status-loading">読込中...</p>
+                <div>
+                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-list-ul text-purple-500 mr-2"></i>リストの操作（並べ替え・移動）</h3>
+                    <ul class="list-disc pl-5 space-y-1.5 text-gray-600">
+                        <li>リスト上部のメニューから、動画を<strong>「登録順（新しい順/古い順）」</strong>や<strong>「タイトル（昇順/降順）」</strong>に並べ替えることができます。</li>
+                        <li>その横の「<i class="fas fa-undo"></i>」ボタンを押すと、いつでもデフォルトの並び順（新しい順）に戻すことができます。</li>
+                        <li>リストを下へスクロールすると右下に<strong>「<i class="fas fa-arrow-up"></i>」ボタン</strong>が現れ、クリックするとリストの一番上に瞬時に戻ります。（上部の「<i class="fas fa-arrow-up"></i>」でも同様に戻れます）</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-search text-blue-500 mr-2"></i>動画の検索機能</h3>
+                    <ul class="list-disc pl-5 space-y-1.5 text-gray-600">
+                        <li>右上の検索ボックスから、動画のタイトルや概要に含まれる言葉で検索できます。</li>
+                        <li>複数の単語を<strong>空白（スペース）で区切って</strong>入力すると、すべての単語を含む動画に絞り込めます（AND検索）。<br><span class="text-xs text-gray-500">例: <code>経産省 補助金</code> と入力すると両方を含む動画が表示されます。</span></li>
+                        <li>「経産省」「国交省」などの略称で入力しても、正式名称（経済産業省など）として検索ヒットします。</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-database text-green-500 mr-2"></i>データ・高度な設定</h3>
+                    <ul class="list-disc pl-5 space-y-1.5 text-gray-600 mb-3">
+                        <li>取得した動画リストはシステム内に蓄積され、過去の動画も検索・視聴可能です。</li>
+                        <li><strong>「API設定」</strong>からご自身の YouTube API キーを設定することで、より安定して全件の動画データ（非公開リスト含む）を取得できます。</li>
+                    </ul>
+                    <div class="bg-blue-50 p-4 rounded-md border border-blue-100 mt-2">
+                        <h4 class="font-bold text-blue-800 mb-2 text-sm"><i class="fas fa-key mr-1"></i>YouTube APIキーの取得手順（無料）</h4>
+                        <ol class="list-decimal pl-5 space-y-1.5 text-blue-900 text-xs leading-relaxed">
+                            <li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-bold">Google Cloud Console</a> にGoogleアカウントでログインします。</li>
+                            <li>画面上部のプロジェクト選択メニューから「新しいプロジェクト」を作成します。</li>
+                            <li>左側メニューの「APIとサービス」＞「ライブラリ」を開き、<strong>「YouTube Data API v3」</strong>を検索して「有効にする」をクリックします。</li>
+                            <li>左側メニューの「認証情報」を開き、画面上部の「＋認証情報を作成」＞<strong>「APIキー」</strong>を選択します。</li>
+                            <li>発行された <code>AIzaSy...</code> で始まる文字列をコピーし、本ツールの「API設定」欄に貼り付けてください。</li>
+                        </ol>
+                    </div>
+                </div>
             </div>
-
-            <!-- 国会質問主意書 -->
-            <div class="hover-card bg-gradient-to-tr from-amber-50 to-amber-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-amber-200">
-                <div class="mb-6">
-                    <svg class="w-16 h-16 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                </div>
-                <button onclick="window.open('https://report.rifj.jp/shitsumonshui/', '_blank')" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-amber-300">
-                    国会質問主意書
-                </button>
-                <p id="diet-status" class="text-xs text-amber-800 font-medium status-loading">読込中...</p>
-            </div>
-
-            <!-- 関連動画チャネル -->
-            <div class="hover-card bg-gradient-to-tr from-rose-50 to-rose-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-rose-200">
-                <div class="mb-6">
-                    <svg class="w-16 h-16 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                    </svg>
-                </div>
-                <button onclick="window.open('https://report.rifj.jp/webtest/', '_blank')" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-rose-300">
-                    関連動画チャネル
-                </button>
-                <p id="video-status" class="text-xs text-rose-800 font-medium status-loading">読込中...</p>
-            </div>
-
-            <!-- 文脈解析アプリ -->
-            <div class="hover-card bg-gradient-to-tr from-blue-50 to-blue-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-blue-200">
-                <div class="mb-6">
-                    <svg class="w-16 h-16 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
-                    </svg>
-                </div>
-                <button onclick="window.open('https://report.rifj.jp/text/', '_blank')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-blue-300">
-                    文脈解析アプリ
-                </button>
-                <p class="text-sm text-blue-800 font-medium">データ内容を分析</p>
-            </div>
-
-            <!-- レイアウトツール -->
-            <div class="hover-card bg-gradient-to-tr from-indigo-50 to-indigo-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-indigo-200">
-                <div class="mb-6">
-                    <svg class="w-16 h-16 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path>
-                    </svg>
-                </div>
-                <button onclick="window.open('https://report.rifj.jp/layout/', '_blank')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-indigo-300">
-                    レイアウトツール
-                </button>
-                <p class="text-sm text-indigo-800 font-medium">レイアウト構成を設計</p>
-            </div>
-
-            <!-- 調査＆レポート -->
-            <div class="hover-card bg-gradient-to-tr from-teal-50 to-teal-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-teal-200">
-                <div class="mb-6">
-                    <svg class="w-16 h-16 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
-                    </svg>
-                </div>
-                <button onclick="window.open('https://report.rifj.jp/word/', '_blank')" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-teal-300">
-                    調査＆レポート
-                </button>
-                <p class="text-sm text-teal-800 font-medium">調査と資料作成を自動化</p>
+            <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 text-right">
+                <button id="closeHelpBtnBottom" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-6 rounded transition">閉じる</button>
             </div>
         </div>
     </div>
 
-    <!-- 使い方ガイドモーダル -->
-    <div id="manualModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
-        <div id="modalOverlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 modal-overlay"></div>
-        <div id="modalContent" class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden relative z-10 opacity-0 scale-95 modal-content flex flex-col">
-            <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                <h2 class="text-2xl font-extrabold text-gray-800">使い方ガイド</h2>
-                <button id="closeManual" class="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
-            
-            <div class="p-8 overflow-y-auto space-y-8">
-                <section>
-                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
-                        <span class="w-2 h-6 bg-blue-500 rounded-full"></span>
-                        更新状況の見方
-                    </h3>
-                    <div class="bg-blue-50 rounded-2xl p-4 space-y-3">
-                        <div class="flex items-center gap-3">
-                            <span class="text-xs font-black text-red-600 bg-white px-2 py-1 rounded border border-red-200">赤色・太字</span>
-                            <span class="text-sm text-gray-700 font-medium">今日（または昨日）更新された最新情報です。</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <span class="text-xs font-medium text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">通常色</span>
-                            <span class="text-sm text-gray-700 font-medium">アーカイブデータです。</span>
-                        </div>
-                    </div>
-                </section>
-
-                <section>
-                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
-                        <span class="w-2 h-6 bg-indigo-500 rounded-full"></span>
-                        各ボタンの内容
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
-                            <span class="font-bold text-green-700 text-sm mb-1">本日のポイント</span>
-                            <p class="text-xs text-gray-600">日々の政策動向の要約を確認。（パスワード自動送信）</p>
-                        </div>
-                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
-                            <span class="font-bold text-purple-700 text-sm mb-1">政策レポート</span>
-                            <p class="text-xs text-gray-600">特定のテーマに基づいた分析レポート。（パスワード自動送信）</p>
-                        </div>
-                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
-                            <span class="font-bold text-red-700 text-sm mb-1">開発者のブログ</span>
-                            <p class="text-xs text-gray-600">システムの更新情報や開発背景。（パスワード自動送信）</p>
-                        </div>
-                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
-                            <span class="font-bold text-amber-700 text-sm mb-1">国会質問主意書</span>
-                            <p class="text-xs text-gray-600">国会で提出された質問主意書の動向。</p>
-                        </div>
-                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
-                            <span class="font-bold text-rose-700 text-sm mb-1">関連動画チャネル</span>
-                            <p class="text-xs text-gray-600">政策解説や会議概要の動画コンテンツ。</p>
-                        </div>
-                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
-                            <span class="font-bold text-blue-700 text-sm mb-1">文脈解析アプリ</span>
-                            <p class="text-xs text-gray-600">データの文脈を読み取り分析を支援。</p>
-                        </div>
-                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
-                            <span class="font-bold text-indigo-700 text-sm mb-1">レイアウトツール</span>
-                            <p class="text-xs text-gray-600">レポートや資料の構成を設計。</p>
-                        </div>
-                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
-                            <span class="font-bold text-teal-700 text-sm mb-1">調査＆レポート</span>
-                            <p class="text-xs text-gray-600">調査から資料生成までを自動化するツール。</p>
-                        </div>
-                    </div>
-                </section>
-
-                <div class="text-center p-4 bg-gray-50 rounded-2xl text-xs text-gray-500">
-                    ※パスワード送信対応サイトへは自動ログインを試みます。
-                </div>
-            </div>
-            
-            <div class="p-6 bg-gray-50/50 border-t border-gray-100 text-center">
-                <button id="closeManualBtn" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all active:scale-95">
-                    閉じる
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Firebase SDK -->
     <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-        import { getFirestore, collection, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfigBlog = { apiKey: "AIzaSyD-2UK3S9QjydIIqcTwyfpZMh-Gy4fXlMA", authDomain: "blog-viewer-f83bc.firebaseapp.com", projectId: "blog-viewer-f83bc", storageBucket: "blog-viewer-f83bc.firebasestorage.app", messagingSenderId: "182374996524", appId: "1:182374996524:web:c6d9f3cfe32957a0bd4f89" };
-        const firebaseConfigDiet = { apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs", authDomain: "user-9b981.firebaseapp.com", projectId: "user-9b981" };
-        const firebaseConfigImport = { apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04", authDomain: "import-b6097.firebaseapp.com", projectId: "import-b6097", storageBucket: "import-b6097.firebasestorage.app", messagingSenderId: "462510788117", appId: "1:462510788117:web:44ff1fd1af583f67bc081c" };
+        // --- Firebase 初期化 ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04",
+          authDomain: "import-b6097.firebaseapp.com",
+          projectId: "import-b6097",
+          storageBucket: "import-b6097.firebasestorage.app",
+          messagingSenderId: "462510788117",
+          appId: "1:462510788117:web:44ff1fd1af583f67bc081c",
+          measurementId: "G-Z5ZNMKGTTK"
+        };
 
-        const appBlog = initializeApp(firebaseConfigBlog, "blogApp");
-        const dbBlog = getFirestore(appBlog);
-        const appDiet = initializeApp(firebaseConfigDiet, "dietApp");
-        const dbDiet = getFirestore(appDiet);
-        const appImport = initializeApp(firebaseConfigImport, "importApp");
-        const dbImport = getFirestore(appImport);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // Firebase認証（匿名ログイン）
+        let user = null;
+        async function initAuth() {
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Firebase Authentication failed:", error);
+            }
+        }
+        
+        onAuthStateChanged(auth, (u) => { user = u; });
 
-        function updateStatusDisplay(elementId, date) {
-            const el = document.getElementById(elementId);
-            if (!el || !date) return;
-            const formatted = date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-            const today = new Date();
-            const yesterday = new Date();
-            yesterday.setDate(today.getDate() - 1);
-            const isSameDay = (d1, d2) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
-            el.textContent = `最終更新: ${formatted}`;
-            el.classList.remove('status-loading');
-            if (isSameDay(date, today)) {
-                el.className = "text-xs font-black text-red-600";
-            } else if (isSameDay(date, yesterday)) {
-                el.className = "text-xs font-bold text-red-500";
-            } else {
-                if (elementId === 'point-status') el.className = "text-xs text-green-800 font-medium opacity-75";
-                else if (elementId === 'policy-status') el.className = "text-xs text-purple-800 font-medium opacity-75";
-                else if (elementId === 'blog-status') el.className = "text-xs text-red-800 font-medium opacity-75";
-                else if (elementId === 'diet-status') el.className = "text-xs text-amber-800 font-medium opacity-75";
-                else if (elementId === 'video-status') el.className = "text-xs text-rose-800 font-medium opacity-75";
-                else el.className = "text-xs font-medium opacity-75";
+        // 保存先パス用のAppID
+        const envAppId = typeof __app_id !== 'undefined' ? __app_id : 'youtube-playlist-app';
+
+        // Firebaseからリストを読み込む
+        async function loadFromFirebase(playlistId) {
+            if (!user) return null;
+            try {
+                const docRef = doc(db, 'artifacts', envAppId, 'public', 'data', 'playlists', playlistId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    // Firebaseに保存したタイムスタンプ(数値)をDate型に戻す
+                    return data.videos.map(v => ({
+                        ...v,
+                        pubDate: new Date(v.pubDate)
+                    }));
+                }
+            } catch (e) {
+                console.error("Firebaseからの読み込みエラー:", e);
+            }
+            return null;
+        }
+
+        // Firebaseへリストを保存する
+        async function saveToFirebase(playlistId, videos) {
+            if (!user) return;
+            try {
+                const docRef = doc(db, 'artifacts', envAppId, 'public', 'data', 'playlists', playlistId);
+                // Date型をタイムスタンプ(数値)に変換して保存
+                // Firestoreの1ドキュメント容量上限(1MB)エラーを回避するため、長文になりがちなdescriptionは最大250文字に切り詰めて保存
+                const dataToSave = videos.map(v => ({
+                    id: v.id,
+                    title: v.title,
+                    description: v.description ? (v.description.length > 250 ? v.description.substring(0, 250) + "..." : v.description) : "",
+                    thumbnail: v.thumbnail || "",
+                    pubDate: v.pubDate.getTime(),
+                    isEstimated: !!v.isEstimated
+                }));
+                await setDoc(docRef, { videos: dataToSave, updatedAt: Date.now() });
+                console.log(`動画リスト(${videos.length}件)をFirebaseに保存しました。`);
+            } catch (e) {
+                console.error("Firebaseへの保存エラー:", e);
+                showToast("データベースの保存容量上限により、保存に失敗しました。", true);
             }
         }
 
-        onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/point_last_import_metadata"), (snap) => {
-            if (snap.exists()) {
-                const ts = snap.data().lastImportTimestamp;
-                updateStatusDisplay('point-status', ts?.toDate ? ts.toDate() : new Date(ts));
+        let player = null;
+        let isPlayerReady = false;
+        let videoList = [];
+        let currentIndex = 0;
+        let updateIntervalId = null;
+        let nextUpdateTime = null;
+        let countdownIntervalId = null;
+        let currentSort = 'date-desc'; // デフォルトのソート設定
+
+        // --- YouTube IFrame API のロード ---
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        // module化によりグローバルスコープから外れるため、windowに明示的に登録
+        window.onYouTubeIframeAPIReady = function() {
+            isPlayerReady = true;
+        };
+
+        function initPlayer() {
+            if (player) return; // 既に存在する場合は無視
+            
+            // YT APIがまだロードされていない場合は少し待ってから再試行する
+            if (typeof YT === 'undefined' || typeof YT.Player === 'undefined') {
+                setTimeout(initPlayer, 500);
+                return;
             }
-        });
 
-        onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/policy_last_import_metadata"), (snap) => {
-            if (snap.exists()) {
-                const ts = snap.data().lastImportTimestamp;
-                updateStatusDisplay('policy-status', ts?.toDate ? ts.toDate() : new Date(ts));
-            }
-        });
+            document.getElementById('player-placeholder').style.display = 'none';
+            
+            // 最初から対象の動画IDを指定してプレイヤーを作成する
+            const initialVideoId = videoList.length > 0 ? videoList[currentIndex].id : '';
 
-        onSnapshot(collection(dbBlog, "posts"), (snapshot) => {
-            let latest = null;
-            snapshot.docs.forEach(d => {
-                const ts = d.data().createdAt;
-                const date = ts?.toDate ? ts.toDate() : new Date(ts);
-                if (!latest || date > latest) latest = date;
-            });
-            updateStatusDisplay('blog-status', latest);
-        });
-
-        const initDiet = async () => {
-            const auth = getAuth(appDiet);
-            await signInAnonymously(auth);
-            onSnapshot(doc(dbDiet, "dashboard_data", "config"), (snap) => {
-                if (snap.exists()) {
-                    const sessions = snap.data().sessions || [];
-                    if (sessions.length > 0) {
-                        const latestSession = sessions.reduce((max, s) => new Date(s.updatedAt) > new Date(max.updatedAt) ? s : max, sessions[0]);
-                        updateStatusDisplay('diet-status', new Date(latestSession.updatedAt));
-                    }
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: initialVideoId,
+                // サードパーティCookieブロックを回避するための nocookie ドメインを使用
+                host: 'https://www.youtube-nocookie.com',
+                playerVars: {
+                    'playsinline': 1,
+                    'autoplay': 1,
+                    'mute': 0, // 音が出るように初期ミュートを解除
+                    'rel': 0,
+                    'enablejsapi': 1
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange,
+                    'onError': onPlayerError
                 }
             });
-        };
-        initDiet();
-
-        // --- Video Channel Logic: 最新の動画公開日を取得 ---
-        const videoUpdateTimes = { meeting: null, policy: null };
-        const videoAppId = 'youtube-playlist-app';
-        
-        const updateVideoChannelStatus = () => {
-            const times = [videoUpdateTimes.meeting, videoUpdateTimes.policy].filter(t => t !== null);
-            if (times.length === 0) return;
-            const latest = new Date(Math.max(...times.map(t => t.getTime())));
-            updateStatusDisplay('video-status', latest);
-        };
-
-        const getLatestVideoDate = (snap) => {
-            if (!snap.exists()) return null;
-            const videos = snap.data().videos || [];
-            if (videos.length === 0) return null;
-            // videos配列内の各videoにあるpubDateの最大値を抽出
-            const maxTs = Math.max(...videos.map(v => v.pubDate));
-            return new Date(maxTs);
-        };
-
-        // 会議等概要
-        onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_'), (snap) => {
-            const latest = getLatestVideoDate(snap);
-            if (latest) { videoUpdateTimes.meeting = latest; updateVideoChannelStatus(); }
-        });
-
-        // 政策レポート
-        onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2'), (snap) => {
-            const latest = getLatestVideoDate(snap);
-            if (latest) { videoUpdateTimes.policy = latest; updateVideoChannelStatus(); }
-        });
-    </script>
-
-    <script>
-        const modal = document.getElementById('manualModal');
-        const overlay = document.getElementById('modalOverlay');
-        const content = document.getElementById('modalContent');
-        const openBtn = document.getElementById('openManual');
-        const closeBtns = [document.getElementById('closeManual'), document.getElementById('closeManualBtn'), overlay];
-
-        function openModal() { modal.classList.remove('hidden'); setTimeout(() => { overlay.classList.add('opacity-100'); content.classList.add('opacity-100', 'scale-100'); content.classList.remove('scale-95'); }, 10); }
-        function closeModal() { overlay.classList.remove('opacity-100'); content.classList.remove('opacity-100', 'scale-100'); content.classList.add('scale-95'); setTimeout(() => { modal.classList.add('hidden'); }, 300); }
-
-        openBtn.addEventListener('click', openModal);
-        closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
-
-        function openUrlWithPassword(baseUrl, password) {
-            const targetUrl = `${baseUrl}?pw=${password}#${password}`;
-            window.open(targetUrl, '_blank');
         }
+
+        function onPlayerReady(event) {
+            renderPlaylist();
+            
+            // 音声ありの自動再生はブラウザにブロックされる可能性が高いため、その旨を通知する
+            const playPromise = event.target.playVideo();
+            
+            // プレイヤーの音量を100%に設定し、確実にミュートを解除
+            setTimeout(() => {
+                if(player && typeof player.unMute === 'function') {
+                    player.unMute();
+                    player.setVolume(100);
+                }
+            }, 500);
+
+            showToast("再生を開始します。※自動で始まらない場合は、動画画面をクリックしてください。");
+        }
+
+        function onPlayerStateChange(event) {
+            // 動画が最後まで再生されたら次へ
+            if (event.data === YT.PlayerState.ENDED) {
+                playNextVideo();
+            }
+        }
+
+        function onPlayerError(event) {
+            console.warn("動画の再生エラー コード:", event.data);
+            let errorMsg = "動画を再生できませんでした。";
+            
+            // エラーコードに応じたメッセージ
+            if (event.data === 101 || event.data === 150) {
+                errorMsg = "埋め込み再生が許可されていない動画です。";
+            } else if (event.data === 100) {
+                errorMsg = "動画が見つかりません（削除・非公開等）。";
+            } else if (event.data === 2) {
+                errorMsg = "動画IDが不正です。";
+            }
+
+            showToast(errorMsg + " 次へスキップします。", true);
+            setTimeout(playNextVideo, 2000); // 2秒後に自動で次へ
+        }
+
+        // --- 再生制御ロジック ---
+        function playNextVideo() {
+            if (videoList.length === 0) return;
+            currentIndex++;
+            
+            // リストの最後まで行ったら最初（最新）に戻る
+            if (currentIndex >= videoList.length) {
+                currentIndex = 0;
+                showToast("プレイリストが一周しました。最初から再生します。");
+            }
+            playCurrentVideo();
+        }
+
+        function playCurrentVideo() {
+            if (videoList.length === 0 || !player || typeof player.loadVideoById !== 'function') return;
+            const video = videoList[currentIndex];
+            player.loadVideoById(video.id);
+            renderPlaylist();
+            updateCurrentVideoInfo(); // 再生時に概要を更新
+        }
+
+        // --- 概要パネルの更新 ---
+        function updateCurrentVideoInfo() {
+            if (videoList.length === 0) return;
+            const video = videoList[currentIndex];
+            
+            document.getElementById('currentTitle').textContent = video.title;
+            
+            // 公開日のフォーマット
+            const dateStr = video.pubDate.toLocaleDateString('ja-JP', { 
+                year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+            });
+            // 推定フラグがある場合はその旨を表示
+            document.getElementById('currentDate').textContent = video.isEstimated ? `公開日: 約 ${dateStr} (推定)` : `公開日: ${dateStr}`;
+            
+            // 概要の表示
+            const descEl = document.getElementById('currentDescription');
+            if (video.description) {
+                descEl.textContent = video.description;
+            } else {
+                descEl.textContent = "この動画に概要はありません。";
+                descEl.classList.add("text-gray-400");
+            }
+            descEl.classList.remove("text-gray-400");
+        }
+
+        // --- データ取得ロジック ---
+        function extractPlaylistId(input) {
+            if (!input) return null;
+            const match = input.match(/[?&]list=([^&]+)/);
+            if (match) return match[1];
+            return input.trim();
+        }
+
+        // 11桁の正しいYouTube動画IDかチェックするバリデーション関数
+        function isValidVideoId(id) {
+            return id && /^[a-zA-Z0-9_-]{11}$/.test(id);
+        }
+
+        // 動画リストの並べ替え関数
+        function sortVideoList() {
+            if (videoList.length === 0) return;
+            videoList.sort((a, b) => {
+                if (currentSort === 'date-desc') {
+                    return b.pubDate - a.pubDate;
+                } else if (currentSort === 'date-asc') {
+                    return a.pubDate - b.pubDate;
+                } else if (currentSort === 'title-asc') {
+                    return a.title.localeCompare(b.title, 'ja');
+                } else if (currentSort === 'title-desc') {
+                    return b.title.localeCompare(a.title, 'ja');
+                }
+                return 0;
+            });
+        }
+
+        // ボタン内の日付表示を更新する関数
+        function updateDateUI(playlistId, videos) {
+            const dateEl = document.getElementById(`date-${playlistId}`);
+            if (!dateEl) return;
+            
+            if (videos && videos.length > 0) {
+                // 最も新しい日付を取得
+                const latestDate = new Date(Math.max(...videos.map(v => v.pubDate.getTime())));
+                const shortDate = latestDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
+                
+                // 今日の0時0分0秒
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                // 昨日の0時0分0秒
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                
+                // 対象動画の日付を0時0分0秒に合わせて比較
+                const target = new Date(latestDate);
+                target.setHours(0, 0, 0, 0);
+                
+                let colorClass = 'text-gray-500'; // デフォルト色
+                let fwClass = '';
+                
+                if (target.getTime() === today.getTime()) {
+                    colorClass = 'text-red-600'; // 今日なら赤色
+                    fwClass = 'font-bold';
+                } else if (target.getTime() === yesterday.getTime()) {
+                    colorClass = 'text-red-400'; // 昨日なら薄赤色
+                    fwClass = 'font-bold';
+                }
+                
+                dateEl.textContent = `更新日: ${shortDate}`;
+                dateEl.className = `text-xs mt-1 transition-colors ${colorClass} ${fwClass}`;
+            } else {
+                dateEl.textContent = `更新日: 未取得`;
+                dateEl.className = `text-xs text-gray-500 mt-1 transition-colors`;
+            }
+        }
+
+        // ページロード時に両方のプレイリストの最新日付をFirebaseから取得してUIに反映する関数
+        async function updatePlaylistDates() {
+            const playlists = [
+                "PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_",
+                "PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2"
+            ];
+            for (const pid of playlists) {
+                const videos = await loadFromFirebase(pid);
+                updateDateUI(pid, videos);
+            }
+        }
+
+        async function fetchPlaylistData(isAutoUpdate = false, forceYouTube = false) {
+            const selectedRadio = document.querySelector('input[name="playlistSelect"]:checked');
+            const playlistId = selectedRadio ? selectedRadio.value : null;
+            const apiKey = document.getElementById('apiKey').value.trim();
+            
+            if (!playlistId) {
+                showToast("プレイリストを選択してください", true);
+                return;
+            }
+
+            // 保存
+            localStorage.setItem('yt_auto_playlist_select', playlistId);
+            if (apiKey) localStorage.setItem('yt_auto_api_key', apiKey);
+
+            if (!isAutoUpdate) showToast("動画リストを取得中...");
+
+            const btn = document.getElementById('startBtn');
+            const originalBtnText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>取得中';
+            btn.disabled = true;
+
+            try {
+                let videos = null;
+                let existingVideos = null;
+
+                // 1. まずはFirebaseから既存データを読み込み
+                existingVideos = await loadFromFirebase(playlistId);
+
+                // 強制取得フラグがオフなら、とりあえず既存データを表示用にセット
+                if (!forceYouTube) {
+                    videos = existingVideos;
+                }
+
+                // 2. Firebaseに無かった場合、または強制更新の場合はYouTubeから取得し、統合する
+                if (!videos || videos.length === 0 || forceYouTube) {
+                    let newVideos = [];
+                    let usedScraping = false;
+                    let apiFailed = false;
+                    
+                    if (apiKey) {
+                        try {
+                            newVideos = await fetchWithApi(playlistId, apiKey);
+                        } catch (apiError) {
+                            console.warn("API取得エラー:", apiError);
+                            apiFailed = true;
+                            // APIキーの設定ミスなどの場合、処理を止めずに代替手段へフォールバックする
+                            showToast(`${apiError.message}。代替手段（RSS等）での取得を試行します。`, true);
+                        }
+                    } 
+
+                    // APIキーがない場合、もしくはAPI取得が失敗した場合に代替手段を実行
+                    if (!apiKey || apiFailed) {
+                        try {
+                            newVideos = await fetchWithRss(playlistId);
+                            if (!newVideos || newVideos.length === 0) throw new Error("RSS Empty");
+                        } catch (rssError) {
+                            console.warn("RSSからの取得に失敗したため、限定公開用のHTML解析を試行します。", rssError);
+                            newVideos = await fetchWithHtmlScraping(playlistId);
+                            usedScraping = true;
+                        }
+                    }
+
+                    // APIキーなしのスクレイピング取得で上限の100件に達している場合、警告を出す
+                    if (usedScraping && newVideos && newVideos.length === 100) {
+                        setTimeout(() => showToast("APIキー未設定のため最新100件までしか取得できません。過去の全動画を取得するには高度な設定からAPIキーを入力してください。", true), 3500);
+                    }
+
+                    // 取得できたら、Firebaseの既存データとマージ（統合）して保存
+                    if (newVideos && newVideos.length > 0) {
+                        if (existingVideos && existingVideos.length > 0) {
+                            // IDをキーにして重複を排除しつつ統合
+                            const videoMap = new Map();
+                            // まず既存データを入れる
+                            existingVideos.forEach(v => videoMap.set(v.id, v));
+                            // 新しいデータで上書き／追加する
+                            newVideos.forEach(v => videoMap.set(v.id, v));
+                            
+                            // Mapから配列に戻して、新しい順（降順）にソート
+                            videos = Array.from(videoMap.values());
+                            videos.sort((a, b) => b.pubDate - a.pubDate);
+                        } else {
+                            videos = newVideos;
+                        }
+                        
+                        // マージされたすべての動画リストをFirebaseに保存（蓄積）
+                        await saveToFirebase(playlistId, videos);
+                    } else if (!videos) {
+                        // 新規取得に失敗したが既存データがある場合のフォールバック
+                        videos = existingVideos; 
+                    }
+                }
+
+                if (!videos || videos.length === 0) {
+                    showToast("動画が見つかりませんでした。", true);
+                    return;
+                }
+
+                // --- 変更検知ロジック：新しい取得結果と現在の表示リストを比較する ---
+                let isChanged = false;
+                if (!videoList || videoList.length !== videos.length) {
+                    isChanged = true;
+                } else {
+                    for (let i = 0; i < videos.length; i++) {
+                        // 1件でもIDが違う、または順番が変わっていれば「変更あり」とする
+                        if (videos[i].id !== videoList[i].id) {
+                            isChanged = true;
+                            break;
+                        }
+                    }
+                }
+
+                // 新しい動画が追加されていない場合（変更なし）は、UIをそのまま維持して処理を終了する
+                if (!isChanged && videoList.length > 0 && forceYouTube) {
+                    if (!isAutoUpdate) showToast("最新の状態です（新しく追加された動画はありません）。");
+                    resetAutoUpdateTimer();
+                    return;
+                }
+
+                // 現在再生中の動画IDを記録
+                const currentVideoId = videoList[currentIndex]?.id;
+                
+                videoList = videos;
+
+                // UIのボタン内の日付を最新に更新
+                updateDateUI(playlistId, videoList);
+
+                // 選択されている並べ替えを適用
+                sortVideoList();
+
+                // リスト更新時の再生位置の調整
+                let newIndex = videoList.findIndex(v => v.id === currentVideoId);
+                
+                if (!player) {
+                    // 初回起動
+                    currentIndex = 0;
+                    updateCurrentVideoInfo(); // プレイヤーの準備を待たずに最初の動画情報を表示
+                    initPlayer(); // プレイヤーの初期化（完了後自動で再生される）
+                } else {
+                    if (newIndex === -1 && !isAutoUpdate) {
+                        // 手動取得で現在の動画が見つからなければ最初から
+                        currentIndex = 0;
+                        playCurrentVideo();
+                    } else if (newIndex !== -1) {
+                        // 現在の動画が存在すればインデックスを更新
+                        currentIndex = newIndex;
+                        renderPlaylist();
+                    } else {
+                        // 自動更新時に現在再生中の動画がリストから消えた場合（稀）
+                        // 再生は止めず、インデックスだけ0にしておく
+                        currentIndex = 0;
+                        renderPlaylist();
+                    }
+                }
+
+                if (!isAutoUpdate) showToast("動画リストを読み込みました！");
+                
+                // 自動更新タイマーのリセットと開始
+                resetAutoUpdateTimer();
+
+            } catch (e) {
+                console.error(e);
+                let errorMsg = e.message;
+                // TypeError: Load failed 等ネットワーク系エラーのわかりやすい表示
+                if (e.name === 'TypeError' && e.message === 'Load failed') {
+                    errorMsg = "ネットワーク通信がブロックされました。APIキーの設定をお試しください。";
+                }
+                showToast("取得エラー: " + errorMsg, true);
+            } finally {
+                btn.innerHTML = originalBtnText;
+                btn.disabled = false;
+            }
+        }
+
+        // 方法1: RSSを利用して最新を取得（APIキー不要、最新15件程度）
+        async function fetchWithRss(playlistId) {
+            const rssUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`;
+            const proxies = [
+                `https://api.allorigins.win/raw?url=`,
+                `https://api.codetabs.com/v1/proxy/?quest=`,
+                `https://corsproxy.io/?`
+            ];
+            let xmlText = null;
+            for (const proxy of proxies) {
+                try {
+                    const res = await fetch(proxy + encodeURIComponent(rssUrl));
+                    if (!res.ok) continue;
+                    xmlText = await res.text();
+                    if (xmlText && xmlText.includes('<feed')) break;
+                } catch (e) {
+                    console.warn(`Proxy ${proxy} failed:`, e);
+                }
+            }
+            if (!xmlText || !xmlText.includes('<feed')) {
+                throw new Error("通信に失敗しました。プレイリストが非公開か、通信制限の可能性があります。");
+            }
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+            const entries = xmlDoc.querySelectorAll("entry");
+            if (entries.length === 0) return [];
+            const items = Array.from(entries).map(entry => {
+                const idNode = entry.querySelector("id");
+                const vid = (idNode ? idNode.textContent : "").replace("yt:video:", "");
+                const titleNode = entry.querySelector("title");
+                const title = titleNode ? titleNode.textContent : "無題の動画";
+                const publishedNode = entry.querySelector("published");
+                const pubDateText = publishedNode ? publishedNode.textContent : new Date().toISOString();
+                let description = "";
+                const descNodes = entry.getElementsByTagNameNS("http://search.yahoo.com/mrss/", "description");
+                if (descNodes && descNodes.length > 0) {
+                    description = descNodes[0].textContent;
+                } else {
+                    const mediaDesc = entry.getElementsByTagName("media:description")[0];
+                    if (mediaDesc) description = mediaDesc.textContent;
+                }
+                return {
+                    id: vid,
+                    title: title,
+                    description: description,
+                    thumbnail: `https://i.ytimg.com/vi/${vid}/mqdefault.jpg`,
+                    pubDate: new Date(pubDateText)
+                };
+            }).filter(item => isValidVideoId(item.id));
+            items.sort((a, b) => b.pubDate - a.pubDate);
+            return items;
+        }
+
+        // 方法3: HTMLスクレイピングを利用（限定公開プレイリスト等、RSSが取得できない場合の代替手段）
+        async function fetchWithHtmlScraping(playlistId) {
+            const url = `https://www.youtube.com/playlist?list=${playlistId}`;
+            const proxies = [
+                { url: `https://api.allorigins.win/get?url=`, type: 'json' },
+                { url: `https://api.codetabs.com/v1/proxy/?quest=`, type: 'text' },
+                { url: `https://corsproxy.io/?`, type: 'text' }
+            ];
+            let html = null;
+            for (const proxy of proxies) {
+                try {
+                    const res = await fetch(proxy.url + encodeURIComponent(url));
+                    if (!res.ok) continue;
+                    if (proxy.type === 'json') {
+                        const data = await res.json();
+                        html = data.contents;
+                    } else {
+                        html = await res.text();
+                    }
+                    if (html && html.includes('ytInitialData')) break;
+                } catch (e) {
+                    console.warn(`Scraping proxy ${proxy.url} failed:`, e);
+                }
+            }
+            if (!html) throw new Error("通信がブロックされました。ブラウザのセキュリティ設定を確認するか、APIキーを設定してください。");
+
+            let ytDataString = null;
+            const match1 = html.match(/var ytInitialData = (\{.*?\});<\/script>/);
+            const match2 = html.match(/window\["ytInitialData"\] = (\{.*?\});/);
+            if (match1) ytDataString = match1[1];
+            else if (match2) ytDataString = match2[1];
+            if (!ytDataString) throw new Error("解析不能。非公開設定になっているか、APIキーが必要です。");
+            
+            const ytData = JSON.parse(ytDataString);
+            function extractVideoItems(obj) {
+                let found = [];
+                if (!obj || typeof obj !== 'object') return found;
+                if (Array.isArray(obj)) {
+                    for (const item of obj) found.push(...extractVideoItems(item));
+                } else {
+                    if (obj.playlistVideoRenderer) found.push(obj);
+                    else for (const key in obj) found.push(...extractVideoItems(obj[key]));
+                }
+                return found;
+            }
+            let items = [];
+            try { items = extractVideoItems(ytData); } catch (e) { throw new Error("データ抽出中のエラーです。"); }
+            if (items.length === 0) throw new Error("限定公開リスト内に動画が見つかりません。");
+
+            function estimateDateFromRelativeTime(relativeTimeText) {
+                const now = new Date();
+                const text = relativeTimeText || "";
+                let match = text.match(/(\d+)\s*(年|ヶ月|箇月|週間|日|時間|分)\s*前/);
+                if (!match) match = text.match(/(\d+)\s*(year|month|week|day|hour|minute)s?\s*ago/i);
+                if (match) {
+                    const num = parseInt(match[1], 10);
+                    const unit = match[2].toLowerCase();
+                    if (unit.includes('年') || unit.includes('year')) now.setFullYear(now.getFullYear() - num);
+                    else if (unit.includes('ヶ月') || unit.includes('箇月') || unit.includes('month')) now.setMonth(now.getMonth() - num);
+                    else if (unit.includes('週間') || unit.includes('week')) now.setDate(now.getDate() - (num * 7));
+                    else if (unit.includes('日') || unit.includes('day')) now.setDate(now.getDate() - num);
+                    else if (unit.includes('時間') || unit.includes('hour')) now.setHours(now.getHours() - num);
+                    else if (unit.includes('分') || unit.includes('minute')) now.setMinutes(now.getMinutes() - num);
+                    return now;
+                }
+                return null;
+            }
+            
+            let videos = [];
+            items.forEach((item, index) => {
+                const vidRenderer = item.playlistVideoRenderer;
+                if (vidRenderer && isValidVideoId(vidRenderer.videoId) && vidRenderer.isPlayable !== false) {
+                    let relativeTimeText = "";
+                    if (vidRenderer.videoInfo && vidRenderer.videoInfo.runs) {
+                        const timeRun = vidRenderer.videoInfo.runs.find(r => r.text && (r.text.includes('前') || r.text.includes('ago')));
+                        if (timeRun) relativeTimeText = timeRun.text;
+                    }
+                    let pubDate = estimateDateFromRelativeTime(relativeTimeText);
+                    if (pubDate) pubDate = new Date(pubDate.getTime() - (index * 1000));
+                    else pubDate = new Date(Date.now() - (index * 100000));
+
+                    videos.push({
+                        id: vidRenderer.videoId,
+                        title: vidRenderer.title?.runs?.[0]?.text || "無題の動画",
+                        description: relativeTimeText ? `※APIキー未設定の限定公開取得ルートを通ったため、詳細な概要は取得できません。\n（動画一覧に表示されていた公開時期: ${relativeTimeText}）` : "", 
+                        thumbnail: `https://i.ytimg.com/vi/${vidRenderer.videoId}/mqdefault.jpg`,
+                        pubDate: pubDate,
+                        isEstimated: true
+                    });
+                }
+            });
+            videos.sort((a, b) => b.pubDate - a.pubDate);
+            return videos;
+        }
+
+        // 方法2: YouTube Data API v3 を利用（APIキー必要、ページネーションで全件取得）
+        async function fetchWithApi(playlistId, apiKey) {
+            let videos = [];
+            let nextPageToken = '';
+            const maxResults = 50; 
+            
+            while (true) {
+                const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=${maxResults}&playlistId=${playlistId}&key=${apiKey}&pageToken=${nextPageToken}`;
+                const res = await fetch(url);
+                if (!res.ok) {
+                    const err = await res.json();
+                    const msg = err.error?.message || "APIリクエストエラー";
+                    if (msg.includes("blocked") || msg.includes("not enabled")) {
+                        throw new Error("【設定エラー】GCPプロジェクトで「YouTube Data API v3」が有効になっていないか、APIキーに厳しい制限（HTTPリファラー等）がかかっています。GCPコンソールをご確認ください");
+                    }
+                    throw new Error(`APIエラー: ${msg}`);
+                }
+                const data = await res.json();
+                
+                data.items.forEach(item => {
+                    const publishedAt = item.contentDetails?.videoPublishedAt || item.snippet.publishedAt;
+                    videos.push({
+                        id: item.snippet.resourceId.videoId,
+                        title: item.snippet.title,
+                        description: item.snippet.description,
+                        thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
+                        pubDate: new Date(publishedAt)
+                    });
+                });
+                
+                nextPageToken = data.nextPageToken;
+                if (!nextPageToken) break;
+            }
+            
+            videos = videos.filter(v => 
+                v.title !== 'Private video' && 
+                v.title !== 'Deleted video' && 
+                v.thumbnail &&
+                isValidVideoId(v.id)
+            );
+            
+            videos.sort((a, b) => b.pubDate - a.pubDate);
+            return videos;
+        }
+
+        // --- UIレンダリング ---
+        function renderPlaylist() {
+            const container = document.getElementById('playlistContainer');
+            container.innerHTML = '';
+            
+            // 検索用の同義語変換
+            const normalizeText = (text) => {
+                if (!text) return "";
+                return text.toLowerCase()
+                    .replace(/経産省/g, "経済産業省")
+                    .replace(/国交省/g, "国土交通省")
+                    .replace(/文科省/g, "文部科学省")
+                    .replace(/厚労省/g, "厚生労働省")
+                    .replace(/農水省/g, "農林水産省");
+            };
+            
+            const rawQuery = document.getElementById('searchInput')?.value || '';
+            const queryStr = normalizeText(rawQuery).trim();
+            const queries = queryStr ? queryStr.split(/[\s　]+/).filter(q => q.length > 0) : [];
+            let displayedCount = 0;
+            
+            const infoEl = document.getElementById('playlistInfo');
+            let latestDateStr = "";
+            if (videoList.length > 0) {
+                const shortDate = videoList[0].pubDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                latestDateStr = ` (更新日: ${shortDate})`;
+            }
+
+            if (videoList.length === 0) {
+                container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">動画がありません</div>';
+                if (infoEl) infoEl.textContent = `全 0 件`;
+                return;
+            }
+
+            videoList.forEach((video, index) => {
+                if (queries.length > 0) {
+                    const titleLower = normalizeText(video.title);
+                    const descLower = normalizeText(video.description);
+                    const isMatch = queries.every(q => titleLower.includes(q) || descLower.includes(q));
+                    if (!isMatch) return;
+                }
+                
+                displayedCount++;
+
+                const isActive = index === currentIndex;
+                const item = document.createElement('div');
+                item.className = `flex items-start gap-3 p-3 border-b border-gray-100 cursor-pointer hover:bg-red-50 transition-colors ${isActive ? 'active-video' : ''}`;
+                
+                item.onclick = () => {
+                    currentIndex = index;
+                    playCurrentVideo();
+                };
+                
+                const imgContainer = document.createElement('div');
+                imgContainer.className = 'relative shrink-0 w-28 h-16 bg-black rounded overflow-hidden';
+                
+                const img = document.createElement('img');
+                img.src = video.thumbnail;
+                img.className = 'w-full h-full object-cover opacity-90';
+                
+                if (isActive) {
+                    const overlay = document.createElement('div');
+                    overlay.className = 'absolute inset-0 bg-black/40 flex items-center justify-center';
+                    overlay.innerHTML = '<i class="fas fa-play text-white text-sm"></i>';
+                    imgContainer.appendChild(img);
+                    imgContainer.appendChild(overlay);
+                } else {
+                    imgContainer.appendChild(img);
+                }
+                
+                const textContainer = document.createElement('div');
+                textContainer.className = 'flex flex-col overflow-hidden justify-center h-full';
+                
+                const title = document.createElement('span');
+                title.className = `text-sm font-medium line-clamp-2 leading-tight ${isActive ? 'text-red-700 font-bold' : 'text-gray-800'}`;
+                title.textContent = video.title;
+                
+                const date = document.createElement('span');
+                date.className = 'text-xs text-gray-500 mt-1';
+                const shortDate = video.pubDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                date.textContent = video.isEstimated ? `約 ${shortDate}` : shortDate;
+                
+                textContainer.appendChild(title);
+                textContainer.appendChild(date);
+                
+                item.appendChild(imgContainer);
+                item.appendChild(textContainer);
+                container.appendChild(item);
+            });
+            
+            if (displayedCount === 0) {
+                container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">一致する動画が見つかりませんでした</div>';
+            }
+            
+            if (infoEl) {
+                if (queries.length > 0) {
+                    infoEl.textContent = `検索結果: ${displayedCount} 件 / 全 ${videoList.length} 件${latestDateStr}`;
+                } else {
+                    infoEl.textContent = `全 ${videoList.length} 件${latestDateStr}`;
+                }
+            }
+            
+            if (queries.length === 0) {
+                setTimeout(() => {
+                    const activeItem = container.querySelector('.active-video');
+                    if (activeItem) {
+                        activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                }, 100);
+            }
+        }
+
+        // --- 自動更新ロジック ---
+        function resetAutoUpdateTimer() {
+            if (updateIntervalId) clearInterval(updateIntervalId);
+            if (countdownIntervalId) clearInterval(countdownIntervalId);
+            
+            const intervalMinutes = parseInt(document.getElementById('updateInterval').value, 10) || 60;
+            if (intervalMinutes < 1) return; // 0以下の場合は自動更新しない
+            
+            const intervalMs = intervalMinutes * 60 * 1000;
+            nextUpdateTime = Date.now() + intervalMs;
+            
+            updateIntervalId = setInterval(() => {
+                console.log("バックグラウンド更新を実行します...");
+                // 自動更新時はYouTubeから強制再取得してFirebaseを上書きする
+                fetchPlaylistData(true, true);
+            }, intervalMs);
+
+            // カウントダウン表示の更新
+            updateCountdownDisplay();
+            countdownIntervalId = setInterval(updateCountdownDisplay, 60000); // 1分ごとに更新
+        }
+
+        function updateCountdownDisplay() {
+            const infoEl = document.getElementById('nextUpdateInfo');
+            if (!nextUpdateTime) {
+                infoEl.textContent = "";
+                return;
+            }
+            
+            const diffMs = nextUpdateTime - Date.now();
+            if (diffMs <= 0) {
+                infoEl.textContent = "更新中...";
+                return;
+            }
+            const diffMinutes = Math.ceil(diffMs / 60000);
+            infoEl.textContent = `次回更新まで 約 ${diffMinutes} 分`;
+        }
+
+        // --- ユーティリティ ---
+        function showToast(message, isError = false) {
+            // 既存のトーストを削除
+            const existing = document.getElementById('toast-msg');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.id = 'toast-msg';
+            toast.className = `fixed bottom-4 right-4 md:bottom-8 md:right-8 px-6 py-3 rounded shadow-lg text-white font-medium z-50 transform transition-all duration-300 translate-y-0 opacity-100 ${isError ? 'bg-red-600' : 'bg-gray-800'}`;
+            toast.innerHTML = isError ? `<i class="fas fa-exclamation-circle mr-2"></i>${message}` : `<i class="fas fa-info-circle mr-2"></i>${message}`;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-4', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // --- 初期化 ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 保存された設定の復元
+            const savedSelect = localStorage.getItem('yt_auto_playlist_select');
+            const savedApiKey = localStorage.getItem('yt_auto_api_key');
+            
+            if (savedSelect) {
+                const radio = document.querySelector(`input[name="playlistSelect"][value="${savedSelect}"]`);
+                if (radio) radio.checked = true;
+            }
+            if (savedApiKey) document.getElementById('apiKey').value = savedApiKey;
+
+            // ページロード時は常にデフォルトのソート設定にする
+            currentSort = 'date-desc';
+            document.getElementById('sortSelect').value = currentSort;
+            
+            // イベントリスナー (false: 手動表示更新, true: YouTube強制取得)
+            // ※ボタンを押した時はFirebaseの既存データではなく、必ずYouTubeから再取得するように修正
+            document.getElementById('startBtn').addEventListener('click', () => fetchPlaylistData(false, true));
+            
+            // 並べ替えをデフォルトに戻すボタン
+            document.getElementById('refreshBtn').addEventListener('click', () => {
+                currentSort = 'date-desc';
+                document.getElementById('sortSelect').value = currentSort;
+                
+                const currentVideoId = videoList[currentIndex]?.id;
+                sortVideoList();
+                
+                // 再生中の動画のインデックスを再計算
+                if (currentVideoId) {
+                    const newIndex = videoList.findIndex(v => v.id === currentVideoId);
+                    if (newIndex !== -1) currentIndex = newIndex;
+                }
+                
+                renderPlaylist();
+            });
+            
+            // 選択を変更した際に自動で取得を開始する
+            document.querySelectorAll('input[name="playlistSelect"]').forEach(radio => {
+                radio.addEventListener('change', () => fetchPlaylistData(false, false));
+            });
+            
+            document.getElementById('updateInterval').addEventListener('change', () => {
+                if(videoList.length > 0) resetAutoUpdateTimer();
+            });
+
+            // 検索ボックスのイベントリスナー追加
+            const searchInput = document.getElementById('searchInput');
+            const clearSearchBtn = document.getElementById('clearSearchBtn');
+
+            searchInput.addEventListener('input', () => {
+                if (searchInput.value.trim() !== '') {
+                    clearSearchBtn.classList.remove('hidden');
+                } else {
+                    clearSearchBtn.classList.add('hidden');
+                }
+                renderPlaylist(); // 入力するたびにリストを再描画（フィルタリング）
+            });
+
+            clearSearchBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                clearSearchBtn.classList.add('hidden');
+                renderPlaylist(); // クリアしてリスト全体を再描画
+            });
+
+            // トップへ移動するボタンの制御
+            const playlistContainer = document.getElementById('playlistContainer');
+            const scrollTopBtnHeader = document.getElementById('scrollTopBtnHeader');
+            const scrollTopBtnFloat = document.getElementById('scrollTopBtnFloat');
+
+            const scrollToTop = () => {
+                playlistContainer.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+
+            // ヘッダーボタンとフローティングボタン両方にクリックイベントを設定
+            scrollTopBtnHeader.addEventListener('click', scrollToTop);
+            scrollTopBtnFloat.addEventListener('click', scrollToTop);
+
+            // スクロール量に応じてフローティングボタンの表示/非表示を切り替え
+            playlistContainer.addEventListener('scroll', () => {
+                if (playlistContainer.scrollTop > 100) {
+                    scrollTopBtnFloat.classList.remove('opacity-0', 'pointer-events-none');
+                    scrollTopBtnFloat.classList.add('opacity-100');
+                } else {
+                    scrollTopBtnFloat.classList.add('opacity-0', 'pointer-events-none');
+                    scrollTopBtnFloat.classList.remove('opacity-100');
+                }
+            });
+
+            // 並べ替え（ソート）のイベントリスナー追加
+            document.getElementById('sortSelect').addEventListener('change', (e) => {
+                currentSort = e.target.value;
+                
+                const currentVideoId = videoList[currentIndex]?.id;
+                sortVideoList();
+                
+                // 再生中の動画のインデックスを再計算
+                if (currentVideoId) {
+                    const newIndex = videoList.findIndex(v => v.id === currentVideoId);
+                    if (newIndex !== -1) currentIndex = newIndex;
+                }
+                
+                renderPlaylist();
+            });
+
+            // マニュアルモーダルの制御
+            const helpModal = document.getElementById('helpModal');
+            const helpModalContent = helpModal.querySelector('div.bg-white');
+            
+            const openHelp = () => {
+                helpModal.classList.remove('hidden');
+                // 少し遅らせてアニメーションクラスを追加
+                setTimeout(() => {
+                    helpModal.classList.remove('opacity-0');
+                    helpModalContent.classList.remove('scale-95');
+                }, 10);
+            };
+            
+            const closeHelp = () => {
+                helpModal.classList.add('opacity-0');
+                helpModalContent.classList.add('scale-95');
+                setTimeout(() => {
+                    helpModal.classList.add('hidden');
+                }, 300); // トランジションの時間に合わせる
+            };
+
+            document.getElementById('openHelpBtn').addEventListener('click', openHelp);
+            document.getElementById('closeHelpBtn').addEventListener('click', closeHelp);
+            document.getElementById('closeHelpBtnBottom').addEventListener('click', closeHelp);
+            
+            // モーダルの外側をクリックで閉じる
+            helpModal.addEventListener('click', (e) => {
+                if (e.target === helpModal) closeHelp();
+            });
+
+            // === ページ読み込み時にFirebaseから自動でリストを呼び出す ===
+            await initAuth();
+            user = auth.currentUser;
+            fetchPlaylistData(false, false);
+            
+            // 各ボタンの最新更新日情報を取得して表示
+            updatePlaylistDates();
+        });
     </script>
 </body>
 </html>
