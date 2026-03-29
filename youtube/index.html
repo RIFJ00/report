@@ -1,40 +1,377 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Word Search</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Word (.docx) 解析用ライブラリ -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-  <!-- Word (.docx) 生成用ライブラリ (安定版の8.2.3に固定) -->
-  <script src="https://unpkg.com/docx@8.2.3/build/index.umd.js"></script>
-  <!-- PDF 生成用ライブラリ -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <style>
-    /* カスタムアニメーション */
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .animate-in { animation: fadeIn 0.5s ease-out forwards; }
-    /* スクロールバー非表示 */
-    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    .hide-scrollbar::-webkit-scrollbar { display: none; }
-    
-    /* レポート編集用スタイル */
-    .report-content { outline: none; white-space: pre-wrap; min-height: 297mm; }
-    .report-content h1 { font-size: 2rem; font-weight: 800; margin-top: 1rem; margin-bottom: 1.5rem; color: var(--color-accent); }
-    .report-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); color: var(--color-text-bold); }
-    .report-content h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
-    .report-content h4 { font-size: 1rem; font-weight: bold; margin-top: 1.25rem; margin-bottom: 0.5rem; color: var(--color-text-bold); }
-    .report-content p { line-height: 1.8; margin-bottom: 1rem; }
-    .report-content ul { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: disc; }
-    .report-content ol { margin-top: 0.5rem; margin-bottom: 1rem; padding-left: 1.5em; list-style-type: decimal; }
-    .report-content li { margin-bottom: 0.5rem; display: list-item; }
-    .report-content blockquote { border-left: 4px solid var(--color-accent); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; }
-    .report-content img { max-width: 100%; max-height: 400px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); cursor: pointer; transition: width 0.2s ease-in-out; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>政策リサーチ関連ダッシュボード</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* カードのホバーアニメーション */
+        .hover-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .hover-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .status-loading {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        /* モーダルの表示制御用 */
+        .modal-overlay {
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-xl p-8 md:p-12 max-w-7xl w-full text-center border border-gray-200">
+        <div class="flex flex-col md:flex-row items-center justify-center gap-4 mb-10">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-800 leading-tight">
+                政策リサーチ関連ダッシュボード
+            </h1>
+            <button id="openManual" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-full text-sm font-bold transition-colors flex items-center gap-2 border border-gray-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                使い方
+            </button>
+        </div>
+
+        <!-- グリッドレイアウト: 8枚構成 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- 本日のポイント -->
+            <div class="hover-card bg-gradient-to-tr from-green-50 to-green-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-green-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <button onclick="openUrlWithPassword('https://report.rifj.jp/point/', 'point')" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-green-300">
+                    本日のポイント
+                </button>
+                <p id="point-status" class="text-xs text-green-800 font-medium status-loading">読込中...</p>
+            </div>
+
+            <!-- 政策レポート -->
+            <div class="hover-card bg-gradient-to-tr from-purple-50 to-purple-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-purple-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17h6m-1-4v4m-2-4h2a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6a2 2 0 002 2h2m2 0h2a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6a2 2 0 002 2h2"></path>
+                    </svg>
+                </div>
+                <button onclick="openUrlWithPassword('https://report.rifj.jp/policy/', 'policy')" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-purple-300">
+                    政策レポート
+                </button>
+                <p id="policy-status" class="text-xs text-purple-800 font-medium status-loading">読込中...</p>
+            </div>
+
+            <!-- 開発者のブログ -->
+            <div class="hover-card bg-gradient-to-tr from-red-50 to-red-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-red-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                    </svg>
+                </div>
+                <button onclick="openUrlWithPassword('https://report.rifj.jp/blog/', 'blog')" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-red-300">
+                    開発者のブログ
+                </button>
+                <p id="blog-status" class="text-xs text-red-800 font-medium status-loading">読込中...</p>
+            </div>
+
+            <!-- 国会質問主意書 -->
+            <div class="hover-card bg-gradient-to-tr from-amber-50 to-amber-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-amber-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/shitsumonshui/', '_blank')" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-amber-300">
+                    国会質問主意書
+                </button>
+                <p id="diet-status" class="text-xs text-amber-800 font-medium status-loading">読込中...</p>
+            </div>
+
+            <!-- 関連動画チャネル -->
+            <div class="hover-card bg-gradient-to-tr from-rose-50 to-rose-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-rose-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/webtest/', '_blank')" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-rose-300">
+                    関連動画チャネル
+                </button>
+                <p id="video-status" class="text-xs text-rose-800 font-medium status-loading">読込中...</p>
+            </div>
+
+            <!-- 文脈解析アプリ -->
+            <div class="hover-card bg-gradient-to-tr from-blue-50 to-blue-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-blue-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
+                    </svg>
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/text/', '_blank')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    文脈解析アプリ
+                </button>
+                <p class="text-sm text-blue-800 font-medium">データ内容を分析</p>
+            </div>
+
+            <!-- レイアウトツール -->
+            <div class="hover-card bg-gradient-to-tr from-indigo-50 to-indigo-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-indigo-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path>
+                    </svg>
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/layout/', '_blank')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+                    レイアウトツール
+                </button>
+                <p class="text-sm text-indigo-800 font-medium">レイアウト構成を設計</p>
+            </div>
+
+            <!-- 調査＆レポート -->
+            <div class="hover-card bg-gradient-to-tr from-teal-50 to-teal-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-teal-200">
+                <div class="mb-6">
+                    <svg class="w-16 h-16 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/word/', '_blank')" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-teal-300">
+                    調査＆レポート
+                </button>
+                <p class="text-sm text-teal-800 font-medium">調査と資料作成を自動化</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 使い方ガイドモーダル -->
+    <div id="manualModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div id="modalOverlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 modal-overlay"></div>
+        <div id="modalContent" class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden relative z-10 opacity-0 scale-95 modal-content flex flex-col">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <h2 class="text-2xl font-extrabold text-gray-800">使い方ガイド</h2>
+                <button id="closeManual" class="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="p-8 overflow-y-auto space-y-8">
+                <section>
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                        <span class="w-2 h-6 bg-blue-500 rounded-full"></span>
+                        更新状況の見方
+                    </h3>
+                    <div class="bg-blue-50 rounded-2xl p-4 space-y-3">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-black text-red-600 bg-white px-2 py-1 rounded border border-red-200">赤色・太字</span>
+                            <span class="text-sm text-gray-700 font-medium">今日（または昨日）更新された最新情報です。</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-medium text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">通常色</span>
+                            <span class="text-sm text-gray-700 font-medium">アーカイブデータです。</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                        <span class="w-2 h-6 bg-indigo-500 rounded-full"></span>
+                        各ボタンの内容
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-green-700 text-sm mb-1">本日のポイント</span>
+                            <p class="text-xs text-gray-600">日々の政策動向の要約を確認。（パスワード自動送信）</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-purple-700 text-sm mb-1">政策レポート</span>
+                            <p class="text-xs text-gray-600">特定のテーマに基づいた分析レポート。（パスワード自動送信）</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-red-700 text-sm mb-1">開発者のブログ</span>
+                            <p class="text-xs text-gray-600">システムの更新情報や開発背景。（パスワード自動送信）</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-amber-700 text-sm mb-1">国会質問主意書</span>
+                            <p class="text-xs text-gray-600">国会で提出された質問主意書の動向。</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-rose-700 text-sm mb-1">関連動画チャネル</span>
+                            <p class="text-xs text-gray-600">政策解説や会議概要の動画コンテンツ。</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-blue-700 text-sm mb-1">文脈解析アプリ</span>
+                            <p class="text-xs text-gray-600">データの文脈を読み取り分析を支援。</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-indigo-700 text-sm mb-1">レイアウトツール</span>
+                            <p class="text-xs text-gray-600">レポートや資料の構成を設計。</p>
+                        </div>
+                        <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                            <span class="font-bold text-teal-700 text-sm mb-1">調査＆レポート</span>
+                            <p class="text-xs text-gray-600">調査から資料生成までを自動化するツール。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="text-center p-4 bg-gray-50 rounded-2xl text-xs text-gray-500">
+                    ※パスワード送信対応サイトへは自動ログインを試みます。
+                </div>
+            </div>
+            
+            <div class="p-6 bg-gray-50/50 border-t border-gray-100 text-center">
+                <button id="closeManualBtn" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all active:scale-95">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getFirestore, collection, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+
+        const firebaseConfigBlog = { apiKey: "AIzaSyD-2UK3S9QjydIIqcTwyfpZMh-Gy4fXlMA", authDomain: "blog-viewer-f83bc.firebaseapp.com", projectId: "blog-viewer-f83bc", storageBucket: "blog-viewer-f83bc.firebasestorage.app", messagingSenderId: "182374996524", appId: "1:182374996524:web:c6d9f3cfe32957a0bd4f89" };
+        const firebaseConfigDiet = { apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs", authDomain: "user-9b981.firebaseapp.com", projectId: "user-9b981" };
+        const firebaseConfigImport = { apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04", authDomain: "import-b6097.firebaseapp.com", projectId: "import-b6097", storageBucket: "import-b6097.firebasestorage.app", messagingSenderId: "462510788117", appId: "1:462510788117:web:44ff1fd1af583f67bc081c" };
+
+        const appBlog = initializeApp(firebaseConfigBlog, "blogApp");
+        const dbBlog = getFirestore(appBlog);
+        const appDiet = initializeApp(firebaseConfigDiet, "dietApp");
+        const dbDiet = getFirestore(appDiet);
+        const appImport = initializeApp(firebaseConfigImport, "importApp");
+        const dbImport = getFirestore(appImport);
+
+        function updateStatusDisplay(elementId, date) {
+            const el = document.getElementById(elementId);
+            if (!el || !date) return;
+            const formatted = date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+            const today = new Date();
+            const yesterday = new Date();
+            yesterday.setDate(today.getDate() - 1);
+            const isSameDay = (d1, d2) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
+            el.textContent = `最終更新: ${formatted}`;
+            el.classList.remove('status-loading');
+            if (isSameDay(date, today)) {
+                el.className = "text-xs font-black text-red-600";
+            } else if (isSameDay(date, yesterday)) {
+                el.className = "text-xs font-bold text-red-500";
+            } else {
+                if (elementId === 'point-status') el.className = "text-xs text-green-800 font-medium opacity-75";
+                else if (elementId === 'policy-status') el.className = "text-xs text-purple-800 font-medium opacity-75";
+                else if (elementId === 'blog-status') el.className = "text-xs text-red-800 font-medium opacity-75";
+                else if (elementId === 'diet-status') el.className = "text-xs text-amber-800 font-medium opacity-75";
+                else if (elementId === 'video-status') el.className = "text-xs text-rose-800 font-medium opacity-75";
+                else el.className = "text-xs font-medium opacity-75";
+            }
+        }
+
+        onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/point_last_import_metadata"), (snap) => {
+            if (snap.exists()) {
+                const ts = snap.data().lastImportTimestamp;
+                updateStatusDisplay('point-status', ts?.toDate ? ts.toDate() : new Date(ts));
+            }
+        });
+
+        onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/policy_last_import_metadata"), (snap) => {
+            if (snap.exists()) {
+                const ts = snap.data().lastImportTimestamp;
+                updateStatusDisplay('policy-status', ts?.toDate ? ts.toDate() : new Date(ts));
+            }
+        });
+
+        onSnapshot(collection(dbBlog, "posts"), (snapshot) => {
+            let latest = null;
+            snapshot.docs.forEach(d => {
+                const ts = d.data().createdAt;
+                const date = ts?.toDate ? ts.toDate() : new Date(ts);
+                if (!latest || date > latest) latest = date;
+            });
+            updateStatusDisplay('blog-status', latest);
+        });
+
+        const initDiet = async () => {
+            const auth = getAuth(appDiet);
+            await signInAnonymously(auth);
+            onSnapshot(doc(dbDiet, "dashboard_data", "config"), (snap) => {
+                if (snap.exists()) {
+                    const sessions = snap.data().sessions || [];
+                    if (sessions.length > 0) {
+                        const latestSession = sessions.reduce((max, s) => new Date(s.updatedAt) > new Date(max.updatedAt) ? s : max, sessions[0]);
+                        updateStatusDisplay('diet-status', new Date(latestSession.updatedAt));
+                    }
+                }
+            });
+        };
+        initDiet();
+
+        // --- Video Channel Logic: 最新の動画公開日を取得 ---
+        const videoUpdateTimes = { meeting: null, policy: null };
+        const videoAppId = 'youtube-playlist-app';
+        
+        const updateVideoChannelStatus = () => {
+            const times = [videoUpdateTimes.meeting, videoUpdateTimes.policy].filter(t => t !== null);
+            if (times.length === 0) return;
+            const latest = new Date(Math.max(...times.map(t => t.getTime())));
+            updateStatusDisplay('video-status', latest);
+        };
+
+        const getLatestVideoDate = (snap) => {
+            if (!snap.exists()) return null;
+            const videos = snap.data().videos || [];
+            if (videos.length === 0) return null;
+            // videos配列内の各videoにあるpubDateの最大値を抽出
+            const maxTs = Math.max(...videos.map(v => v.pubDate));
+            return new Date(maxTs);
+        };
+
+        // 会議等概要
+        onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_'), (snap) => {
+            const latest = getLatestVideoDate(snap);
+            if (latest) { videoUpdateTimes.meeting = latest; updateVideoChannelStatus(); }
+        });
+
+        // 政策レポート
+        onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2'), (snap) => {
+            const latest = getLatestVideoDate(snap);
+            if (latest) { videoUpdateTimes.policy = latest; updateVideoChannelStatus(); }
+        });
+    </script>
+
+    <script>
+        const modal = document.getElementById('manualModal');
+        const overlay = document.getElementById('modalOverlay');
+        const content = document.getElementById('modalContent');
+        const openBtn = document.getElementById('openManual');
+        const closeBtns = [document.getElementById('closeManual'), document.getElementById('closeManualBtn'), overlay];
+
+        function openModal() { modal.classList.remove('hidden'); setTimeout(() => { overlay.classList.add('opacity-100'); content.classList.add('opacity-100', 'scale-100'); content.classList.remove('scale-95'); }, 10); }
+        function closeModal() { overlay.classList.remove('opacity-100'); content.classList.remove('opacity-100', 'scale-100'); content.classList.add('scale-95'); setTimeout(() => { modal.classList.add('hidden'); }, 300); }
+
+        openBtn.addEventListener('click', openModal);
+        closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
+
+        function openUrlWithPassword(baseUrl, password) {
+            const targetUrl = `${baseUrl}?pw=${password}#${password}`;
+            window.open(targetUrl, '_blank');
+        }
+    </script>
+</body>
+</html>    .report-content img { max-width: 100%; max-height: 400px; object-fit: contain; margin: 1rem auto; display: block; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); cursor: pointer; transition: width 0.2s ease-in-out; }
     .report-content img:hover { outline: 2px solid var(--color-accent); outline-offset: 2px; }
     .report-content strong { font-weight: bold; color: var(--color-text-bold); }
     .report-content em { font-style: italic; }
