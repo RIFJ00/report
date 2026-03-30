@@ -21,67 +21,229 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <!-- Firebase モジュールのインポートマップ -->
+    <script type="importmap">
+        {
+            "imports": {
+                "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
+                "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
+                "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
+            }
+        }
+    </script>
+
 </head>
 <body class="bg-gray-50">
     
     <div id="root"></div>
 
-    <script type="text/babel">
-        const { useState } = React;
+    <script type="text/babel" data-type="module">
+        import { initializeApp } from 'firebase/app';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+        import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
+
+        const { useState, useEffect, useMemo } = React;
+
+        // 指定された Firebase 設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyCzxK80B7Tl2EoBemiWq2_rKFPHhr1vkVI",
+            authDomain: "election-fe317.firebaseapp.com",
+            projectId: "election-fe317",
+            storageBucket: "election-fe317.firebasestorage.app",
+            messagingSenderId: "3312762738",
+            appId: "1:3312762738:web:9f7c1430d5f5ceaacee7eb",
+            measurementId: "G-B102SLVDK5"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // データベース上のローマ字キーと、曖昧な政党名の表記揺れを日本語表示名に吸収するマッピング辞書
+        const partyNameMap = {
+            // --- データベース（Firestore）のフィールド名 ---
+            'jimin': '自民党',
+            'chudo': '中道改革連合',
+            'kokumin': '国民民主党',
+            'ishin': '維新',
+            'komei': '公明党（参考）',
+            'kyosan': '共産党',
+            'reiwa': 'れいわ',
+            'shamin': '社民党',
+            'hoshu': '保守党',
+            'sansei': '参政党',
+            'mirai': 'みらい',
+            'none': '支持なし',
+            'cabinetSupport': '内閣支持率',
+            'cabinetNonsupport': '内閣不支持率',
+
+            // --- 漢字表記の揺れ吸収 ---
+            '自民': '自民党', '自由民主党': '自民党', '自民党': '自民党',
+            '立憲': '中道改革連合', '立民': '中道改革連合', '立憲民主党': '中道改革連合', '中道連合': '中道改革連合', '中道改革連合': '中道改革連合',
+            '国民': '国民民主党', '国民民主党': '国民民主党', '国民党': '国民民主党',
+            '維新': '維新', '日本維新の会': '維新', '維新の会': '維新',
+            '公明': '公明党（参考）', '公明党': '公明党（参考）', '公明党（参考）': '公明党（参考）',
+            '共産': '共産党', '共産党': '共産党', '日本共産党': '共産党',
+            'れいわ': 'れいわ', 'れいわ新選組': 'れいわ',
+            '社民': '社民党', '社民党': '社民党', '社会民主党': '社民党',
+            '保守': '保守党', '保守党': '保守党', '日本保守党': '保守党',
+            '参政': '参政党', '参政党': '参政党',
+            'みらい': 'みらい', 'その他': 'みらい', 'その他の政党': 'みらい',
+            '無党派': '支持なし', '支持政党なし': '支持なし', '支持なし': '支持なし', 'わからない': '支持なし', '答えない': '支持なし',
+            '内閣支持': '内閣支持率', '内閣支持率': '内閣支持率',
+            '内閣不支持': '内閣不支持率', '内閣不支持率': '内閣不支持率'
+        };
+
+        // 日付を「〇年〇月〇日」にフォーマット
+        const formatDate = (dateStr) => {
+            if (!dateStr) return '';
+            if (dateStr.includes('年')) return dateStr; 
+            const parts = dateStr.split(/[-/]/);
+            if (parts.length === 3) {
+                return `${parts[0]}年${parseInt(parts[1], 10)}月${parseInt(parts[2], 10)}日`;
+            }
+            return dateStr;
+        };
+
+        // データベースの全ドキュメントを月ごとに集計して平均を出す
+        const processData = (docs) => {
+            const monthlyData = {};
+            let latestDateStr = '';
+
+            // 1. 月ごとにグループ化し、最新日付を取得
+            docs.forEach(doc => {
+                const data = doc;
+                // dateフィールドの探し方を強化
+                const dateStr = data.date || data.createdAt || data.日付 || data.調査日 || ''; 
+                
+                if (dateStr && dateStr > latestDateStr) {
+                    latestDateStr = dateStr;
+                }
+
+                if (dateStr) {
+                    const monthKey = dateStr.substring(0, 7); // "YYYY-MM"
+                    if (!monthlyData[monthKey]) monthlyData[monthKey] = [];
+                    monthlyData[monthKey].push(data);
+                }
+            });
+
+            // 降順（新しい月順）にソート
+            const months = Object.keys(monthlyData).sort().reverse(); 
+            if (months.length === 0) return null;
+
+            const currentMonthKey = months[0];
+            const previousMonthKey = months.length > 1 ? months[1] : null;
+
+            // 特定の月の平均値を計算する関数
+            const calculateAverage = (records) => {
+                const sums = {};
+                const counts = {};
+                
+                records.forEach(record => {
+                    // データが { data: { 自民党: 30 } } のようにネストされている場合と、直接配置されている場合の両方に対応
+                    const targetData = (record.data && typeof record.data === 'object' && !record.data.seconds) ? record.data : record;
+
+                    for (const key in targetData) {
+                        // メタデータや日付に関するフィールドは集計から除外
+                        if (['date', 'createdAt', 'updatedAt', 'id', '日付', '調査日', 'media'].includes(key)) continue;
+                        
+                        const mappedKey = partyNameMap[key] || key;
+                        const value = parseFloat(targetData[key]);
+                        
+                        if (!isNaN(value)) {
+                            sums[mappedKey] = (sums[mappedKey] || 0) + value;
+                            counts[mappedKey] = (counts[mappedKey] || 0) + 1;
+                        }
+                    }
+                });
+
+                const averages = {};
+                for (const key in sums) {
+                    averages[key] = Number((sums[key] / counts[key]).toFixed(1));
+                }
+                return averages;
+            };
+
+            return {
+                latestDate: formatDate(latestDateStr),
+                currentData: calculateAverage(monthlyData[currentMonthKey]),
+                previousData: previousMonthKey ? calculateAverage(monthlyData[previousMonthKey]) : {}
+            };
+        };
 
         const App = () => {
-            // データの最終更新日時を固定で設定（今日の日付）
-            const lastUpdatedDate = '2026年3月30日';
-            const surveyPeriodText = `各社平均（${lastUpdatedDate}）`;
-
-            // === 最新のデータ (添付画像のデータ) ===
-            const currentData = {
-                '調査期間': surveyPeriodText,
-                '内閣支持率': 64.9,
-                '内閣不支持率': 24.0,
-                '自民党': 35.5,
-                '中道改革連合': 4.7,
-                '国民民主党': 4.6,
-                '維新': 3.9,
-                '公明党（参考）': 1.0,
-                '共産党': 2.3,
-                'れいわ': 1.2,
-                '社民党': 0.4,
-                '保守党': 1.3,
-                '参政党': 4.3,
-                'みらい': 3.5,
-                '支持なし': 34.1, // 無党派層
-            };
-
-            // === 直前のデータ（比較用） ===
-            const previousData = { 
-                '内閣支持率': 66.6,
-                '内閣不支持率': 22.9,
-                '自民党': 36.8,
-                '中道改革連合': 7.9,
-                '国民民主党': 5.3,
-                '維新': 4.2,
-                '公明党（参考）': 0.8,
-                '共産党': 2.4,
-                'れいわ': 1.3,
-                '社民党': 0.6,
-                '保守党': 1.1,
-                '参政党': 4.0,
-                'みらい': 4.6,
-                '支持なし': 30.2,
-            };
-            
-            // 差分を計算してデータに含める
-            const staticSupportData = { ...currentData };
-            for (const key in previousData) {
-                if (currentData[key] !== undefined && previousData[key] !== undefined) {
-                    const diff = (currentData[key] - previousData[key]);
-                    staticSupportData[`${key}_diff`] = diff.toFixed(2); // 小数点第2位まで表示
-                }
-            }
-            
-            const [supportData] = useState(staticSupportData);
+            const [user, setUser] = useState(null);
             const [view, setView] = useState('dashboard');
+            
+            // データ取得前やデータがない場合の初期値（すべてゼロに設定）
+            const defaultDashboardData = {
+                latestDate: '----年--月--日',
+                currentData: {
+                    '内閣支持率': 0, '内閣不支持率': 0, '自民党': 0, '中道改革連合': 0,
+                    '国民民主党': 0, '維新': 0, '公明党（参考）': 0, '共産党': 0,
+                    'れいわ': 0, '社民党': 0, '保守党': 0, '参政党': 0, 'みらい': 0, '支持なし': 0
+                },
+                previousData: { 
+                    '内閣支持率': 0, '内閣不支持率': 0, '自民党': 0, '中道改革連合': 0,
+                    '国民民主党': 0, '維新': 0, '公明党（参考）': 0, '共産党': 0,
+                    'れいわ': 0, '社民党': 0, '保守党': 0, '参政党': 0, 'みらい': 0, '支持なし': 0
+                }
+            };
+
+            const [dashboardData, setDashboardData] = useState(defaultDashboardData);
+
+            // 1. 匿名認証の初期化
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        await signInAnonymously(auth);
+                    } catch (error) {
+                        console.error("Authentication error:", error);
+                    }
+                };
+                initAuth();
+
+                const unsubscribe = onAuthStateChanged(auth, setUser);
+                return () => unsubscribe();
+            }, []);
+
+            // 2. Firestoreからのリアルタイムデータ取得
+            useEffect(() => {
+                if (!user) return;
+
+                // データベースの正しいパスを指定
+                const pollsRef = collection(db, 'artifacts', 'election_analyzer_main', 'public', 'data', 'polls');
+
+                const unsubscribe = onSnapshot(pollsRef, (snapshot) => {
+                    const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    if (docs.length > 0) {
+                        const processed = processData(docs);
+                        if (processed) {
+                            setDashboardData(processed);
+                        }
+                    }
+                }, (error) => {
+                    console.error("Firestore fetch error:", error);
+                });
+
+                return () => unsubscribe();
+            }, [user]);
+
+            // 3. 最新データと前月比の差分を計算
+            const supportData = useMemo(() => {
+                const combined = { ...dashboardData.currentData };
+                combined['調査期間'] = `各社平均（${dashboardData.latestDate}）`;
+
+                for (const key in dashboardData.previousData) {
+                    if (combined[key] !== undefined) {
+                        const diff = combined[key] - dashboardData.previousData[key];
+                        combined[`${key}_diff`] = diff.toFixed(1);
+                    }
+                }
+                return combined;
+            }, [dashboardData]);
+
             
             // 表示する政党のリストと表示順を調整
             const partyData = [
@@ -137,7 +299,7 @@
                         <div className="bg-white p-6 rounded-xl shadow-md flex flex-col items-center justify-center">
                             <h2 className="text-xl font-semibold text-center mb-2">内閣支持率</h2>
                             <p className="text-6xl font-bold text-center text-green-500 flex items-baseline justify-center">
-                                {supportData['内閣支持率']}
+                                {supportData['内閣支持率'] !== undefined ? Number(supportData['内閣支持率']).toFixed(1) : '-'}
                                 <span className="text-3xl ml-2">%</span>
                                 <DiffLabel diff={supportData['内閣支持率_diff']} />
                             </p>
@@ -145,7 +307,7 @@
                         <div className="bg-white p-6 rounded-xl shadow-md flex flex-col items-center justify-center">
                             <h2 className="text-xl font-semibold text-center mb-2">内閣不支持率</h2>
                             <p className="text-6xl font-bold text-center text-red-500 flex items-baseline justify-center">
-                                {supportData['内閣不支持率']}
+                                {supportData['内閣不支持率'] !== undefined ? Number(supportData['内閣不支持率']).toFixed(1) : '-'}
                                 <span className="text-3xl ml-2">%</span>
                                 <DiffLabel diff={supportData['内閣不支持率_diff']} />
                             </p>
@@ -162,7 +324,7 @@
                                     </div>
                                     <div className="p-4 text-center">
                                         <div className="flex items-baseline justify-center">
-                                            <p className="text-3xl font-bold">{supportData[party.dataKey]}</p>
+                                            <p className="text-3xl font-bold">{supportData[party.dataKey] !== undefined ? Number(supportData[party.dataKey]).toFixed(1) : '0.0'}</p>
                                             <span className="text-lg ml-1">%</span>
                                             <DiffLabel diff={supportData[`${party.dataKey}_diff`]} />
                                         </div>
@@ -183,7 +345,7 @@
 
                     <div className="mt-16 pt-8 border-t text-center text-sm text-gray-500">
                         <p className="mb-2 px-4">
-                            このダッシュボードは、報道機関各社の世論調査の結果等をベースに、一般社団法人日本みらい研が独自にまとめたものとなる（更新: {lastUpdatedDate}）。
+                            このダッシュボードは、報道機関各社の世論調査の結果等をベースに、一般社団法人日本みらい研が独自にまとめたものとなる（更新: {dashboardData.latestDate}）。
                         </p>
                         <p>
                             ©️一般社団法人日本みらい研 2025
