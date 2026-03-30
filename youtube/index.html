@@ -355,9 +355,9 @@
         let isPlayerReady = false;
         let videoList = [];
         let currentIndex = 0;
-        let updateIntervalId = null;
-        let nextUpdateTime = null;
-        let countdownIntervalId = null;
+        // 自動更新関連の変数を整理・安定化
+        let autoUpdateTimerId = null;
+        let lastUpdateTime = Date.now();
         let currentSort = 'date-desc'; // デフォルトのソート設定
 
         // --- YouTube IFrame API のロード ---
@@ -588,6 +588,7 @@
         }
 
         async function fetchPlaylistData(isAutoUpdate = false, forceYouTube = false, overwriteFirebase = false) {
+            lastUpdateTime = Date.now(); // 実行された時刻を記録
             const selectedRadio = document.querySelector('input[name="playlistSelect"]:checked');
             const playlistId = selectedRadio ? selectedRadio.value : null;
             const apiKey = document.getElementById('apiKey').value.trim();
@@ -712,7 +713,7 @@
                 // 新しい動画が追加されていない場合（変更なし）は、UIをそのまま維持して処理を終了する
                 if (!isChanged && videoList.length > 0 && forceYouTube) {
                     if (!isAutoUpdate) showToast("最新の状態です（新しく追加された動画はありません）。");
-                    resetAutoUpdateTimer();
+                    // finallyブロックでタイマーが再スケジュールされるため、ここでは何もしない
                     return;
                 }
 
@@ -754,9 +755,6 @@
 
                 if (!isAutoUpdate) showToast("動画リストを読み込みました！");
                 
-                // 自動更新タイマーのリセットと開始
-                resetAutoUpdateTimer();
-
             } catch (e) {
                 console.error(e);
                 let errorMsg = e.message;
@@ -768,6 +766,8 @@
             } finally {
                 btn.innerHTML = originalBtnText;
                 btn.disabled = false;
+                // 処理の成否や途中終了に関わらず、必ず次回の自動更新をスケジュールする
+                scheduleAutoUpdate();
             }
         }
 
@@ -930,199 +930,20 @@
             return videos;
         }
 
-        // 方法2: YouTube Data API v3 を利用（APIキー必要、ページネーションで全件取得）
-        async function fetchWithApi(playlistId, apiKey) {
-            let videos = [];
-            let nextPageToken = '';
-            const maxResults = 50; 
-            
-            while (true) {
-                const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=${maxResults}&playlistId=${playlistId}&key=${apiKey}&pageToken=${nextPageToken}`;
-                const res = await fetch(url);
-                if (!res.ok) {
-                    const err = await res.json();
-                    const msg = err.error?.message || "APIリクエストエラー";
-                    if (msg.includes("blocked") || msg.includes("not enabled")) {
-                        throw new Error("【設定エラー】GCPプロジェクトで「YouTube Data API v3」が有効になっていないか、APIキーに厳しい制限（HTTPリファラー等）がかかっています。GCPコンソールをご確認ください");
-                    }
-                    throw new Error(`APIエラー: ${msg}`);
-                }
-                const data = await res.json();
-                
-                data.items.forEach(item => {
-                    const publishedAt = item.contentDetails?.videoPublishedAt || item.snippet.publishedAt;
-                    videos.push({
-                        id: item.snippet.resourceId.videoId,
-                        title: item.snippet.title,
-                        description: item.snippet.description,
-                        thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
-                        pubDate: new Date(publishedAt)
-                    });
-                });
-                
-                nextPageToken = data.nextPageToken;
-                if (!nextPageToken) break;
-            }
-            
-            videos = videos.filter(v => 
-                v.title !== 'Private video' && 
-                v.title !== 'Deleted video' && 
-                v.thumbnail &&
-                isValidVideoId(v.id)
-            );
-            
-            videos.sort((a, b) => b.pubDate - a.pubDate);
-            return videos;
-        }
-
-        // --- UIレンダリング ---
-        function renderPlaylist() {
-            const container = document.getElementById('playlistContainer');
-            container.innerHTML = '';
-            
-            // 検索用の同義語変換
-            const normalizeText = (text) => {
-                if (!text) return "";
-                return text.toLowerCase()
-                    .replace(/経産省/g, "経済産業省")
-                    .replace(/国交省/g, "国土交通省")
-                    .replace(/文科省/g, "文部科学省")
-                    .replace(/厚労省/g, "厚生労働省")
-                    .replace(/農水省/g, "農林水産省");
-            };
-            
-            const rawQuery = document.getElementById('searchInput')?.value || '';
-            const queryStr = normalizeText(rawQuery).trim();
-            const queries = queryStr ? queryStr.split(/[\s　]+/).filter(q => q.length > 0) : [];
-            let displayedCount = 0;
-            
-            const infoEl = document.getElementById('playlistInfo');
-            let latestDateStr = "";
-            if (videoList.length > 0) {
-                const shortDate = videoList[0].pubDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                latestDateStr = ` (更新日: ${shortDate})`;
-            }
-
-            if (videoList.length === 0) {
-                container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">動画がありません</div>';
-                if (infoEl) infoEl.textContent = `全 0 件`;
-                return;
-            }
-
-            videoList.forEach((video, index) => {
-                if (queries.length > 0) {
-                    const titleLower = normalizeText(video.title);
-                    const descLower = normalizeText(video.description);
-                    const isMatch = queries.every(q => titleLower.includes(q) || descLower.includes(q));
-                    if (!isMatch) return;
-                }
-                
-                displayedCount++;
-
-                const isActive = index === currentIndex;
-                const item = document.createElement('div');
-                item.className = `flex items-start gap-3 p-3 border-b border-gray-100 cursor-pointer hover:bg-red-50 transition-colors ${isActive ? 'active-video' : ''}`;
-                
-                item.onclick = () => {
-                    currentIndex = index;
-                    playCurrentVideo();
-                };
-                
-                const imgContainer = document.createElement('div');
-                imgContainer.className = 'relative shrink-0 w-28 h-16 bg-black rounded overflow-hidden';
-                
-                const img = document.createElement('img');
-                img.src = video.thumbnail;
-                img.className = 'w-full h-full object-cover opacity-90';
-                
-                if (isActive) {
-                    const overlay = document.createElement('div');
-                    overlay.className = 'absolute inset-0 bg-black/40 flex items-center justify-center';
-                    overlay.innerHTML = '<i class="fas fa-play text-white text-sm"></i>';
-                    imgContainer.appendChild(img);
-                    imgContainer.appendChild(overlay);
-                } else {
-                    imgContainer.appendChild(img);
-                }
-                
-                const textContainer = document.createElement('div');
-                textContainer.className = 'flex flex-col overflow-hidden justify-center h-full';
-                
-                const title = document.createElement('span');
-                title.className = `text-sm font-medium line-clamp-2 leading-tight ${isActive ? 'text-red-700 font-bold' : 'text-gray-800'}`;
-                title.textContent = video.title;
-                
-                const date = document.createElement('span');
-                date.className = 'text-xs text-gray-500 mt-1';
-                const shortDate = video.pubDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                date.textContent = video.isEstimated ? `約 ${shortDate}` : shortDate;
-                
-                textContainer.appendChild(title);
-                textContainer.appendChild(date);
-                
-                item.appendChild(imgContainer);
-                item.appendChild(textContainer);
-                container.appendChild(item);
-            });
-            
-            if (displayedCount === 0) {
-                container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">一致する動画が見つかりませんでした</div>';
-            }
-            
-            if (infoEl) {
-                if (queries.length > 0) {
-                    infoEl.textContent = `検索結果: ${displayedCount} 件 / 全 ${videoList.length} 件${latestDateStr}`;
-                } else {
-                    infoEl.textContent = `全 ${videoList.length} 件${latestDateStr}`;
-                }
-            }
-            
-            if (queries.length === 0) {
-                setTimeout(() => {
-                    const activeItem = container.querySelector('.active-video');
-                    if (activeItem) {
-                        activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    }
-                }, 100);
-            }
-        }
-
-        // --- 自動更新ロジック ---
-        function resetAutoUpdateTimer() {
-            if (updateIntervalId) clearInterval(updateIntervalId);
-            if (countdownIntervalId) clearInterval(countdownIntervalId);
+        // --- 自動更新ロジック (軽量化・安定化) ---
+        function scheduleAutoUpdate() {
+            if (autoUpdateTimerId) clearTimeout(autoUpdateTimerId);
             
             const intervalMinutes = parseInt(document.getElementById('updateInterval').value, 10) || 60;
             if (intervalMinutes < 1) return; // 0以下の場合は自動更新しない
             
             const intervalMs = intervalMinutes * 60 * 1000;
-            nextUpdateTime = Date.now() + intervalMs;
             
-            updateIntervalId = setInterval(() => {
+            autoUpdateTimerId = setTimeout(() => {
                 console.log("バックグラウンド更新を実行します...");
                 // 自動更新時はYouTubeから強制再取得してFirebaseを上書きする
                 fetchPlaylistData(true, true);
             }, intervalMs);
-
-            // カウントダウン表示の更新
-            updateCountdownDisplay();
-            countdownIntervalId = setInterval(updateCountdownDisplay, 60000); // 1分ごとに更新
-        }
-
-        function updateCountdownDisplay() {
-            const infoEl = document.getElementById('nextUpdateInfo');
-            if (!nextUpdateTime) {
-                infoEl.textContent = "";
-                return;
-            }
-            
-            const diffMs = nextUpdateTime - Date.now();
-            if (diffMs <= 0) {
-                infoEl.textContent = "更新中...";
-                return;
-            }
-            const diffMinutes = Math.ceil(diffMs / 60000);
-            infoEl.textContent = `次回更新まで 約 ${diffMinutes} 分`;
         }
 
         // --- ユーティリティ ---
@@ -1187,7 +1008,22 @@
             });
             
             document.getElementById('updateInterval').addEventListener('change', () => {
-                if(videoList.length > 0) resetAutoUpdateTimer();
+                if(videoList.length > 0) scheduleAutoUpdate();
+            });
+
+            // ブラウザのタブがバックグラウンドから復帰した際の処理 (スリープ対策)
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    const intervalMinutes = parseInt(document.getElementById('updateInterval').value, 10) || 60;
+                    if (intervalMinutes < 1) return;
+                    const intervalMs = intervalMinutes * 60 * 1000;
+                    
+                    // 最後の更新から規定時間(60分)以上経過していれば、即時バックグラウンド更新を走らせる
+                    if (Date.now() - lastUpdateTime >= intervalMs) {
+                        console.log("タブの復帰を検知: 規定時間が経過しているため更新を実行します。");
+                        fetchPlaylistData(true, true);
+                    }
+                }
             });
 
             // 検索ボックスのイベントリスナー追加
