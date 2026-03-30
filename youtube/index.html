@@ -400,33 +400,34 @@
             });
             document.getElementById('currentDate').textContent = video.isEstimated ? `公開日: 約 ${dateStr} (推定)` : `公開日: ${dateStr}`;
             
-            // URLをリンク化する関数
+            // URLをリンク化する安全な処理 (日本語対応版)
             const linkify = (text) => {
                 if (!text) return "";
                 const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({
                     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
                 }[tag] || tag));
                 
-                // ご要望により、日本語など空白以外の文字列をすべてURLとして巻き込むように変更
-                const urlRegex = /(https?:\/\/[^\s]+)/g;
+                // 半角英数字・URL記号に加えて、日本語（ひらがな、カタカナ、漢字）をURLとして許可する
+                // ただし、句読点（。、）や括弧類（（）「」）など無関係な文字の巻き込みを防ぐため、明示的に許可する文字を指定する
+                const urlRegex = /(https?:\/\/[-a-zA-Z0-9@:%_+.~#?&//=;,\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3005\u30FC]+)/g;
                 
                 let lastIndex = 0;
                 let result = "";
                 let match;
                 
                 while ((match = urlRegex.exec(text)) !== null) {
-                    // URLより前のテキストをエスケープして追加
                     result += escapeHTML(text.substring(lastIndex, match.index));
                     
-                    // URL自体をエスケープしてリンク化 (break-allで長いURLの折り返しに対応)
                     const url = match[0];
                     const escapedUrl = escapeHTML(url);
-                    result += `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline font-medium break-all">${escapedUrl}</a>`;
+                    // href用にはencodeURIを使ってエンコードし、ブラウザで確実にリンク遷移できるようにする
+                    const hrefUrl = encodeURI(url);
+                    
+                    result += `<a href="${hrefUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline font-medium break-all">${escapedUrl}</a>`;
                     
                     lastIndex = urlRegex.lastIndex;
                 }
                 
-                // 残りのテキストをエスケープして追加
                 result += escapeHTML(text.substring(lastIndex));
                 return result;
             };
