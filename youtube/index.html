@@ -400,34 +400,46 @@
             });
             document.getElementById('currentDate').textContent = video.isEstimated ? `公開日: 約 ${dateStr} (推定)` : `公開日: ${dateStr}`;
             
-            // URLをリンク化する安全な処理 (日本語対応版)
+            // URLをリンク化する処理 (日本語URLや.pdf対応の確実なロジック)
             const linkify = (text) => {
                 if (!text) return "";
                 const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({
                     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
                 }[tag] || tag));
                 
-                // 半角英数字・URL記号に加えて、日本語（ひらがな、カタカナ、漢字）をURLとして許可する
-                // ただし、句読点（。、）や括弧類（（）「」）など無関係な文字の巻き込みを防ぐため、明示的に許可する文字を指定する
-                const urlRegex = /(https?:\/\/[-a-zA-Z0-9@:%_+.~#?&//=;,\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3005\u30FC]+)/g;
+                // 一旦、空白が来るまでを全てURLとして強気に巻き込んでマッチさせる
+                const urlRegex = /(https?:\/\/[^\s]+)/g;
                 
                 let lastIndex = 0;
                 let result = "";
                 let match;
                 
                 while ((match = urlRegex.exec(text)) !== null) {
+                    let url = match[0];
+                    let trailingChars = "";
+                    
+                    // URL末尾によくくっついてしまう日本語の句読点や閉じ括弧を切り離す
+                    const trailingRegex = /([。、）」』】\]\)]+)$/;
+                    const tMatch = url.match(trailingRegex);
+                    if (tMatch) {
+                        trailingChars = tMatch[1];
+                        url = url.substring(0, url.length - trailingChars.length);
+                    }
+
+                    // マッチした部分の前のテキスト
                     result += escapeHTML(text.substring(lastIndex, match.index));
                     
-                    const url = match[0];
+                    // 二重エンコード破壊を防ぐため、href属性にはブラウザの自動エンコードに任せてそのまま入れる
                     const escapedUrl = escapeHTML(url);
-                    // href用にはencodeURIを使ってエンコードし、ブラウザで確実にリンク遷移できるようにする
-                    const hrefUrl = encodeURI(url);
+                    result += `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline font-medium break-all">${escapedUrl}</a>`;
                     
-                    result += `<a href="${hrefUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline font-medium break-all">${escapedUrl}</a>`;
+                    // 切り離した記号をただのテキストとして元に戻す
+                    result += escapeHTML(trailingChars); 
                     
                     lastIndex = urlRegex.lastIndex;
                 }
                 
+                // 残りのテキストを追加
                 result += escapeHTML(text.substring(lastIndex));
                 return result;
             };
