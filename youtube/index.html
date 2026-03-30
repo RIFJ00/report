@@ -400,14 +400,35 @@
             });
             document.getElementById('currentDate').textContent = video.isEstimated ? `公開日: 約 ${dateStr} (推定)` : `公開日: ${dateStr}`;
             
+            // URLをリンク化する関数
             const linkify = (text) => {
+                if (!text) return "";
                 const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({
                     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
                 }[tag] || tag));
                 
-                const escaped = escapeHTML(text);
+                // ご要望により、日本語など空白以外の文字列をすべてURLとして巻き込むように変更
                 const urlRegex = /(https?:\/\/[^\s]+)/g;
-                return escaped.replace(urlRegex, url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline font-medium">${url}</a>`);
+                
+                let lastIndex = 0;
+                let result = "";
+                let match;
+                
+                while ((match = urlRegex.exec(text)) !== null) {
+                    // URLより前のテキストをエスケープして追加
+                    result += escapeHTML(text.substring(lastIndex, match.index));
+                    
+                    // URL自体をエスケープしてリンク化 (break-allで長いURLの折り返しに対応)
+                    const url = match[0];
+                    const escapedUrl = escapeHTML(url);
+                    result += `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline font-medium break-all">${escapedUrl}</a>`;
+                    
+                    lastIndex = urlRegex.lastIndex;
+                }
+                
+                // 残りのテキストをエスケープして追加
+                result += escapeHTML(text.substring(lastIndex));
+                return result;
             };
 
             const descEl = document.getElementById('currentDescription');
