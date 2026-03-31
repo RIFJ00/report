@@ -370,6 +370,28 @@
         const [showImageModal, setShowImageModal] = useState(false);
         const [downloadFilename, setDownloadFilename] = useState('');
 
+        // メッセージの自動消去（4秒後）を一元管理
+        useEffect(() => {
+          if (errorMsg) {
+            const timer = setTimeout(() => setErrorMsg(''), 4000);
+            return () => clearTimeout(timer);
+          }
+        }, [errorMsg]);
+
+        useEffect(() => {
+          if (infoMsg) {
+            const timer = setTimeout(() => setInfoMsg(''), 4000);
+            return () => clearTimeout(timer);
+          }
+        }, [infoMsg]);
+
+        // タブ切り替え時にメッセージをクリアする関数
+        const handleTabChange = (tab) => {
+          setActiveTab(tab);
+          setErrorMsg('');
+          setInfoMsg('');
+        };
+
         const handleDownloadImage = async (elementId, filename) => {
           setInfoMsg('画像を生成しています。少しお待ちください...');
           const element = document.getElementById(elementId);
@@ -592,6 +614,7 @@
             }
           } else {
             setErrorMsg('パスワードが間違っています。');
+            setTimeout(() => setErrorMsg(''), 3000);
           }
         };
 
@@ -1224,20 +1247,20 @@
 
               <div className="flex justify-between items-center border-b border-slate-200 bg-slate-50 overflow-x-auto">
                 <div className="flex">
-                  <button onClick={() => setActiveTab('table')} className={`flex items-center px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'table' ? 'border-b-2 border-blue-600 text-blue-700 bg-white' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}>
+                  <button onClick={() => handleTabChange('table')} className={`flex items-center px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'table' ? 'border-b-2 border-blue-600 text-blue-700 bg-white' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}>
                     <TableIcon className="w-4 h-4 mr-2" /> 一覧表示
                   </button>
-                  <button onClick={() => setActiveTab('chart')} className={`flex items-center px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'chart' ? 'border-b-2 border-blue-600 text-blue-700 bg-white' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}>
+                  <button onClick={() => handleTabChange('chart')} className={`flex items-center px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'chart' ? 'border-b-2 border-blue-600 text-blue-700 bg-white' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}>
                     <BarChart2 className="w-4 h-4 mr-2" /> グラフ分析
                   </button>
-                  <button onClick={() => setActiveTab('input')} className={`flex items-center px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'input' ? 'border-b-2 border-blue-600 text-blue-700 bg-white' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}>
+                  <button onClick={() => handleTabChange('input')} className={`flex items-center px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'input' ? 'border-b-2 border-blue-600 text-blue-700 bg-white' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}>
                     <Edit3 className="w-4 h-4 mr-2" /> {isAdmin ? 'データ入力 (管理者)' : 'データ入力'}
                   </button>
                 </div>
                 <div className="flex items-center pr-4 md:pr-6 py-2 whitespace-nowrap space-x-3">
                   <button 
                     onClick={() => {
-                      setActiveTab('table');
+                      handleTabChange('table');
                       handleResetDefault();
                       setTimeout(() => setInfoMsg('初期画面に戻りました。'), 10);
                     }}
