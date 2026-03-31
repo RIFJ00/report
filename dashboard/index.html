@@ -42,10 +42,24 @@
             <h1 class="text-4xl md:text-5xl font-extrabold text-gray-800 leading-tight">
                 政策リサーチ関連ダッシュボード
             </h1>
-            <button id="openManual" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-full text-sm font-bold transition-colors flex items-center gap-2 border border-gray-300">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                使い方
-            </button>
+            <div class="flex flex-wrap justify-center gap-4 items-start">
+                <!-- 使い方ボタン -->
+                <div class="flex flex-col items-center">
+                    <button id="openManual" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-full text-sm font-bold transition-colors flex items-center gap-2 border border-gray-300">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        使い方
+                    </button>
+                    <p class="text-[10px] text-gray-400 mt-1">Manual</p>
+                </div>
+                <!-- 支持率調査ボタン -->
+                <div class="flex flex-col items-center">
+                    <button onclick="window.open('https://report.rifj.jp/opinionpoll/', '_blank')" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-full text-sm font-bold transition-colors flex items-center gap-2 border border-gray-300">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        支持率調査
+                    </button>
+                    <p id="poll-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 確認中...</p>
+                </div>
+            </div>
         </div>
 
         <!-- グリッドレイアウト: 8枚構成 -->
@@ -109,7 +123,6 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                     </svg>
                 </div>
-                <!-- リンク先を youtube に変更 -->
                 <button onclick="window.open('https://report.rifj.jp/youtube/', '_blank')" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-rose-300">
                     関連動画チャネル
                 </button>
@@ -246,9 +259,20 @@
         import { getFirestore, collection, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
         import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 
+        // --- Configurations ---
         const firebaseConfigBlog = { apiKey: "AIzaSyD-2UK3S9QjydIIqcTwyfpZMh-Gy4fXlMA", authDomain: "blog-viewer-f83bc.firebaseapp.com", projectId: "blog-viewer-f83bc", storageBucket: "blog-viewer-f83bc.firebasestorage.app", messagingSenderId: "182374996524", appId: "1:182374996524:web:c6d9f3cfe32957a0bd4f89" };
         const firebaseConfigDiet = { apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs", authDomain: "user-9b981.firebaseapp.com", projectId: "user-9b981" };
         const firebaseConfigImport = { apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04", authDomain: "import-b6097.firebaseapp.com", projectId: "import-b6097", storageBucket: "import-b6097.firebasestorage.app", messagingSenderId: "462510788117", appId: "1:462510788117:web:44ff1fd1af583f67bc081c" };
+        
+        // 💡 支持率調査アナライザー用の設定
+        const firebaseConfigPoll = {
+            apiKey: "AIzaSyCzxK80B7Tl2EoBemiWq2_rKFPHhr1vkVI",
+            authDomain: "election-fe317.firebaseapp.com",
+            projectId: "election-fe317",
+            storageBucket: "election-fe317.firebasestorage.app",
+            messagingSenderId: "3312762738",
+            appId: "1:3312762738:web:9f7c1430d5f5ceaacee7eb"
+        };
 
         const appBlog = initializeApp(firebaseConfigBlog, "blogApp");
         const dbBlog = getFirestore(appBlog);
@@ -256,23 +280,37 @@
         const dbDiet = getFirestore(appDiet);
         const appImport = initializeApp(firebaseConfigImport, "importApp");
         const dbImport = getFirestore(appImport);
+        
+        // 💡 アナライザーアプリ初期化
+        const appPoll = initializeApp(firebaseConfigPoll, "pollApp");
+        const dbPoll = getFirestore(appPoll);
 
         function updateStatusDisplay(elementId, date) {
             const el = document.getElementById(elementId);
             if (!el || !date) return;
             const formatted = date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+            
+            // アナライザーのボタン下用の特殊フォーマット
+            if (elementId === 'poll-status') {
+                const simpleDate = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+                el.textContent = `更新日: ${simpleDate}`;
+            } else {
+                el.textContent = `最終更新: ${formatted}`;
+            }
+
+            el.classList.remove('status-loading');
             const today = new Date();
             const yesterday = new Date();
             yesterday.setDate(today.getDate() - 1);
             const isSameDay = (d1, d2) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
-            el.textContent = `最終更新: ${formatted}`;
-            el.classList.remove('status-loading');
+
             if (isSameDay(date, today)) {
-                el.className = "text-xs font-black text-red-600";
+                el.className = (elementId === 'poll-status') ? "text-[10px] font-black text-red-600 mt-1" : "text-xs font-black text-red-600";
             } else if (isSameDay(date, yesterday)) {
-                el.className = "text-xs font-bold text-red-500";
+                el.className = (elementId === 'poll-status') ? "text-[10px] font-bold text-red-500 mt-1" : "text-xs font-bold text-red-500";
             } else {
-                if (elementId === 'point-status') el.className = "text-xs text-green-800 font-medium opacity-75";
+                if (elementId === 'poll-status') el.className = "text-[10px] text-gray-500 mt-1 font-medium";
+                else if (elementId === 'point-status') el.className = "text-xs text-green-800 font-medium opacity-75";
                 else if (elementId === 'policy-status') el.className = "text-xs text-purple-800 font-medium opacity-75";
                 else if (elementId === 'blog-status') el.className = "text-xs text-red-800 font-medium opacity-75";
                 else if (elementId === 'diet-status') el.className = "text-xs text-amber-800 font-medium opacity-75";
@@ -281,6 +319,7 @@
             }
         }
 
+        // --- Event Listeners ---
         onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/point_last_import_metadata"), (snap) => {
             if (snap.exists()) {
                 const ts = snap.data().lastImportTimestamp;
@@ -320,17 +359,34 @@
         };
         initDiet();
 
-        // --- Video Channel Logic: 最新の動画公開日を取得 ---
+        // 💡 支持率調査の最新日付取得ロジック
+        const initPoll = async () => {
+            const auth = getAuth(appPoll);
+            await signInAnonymously(auth);
+            // pollsコレクションを監視
+            onSnapshot(collection(dbPoll, 'artifacts', 'election_analyzer_main', 'public', 'data', 'polls'), (snapshot) => {
+                let latestDateStr = "";
+                snapshot.forEach(doc => {
+                    const d = doc.data().date; // YYYY-MM-DD 形式
+                    if (d && d > latestDateStr) {
+                        latestDateStr = d;
+                    }
+                });
+                if (latestDateStr) {
+                    updateStatusDisplay('poll-status', new Date(latestDateStr));
+                }
+            });
+        };
+        initPoll();
+
         const videoUpdateTimes = { meeting: null, policy: null };
         const videoAppId = 'youtube-playlist-app';
-        
         const updateVideoChannelStatus = () => {
             const times = [videoUpdateTimes.meeting, videoUpdateTimes.policy].filter(t => t !== null);
             if (times.length === 0) return;
             const latest = new Date(Math.max(...times.map(t => t.getTime())));
             updateStatusDisplay('video-status', latest);
         };
-
         const getLatestVideoDate = (snap) => {
             if (!snap.exists()) return null;
             const videos = snap.data().videos || [];
@@ -338,12 +394,10 @@
             const maxTs = Math.max(...videos.map(v => v.pubDate));
             return new Date(maxTs);
         };
-
         onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_'), (snap) => {
             const latest = getLatestVideoDate(snap);
             if (latest) { videoUpdateTimes.meeting = latest; updateVideoChannelStatus(); }
         });
-
         onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2'), (snap) => {
             const latest = getLatestVideoDate(snap);
             if (latest) { videoUpdateTimes.policy = latest; updateVideoChannelStatus(); }
