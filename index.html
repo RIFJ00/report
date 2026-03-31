@@ -196,7 +196,7 @@
                             </div>
                         </div>
                         <div class="flex items-start gap-3 border-t border-blue-100 pt-3">
-                            <span class="text-xs font-bold text-blue-600 bg-white px-2 py-1 rounded border border-blue-200 mt-1 whitespace-nowrap">支持率更新</span>
+                            <span class="text-xs font-bold text-blue-600 bg-white px-2 py-1 rounded border border-red-200 mt-1 whitespace-nowrap">支持率更新</span>
                             <div class="text-sm text-gray-700">
                                 <p class="font-bold">調査機関データの最終登録日</p>
                                 <p class="text-xs opacity-80">支持率調査ボタン下の「更新日」は、アナライザーに登録されている最新の調査実施日を表示します。</p>
@@ -268,7 +268,7 @@
 
         // --- Configurations ---
         const firebaseConfigBlog = { apiKey: "AIzaSyD-2UK3S9QjydIIqcTwyfpZMh-Gy4fXlMA", authDomain: "blog-viewer-f83bc.firebaseapp.com", projectId: "blog-viewer-f83bc", storageBucket: "blog-viewer-f83bc.firebasestorage.app", messagingSenderId: "182374996524", appId: "1:182374996524:web:c6d9f3cfe32957a0bd4f89" };
-        const firebaseConfigDiet = { apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs", authDomain: "user-9b981.firebaseapp.com", projectId: "user-9b981" };
+        const firebaseConfigDiet = { apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs", authDomain: "user-9b981.firebaseapp.com", projectId: "user-9b981", appId: "unknown-diet-app" };
         const firebaseConfigImport = { apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04", authDomain: "import-b6097.firebaseapp.com", projectId: "import-b6097", storageBucket: "import-b6097.firebasestorage.app", messagingSenderId: "462510788117", appId: "1:462510788117:web:44ff1fd1af583f67bc081c" };
         const firebaseConfigPoll = { apiKey: "AIzaSyCzxK80B7Tl2EoBemiWq2_rKFPHhr1vkVI", authDomain: "election-fe317.firebaseapp.com", projectId: "election-fe317", storageBucket: "election-fe317.firebasestorage.app", messagingSenderId: "3312762738", appId: "1:3312762738:web:9f7c1430d5f5ceaacee7eb" };
 
@@ -281,9 +281,12 @@
         const appPoll = initializeApp(firebaseConfigPoll, "pollApp");
         const dbPoll = getFirestore(appPoll);
 
+        /**
+         * 日付オブジェクトをUIに反映
+         */
         function updateStatusDisplay(elementId, date) {
             const el = document.getElementById(elementId);
-            if (!el || !date) return;
+            if (!el || !date || isNaN(date.getTime())) return;
             
             if (elementId === 'poll-status') {
                 const simpleDate = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
@@ -314,28 +317,46 @@
             }
         }
 
-        // Snapshots
-        onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/point_last_import_metadata"), (snap) => {
-            if (snap.exists()) updateStatusDisplay('point-status', new Date(snap.data().lastImportTimestamp));
-        });
+        /**
+         * FirestoreのTimestampオブジェクトをDateオブジェクトに変換する安全な関数
+         */
+        const toDateSafely = (ts) => {
+            if (!ts) return null;
+            if (ts.toDate) return ts.toDate();
+            return new Date(ts);
+        };
 
-        onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/policy_last_import_metadata"), (snap) => {
-            if (snap.exists()) updateStatusDisplay('policy-status', new Date(snap.data().lastImportTimestamp));
-        });
+        /**
+         * 匿名認証を安全に実行する関数
+         */
+        async function safeAuth(app) {
+            try {
+                const auth = getAuth(app);
+                await signInAnonymously(auth);
+                return true;
+            } catch (err) {
+                console.warn(`Auth failed for app: ${app.name}`, err.message);
+                return false;
+            }
+        }
 
-        onSnapshot(collection(dbBlog, "posts"), (snapshot) => {
-            let latest = null;
-            snapshot.docs.forEach(d => {
-                const ts = d.data().createdAt;
-                const date = ts?.toDate ? ts.toDate() : new Date(ts);
-                if (!latest || date > latest) latest = date;
-            });
-            updateStatusDisplay('blog-status', latest);
-        });
+        // --- Auth & Realtime Fetchers ---
+
+        const initBlog = async () => {
+            await safeAuth(appBlog);
+            onSnapshot(collection(dbBlog, "posts"), (snapshot) => {
+                let latest = null;
+                snapshot.docs.forEach(d => {
+                    const date = toDateSafely(d.data().createdAt);
+                    if (date && (!latest || date > latest)) latest = date;
+                });
+                updateStatusDisplay('blog-status', latest);
+            }, (err) => console.warn("Blog snapshot error", err));
+        };
+        initBlog();
 
         const initDiet = async () => {
-            const auth = getAuth(appDiet);
-            await signInAnonymously(auth);
+            await safeAuth(appDiet);
             onSnapshot(doc(dbDiet, "dashboard_data", "config"), (snap) => {
                 if (snap.exists()) {
                     const sessions = snap.data().sessions || [];
@@ -344,13 +365,12 @@
                         updateStatusDisplay('diet-status', new Date(latestSession.updatedAt));
                     }
                 }
-            });
+            }, (err) => console.warn("Diet snapshot error", err));
         };
         initDiet();
 
         const initPoll = async () => {
-            const auth = getAuth(appPoll);
-            await signInAnonymously(auth);
+            await safeAuth(appPoll);
             onSnapshot(collection(dbPoll, 'artifacts', 'election_analyzer_main', 'public', 'data', 'polls'), (snapshot) => {
                 let latestDateStr = "";
                 snapshot.forEach(doc => {
@@ -358,31 +378,56 @@
                     if (d && d > latestDateStr) latestDateStr = d;
                 });
                 if (latestDateStr) updateStatusDisplay('poll-status', new Date(latestDateStr));
-            });
+            }, (err) => console.warn("Poll snapshot error", err));
         };
         initPoll();
 
-        const videoUpdateTimes = { meeting: null, policy: null };
-        const videoAppId = 'youtube-playlist-app';
-        const updateVideoChannelStatus = () => {
-            const times = [videoUpdateTimes.meeting, videoUpdateTimes.policy].filter(t => t !== null);
-            if (times.length === 0) return;
-            updateStatusDisplay('video-status', new Date(Math.max(...times.map(t => t.getTime()))));
+        const initImport = async () => {
+            await safeAuth(appImport);
+            const videoAppId = 'youtube-playlist-app';
+            const videoUpdateTimes = { meeting: null, policy: null };
+
+            const updateVideoChannelStatus = () => {
+                const times = [videoUpdateTimes.meeting, videoUpdateTimes.policy].filter(t => t !== null);
+                if (times.length === 0) return;
+                updateStatusDisplay('video-status', new Date(Math.max(...times.map(t => t.getTime()))));
+            };
+
+            const getLatestVideoDate = (snap) => {
+                if (!snap.exists()) return null;
+                const videos = snap.data().videos || [];
+                if (videos.length === 0) return null;
+                return new Date(Math.max(...videos.map(v => v.pubDate)));
+            };
+
+            // 本日のポイント
+            onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/point_last_import_metadata"), (snap) => {
+                if (snap.exists()) {
+                    const ts = snap.data().lastImportTimestamp;
+                    updateStatusDisplay('point-status', toDateSafely(ts));
+                }
+            }, (err) => console.warn("Point snapshot error", err));
+
+            // 政策レポート
+            onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/policy_last_import_metadata"), (snap) => {
+                if (snap.exists()) {
+                    const ts = snap.data().lastImportTimestamp;
+                    updateStatusDisplay('policy-status', toDateSafely(ts));
+                }
+            }, (err) => console.warn("Policy report snapshot error", err));
+
+            // 関連動画チャネル
+            onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_'), (snap) => {
+                const latest = getLatestVideoDate(snap);
+                if (latest) { videoUpdateTimes.meeting = latest; updateVideoChannelStatus(); }
+            }, (err) => console.warn("Video meeting snapshot error", err));
+
+            onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2'), (snap) => {
+                const latest = getLatestVideoDate(snap);
+                if (latest) { videoUpdateTimes.policy = latest; updateVideoChannelStatus(); }
+            }, (err) => console.warn("Video policy snapshot error", err));
         };
-        const getLatestVideoDate = (snap) => {
-            if (!snap.exists()) return null;
-            const videos = snap.data().videos || [];
-            if (videos.length === 0) return null;
-            return new Date(Math.max(...videos.map(v => v.pubDate)));
-        };
-        onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_'), (snap) => {
-            const latest = getLatestVideoDate(snap);
-            if (latest) { videoUpdateTimes.meeting = latest; updateVideoChannelStatus(); }
-        });
-        onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2'), (snap) => {
-            const latest = getLatestVideoDate(snap);
-            if (latest) { videoUpdateTimes.policy = latest; updateVideoChannelStatus(); }
-        });
+        initImport();
     </script>
 
     <script>
