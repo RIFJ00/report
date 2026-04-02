@@ -44,6 +44,20 @@
     .manual-page-break { border: none; border-top: 2px dashed var(--color-border); margin: 3rem 0; position: relative; overflow: visible; display: block; clear: both; width: 100%; }
     .manual-page-break::after { content: '✂ 改ページ (出力時にここで分割されます)'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: inherit; padding: 0 15px; border-radius: 4px; color: var(--color-text-muted); font-size: 0.85rem; font-weight: bold; }
 
+    /* レポートグリッドスタイル (プレビュー専用) */
+    .report-page.show-grid::after {
+      content: "";
+      position: absolute;
+      top: 20mm; left: 20mm; right: 20mm; bottom: 20mm;
+      pointer-events: none;
+      background-image: 
+        linear-gradient(var(--color-text-muted) 1px, transparent 1px),
+        linear-gradient(90deg, var(--color-text-muted) 1px, transparent 1px);
+      background-size: 1rem 1.8rem;
+      opacity: 0.15;
+      z-index: 50;
+    }
+
     /* スライド内エディタスタイル */
     .slide-content-editor { outline: none; }
     .slide-content-editor:empty:before { content: "テキストを入力..."; opacity: 0.5; cursor: text; }
@@ -447,6 +461,10 @@
         <i data-lucide="image" class="h-4 w-4"></i><span class="hidden sm:inline">画像挿入</span>
       </button>
 
+      <button id="btn-toggle-grid" onclick="toggleGrid()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors font-medium shadow-sm" title="文字数や行数の目安となるグリッドの表示/非表示を切り替えます">
+        <i data-lucide="grid-3x3" class="h-4 w-4"></i><span class="hidden sm:inline">グリッド</span>
+      </button>
+
       <button onclick="handleInsertPageBreak()" class="flex items-center space-x-1.5 text-sm bg-white dark:bg-[#303134] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-[#404144] transition-colors font-medium shadow-sm" title="カーソル位置で強制的にページを分割します">
         <i data-lucide="scissors" class="h-4 w-4"></i><span class="hidden sm:inline">改ページ</span>
       </button>
@@ -786,6 +804,7 @@
       reportLayout: 'modern',
       reportThemeId: 'monochrome',
       isReportReversed: false,
+      isGridVisible: false,
       
       isElaborating: false,
       savedItems: JSON.parse(localStorage.getItem('ai_search_saved_items')) || []
@@ -2155,42 +2174,21 @@
       }
     };
 
-    window.formatBlock = function(tag) {
-      if (!tag) return;
-      if (lastFocusedEditable) {
-        lastFocusedEditable.focus();
-        restoreSelection(savedSelection);
-      }
-      document.execCommand('formatBlock', false, tag);
-      if (lastFocusedEditable) {
-        if (lastFocusedEditable.classList.contains('report-content')) {
-          handleReportEdit(lastFocusedEditable.innerHTML);
-        } else if (lastFocusedEditable.classList.contains('slide-content-editor')) {
-          const slideIndex = lastFocusedEditable.getAttribute('data-slide-index');
-          if (slideIndex !== null && state.slideData[slideIndex]) {
-            state.slideData[slideIndex].contentHtml = lastFocusedEditable.innerHTML;
-          }
+    function toggleGrid() {
+      state.isGridVisible = !state.isGridVisible;
+      
+      const btn = document.getElementById('btn-toggle-grid');
+      if (btn) {
+        if (state.isGridVisible) {
+          btn.classList.add('bg-blue-50', 'dark:bg-blue-900/30', 'border-blue-300', 'dark:border-blue-700', 'text-blue-700', 'dark:text-blue-300');
+          btn.classList.remove('bg-white', 'dark:bg-[#303134]', 'border-gray-300', 'dark:border-gray-600', 'text-gray-700', 'dark:text-gray-300');
+        } else {
+          btn.classList.remove('bg-blue-50', 'dark:bg-blue-900/30', 'border-blue-300', 'dark:border-blue-700', 'text-blue-700', 'dark:text-blue-300');
+          btn.classList.add('bg-white', 'dark:bg-[#303134]', 'border-gray-300', 'dark:border-gray-600', 'text-gray-700', 'dark:text-gray-300');
         }
       }
-    };
-    
-    window.formatTextColor = function(color) {
-      if (lastFocusedEditable) {
-        lastFocusedEditable.focus();
-        restoreSelection(savedSelection);
-      }
-      document.execCommand('foreColor', false, color);
-      if (lastFocusedEditable) {
-        if (lastFocusedEditable.classList.contains('report-content')) {
-          handleReportEdit(lastFocusedEditable.innerHTML);
-        } else if (lastFocusedEditable.classList.contains('slide-content-editor')) {
-          const slideIndex = lastFocusedEditable.getAttribute('data-slide-index');
-          if (slideIndex !== null && state.slideData[slideIndex]) {
-            state.slideData[slideIndex].contentHtml = lastFocusedEditable.innerHTML;
-          }
-        }
-      }
-    };
+      renderReport();
+    }
 
     function renderReport() {
       const container = document.getElementById('report-preview-container');
@@ -2200,7 +2198,7 @@
       
       // 1つの大きなコンテナの中にHTMLを流し込み、自由編集可能にする
       container.innerHTML = `
-        <div class="report-page shadow-2xl mb-8 w-full max-w-[210mm] relative overflow-visible ${layout.classes}" 
+        <div class="report-page shadow-2xl mb-8 w-full max-w-[210mm] relative overflow-visible ${layout.classes} ${state.isGridVisible ? 'show-grid' : ''}" 
              style="background-color: ${t.container}; padding: 20mm; box-sizing: border-box; font-family: ${layout.fontFamily}; color: ${t.text}; --color-text: ${t.text}; --color-text-bold: ${t.textBold}; --color-accent: ${t.accent}; --color-border: ${t.border}; --color-text-muted: ${t.textMuted}; --color-container: ${t.container};">
           <div class="report-content" contenteditable="true" onblur="handleReportEdit(this.innerHTML)">
             ${state.reportHtml}
