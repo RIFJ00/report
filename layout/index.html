@@ -105,6 +105,7 @@
     const XIcon = (p) => <IconWrapper {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconWrapper>;
     const Folder = (p) => <IconWrapper {...p}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></IconWrapper>;
     const Save = (p) => <IconWrapper {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconWrapper>;
+    const GridIcon = (p) => <IconWrapper {...p}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></IconWrapper>;
 
     const defaultText = `# プロジェクト提案書: サンプルデータ
 
@@ -172,6 +173,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
       const [logoText, setLogoText] = useState(() => getSavedValue('doccraft_logoText', defaultLogoText) || '');
       const [isReportReversed, setIsReportReversed] = useState(() => getSavedValue('doccraft_reportRev', 'false') === 'true');
       const [isSlideReversed, setIsSlideReversed] = useState(() => getSavedValue('doccraft_slideRev', 'false') === 'true');
+      const [showGrid, setShowGrid] = useState(() => getSavedValue('doccraft_showGrid', 'false') === 'true');
       
       const [isExporting, setIsExporting] = useState(false);
       const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -216,7 +218,8 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         saveToStorage('doccraft_logoText', logoText);
         saveToStorage('doccraft_reportRev', isReportReversed.toString());
         saveToStorage('doccraft_slideRev', isSlideReversed.toString());
-      }, [text, mode, reportLayout, reportColor, slideLayout, slideColor, slideBreakMode, logoText, isReportReversed, isSlideReversed]);
+        saveToStorage('doccraft_showGrid', showGrid.toString());
+      }, [text, mode, reportLayout, reportColor, slideLayout, slideColor, slideBreakMode, logoText, isReportReversed, isSlideReversed, showGrid]);
 
       useEffect(() => {
         window.localStorage.setItem('doccraft_saved_projects', JSON.stringify(savedProjects));
@@ -235,6 +238,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           window.localStorage.removeItem('doccraft_logoText');
           window.localStorage.removeItem('doccraft_reportRev');
           window.localStorage.removeItem('doccraft_slideRev');
+          window.localStorage.removeItem('doccraft_showGrid');
         } catch (e) {}
         setText('');
         setMode('report');
@@ -246,11 +250,12 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         setLogoText(defaultLogoText);
         setIsReportReversed(false);
         setIsSlideReversed(false);
+        setShowGrid(false);
         setShowResetConfirm(false);
       };
 
       const getCurrentStateObj = () => ({
-        text, mode, reportLayout, reportColor, slideLayout, slideColor, slideBreakMode, logoText, isReportReversed, isSlideReversed
+        text, mode, reportLayout, reportColor, slideLayout, slideColor, slideBreakMode, logoText, isReportReversed, isSlideReversed, showGrid
       });
 
       const loadStateObj = (data) => {
@@ -264,6 +269,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         if(data.logoText !== undefined) setLogoText(data.logoText);
         if(data.isReportReversed !== undefined) setIsReportReversed(data.isReportReversed);
         if(data.isSlideReversed !== undefined) setIsSlideReversed(data.isSlideReversed);
+        if(data.showGrid !== undefined) setShowGrid(data.showGrid);
       };
 
       const handleSaveToBrowser = () => {
@@ -1397,13 +1403,21 @@ AIアシスタントを導入することで、これらの課題を以下のよ
             '--tw-prose-td-borders': `#${textColorHex}`
           };
 
+          const gridStyle = showGrid ? {
+            backgroundImage: 'linear-gradient(to right, rgba(99, 102, 241, 0.2) 1px, transparent 1px), linear-gradient(to bottom, rgba(99, 102, 241, 0.2) 1px, transparent 1px)',
+            backgroundSize: '18px 32px', // prose-lgのベースフォント(18px)と行高(32px)に合わせたグリッド
+            backgroundPosition: '0 0',
+            backgroundOrigin: 'content-box',
+            backgroundClip: 'content-box'
+          } : {};
+
           return (
             <div className="flex flex-col gap-8 items-center pb-12 w-full">
               {pages.map((pageContent, index) => (
                 <div 
                   key={index}
                   className={`w-full max-w-[210mm] shadow-2xl transition-colors duration-300 ${layoutConfig.classes} ${colorClass} relative overflow-hidden`}
-                  style={{ minHeight: '296.5mm', padding: '20mm 20mm 30mm 20mm', boxSizing: 'border-box' }}
+                  style={{ minHeight: '296.5mm', padding: '20mm 20mm 30mm 20mm', boxSizing: 'border-box', ...gridStyle }}
                 >
                   <div 
                     className="prose prose-lg max-w-none"
@@ -1422,6 +1436,14 @@ AIアシスタントを導入することで、これらの課題を以下のよ
         } else {
           const slides = getSlides(activeText);
           
+          const slideGridStyle = showGrid ? {
+            backgroundImage: 'linear-gradient(to right, rgba(99, 102, 241, 0.2) 1px, transparent 1px), linear-gradient(to bottom, rgba(99, 102, 241, 0.2) 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
+            backgroundPosition: '0 0',
+            backgroundOrigin: 'content-box',
+            backgroundClip: 'content-box'
+          } : {};
+
           return (
             <div className="flex flex-col gap-8 items-center pb-12 w-full">
               {slides.map((slideContent, index) => {
@@ -1432,7 +1454,7 @@ AIアシスタントを導入することで、これらの課題を以下のよ
                   <div 
                     key={index}
                     className={`slide-element w-full max-w-4xl shadow-2xl flex flex-col justify-center relative overflow-hidden transition-colors duration-300 ${slideClass} ${isCard ? 'p-6 md:p-8' : 'p-12 md:p-16'}`}
-                    style={{ aspectRatio: '16/9' }}
+                    style={{ aspectRatio: '16/9', ...slideGridStyle }}
                   >
                     {renderSlideDecoration(slideLayout, slideColor)}
                     
@@ -1647,25 +1669,6 @@ AIアシスタントを導入することで、これらの課題を以下のよ
           return len;
         };
 
-        const forceSplitText = (text, maxLength) => {
-          const result = [];
-          let currentStr = '';
-          let currentLen = 0;
-          for (let char of text) {
-            const charLen = char.charCodeAt(0) > 255 ? 1 : 0.55;
-            if (currentLen + charLen > maxLength) {
-              result.push(currentStr);
-              currentStr = char;
-              currentLen = charLen;
-            } else {
-              currentStr += char;
-              currentLen += charLen;
-            }
-          }
-          if (currentStr) result.push(currentStr);
-          return result;
-        };
-
         // 行を要素にパースし、それぞれの「重み（高さ）」を計算する
         const elements = [];
         for (let i = 0; i < lines.length; i++) {
@@ -1681,14 +1684,8 @@ AIアシスタントを導入することで、これらの課題を以下のよ
             if (trimmed.startsWith('# ')) weight = 3.5;
             else if (trimmed.startsWith('## ')) weight = 3.0;
             elements.push({ line, weight, type: 'heading' });
-          } else if (isStrict && !trimmed.startsWith('- ') && !trimmed.startsWith('> ') && !/^\d+\.\s/.test(trimmed)) {
-            // 【厳密モード】通常のテキスト段落は、折り返し文字数で強制的に複数行に分割する
-            const subLines = forceSplitText(trimmed, charPerLine);
-            subLines.forEach((sub, idx) => {
-              elements.push({ line: sub, weight: 1.0, type: 'text_part', isLast: idx === subLines.length - 1 });
-            });
           } else {
-            // リスト、引用、または文意モードでのテキスト段落
+            // リスト、引用、または通常のテキスト段落
             const content = trimmed.replace(/^(?:-\s+|\d+\.\s+|> \s*)/, '');
             const len = getDisplayLength(content);
             const linesCount = Math.max(1, Math.ceil(len / charPerLine));
@@ -1752,11 +1749,6 @@ AIアシスタントを導入することで、これらの課題を以下のよ
 
           newLines.push(el.line);
           currentWeight += el.weight;
-          
-          // 厳密モードで分割された段落の最後の場合、段落マージンを足す
-          if (isStrict && el.type === 'text_part' && el.isLast) {
-            currentWeight += 0.5;
-          }
         }
 
         let formattedText = newLines.join('\n').replace(/\n{3,}/g, '\n\n');
@@ -2353,9 +2345,18 @@ AIアシスタントを導入することで、これらの課題を以下のよ
             </div>
 
             <div className="w-1/2 bg-gray-200/80 overflow-y-auto relative p-6 md:p-10 flex flex-col items-center">
-              <div className="absolute top-4 right-6 flex items-center gap-2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm text-xs font-medium text-gray-500 z-10 border border-gray-100">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                ライブプレビュー
+              <div className="absolute top-4 right-6 flex items-center gap-2 z-10">
+                <button
+                  onClick={() => setShowGrid(!showGrid)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-sm text-xs font-medium border transition-colors ${showGrid ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white/90 backdrop-blur-sm text-gray-500 border-gray-100 hover:bg-gray-50'}`}
+                  title="文字数や行の目安となるグリッドを表示/非表示にします"
+                >
+                  <GridIcon size={14} /> グリッド
+                </button>
+                <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm text-xs font-medium text-gray-500 border border-gray-100">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  ライブプレビュー
+                </div>
               </div>
               
               <div 
