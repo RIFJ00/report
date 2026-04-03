@@ -129,9 +129,15 @@
             <i data-lucide="history" class="w-5 h-5 text-gray-500"></i>
             アップロード履歴
           </h2>
-          <button id="btn-refresh-list" class="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500" title="更新">
-            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-          </button>
+          <div class="flex items-center gap-2">
+            <button id="btn-delete-all" class="hidden px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium flex items-center gap-1">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+              <span class="hidden sm:inline">すべて削除</span>
+            </button>
+            <button id="btn-refresh-list" class="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500" title="更新">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            </button>
+          </div>
         </div>
         
         <div class="p-0 relative">
@@ -203,11 +209,31 @@
     </div>
   </div>
 
+  <!-- ==================== 削除確認モーダル ==================== -->
+  <div id="delete-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50">
+    <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+      <div class="flex items-center gap-3 mb-2">
+        <div class="bg-red-100 p-2 rounded-full">
+          <i data-lucide="alert-triangle" class="w-5 h-5 text-red-600"></i>
+        </div>
+        <h3 id="delete-modal-title" class="text-lg font-bold text-gray-900">削除の確認</h3>
+      </div>
+      <p id="delete-modal-desc" class="text-gray-600 text-sm mb-4">本当に削除しますか？</p>
+      <p id="delete-error-msg" class="hidden text-red-500 text-xs mb-4"></p>
+      <div class="flex justify-end gap-3">
+        <button id="btn-cancel-delete" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors">キャンセル</button>
+        <button id="btn-confirm-delete" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 min-w-[100px]">
+          <span id="delete-btn-text">削除する</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ==================== JavaScript ロジック ==================== -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- Firebase 初期化 ---
     const firebaseConfig = {
@@ -496,6 +522,82 @@
       updateUrlAndRoute(`?id=${id}`);
     });
 
+    // ==================== 削除機能のロジック ====================
+    let currentLoadedFiles = [];
+    let targetToDelete = null;
+
+    const deleteModal = document.getElementById('delete-modal');
+    const deleteModalTitle = document.getElementById('delete-modal-title');
+    const deleteModalDesc = document.getElementById('delete-modal-desc');
+    const deleteErrorMsg = document.getElementById('delete-error-msg');
+    const btnCancelDelete = document.getElementById('btn-cancel-delete');
+    const btnConfirmDelete = document.getElementById('btn-confirm-delete');
+    const deleteBtnText = document.getElementById('delete-btn-text');
+
+    function openDeleteModal(target) {
+      targetToDelete = target;
+      deleteErrorMsg.classList.add('hidden');
+      if (target) {
+        deleteModalTitle.textContent = "ファイルの削除";
+        deleteModalDesc.textContent = `「${target.filename}」を削除しますか？この操作は取り消せません。`;
+      } else {
+        deleteModalTitle.textContent = "一括削除の確認";
+        deleteModalDesc.textContent = `表示されているすべてのアップロード履歴（${currentLoadedFiles.length}件）を削除しますか？この操作は取り消せません。`;
+      }
+      deleteModal.classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+      deleteModal.classList.add('hidden');
+      targetToDelete = null;
+    }
+
+    btnCancelDelete.addEventListener('click', closeDeleteModal);
+
+    btnConfirmDelete.addEventListener('click', async () => {
+      btnConfirmDelete.disabled = true;
+      btnCancelDelete.disabled = true;
+      deleteBtnText.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> 処理中...';
+      lucide.createIcons();
+      deleteErrorMsg.classList.add('hidden');
+
+      try {
+        if (targetToDelete) {
+          // 個別削除
+          await performDelete(targetToDelete.id, targetToDelete.chunkCount);
+        } else {
+          // 一括削除
+          for (const file of currentLoadedFiles) {
+            await performDelete(file.id, file.chunkCount);
+          }
+        }
+        closeDeleteModal();
+        fetchUploadedFiles(); // リストの再描画
+      } catch (err) {
+        console.error("Delete error:", err);
+        deleteErrorMsg.textContent = "削除中にエラーが発生しました。通信環境を確認してください。";
+        deleteErrorMsg.classList.remove('hidden');
+      } finally {
+        btnConfirmDelete.disabled = false;
+        btnCancelDelete.disabled = false;
+        deleteBtnText.textContent = '削除する';
+      }
+    });
+
+    async function performDelete(pdfId, chunkCount) {
+      // チャンクデータを1つずつ削除
+      for(let i=0; i<chunkCount; i++){
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_chunks', `${pdfId}_chunk_${i}`));
+        await new Promise(resolve => setTimeout(resolve, 100)); // Firestoreの制限を回避するための遅延
+      }
+      // メタデータを削除
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata', pdfId));
+    }
+
+    document.getElementById('btn-delete-all').addEventListener('click', () => {
+      if (currentLoadedFiles.length > 0) openDeleteModal(null);
+    });
+
     // ==================== 履歴一覧表示機能 ====================
     async function fetchUploadedFiles() {
       const listSection = document.getElementById('upload-list-section');
@@ -525,11 +627,16 @@
         files = files.filter(f => f.uploaderId === currentUser.uid || f.deviceId === currentDeviceId);
         files.sort((a, b) => b.uploadedAt - a.uploadedAt);
 
+        currentLoadedFiles = files; // 削除機能用にグローバル変数に保持
+
         listLoading.classList.add('hidden');
+        const btnDeleteAll = document.getElementById('btn-delete-all');
 
         if (files.length === 0) {
           listEmpty.classList.remove('hidden');
+          btnDeleteAll.classList.add('hidden');
         } else {
+          btnDeleteAll.classList.remove('hidden');
           files.forEach(file => {
             const dateObj = new Date(file.uploadedAt);
             const dateStr = `${dateObj.getFullYear()}/${(dateObj.getMonth()+1).toString().padStart(2, '0')}/${dateObj.getDate().toString().padStart(2, '0')} ${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')}`;
@@ -579,8 +686,18 @@
               updateUrlAndRoute(`?id=${file.id}`);
             });
 
+            // ゴミ箱(削除)ボタンの追加
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = "p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center justify-center ml-1";
+            deleteBtn.title = "削除";
+            deleteBtn.innerHTML = '<i data-lucide="trash-2" class="w-5 h-5"></i>';
+            deleteBtn.addEventListener('click', () => {
+              openDeleteModal(file);
+            });
+
             actionsDiv.appendChild(copyBtn);
             actionsDiv.appendChild(previewBtn);
+            actionsDiv.appendChild(deleteBtn);
           });
           lucide.createIcons();
         }
