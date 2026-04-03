@@ -1,457 +1,529 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
-import { UploadCloud, Copy, CheckCircle, FileText, ArrowLeft, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Share & Viewer</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <style>
+    /* ユーティリティクラス */
+    .hidden { display: none !important; }
+    [data-lucide] { display: inline-block; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans selection:bg-blue-100 min-h-screen flex flex-col">
 
-// --- Firebase Initialization ---
-const firebaseConfig = {
-  apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04",
-  authDomain: "import-b6097.firebaseapp.com",
-  projectId: "import-b6097",
-  storageBucket: "import-b6097.firebasestorage.app",
-  messagingSenderId: "462510788117",
-  appId: "1:462510788117:web:44ff1fd1af583f67bc081c",
-  measurementId: "G-Z5ZNMKGTTK"
-};
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+  <!-- ==================== 初期ロード画面 ==================== -->
+  <div id="view-loading" class="flex flex-grow items-center justify-center bg-gray-50">
+    <i data-lucide="loader-2" class="animate-spin w-10 h-10 text-blue-600"></i>
+  </div>
 
-// --- Utility Functions ---
-
-// ArrayBuffer to Base64 (Chunked to prevent stack overflow)
-const arrayBufferToBase64 = (buffer) => {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
-  const chunkSize = 8192; 
-  for (let i = 0; i < len; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode.apply(null, chunk);
-  }
-  return btoa(binary);
-};
-
-// Base64 to Uint8Array
-const base64ToUint8Array = (base64) => {
-  const binary_string = atob(base64);
-  const len = binary_string.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-      bytes[i] = binary_string.charCodeAt(i);
-  }
-  return bytes;
-};
-
-// Copy to Clipboard Fallback
-const copyToClipboard = async (text) => {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (err) {
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-      document.execCommand('copy');
-      textArea.remove();
-      return true;
-    } catch (e) {
-      textArea.remove();
-      return false;
-    }
-  }
-};
-
-// --- Main App Component ---
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [viewPdfId, setViewPdfId] = useState(null);
-
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          try {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } catch (tokenError) {
-            console.warn("カスタムトークンの認証に失敗しました。匿名認証に切り替えます。", tokenError);
-            await signInAnonymously(auth);
-          }
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (e) {
-        console.error("Auth error", e);
-      }
-    };
-    initAuth();
-    
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setAuthLoading(false);
-    });
-    
-    // Check URL parameters for shared PDF
-    const urlParams = new URLSearchParams(window.location.search);
-    const id = urlParams.get('id');
-    if (id) {
-      setViewPdfId(id);
-    }
-    
-    return () => unsubscribe();
-  }, []);
-
-  // Update URL state without reloading page
-  const handleViewPdf = (id) => {
-    setViewPdfId(id);
-    try {
-      if (window.location.protocol !== 'blob:') {
-        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?id=' + id;
-        window.history.pushState({path:newUrl},'',newUrl);
-      }
-    } catch (e) {
-      console.warn("History API is restricted in this environment.", e);
-    }
-  };
-
-  const handleGoHome = () => {
-    setViewPdfId(null);
-    try {
-      if (window.location.protocol !== 'blob:') {
-        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-        window.history.pushState({path:newUrl},'',newUrl);
-      }
-    } catch (e) {
-      console.warn("History API is restricted in this environment.", e);
-    }
-  };
-
-  if (authLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <Loader2 className="animate-spin w-10 h-10 text-blue-600" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="text-red-500 bg-red-50 p-4 rounded-lg flex items-center gap-2">
-          <AlertCircle className="w-5 h-5" />
-          認証に失敗しました。再読み込みしてください。
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans selection:bg-blue-100">
-      {viewPdfId ? (
-        <PdfViewer pdfId={viewPdfId} user={user} onBack={handleGoHome} />
-      ) : (
-        <UploadView user={user} onViewPdf={handleViewPdf} />
-      )}
+  <!-- ==================== 認証エラー画面 ==================== -->
+  <div id="view-error" class="hidden flex flex-grow items-center justify-center bg-gray-50">
+    <div class="text-red-500 bg-red-50 p-4 rounded-lg flex items-center gap-2">
+      <i data-lucide="alert-circle" class="w-5 h-5"></i>
+      認証に失敗しました。再読み込みしてください。
     </div>
-  );
-}
+  </div>
 
-// --- Upload Component ---
-function UploadView({ user, onViewPdf }) {
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [resultUrl, setResultUrl] = useState("");
-  const [error, setError] = useState("");
-  const [dragActive, setDragActive] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
-
-  const handleFileSelect = (selectedFile) => {
-    setError("");
-    setResultUrl("");
-    setCopied(false);
-    
-    if (!selectedFile) return;
-    
-    if (selectedFile.type !== 'application/pdf') {
-      setError("PDFファイルのみアップロード可能です。");
-      return;
-    }
-    
-    if (selectedFile.size > MAX_FILE_SIZE) {
-      setError("ファイルサイズが大きすぎます。15MB以下のファイルを選択してください。");
-      return;
-    }
-    
-    setFile(selectedFile);
-  };
-
-  const onDrag = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  }, []);
-
-  const onDrop = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelect(e.dataTransfer.files[0]);
-    }
-  }, []);
-
-  const uploadFile = async () => {
-    if (!file || !user) return;
-    setUploading(true);
-    setUploadProgress(0);
-    setError("");
-    
-    try {
-      const buffer = await file.arrayBuffer();
-      const base64String = arrayBufferToBase64(buffer);
-      
-      // Split into chunks of ~800KB to stay well under Firestore 1MB limit
-      const CHUNK_SIZE = 800000;
-      const totalChunks = Math.ceil(base64String.length / CHUNK_SIZE);
-      const pdfId = crypto.randomUUID();
-      
-      // Upload chunks sequentially to avoid memory spikes and network issues
-      for (let i = 0; i < totalChunks; i++) {
-        const chunkData = base64String.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', `${pdfId}_chunk_${i}`), {
-          type: 'chunk',
-          pdfId: pdfId,
-          index: i,
-          data: chunkData
-        });
-        setUploadProgress(Math.round(((i + 1) / totalChunks) * 100));
-      }
-      
-      // Upload metadata document
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', pdfId), {
-        type: 'metadata',
-        filename: file.name,
-        chunkCount: totalChunks,
-        size: file.size,
-        uploadedAt: Date.now(),
-        uploaderId: user.uid
-      });
-      
-      // Generate Shareable URL
-      let url = "";
-      if (window.location.protocol === 'blob:') {
-        url = `https://your-app-domain.example.com/?id=${pdfId}`; // プレビュー環境用のプレースホルダー
-      } else {
-        url = window.location.protocol + "//" + window.location.host + window.location.pathname + '?id=' + pdfId;
-      }
-      setResultUrl(url);
-      setFile(null); // Clear selected file after successful upload
-      
-    } catch (err) {
-      console.error(err);
-      setError("アップロード中にエラーが発生しました。ネットワーク接続を確認してください。");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleCopy = async () => {
-    if (resultUrl) {
-      const success = await copyToClipboard(resultUrl);
-      if (success) {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
-    }
-  };
-
-  return (
-    <div className="max-w-3xl mx-auto pt-16 px-4 pb-10">
-      <div className="text-center mb-10">
-        <h1 className="text-3xl font-bold text-gray-900 mb-3">PDFアップローダー</h1>
-        <p className="text-gray-500">PDFファイルをアップロードして、共有可能なURLを発行します。</p>
+  <!-- ==================== アップロード画面 ==================== -->
+  <div id="view-upload" class="hidden flex-grow pt-16 px-4 pb-10">
+    <div class="max-w-3xl mx-auto">
+      <div class="text-center mb-10">
+        <h1 class="text-3xl font-bold text-gray-900 mb-3">PDFアップローダー</h1>
+        <p class="text-gray-500">PDFファイルをアップロードして、共有可能なURLを発行します。</p>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
         
-        {/* Upload Area */}
-        {!uploading && !resultUrl && (
-          <div 
-            className={`border-2 border-dashed rounded-xl p-10 text-center transition-colors cursor-pointer
-              ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400 bg-gray-50'}`}
-            onDragEnter={onDrag}
-            onDragLeave={onDrag}
-            onDragOver={onDrag}
-            onDrop={onDrop}
-            onClick={() => document.getElementById('file-upload').click()}
-          >
-            <input 
-              id="file-upload" 
-              type="file" 
-              accept="application/pdf" 
-              className="hidden" 
-              onChange={(e) => handleFileSelect(e.target.files[0])}
-            />
-            
-            <UploadCloud className={`mx-auto w-12 h-12 mb-4 ${dragActive ? 'text-blue-500' : 'text-gray-400'}`} />
-            <p className="text-lg font-medium text-gray-700 mb-1">
-              クリックまたはドラッグ＆ドロップでファイルを選択
-            </p>
-            <p className="text-sm text-gray-500">
-              PDFファイルのみ (推奨サイズ: 3〜5MB, 最大: 15MB)
-            </p>
-          </div>
-        )}
+        <!-- エラーメッセージ表示領域 -->
+        <div id="upload-error-msg" class="hidden mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <i data-lucide="alert-circle" class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5"></i>
+          <p id="upload-error-text" class="text-red-700"></p>
+        </div>
 
-        {/* Selected File Status */}
-        {file && !uploading && !resultUrl && (
-          <div className="mt-6 flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <FileText className="w-6 h-6 text-blue-600 flex-shrink-0" />
-              <div className="truncate">
-                <p className="font-medium text-gray-800 truncate">{file.name}</p>
-                <p className="text-xs text-gray-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-              </div>
+        <!-- 状態1: ファイル未選択 (ドラッグ＆ドロップエリア) -->
+        <div id="upload-state-initial" class="border-2 border-dashed border-gray-300 hover:border-gray-400 bg-gray-50 rounded-xl p-10 text-center transition-colors cursor-pointer">
+          <input id="file-upload" type="file" accept="application/pdf" class="hidden" />
+          <i data-lucide="upload-cloud" id="upload-icon" class="mx-auto w-12 h-12 mb-4 text-gray-400"></i>
+          <p class="text-lg font-medium text-gray-700 mb-1">
+            クリックまたはドラッグ＆ドロップでファイルを選択
+          </p>
+          <p class="text-sm text-gray-500">
+            PDFファイルのみ (推奨サイズ: 3〜5MB, 最大: 15MB)
+          </p>
+        </div>
+
+        <!-- 状態2: ファイル選択済 -->
+        <div id="upload-state-selected" class="hidden mt-6 flex flex-col sm:flex-row items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-100 gap-4">
+          <div class="flex items-center gap-3 overflow-hidden w-full">
+            <i data-lucide="file-text" class="w-6 h-6 text-blue-600 flex-shrink-0"></i>
+            <div class="truncate">
+              <p id="selected-file-name" class="font-medium text-gray-800 truncate"></p>
+              <p id="selected-file-size" class="text-xs text-gray-500"></p>
             </div>
-            <button 
-              onClick={uploadFile}
-              className="ml-4 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex-shrink-0 shadow-sm"
-            >
+          </div>
+          <div class="flex gap-2 w-full sm:w-auto">
+            <button id="btn-cancel-file" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors flex-shrink-0 shadow-sm w-full sm:w-auto">
+              キャンセル
+            </button>
+            <button id="btn-upload-start" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex-shrink-0 shadow-sm w-full sm:w-auto">
               アップロード
             </button>
           </div>
-        )}
+        </div>
 
-        {/* Uploading Status */}
-        {uploading && (
-          <div className="py-10 text-center">
-            <Loader2 className="animate-spin w-10 h-10 text-blue-600 mx-auto mb-4" />
-            <p className="text-lg font-medium text-gray-800 mb-2">アップロード中...</p>
-            <div className="w-full max-w-md mx-auto bg-gray-200 rounded-full h-2.5 mb-2">
-              <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
-            </div>
-            <p className="text-sm text-gray-500">{uploadProgress}% 完了</p>
+        <!-- 状態3: アップロード中 -->
+        <div id="upload-state-progress" class="hidden py-10 text-center">
+          <i data-lucide="loader-2" class="animate-spin w-10 h-10 text-blue-600 mx-auto mb-4"></i>
+          <p class="text-lg font-medium text-gray-800 mb-2">アップロード中...</p>
+          <div class="w-full max-w-md mx-auto bg-gray-200 rounded-full h-2.5 mb-2">
+            <div id="upload-progress-bar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
           </div>
-        )}
+          <p id="upload-progress-text" class="text-sm text-gray-500">0% 完了</p>
+        </div>
 
-        {/* Success & URL Copy */}
-        {resultUrl && !uploading && (
-          <div className="py-6">
-            <div className="flex items-center justify-center mb-6">
-              <div className="bg-green-100 p-3 rounded-full">
-                <CheckCircle className="w-8 h-8 text-green-600" />
-              </div>
-            </div>
-            <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">アップロード完了！</h2>
-            <p className="text-center text-gray-500 mb-8">以下のURLを共有して、PDFを閲覧できます。</p>
-            
-            <div className="flex flex-col sm:flex-row gap-3 max-w-lg mx-auto">
-              <div className="relative flex-grow">
-                <input 
-                  type="text" 
-                  value={resultUrl} 
-                  readOnly 
-                  className="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <button 
-                onClick={handleCopy}
-                className={`flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-                  copied ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                {copied ? <><CheckCircle className="w-4 h-4"/> コピー済</> : <><Copy className="w-4 h-4"/> URLをコピー</>}
-              </button>
-            </div>
-
-            <div className="mt-8 flex justify-center gap-4">
-              <button 
-                onClick={() => onViewPdf(new URLSearchParams(resultUrl.split('?')[1]).get('id'))}
-                className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-              >
-                <ExternalLink className="w-4 h-4"/> 今すぐプレビューを見る
-              </button>
-              <span className="text-gray-300">|</span>
-              <button 
-                onClick={() => { setResultUrl(""); setFile(null); }}
-                className="text-gray-500 hover:text-gray-700 font-medium"
-              >
-                別のファイルをアップロード
-              </button>
+        <!-- 状態4: 完了＆URL発行 -->
+        <div id="upload-state-success" class="hidden py-6">
+          <div class="flex items-center justify-center mb-6">
+            <div class="bg-green-100 p-3 rounded-full">
+              <i data-lucide="check-circle" class="w-8 h-8 text-green-600"></i>
             </div>
           </div>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <p className="text-red-700">{error}</p>
+          <h2 class="text-2xl font-bold text-center text-gray-800 mb-2">アップロード完了！</h2>
+          <p class="text-center text-gray-500 mb-8">以下のURLを共有して、PDFを閲覧できます。</p>
+          
+          <div class="flex flex-col sm:flex-row gap-3 max-w-lg mx-auto">
+            <div class="relative flex-grow">
+              <input id="result-url-input" type="text" readonly class="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <button id="btn-copy-url" class="flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white">
+              <span id="copy-icon-container"><i data-lucide="copy" class="w-4 h-4"></i></span>
+              <span id="copy-text">URLをコピー</span>
+            </button>
           </div>
-        )}
+
+          <div class="mt-8 flex justify-center gap-4">
+            <button id="btn-preview" class="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+              <i data-lucide="external-link" class="w-4 h-4"></i> 今すぐプレビューを見る
+            </button>
+            <span class="text-gray-300">|</span>
+            <button id="btn-upload-another" class="text-gray-500 hover:text-gray-700 font-medium">
+              別のファイルをアップロード
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
-  );
-}
+  </div>
 
-// --- PDF Viewer Component ---
-function PdfViewer({ pdfId, user, onBack }) {
-  const [loading, setLoading] = useState(true);
-  const [pdfUrl, setPdfUrl] = useState(null);
-  const [metadata, setMetadata] = useState(null);
-  const [error, setError] = useState("");
-  const [progress, setProgress] = useState(0);
+  <!-- ==================== ビューア画面 ==================== -->
+  <div id="view-viewer" class="hidden flex-col flex-grow h-screen">
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm z-10 flex-shrink-0">
+      <div class="flex items-center gap-4">
+        <button id="btn-back-home" class="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-600" title="ホームに戻る">
+          <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </button>
+        <div class="flex items-center gap-2">
+          <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
+          <span id="viewer-filename" class="font-semibold text-gray-800 truncate max-w-[200px] sm:max-w-md">
+            読み込み中...
+          </span>
+        </div>
+      </div>
+      
+      <a id="btn-download" href="#" class="hidden text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 px-4 py-2 rounded-lg font-medium transition-colors">
+        ダウンロード
+      </a>
+    </div>
 
-  useEffect(() => {
-    if (!user || !pdfId) return;
+    <!-- Main Content Area -->
+    <div class="flex-grow relative overflow-hidden flex flex-col bg-gray-100">
+      
+      <!-- 読み込み中UI -->
+      <div id="viewer-loading-ui" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 z-20">
+        <i data-lucide="loader-2" class="animate-spin w-10 h-10 text-blue-600 mb-4"></i>
+        <p class="text-gray-600 font-medium mb-2">PDFデータを構築しています...</p>
+        <div class="w-48 bg-gray-200 rounded-full h-1.5">
+          <div id="viewer-progress-bar" class="bg-blue-600 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- エラーUI -->
+      <div id="viewer-error-ui" class="hidden absolute inset-0 flex items-center justify-center bg-gray-50 z-20 p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center max-w-md">
+          <i data-lucide="alert-circle" class="w-12 h-12 text-red-500 mx-auto mb-4"></i>
+          <h3 class="text-xl font-bold text-gray-800 mb-2">エラー</h3>
+          <p id="viewer-error-text" class="text-gray-600 mb-6"></p>
+          <button id="btn-error-back" class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
+            トップへ戻る
+          </button>
+        </div>
+      </div>
+
+      <!-- iframe -->
+      <iframe id="pdf-iframe" class="hidden w-full h-full border-none" title="PDF Viewer"></iframe>
+    </div>
+  </div>
+
+  <!-- ==================== JavaScript ロジック ==================== -->
+  <script type="module">
+    // Firebase SDKのインポート (CDN版・ES Module)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- Firebase 初期化 ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04",
+      authDomain: "import-b6097.firebaseapp.com",
+      projectId: "import-b6097",
+      storageBucket: "import-b6097.firebasestorage.app",
+      messagingSenderId: "462510788117",
+      appId: "1:462510788117:web:44ff1fd1af583f67bc081c",
+      measurementId: "G-Z5ZNMKGTTK"
+    };
     
-    let objectUrl = null;
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const appId = firebaseConfig.appId; // GitHub Pages等の外部ホスティング用に固定
 
-    const fetchPdf = async () => {
-      setLoading(true);
-      setError("");
+    // グローバル変数
+    let currentUser = null;
+    let selectedFile = null;
+    let currentObjectUrl = null;
+    const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+
+    // DOM要素の取得
+    const viewLoading = document.getElementById('view-loading');
+    const viewError = document.getElementById('view-error');
+    const viewUpload = document.getElementById('view-upload');
+    const viewViewer = document.getElementById('view-viewer');
+
+    // --- アプリケーションの初期化とルーティング ---
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons(); // アイコン描画
+      
+      // 認証フローの開始
+      signInAnonymously(auth).catch((error) => {
+        console.error("Auth Error", error);
+        showView(viewError);
+      });
+
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          currentUser = user;
+          routeBasedOnUrl();
+        } else {
+          showView(viewError);
+        }
+      });
+    });
+
+    // URLパラメータのチェックとルーティング
+    function routeBasedOnUrl() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const id = urlParams.get('id');
+      
+      if (id) {
+        showView(viewViewer);
+        loadPdfViewer(id);
+      } else {
+        showView(viewUpload);
+        resetUploadUI();
+      }
+    }
+
+    // ビューの切り替えユーティリティ
+    function showView(viewElement) {
+      viewLoading.classList.add('hidden');
+      viewError.classList.add('hidden');
+      viewUpload.classList.add('hidden');
+      viewViewer.classList.add('hidden');
+      viewElement.classList.remove('hidden');
+      
+      // 非表示から表示に切り替わった際にアイコンが消えることがあるため再描画
+      setTimeout(() => lucide.createIcons(), 0);
+    }
+
+    // --- ユーティリティ関数 ---
+    const arrayBufferToBase64 = (buffer) => {
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      const len = bytes.byteLength;
+      const chunkSize = 8192; 
+      for (let i = 0; i < len; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        binary += String.fromCharCode.apply(null, chunk);
+      }
+      return btoa(binary);
+    };
+
+    const base64ToUint8Array = (base64) => {
+      const binary_string = atob(base64);
+      const len = binary_string.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+          bytes[i] = binary_string.charCodeAt(i);
+      }
+      return bytes;
+    };
+
+    const copyToClipboard = async (text) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (err) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          textArea.remove();
+          return true;
+        } catch (e) {
+          textArea.remove();
+          return false;
+        }
+      }
+    };
+
+    // ==================== アップロード機能のロジック ====================
+
+    const uploadStateInitial = document.getElementById('upload-state-initial');
+    const uploadStateSelected = document.getElementById('upload-state-selected');
+    const uploadStateProgress = document.getElementById('upload-state-progress');
+    const uploadStateSuccess = document.getElementById('upload-state-success');
+    const fileInput = document.getElementById('file-upload');
+    const uploadErrorMsg = document.getElementById('upload-error-msg');
+    const uploadErrorText = document.getElementById('upload-error-text');
+    const uploadIcon = document.getElementById('upload-icon');
+
+    function resetUploadUI() {
+      selectedFile = null;
+      fileInput.value = '';
+      uploadStateInitial.classList.remove('hidden');
+      uploadStateSelected.classList.add('hidden');
+      uploadStateProgress.classList.add('hidden');
+      uploadStateSuccess.classList.add('hidden');
+      uploadErrorMsg.classList.add('hidden');
+    }
+
+    function showError(msg) {
+      uploadErrorText.textContent = msg;
+      uploadErrorMsg.classList.remove('hidden');
+      resetUploadUI();
+    }
+
+    function handleFileSelection(file) {
+      uploadErrorMsg.classList.add('hidden');
+      
+      if (!file) return;
+      if (file.type !== 'application/pdf') {
+        showError("PDFファイルのみアップロード可能です。");
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        showError("ファイルサイズが大きすぎます。15MB以下のファイルを選択してください。");
+        return;
+      }
+      
+      selectedFile = file;
+      document.getElementById('selected-file-name').textContent = file.name;
+      document.getElementById('selected-file-size').textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+      
+      uploadStateInitial.classList.add('hidden');
+      uploadStateSelected.classList.remove('hidden');
+    }
+
+    // イベントリスナー設定
+    uploadStateInitial.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) handleFileSelection(e.target.files[0]);
+    });
+    
+    document.getElementById('btn-cancel-file').addEventListener('click', resetUploadUI);
+
+    // ドラッグ＆ドロップ対応
+    uploadStateInitial.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadStateInitial.classList.add('border-blue-500', 'bg-blue-50');
+      uploadStateInitial.classList.remove('border-gray-300', 'bg-gray-50');
+      uploadIcon.classList.add('text-blue-500');
+      uploadIcon.classList.remove('text-gray-400');
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      uploadStateInitial.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        uploadStateInitial.classList.remove('border-blue-500', 'bg-blue-50');
+        uploadStateInitial.classList.add('border-gray-300', 'bg-gray-50');
+        uploadIcon.classList.remove('text-blue-500');
+        uploadIcon.classList.add('text-gray-400');
+      });
+    });
+    uploadStateInitial.addEventListener('drop', (e) => {
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        handleFileSelection(e.dataTransfer.files[0]);
+      }
+    });
+
+    // アップロード処理本体
+    document.getElementById('btn-upload-start').addEventListener('click', async () => {
+      if (!selectedFile || !currentUser) return;
+      
+      uploadStateSelected.classList.add('hidden');
+      uploadStateProgress.classList.remove('hidden');
       
       try {
-        // 1. Get Metadata
-        setProgress(10);
+        const buffer = await selectedFile.arrayBuffer();
+        const base64String = arrayBufferToBase64(buffer);
+        
+        const CHUNK_SIZE = 800000;
+        const totalChunks = Math.ceil(base64String.length / CHUNK_SIZE);
+        const pdfId = crypto.randomUUID();
+        
+        for (let i = 0; i < totalChunks; i++) {
+          const chunkData = base64String.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', `${pdfId}_chunk_${i}`), {
+            type: 'chunk',
+            pdfId: pdfId,
+            index: i,
+            data: chunkData
+          });
+          
+          // Firestoreの書き込みキュー制限(resource-exhausted)を回避するための遅延
+          await new Promise(resolve => setTimeout(resolve, 250));
+          
+          const progress = Math.round(((i + 1) / totalChunks) * 100);
+          document.getElementById('upload-progress-bar').style.width = `${progress}%`;
+          document.getElementById('upload-progress-text').textContent = `${progress}% 完了`;
+        }
+        
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', pdfId), {
+          type: 'metadata',
+          filename: selectedFile.name,
+          chunkCount: totalChunks,
+          size: selectedFile.size,
+          uploadedAt: Date.now(),
+          uploaderId: currentUser.uid
+        });
+        
+        // 成功UIの表示
+        uploadStateProgress.classList.add('hidden');
+        uploadStateSuccess.classList.remove('hidden');
+        
+        const currentUrl = window.location.href.split('?')[0];
+        const resultUrl = `${currentUrl}?id=${pdfId}`;
+        document.getElementById('result-url-input').value = resultUrl;
+        
+      } catch (err) {
+        console.error(err);
+        showError("アップロード中にエラーが発生しました。ネットワーク接続を確認してください。");
+      }
+    });
+
+    // コピー機能
+    const btnCopyUrl = document.getElementById('btn-copy-url');
+    btnCopyUrl.addEventListener('click', async () => {
+      const url = document.getElementById('result-url-input').value;
+      const success = await copyToClipboard(url);
+      if (success) {
+        btnCopyUrl.classList.replace('bg-blue-600', 'bg-green-600');
+        btnCopyUrl.classList.replace('hover:bg-blue-700', 'hover:bg-green-700');
+        document.getElementById('copy-icon-container').innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>';
+        document.getElementById('copy-text').textContent = 'コピー済';
+        lucide.createIcons();
+        
+        setTimeout(() => {
+          btnCopyUrl.classList.replace('bg-green-600', 'bg-blue-600');
+          btnCopyUrl.classList.replace('hover:bg-green-700', 'hover:bg-blue-700');
+          document.getElementById('copy-icon-container').innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i>';
+          document.getElementById('copy-text').textContent = 'URLをコピー';
+          lucide.createIcons();
+        }, 2000);
+      }
+    });
+
+    // ボタン遷移
+    document.getElementById('btn-upload-another').addEventListener('click', resetUploadUI);
+    document.getElementById('btn-preview').addEventListener('click', () => {
+      const url = document.getElementById('result-url-input').value;
+      const id = new URLSearchParams(url.split('?')[1]).get('id');
+      updateUrlAndRoute(`?id=${id}`);
+    });
+
+    // ==================== ビューア機能のロジック ====================
+
+    function updateUrlAndRoute(queryString) {
+      const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + queryString;
+      try {
+        window.history.pushState({path:newUrl}, '', newUrl);
+      } catch (e) {
+        console.warn("History API is restricted, but routing will continue.");
+      }
+      routeBasedOnUrl();
+    }
+
+    // 戻る・ホームボタン
+    document.getElementById('btn-back-home').addEventListener('click', () => {
+      updateUrlAndRoute('');
+    });
+    document.getElementById('btn-error-back').addEventListener('click', () => {
+      updateUrlAndRoute('');
+    });
+
+    async function loadPdfViewer(pdfId) {
+      if (currentObjectUrl) {
+        URL.revokeObjectURL(currentObjectUrl);
+        currentObjectUrl = null;
+      }
+
+      const viewerLoadingUI = document.getElementById('viewer-loading-ui');
+      const viewerErrorUI = document.getElementById('viewer-error-ui');
+      const pdfIframe = document.getElementById('pdf-iframe');
+      const btnDownload = document.getElementById('btn-download');
+      
+      viewerLoadingUI.classList.remove('hidden');
+      viewerErrorUI.classList.add('hidden');
+      pdfIframe.classList.add('hidden');
+      btnDownload.classList.add('hidden');
+      
+      const setViewerProgress = (percent) => {
+        document.getElementById('viewer-progress-bar').style.width = `${percent}%`;
+      };
+
+      try {
+        setViewerProgress(10);
         const metaDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', pdfId));
         
         if (!metaDoc.exists()) {
-          setError("指定されたPDFが見つからないか、削除されています。");
-          setLoading(false);
-          return;
+          throw new Error("指定されたPDFが見つからないか、削除されています。");
         }
         
         const meta = metaDoc.data();
-        setMetadata(meta);
-        setProgress(30);
+        document.getElementById('viewer-filename').textContent = meta.filename;
+        setViewerProgress(30);
         
-        // 2. Fetch all chunks
         const chunkPromises = [];
         for (let i = 0; i < meta.chunkCount; i++) {
           chunkPromises.push(getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', `${pdfId}_chunk_${i}`)));
         }
         
         const chunkDocs = await Promise.all(chunkPromises);
-        setProgress(70);
+        setViewerProgress(70);
         
-        // 3. Combine chunks
         let base64String = "";
-        
-        // Sort by index to ensure correct order
         const sortedChunks = chunkDocs
           .map(d => d.exists() ? d.data() : null)
           .filter(d => d !== null)
@@ -464,100 +536,33 @@ function PdfViewer({ pdfId, user, onBack }) {
         sortedChunks.forEach(chunk => {
           base64String += chunk.data;
         });
-        setProgress(90);
+        setViewerProgress(90);
         
-        // 4. Convert to Blob and create Object URL
         const uint8Array = base64ToUint8Array(base64String);
         const blob = new Blob([uint8Array], { type: 'application/pdf' });
-        objectUrl = URL.createObjectURL(blob);
-        setPdfUrl(objectUrl);
+        currentObjectUrl = URL.createObjectURL(blob);
+        
+        pdfIframe.src = currentObjectUrl;
+        btnDownload.href = currentObjectUrl;
+        btnDownload.download = meta.filename;
+        
+        viewerLoadingUI.classList.add('hidden');
+        pdfIframe.classList.remove('hidden');
+        btnDownload.classList.remove('hidden');
         
       } catch (err) {
         console.error(err);
-        setError("PDFの読み込み中にエラーが発生しました。");
-      } finally {
-        setProgress(100);
-        setLoading(false);
+        viewerLoadingUI.classList.add('hidden');
+        viewerErrorUI.classList.remove('hidden');
+        document.getElementById('viewer-error-text').textContent = err.message || "PDFの読み込み中にエラーが発生しました。";
       }
-    };
+    }
     
-    fetchPdf();
-    
-    // Cleanup Object URL on unmount to prevent memory leaks
-    return () => {
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [pdfId, user]);
+    // ブラウザの戻る/進むボタン対応
+    window.addEventListener('popstate', () => {
+      routeBasedOnUrl();
+    });
 
-  return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm z-10 flex-shrink-0">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={onBack}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-600"
-            title="ホームに戻る"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-600" />
-            <span className="font-semibold text-gray-800 truncate max-w-[200px] sm:max-w-md">
-              {metadata ? metadata.filename : "読み込み中..."}
-            </span>
-          </div>
-        </div>
-        
-        {pdfUrl && (
-          <a 
-            href={pdfUrl} 
-            download={metadata?.filename || "document.pdf"}
-            className="text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 px-4 py-2 rounded-lg font-medium transition-colors"
-          >
-            ダウンロード
-          </a>
-        )}
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex-grow relative overflow-hidden flex flex-col">
-        {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 z-20">
-            <Loader2 className="animate-spin w-10 h-10 text-blue-600 mb-4" />
-            <p className="text-gray-600 font-medium mb-2">PDFデータを構築しています...</p>
-            <div className="w-48 bg-gray-200 rounded-full h-1.5">
-              <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-20 p-4">
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center max-w-md">
-              <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-gray-800 mb-2">エラー</h3>
-              <p className="text-gray-600 mb-6">{error}</p>
-              <button 
-                onClick={onBack}
-                className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                トップへ戻る
-              </button>
-            </div>
-          </div>
-        )}
-
-        {pdfUrl && !loading && (
-          <iframe 
-            src={pdfUrl} 
-            className="w-full h-full border-none"
-            title="PDF Viewer"
-          />
-        )}
-      </div>
-    </div>
-  );
-}
+  </script>
+</body>
+</html>
