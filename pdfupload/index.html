@@ -121,11 +121,43 @@
         </div>
 
       </div>
+
+      <!-- アップロード履歴セクション -->
+      <div id="upload-list-section" class="mt-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hidden">
+        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+          <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <i data-lucide="history" class="w-5 h-5 text-gray-500"></i>
+            アップロード履歴
+          </h2>
+          <button id="btn-refresh-list" class="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500" title="更新">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+          </button>
+        </div>
+        
+        <div class="p-0 relative">
+          <!-- Loading -->
+          <div id="upload-list-loading" class="py-10 flex flex-col items-center justify-center">
+            <i data-lucide="loader-2" class="animate-spin w-8 h-8 text-blue-600 mb-2"></i>
+            <p class="text-sm text-gray-500">履歴を読み込み中...</p>
+          </div>
+          
+          <!-- Empty -->
+          <div id="upload-list-empty" class="py-10 text-center hidden">
+            <i data-lucide="inbox" class="w-10 h-10 text-gray-300 mx-auto mb-3"></i>
+            <p class="text-gray-500 text-sm">アップロードしたファイルはまだありません。</p>
+          </div>
+          
+          <!-- List Container -->
+          <div id="upload-list-container" class="flex flex-col divide-y divide-gray-100">
+            <!-- Items will be injected here by JavaScript -->
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- ==================== ビューア画面 ==================== -->
-  <div id="view-viewer" class="hidden fixed inset-0 z-50 flex-col bg-gray-100">
+  <div id="view-viewer" class="hidden flex fixed inset-0 z-50 flex-col bg-gray-100">
     <!-- Header -->
     <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm z-10 flex-shrink-0">
       <div class="flex items-center gap-4">
@@ -176,10 +208,9 @@
 
   <!-- ==================== JavaScript ロジック ==================== -->
   <script type="module">
-    // Firebase SDKのインポート (CDN版・ES Module)
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- Firebase 初期化 ---
     const firebaseConfig = {
@@ -195,25 +226,21 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const appId = firebaseConfig.appId; // GitHub Pages等の外部ホスティング用に固定
+    const appId = firebaseConfig.appId;
 
-    // グローバル変数
     let currentUser = null;
     let selectedFile = null;
     let currentObjectUrl = null;
     const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 
-    // DOM要素の取得
     const viewLoading = document.getElementById('view-loading');
     const viewError = document.getElementById('view-error');
     const viewUpload = document.getElementById('view-upload');
     const viewViewer = document.getElementById('view-viewer');
 
-    // --- アプリケーションの初期化とルーティング ---
     document.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons(); // アイコン描画
+      lucide.createIcons();
       
-      // 認証フローの開始
       signInAnonymously(auth).catch((error) => {
         console.error("Auth Error", error);
         showView(viewError);
@@ -229,7 +256,6 @@
       });
     });
 
-    // URLパラメータのチェックとルーティング
     function routeBasedOnUrl() {
       const urlParams = new URLSearchParams(window.location.search);
       const id = urlParams.get('id');
@@ -240,22 +266,20 @@
       } else {
         showView(viewUpload);
         resetUploadUI();
+        fetchUploadedFiles(); // 一覧の取得
       }
     }
 
-    // ビューの切り替えユーティリティ
     function showView(viewElement) {
       viewLoading.classList.add('hidden');
       viewError.classList.add('hidden');
       viewUpload.classList.add('hidden');
       viewViewer.classList.add('hidden');
       viewElement.classList.remove('hidden');
-      
-      // 非表示から表示に切り替わった際にアイコンが消えることがあるため再描画
       setTimeout(() => lucide.createIcons(), 0);
     }
 
-    // --- ユーティリティ関数 ---
+    // --- ユーティリティ ---
     const arrayBufferToBase64 = (buffer) => {
       let binary = '';
       const bytes = new Uint8Array(buffer);
@@ -299,8 +323,7 @@
       }
     };
 
-    // ==================== アップロード機能のロジック ====================
-
+    // ==================== アップロード機能 ====================
     const uploadStateInitial = document.getElementById('upload-state-initial');
     const uploadStateSelected = document.getElementById('upload-state-selected');
     const uploadStateProgress = document.getElementById('upload-state-progress');
@@ -347,7 +370,6 @@
       uploadStateSelected.classList.remove('hidden');
     }
 
-    // イベントリスナー設定
     uploadStateInitial.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (e) => {
       if (e.target.files && e.target.files[0]) handleFileSelection(e.target.files[0]);
@@ -355,7 +377,6 @@
     
     document.getElementById('btn-cancel-file').addEventListener('click', resetUploadUI);
 
-    // ドラッグ＆ドロップ対応
     uploadStateInitial.addEventListener('dragover', (e) => {
       e.preventDefault();
       uploadStateInitial.classList.add('border-blue-500', 'bg-blue-50');
@@ -378,7 +399,6 @@
       }
     });
 
-    // アップロード処理本体
     document.getElementById('btn-upload-start').addEventListener('click', async () => {
       if (!selectedFile || !currentUser) return;
       
@@ -395,14 +415,14 @@
         
         for (let i = 0; i < totalChunks; i++) {
           const chunkData = base64String.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', `${pdfId}_chunk_${i}`), {
+          // 新しい保存場所 (pdf_chunks) を使用
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_chunks', `${pdfId}_chunk_${i}`), {
             type: 'chunk',
             pdfId: pdfId,
             index: i,
             data: chunkData
           });
           
-          // Firestoreの書き込みキュー制限(resource-exhausted)を回避するための遅延
           await new Promise(resolve => setTimeout(resolve, 250));
           
           const progress = Math.round(((i + 1) / totalChunks) * 100);
@@ -410,7 +430,8 @@
           document.getElementById('upload-progress-text').textContent = `${progress}% 完了`;
         }
         
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', pdfId), {
+        // 新しい保存場所 (pdf_metadata) を使用
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata', pdfId), {
           type: 'metadata',
           filename: selectedFile.name,
           chunkCount: totalChunks,
@@ -419,7 +440,6 @@
           uploaderId: currentUser.uid
         });
         
-        // 成功UIの表示
         uploadStateProgress.classList.add('hidden');
         uploadStateSuccess.classList.remove('hidden');
         
@@ -427,13 +447,15 @@
         const resultUrl = `${currentUrl}?id=${pdfId}`;
         document.getElementById('result-url-input').value = resultUrl;
         
+        // 一覧を再取得
+        fetchUploadedFiles();
+        
       } catch (err) {
         console.error(err);
         showError("アップロード中にエラーが発生しました。ネットワーク接続を確認してください。");
       }
     });
 
-    // コピー機能
     const btnCopyUrl = document.getElementById('btn-copy-url');
     btnCopyUrl.addEventListener('click', async () => {
       const url = document.getElementById('result-url-input').value;
@@ -455,7 +477,6 @@
       }
     });
 
-    // ボタン遷移
     document.getElementById('btn-upload-another').addEventListener('click', resetUploadUI);
     document.getElementById('btn-preview').addEventListener('click', () => {
       const url = document.getElementById('result-url-input').value;
@@ -463,8 +484,102 @@
       updateUrlAndRoute(`?id=${id}`);
     });
 
-    // ==================== ビューア機能のロジック ====================
+    // ==================== 履歴一覧表示機能 ====================
+    async function fetchUploadedFiles() {
+      const listSection = document.getElementById('upload-list-section');
+      const listContainer = document.getElementById('upload-list-container');
+      const listLoading = document.getElementById('upload-list-loading');
+      const listEmpty = document.getElementById('upload-list-empty');
 
+      if (!currentUser) return;
+
+      listSection.classList.remove('hidden');
+      listContainer.innerHTML = '';
+      listLoading.classList.remove('hidden');
+      listEmpty.classList.add('hidden');
+
+      try {
+        // メタデータのみを保存している新しいコレクションから取得
+        const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata'));
+        
+        let files = [];
+        querySnapshot.forEach((doc) => {
+          files.push({ id: doc.id, ...doc.data() });
+        });
+
+        // 自分がアップロードしたものだけに絞り込み、新しい順にソート
+        files = files.filter(f => f.uploaderId === currentUser.uid);
+        files.sort((a, b) => b.uploadedAt - a.uploadedAt);
+
+        listLoading.classList.add('hidden');
+
+        if (files.length === 0) {
+          listEmpty.classList.remove('hidden');
+        } else {
+          files.forEach(file => {
+            const dateObj = new Date(file.uploadedAt);
+            const dateStr = `${dateObj.getFullYear()}/${(dateObj.getMonth()+1).toString().padStart(2, '0')}/${dateObj.getDate().toString().padStart(2, '0')} ${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')}`;
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+            const url = `${window.location.href.split('?')[0]}?id=${file.id}`;
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = "flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 hover:bg-gray-50 transition-colors gap-4";
+            
+            itemDiv.innerHTML = `
+              <div class="flex items-center gap-4 overflow-hidden w-full">
+                <div class="bg-blue-100 p-2.5 rounded-lg flex-shrink-0">
+                  <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
+                </div>
+                <div class="truncate">
+                  <p class="font-medium text-gray-800 truncate">${file.filename}</p>
+                  <p class="text-xs text-gray-500 mt-0.5">${dateStr} • ${sizeMB}</p>
+                </div>
+              </div>
+              <div class="flex gap-2 w-full sm:w-auto flex-shrink-0" id="actions-${file.id}"></div>
+            `;
+            listContainer.appendChild(itemDiv);
+
+            // アクションボタンの追加
+            const actionsDiv = itemDiv.querySelector(`#actions-${file.id}`);
+            
+            const copyBtn = document.createElement('button');
+            copyBtn.className = "p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-center";
+            copyBtn.title = "URLをコピー";
+            copyBtn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i>';
+            copyBtn.addEventListener('click', async () => {
+              const success = await copyToClipboard(url);
+              if (success) {
+                copyBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-green-600"></i>';
+                lucide.createIcons();
+                setTimeout(() => {
+                  copyBtn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i>';
+                  lucide.createIcons();
+                }, 2000);
+              }
+            });
+
+            const previewBtn = document.createElement('button');
+            previewBtn.className = "px-4 py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-blue-600 font-medium text-sm rounded-lg transition-colors flex items-center shadow-sm";
+            previewBtn.innerHTML = 'プレビュー';
+            previewBtn.addEventListener('click', () => {
+              updateUrlAndRoute(`?id=${file.id}`);
+            });
+
+            actionsDiv.appendChild(copyBtn);
+            actionsDiv.appendChild(previewBtn);
+          });
+          lucide.createIcons();
+        }
+      } catch (err) {
+        console.error("Error fetching list", err);
+        listLoading.classList.add('hidden');
+        listContainer.innerHTML = '<div class="p-6 text-center text-red-500 text-sm">履歴の取得に失敗しました。</div>';
+      }
+    }
+
+    document.getElementById('btn-refresh-list').addEventListener('click', fetchUploadedFiles);
+
+    // ==================== ビューア機能 ====================
     function updateUrlAndRoute(queryString) {
       const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + queryString;
       try {
@@ -475,7 +590,6 @@
       routeBasedOnUrl();
     }
 
-    // 戻る・ホームボタン
     document.getElementById('btn-back-home').addEventListener('click', () => {
       updateUrlAndRoute('');
     });
@@ -505,7 +619,16 @@
 
       try {
         setViewerProgress(10);
-        const metaDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', pdfId));
+        
+        // 1. メタデータの取得 (新旧の保存場所を両方確認)
+        let metaDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata', pdfId));
+        let chunkCollection = 'pdf_chunks';
+        
+        // 後方互換性：古い保存場所にしかない場合はそちらを参照
+        if (!metaDoc.exists()) {
+          metaDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', pdfId));
+          chunkCollection = 'pdf_storage';
+        }
         
         if (!metaDoc.exists()) {
           throw new Error("指定されたPDFが見つからないか、削除されています。");
@@ -515,14 +638,16 @@
         document.getElementById('viewer-filename').textContent = meta.filename;
         setViewerProgress(30);
         
+        // 2. チャンクデータの取得
         const chunkPromises = [];
         for (let i = 0; i < meta.chunkCount; i++) {
-          chunkPromises.push(getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', `${pdfId}_chunk_${i}`)));
+          chunkPromises.push(getDoc(doc(db, 'artifacts', appId, 'public', 'data', chunkCollection, `${pdfId}_chunk_${i}`)));
         }
         
         const chunkDocs = await Promise.all(chunkPromises);
         setViewerProgress(70);
         
+        // 3. 結合処理
         let base64String = "";
         const sortedChunks = chunkDocs
           .map(d => d.exists() ? d.data() : null)
@@ -558,7 +683,6 @@
       }
     }
     
-    // ブラウザの戻る/進むボタン対応
     window.addEventListener('popstate', () => {
       routeBasedOnUrl();
     });
