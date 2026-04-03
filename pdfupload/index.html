@@ -161,9 +161,6 @@
     <!-- Header -->
     <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm z-10 flex-shrink-0">
       <div class="flex items-center gap-4">
-        <button id="btn-back-home" class="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-600" title="ホームに戻る">
-          <i data-lucide="arrow-left" class="w-5 h-5"></i>
-        </button>
         <div class="flex items-center gap-2">
           <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
           <span id="viewer-filename" class="font-semibold text-gray-800 truncate max-w-[200px] sm:max-w-md">
@@ -238,20 +235,34 @@
     const viewUpload = document.getElementById('view-upload');
     const viewViewer = document.getElementById('view-viewer');
 
+    // デバイスIDの取得・生成 (ブラウザ更新時の履歴保持用)
+    function getDeviceId() {
+      try {
+        let deviceId = localStorage.getItem('pdf_share_device_id');
+        if (!deviceId) {
+          deviceId = crypto.randomUUID();
+          localStorage.setItem('pdf_share_device_id', deviceId);
+        }
+        return deviceId;
+      } catch (e) {
+        // localStorageが使えない環境(プレビュー等)のフォールバック
+        return currentUser ? currentUser.uid : 'unknown-device';
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       
-      signInAnonymously(auth).catch((error) => {
-        console.error("Auth Error", error);
-        showView(viewError);
-      });
-
       onAuthStateChanged(auth, (user) => {
         if (user) {
           currentUser = user;
           routeBasedOnUrl();
         } else {
-          showView(viewError);
+          // 未ログイン状態の時のみ匿名サインインを実行し、セッションを維持する
+          signInAnonymously(auth).catch((error) => {
+            console.error("Auth Error", error);
+            showView(viewError);
+          });
         }
       });
     });
@@ -437,7 +448,8 @@
           chunkCount: totalChunks,
           size: selectedFile.size,
           uploadedAt: Date.now(),
-          uploaderId: currentUser.uid
+          uploaderId: currentUser.uid,
+          deviceId: getDeviceId() // ブラウザ更新対策としてデバイスIDも保存
         });
         
         uploadStateProgress.classList.add('hidden');
@@ -508,7 +520,9 @@
         });
 
         // 自分がアップロードしたものだけに絞り込み、新しい順にソート
-        files = files.filter(f => f.uploaderId === currentUser.uid);
+        // (UIDまたはデバイスIDのどちらかが一致すれば自身の履歴として確実に呼び出す)
+        const currentDeviceId = getDeviceId();
+        files = files.filter(f => f.uploaderId === currentUser.uid || f.deviceId === currentDeviceId);
         files.sort((a, b) => b.uploadedAt - a.uploadedAt);
 
         listLoading.classList.add('hidden');
@@ -590,9 +604,6 @@
       routeBasedOnUrl();
     }
 
-    document.getElementById('btn-back-home').addEventListener('click', () => {
-      updateUrlAndRoute('');
-    });
     document.getElementById('btn-error-back').addEventListener('click', () => {
       updateUrlAndRoute('');
     });
