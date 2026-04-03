@@ -134,37 +134,99 @@
                     <h1 class="text-2xl font-bold">データインポート</h1>
                     <button id="back-to-main-from-import-button" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"><i class="fas fa-arrow-left mr-2"></i>管理トップに戻る</button>
                 </header>
-                <main class="bg-white p-6 rounded-lg shadow-md flex-grow flex flex-col">
-                    <div id="file-drop-zone" class="file-drop-zone rounded-lg p-8 text-center cursor-pointer mb-4">
-                        <i class="fas fa-file-excel text-4xl text-gray-400 mb-3"></i>
-                        <p class="text-gray-600">ここにExcelファイルをドラッグ＆ドロップ</p>
-                        <p class="text-sm text-gray-500 my-2">または</p>
-                        <button onclick="document.getElementById('fileInput').click()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">ファイルを選択</button>
-                        <input type="file" id="fileInput" accept=".csv, .xlsx, .xls" class="hidden"/>
+                <main class="flex-grow flex flex-col overflow-y-auto">
+                    <!-- タブナビゲーション -->
+                    <div class="flex border-b mb-6">
+                        <button id="tab-batch" class="py-2 px-6 font-bold text-blue-600 border-b-2 border-blue-600 bg-blue-50 rounded-t-lg transition-colors">一括インポート (Excel)</button>
+                        <button id="tab-manual" class="py-2 px-6 font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:bg-gray-50 rounded-t-lg transition-colors">個別入力</button>
                     </div>
-                    <div id="import-status" class="text-sm mb-4 h-5"></div>
-                    <div id="import-preview-container" class="hidden flex-grow flex flex-col">
-                        <div class="flex justify-between items-center mb-2">
-                            <h3 class="text-lg font-bold">インポートプレビュー</h3>
-                            <button id="confirm-import-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-400">
-                                <i class="fas fa-check mr-2"></i><span>データベースに保存</span>
+
+                    <!-- ファイルインポート (タブコンテンツ) -->
+                    <section id="section-batch" class="bg-white p-6 rounded-lg shadow-md flex flex-col">
+                        <div id="file-drop-zone" class="file-drop-zone rounded-lg p-4 text-center cursor-pointer mb-4">
+                            <i class="fas fa-file-excel text-3xl text-gray-400 mb-2"></i>
+                            <p class="text-sm text-gray-600">ここにExcelファイルをドラッグ＆ドロップ</p>
+                            <p class="text-xs text-gray-500 my-1">または</p>
+                            <button onclick="document.getElementById('fileInput').click()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1.5 px-4 text-sm rounded-lg">ファイルを選択</button>
+                            <input type="file" id="fileInput" accept=".csv, .xlsx, .xls" class="hidden"/>
+                        </div>
+                        <div id="import-status" class="text-sm mb-4 h-5"></div>
+                        <div id="import-preview-container" class="hidden flex flex-col">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="text-lg font-bold">インポートプレビュー</h3>
+                                <button id="confirm-import-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-400">
+                                    <i class="fas fa-check mr-2"></i><span>データベースに保存</span>
+                                </button>
+                            </div>
+                            <div class="overflow-auto border rounded-lg max-h-[500px]">
+                                <table class="min-w-full text-sm">
+                                    <thead class="bg-gray-100 sticky top-0">
+                                        <tr>
+                                            <th class="p-2 text-left">日付</th>
+                                            <th class="p-2 text-left">タイトル名</th>
+                                            <th class="p-2 text-left">区分</th>
+                                            <th class="p-2 text-left">備考</th>
+                                            <th class="p-2 text-left">ステータス</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="import-preview-body" class="divide-y"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 個別入力 (タブコンテンツ) -->
+                    <section id="section-manual" class="bg-white p-6 rounded-lg shadow-md flex flex-col hidden">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">公開日</label>
+                                <input type="date" id="manual-date" class="w-full h-[42px] p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500 box-border">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">開催日</label>
+                                <input type="date" id="manual-kaigi-date" class="w-full h-[42px] p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500 box-border">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">区分</label>
+                                <select id="manual-category" class="w-full h-[42px] p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500 bg-white box-border">
+                                    <option value="" selected></option>
+                                    <option value="会議">会議</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">タイトル名 <span class="text-red-500">*</span></label>
+                            <input type="text" id="manual-title" class="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">備考</label>
+                            <textarea id="manual-remarks" class="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500 h-24"></textarea>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">URL1 (音声ファイル)</label>
+                                <input type="text" id="manual-url1" class="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">URL2 (詳細リンク/PDF)</label>
+                                <input type="text" id="manual-url2" class="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">URL3 (関連資料等)</label>
+                                <input type="text" id="manual-url3" class="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">YouTube</label>
+                                <input type="text" id="manual-youtube" class="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center mt-2">
+                            <div id="manual-status" class="text-sm font-bold h-5"></div>
+                            <button id="manual-submit-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition-colors">
+                                <i class="fas fa-plus mr-2"></i>追加する
                             </button>
                         </div>
-                        <div class="overflow-auto border rounded-lg flex-grow">
-                            <table class="min-w-full text-sm">
-                                <thead class="bg-gray-100 sticky top-0">
-                                    <tr>
-                                        <th class="p-2 text-left">日付</th>
-                                        <th class="p-2 text-left">タイトル名</th>
-                                        <th class="p-2 text-left">区分</th>
-                                        <th class="p-2 text-left">備考</th>
-                                        <th class="p-2 text-left">ステータス</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="import-preview-body" class="divide-y"></tbody>
-                            </table>
-                        </div>
-                    </div>
+                    </section>
                 </main>
             </div>
             
@@ -211,6 +273,7 @@
                                     <th class="w-12 px-2 py-3" title="ブックマーク"><i class="fas fa-bookmark"></i></th>
                                     <th class="w-28 px-2 py-3 sortable-header" data-sort-key="日付">公開日<span class="sort-icon"></span></th>
                                     <th class="px-2 py-3 sortable-header" data-sort-key="タイトル名">政策関連情報概要<span class="sort-icon"></span></th>
+                                    <th class="w-16 px-2 py-3 text-center" title="ドキュメント"><i class="fas fa-file-alt"></i></th>
                                     <th class="w-16 px-2 py-3 text-center" title="動画"><i class="fas fa-video"></i></th>
                                     <th class="w-16 px-2 py-3 text-center" title="音声"><i class="fas fa-volume-up"></i></th>
                                 </tr>
@@ -234,14 +297,18 @@
             </div>
             <div class="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
                 <input type="hidden" id="edit-id">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                     <div>
                         <label class="block text-sm font-bold text-gray-700 mb-1">公開日</label>
-                        <input type="text" id="edit-date" class="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500" placeholder="YYYY/MM/DD">
+                        <input type="date" id="edit-date" class="w-full h-[42px] p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500 box-border">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">開催日</label>
+                        <input type="date" id="edit-kaigi-date" class="w-full h-[42px] p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500 box-border">
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-gray-700 mb-1">区分</label>
-                        <input type="text" id="edit-category" class="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500" placeholder="会議 など">
+                        <input type="text" id="edit-category" class="w-full h-[42px] p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500 box-border" placeholder="会議 など">
                     </div>
                 </div>
                 <div>
@@ -259,6 +326,10 @@
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">URL2 (詳細リンク/PDF)</label>
                     <input type="text" id="edit-url2" class="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">URL3 (関連資料等)</label>
+                    <input type="text" id="edit-url3" class="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">YouTube</label>
@@ -298,7 +369,7 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, getDocs, writeBatch, doc, onSnapshot, updateDoc, query, where, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, writeBatch, doc, onSnapshot, updateDoc, query, where, setDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // --- 定数 & グローバル変数 ---
@@ -370,15 +441,36 @@
         const mainAudioIconI = document.getElementById('main-audio-icon-i');
         const bookmarkFilterCheckbox = document.getElementById('bookmark-filter-checkbox');
 
+        // タブUI要素
+        const tabBatch = document.getElementById('tab-batch');
+        const tabManual = document.getElementById('tab-manual');
+        const sectionBatch = document.getElementById('section-batch');
+        const sectionManual = document.getElementById('section-manual');
+
+        // 個別入力用要素
+        const manualDateInput = document.getElementById('manual-date');
+        const manualKaigiDateInput = document.getElementById('manual-kaigi-date');
+        const manualCategoryInput = document.getElementById('manual-category');
+        const manualTitleInput = document.getElementById('manual-title');
+        const manualRemarksInput = document.getElementById('manual-remarks');
+        const manualUrl1Input = document.getElementById('manual-url1');
+        const manualUrl2Input = document.getElementById('manual-url2');
+        const manualUrl3Input = document.getElementById('manual-url3');
+        const manualYoutubeInput = document.getElementById('manual-youtube');
+        const manualSubmitButton = document.getElementById('manual-submit-button');
+        const manualStatus = document.getElementById('manual-status');
+
         // 編集モーダル要素
         const editModal = document.getElementById('edit-modal');
         const editIdInput = document.getElementById('edit-id');
         const editDateInput = document.getElementById('edit-date');
+        const editKaigiDateInput = document.getElementById('edit-kaigi-date');
         const editCategoryInput = document.getElementById('edit-category');
         const editTitleInput = document.getElementById('edit-title');
         const editRemarksInput = document.getElementById('edit-remarks');
         const editUrl1Input = document.getElementById('edit-url1');
         const editUrl2Input = document.getElementById('edit-url2');
+        const editUrl3Input = document.getElementById('edit-url3');
         const editYoutubeInput = document.getElementById('edit-youtube');
         const closeEditModalButton = document.getElementById('close-edit-modal-button');
         const cancelEditButton = document.getElementById('cancel-edit-button');
@@ -490,6 +582,25 @@
             [mainScreen, dataViewScreen, importScreen].forEach(screen => {
                 screen.style.display = screen === screenToShow ? 'flex' : 'none';
             });
+        }
+
+        // --- タブ切り替え ---
+        function switchTab(tab) {
+            if (tab === 'batch') {
+                tabBatch.classList.add('text-blue-600', 'border-blue-600', 'bg-blue-50');
+                tabBatch.classList.remove('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:bg-gray-50');
+                tabManual.classList.remove('text-blue-600', 'border-blue-600', 'bg-blue-50');
+                tabManual.classList.add('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:bg-gray-50');
+                sectionBatch.classList.remove('hidden');
+                sectionManual.classList.add('hidden');
+            } else {
+                tabManual.classList.add('text-blue-600', 'border-blue-600', 'bg-blue-50');
+                tabManual.classList.remove('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:bg-gray-50');
+                tabBatch.classList.remove('text-blue-600', 'border-blue-600', 'bg-blue-50');
+                tabBatch.classList.add('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:bg-gray-50');
+                sectionManual.classList.remove('hidden');
+                sectionBatch.classList.add('hidden');
+            }
         }
 
         // --- Firestore & レンダリング ---
@@ -622,8 +733,9 @@
             } else if (url2) {
                 titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>';
             }
-            const audioIconHtml = item['URL1'] ? `<span data-src="${item['URL1']}" title="音声を再生" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : '';
+            const docIconHtml = item['URL3'] ? `<a href="${item['URL3']}" target="_blank" rel="noopener noreferrer" title="ドキュメントを開く" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-file-alt"></i></a>` : '';
             const videoIconHtml = item['YouTube'] ? `<a href="${item['YouTube']}" target="_blank" rel="noopener noreferrer" title="動画を再生" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : '';
+            const audioIconHtml = item['URL1'] ? `<span data-src="${item['URL1']}" title="音声を再生" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : '';
 
             row.innerHTML = `
                 <td class="px-2 py-3 text-center"><input type="checkbox" class="select-row-checkbox" data-id="${item.id}"></td>
@@ -635,6 +747,7 @@
                 <td class="px-2 py-3 text-center"><input type="checkbox" class="bookmark-checkbox" data-id="${item.id}" ${item.isBookmarked ? 'checked' : ''}></td>
                 <td class="px-2 py-3 text-sm"><p class="${dateClass}">${date}</p></td>
                 <td class="px-2 py-3 text-sm min-w-0"><div><div class="flex items-start">${titlePrefixHtml}<a href="${url2 || '#'}" target="_blank" class="text-blue-600 hover:underline">${displayTitle}</a></div><p class="text-xs text-gray-500 mt-1">${bikou}</p></div></td>
+                <td class="text-center">${docIconHtml}</td>
                 <td class="text-center">${videoIconHtml}</td>
                 <td class="text-center">${audioIconHtml}</td>
             `;
@@ -689,13 +802,23 @@
             const item = currentData.find(d => d.id === id);
             if (!item) return;
 
+            let rawTitle = item['タイトル名'] || '';
+            let kaigiDate = '';
+            const match = rawTitle.match(/ ?\[会議日: (.*?)\]/);
+            if (match) {
+                kaigiDate = match[1].replace(/\//g, '-');
+                rawTitle = rawTitle.replace(/ ?\[会議日: .*?\]/, '');
+            }
+
             editIdInput.value = id;
-            editDateInput.value = item['日付'] || '';
+            editDateInput.value = (item['日付'] || '').replace(/\//g, '-');
+            editKaigiDateInput.value = kaigiDate;
             editCategoryInput.value = item['区分'] || '';
-            editTitleInput.value = item['タイトル名'] || '';
+            editTitleInput.value = rawTitle;
             editRemarksInput.value = item['備考'] || '';
             editUrl1Input.value = item['URL1'] || '';
             editUrl2Input.value = item['URL2'] || '';
+            editUrl3Input.value = item['URL3'] || '';
             editYoutubeInput.value = item['YouTube'] || '';
 
             editModal.classList.remove('hidden');
@@ -720,13 +843,18 @@
             saveEditButton.disabled = true;
             saveEditButton.textContent = "保存中...";
 
+            const rawTitle = editTitleInput.value.trim();
+            let kaigiDateVal = editKaigiDateInput.value.trim().replace(/-/g, '/');
+            const title = kaigiDateVal ? `${rawTitle} [会議日: ${kaigiDateVal}]` : rawTitle;
+
             const updatedData = {
-                '日付': editDateInput.value,
+                '日付': editDateInput.value.replace(/-/g, '/'),
                 '区分': editCategoryInput.value,
-                'タイトル名': editTitleInput.value,
+                'タイトル名': title,
                 '備考': editRemarksInput.value,
                 'URL1': editUrl1Input.value,
                 'URL2': editUrl2Input.value,
+                'URL3': editUrl3Input.value,
                 'YouTube': editYoutubeInput.value
             };
 
@@ -891,7 +1019,7 @@
             return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>政策リサーチ情報一覧</title><script src="https://cdn.tailwindcss.com"><\/script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"><style>body { font-family: 'Inter', 'Noto Sans JP', sans-serif; } .audio-icon { cursor: pointer; } .playing i { color: #3b82f6; animation: pulse 1.2s infinite; } @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }</style></head>
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen"><div class="container mx-auto px-4 py-8 flex-grow flex flex-col"><header class="text-center mb-8 flex-shrink-0 relative"><h1 class="text-3xl font-bold text-gray-900 inline-flex items-center">政策リサーチ情報一覧<a href="${videoUrl}" target="_blank" class="text-blue-500 hover:text-blue-700 text-xl ml-4"><i class="fas fa-video"><\/i><\/a><span id="main-audio-control" class="audio-icon text-blue-500 hover:text-blue-700 text-xl ml-3"><i id="main-audio-icon-i" class="fas fa-volume-up"><\/i><\/span><\/h1><div id="last-import-time" class="absolute right-0 top-0 text-gray-500 text-xs text-right"><\/div><\/header>
 <main class="bg-white p-6 rounded-lg shadow-md flex-grow flex flex-col"><div class="flex-shrink-0 flex justify-between mb-4"><div class="flex items-center gap-4"><input type="text" id="searchInput" placeholder="検索" class="border border-gray-300 p-2 rounded-lg w-64"><button id="clearSearchButton" class="bg-gray-200 p-2 rounded-lg text-sm">クリア<\/button><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="bookmark-filter-checkbox">ブックマークのみ<\/label><\/div><div id="dataCountDisplay" class="text-gray-600 text-sm"><\/div><\/div>
-<div class="bg-white border border-gray-200 rounded-lg overflow-auto flex-grow"><table class="min-w-full leading-normal table-auto text-sm"><thead class="bg-gray-200 text-gray-600 sticky top-0 z-10"><tr><th class="w-12 py-3" title="ブックマーク"><i class="fas fa-bookmark"><\/i><\/th><th class="w-28 py-3 sortable-header" data-sort-key="日付">公開日<span class="sort-icon"><\/span><\/th><th class="py-3 sortable-header" data-sort-key="タイトル名">政策関連情報概要<span class="sort-icon"><\/span><\/th><th class="w-16 py-3 text-center"><i class="fas fa-video"><\/i><\/th><th class="w-16 py-3 text-center"><i class="fas fa-volume-up"><\/i><\/th><\/tr><\/thead><tbody id="data-table-body" class="divide-y divide-gray-200"><\/tbody><\/table><div id="loading" class="text-center p-8 text-gray-500">読み込み中...<\/div><\/div><div id="pagination-controls" class="flex justify-center items-center mt-4"><\/div><\/main><\/div><audio id="audioPlayer" style="display: none;"><\/audio>
+<div class="bg-white border border-gray-200 rounded-lg overflow-auto flex-grow"><table class="min-w-full leading-normal table-auto text-sm"><thead class="bg-gray-200 text-gray-600 sticky top-0 z-10"><tr><th class="w-12 py-3" title="ブックマーク"><i class="fas fa-bookmark"><\/i><\/th><th class="w-28 py-3 sortable-header" data-sort-key="日付">公開日<span class="sort-icon"><\/span><\/th><th class="py-3 sortable-header" data-sort-key="タイトル名">政策関連情報概要<span class="sort-icon"><\/span><\/th><th class="w-16 py-3 text-center"><i class="fas fa-file-alt"><\/i><\/th><th class="w-16 py-3 text-center"><i class="fas fa-video"><\/i><\/th><th class="w-16 py-3 text-center"><i class="fas fa-volume-up"><\/i><\/th><\/tr><\/thead><tbody id="data-table-body" class="divide-y divide-gray-200"><\/tbody><\/table><div id="loading" class="text-center p-8 text-gray-500">読み込み中...<\/div><\/div><div id="pagination-controls" class="flex justify-center items-center mt-4"><\/div><\/main><\/div><audio id="audioPlayer" style="display: none;"><\/audio>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"; import { getFirestore, collection, onSnapshot, query, where, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 const firebaseConfig = ${configString}; const appId = '${appId}'; const COLLECTION_NAME = '${COLLECTION_NAME}'; const METADATA_DOC_ID = '${metadataDocId}'; const ITEMS_PER_PAGE = 100; const SYNONYMS = ${JSON.stringify(SYNONYMS)};
@@ -904,7 +1032,7 @@ function getFilteredAndSortedData() { const bookmarks = new Set(JSON.parse(local
 function renderTable() { const start = (currentPage-1)*ITEMS_PER_PAGE, end = start+ITEMS_PER_PAGE, pageData = filteredAndSortedData.slice(start, end); tableBody.innerHTML = ''; loading.style.display = 'none'; if(filteredAndSortedData.length === 0) { loading.textContent = 'データなし'; loading.style.display = 'block'; dataCountDisplay.textContent = '0件'; } else { pageData.forEach(item => tableBody.appendChild(createRow(item))); dataCountDisplay.textContent = \`\${start+1}-\${Math.min(end, filteredAndSortedData.length)} / \${filteredAndSortedData.length}件\`; } }
 function createRow(item) { const row = document.createElement('tr'); const date = item['日付']||''; const getF = (d) => d.toLocaleDateString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit'}); const today = getF(new Date()); let dateClass = 'text-gray-900'; if(date===today) dateClass='text-red-500 font-bold';
 const url2 = String(item['URL2']||''); let prefix = ''; if(String(item['区分']||'').trim()==='会議') prefix='<span class="inline-block bg-purple-100 text-purple-800 text-xs font-bold mr-3 px-2 py-1 rounded-full">会議<\/span>'; else if(url2) prefix=url2.toLowerCase().includes('.pdf')?'<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2 py-1 rounded-full">PDF<\/span>':'<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2 py-1 rounded-full">WEB<\/span>';
-row.innerHTML = \`<td class="px-2 py-3 text-center"><input type="checkbox" class="bookmark-checkbox" data-id="\${item.id}" \${item.isBookmarked?'checked':''}><\/td><td class="px-2 py-3 \${dateClass}">\${date}<\/td><td class="px-2 py-3 min-w-0"><div><div class="flex items-start">\${prefix}<a href="\${url2||'#'}" target="_blank" class="text-blue-600 hover:underline">\${item['タイトル名'].replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>')}<\/a><\/div><p class="text-xs text-gray-500 mt-1">\${(item['備考']||'').replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>')}<\/p><\/div><\/td><td class="text-center">\${item['YouTube']?\`<a href="\${item['YouTube']}" target="_blank" class="text-gray-600 text-lg"><i class="fas fa-video"><\/i><\/a>\`:''}<\/td><td class="text-center">\${item['URL1']?\`<span data-src="\${item['URL1']}" class="audio-icon text-gray-600 text-lg"><i class="fas fa-volume-up"><\/i><\/span>\`:''}<\/td>\`; return row; }
+row.innerHTML = \`<td class="px-2 py-3 text-center"><input type="checkbox" class="bookmark-checkbox" data-id="\${item.id}" \${item.isBookmarked?'checked':''}><\/td><td class="px-2 py-3 \${dateClass}">\${date}<\/td><td class="px-2 py-3 min-w-0"><div><div class="flex items-start">\${prefix}<a href="\${url2||'#'}" target="_blank" class="text-blue-600 hover:underline">\${item['タイトル名'].replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>')}<\/a><\/div><p class="text-xs text-gray-500 mt-1">\${(item['備考']||'').replace(/（更新）/g, '<span class="text-red-500 font-bold">（更新）</span>')}<\/p><\/div><\/td><td class="text-center">\${item['URL3']?\`<a href="\${item['URL3']}" target="_blank" class="text-gray-600 text-lg"><i class="fas fa-file-alt"><\/i><\/a>\`:''}<\/td><td class="text-center">\${item['YouTube']?\`<a href="\${item['YouTube']}" target="_blank" class="text-gray-600 text-lg"><i class="fas fa-video"><\/i><\/a>\`:''}<\/td><td class="text-center">\${item['URL1']?\`<span data-src="\${item['URL1']}" class="audio-icon text-gray-600 text-lg"><i class="fas fa-volume-up"><\/i><\/span>\`:''}<\/td>\`; return row; }
 function filterData(data, q) { if(!q) return data; const query = q.toLowerCase().trim(); return data.filter(item => \`\${item['タイトル名']}\${item['備考']}\`.toLowerCase().includes(query)); }
 function sortData(data) { data.sort((a,b) => { const mod = sortState.direction==='asc'?1:-1; if(sortState.key==='日付') return (new Date(a['日付']||0)-new Date(b['日付']||0))*mod; return (a[sortState.key]||'').localeCompare(b[sortState.key]||'','ja')*mod; }); }
 function setupListeners() { clearSearchButton.onclick=() => {searchInput.value='';render();}; searchInput.onkeyup=() => render(); tableBody.onclick=(e) => { const target = e.target; const icon = target.closest('.audio-icon'); if(icon) toggleAudioPlayback(icon); else if(target.classList.contains('bookmark-checkbox')) { const id = target.dataset.id; const bm = new Set(JSON.parse(localStorage.getItem(\`bookmarks_\${appId}\`) || '[]')); if(target.checked) bm.add(id); else bm.delete(id); localStorage.setItem(\`bookmarks_\${appId}\`, JSON.stringify(Array.from(bm))); render(); } }; mainAudioControl.onclick = () => { if(audioPlayer.src) audioPlayer.paused?audioPlayer.play():audioPlayer.pause(); }; audioPlayer.onplay=()=> { currentlyPlayingIcon?.classList.add('playing'); mainAudioIconI.className='fas fa-pause'; }; audioPlayer.onpause=()=> { currentlyPlayingIcon?.classList.remove('playing'); mainAudioIconI.className='fas fa-play'; }; audioPlayer.onended=()=> { setIconState(currentlyPlayingIcon, 'stopped'); currentlyPlayingIcon=null; const icons = Array.from(tableBody.querySelectorAll('.audio-icon')); const next = icons[icons.findIndex(i => i===currentlyPlayingIcon)+1]; if(next) setTimeout(()=>toggleAudioPlayback(next), 3000); }; }
@@ -916,10 +1044,14 @@ start();<\/script></body></html>`;
         // --- イベントリスナー ---
         function setupEventListeners() {
             openDataViewButton.onclick = () => showScreen(dataViewScreen);
-            showImportScreenButton.onclick = () => showScreen(importScreen);
+            showImportScreenButton.onclick = () => { showScreen(importScreen); switchTab('batch'); };
             backToMainButton.onclick = () => showScreen(mainScreen);
             backToMainFromImportButton.onclick = () => showScreen(mainScreen);
             
+            // タブイベント
+            tabBatch.onclick = () => switchTab('batch');
+            tabManual.onclick = () => switchTab('manual');
+
             fileInput.onchange = (e) => handleFileSelect(e.target.files[0]);
             fileDropZone.ondragover = (e) => { e.preventDefault(); fileDropZone.classList.add('dragover'); };
             fileDropZone.ondragleave = () => fileDropZone.classList.remove('dragover');
@@ -935,6 +1067,74 @@ start();<\/script></body></html>`;
             searchInput.onkeyup = () => render();
             selectAllCheckbox.onchange = toggleSelectAll;
             deleteSelectedButton.onclick = deleteSelectedItems;
+
+            // 個別入力追加イベント
+            manualSubmitButton.onclick = async () => {
+                const rawTitle = manualTitleInput.value.trim();
+                if (!rawTitle) {
+                    manualStatus.textContent = 'エラー: タイトル名は必須です。';
+                    manualStatus.className = 'text-sm font-bold h-5 text-red-500';
+                    return;
+                }
+
+                manualSubmitButton.disabled = true;
+                manualSubmitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>追加中...';
+                manualStatus.textContent = '';
+
+                let dateVal = manualDateInput.value.trim();
+                if (dateVal) {
+                    dateVal = dateVal.replace(/-/g, '/');
+                }
+
+                let kaigiDateVal = manualKaigiDateInput.value.trim().replace(/-/g, '/');
+                const title = kaigiDateVal ? `${rawTitle} [会議日: ${kaigiDateVal}]` : rawTitle;
+
+                const newData = {
+                    '日付': dateVal,
+                    '区分': manualCategoryInput.value.trim(),
+                    'タイトル名': title,
+                    '備考': manualRemarksInput.value.trim(),
+                    'URL1': manualUrl1Input.value.trim(),
+                    'URL2': manualUrl2Input.value.trim(),
+                    'URL3': manualUrl3Input.value.trim(),
+                    'YouTube': manualYoutubeInput.value.trim()
+                };
+
+                try {
+                    const collRef = collection(db, "artifacts", appId, "public/data", COLLECTION_NAME);
+                    await addDoc(collRef, newData);
+
+                    const now = new Date();
+                    await setDoc(doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, METADATA_DOC_ID), { lastImportTimestamp: now });
+                    if (newData['区分'] === '会議') {
+                        await setDoc(doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, POINT_METADATA_DOC_ID), { lastImportTimestamp: now });
+                    } else {
+                        await setDoc(doc(db, "artifacts", appId, "public/data", COLLECTION_NAME, POLICY_METADATA_DOC_ID), { lastImportTimestamp: now });
+                    }
+
+                    manualDateInput.value = '';
+                    manualKaigiDateInput.value = '';
+                    manualCategoryInput.value = '';
+                    manualTitleInput.value = '';
+                    manualRemarksInput.value = '';
+                    manualUrl1Input.value = '';
+                    manualUrl2Input.value = '';
+                    manualUrl3Input.value = '';
+                    manualYoutubeInput.value = '';
+
+                    manualStatus.textContent = '正常に追加されました！';
+                    manualStatus.className = 'text-sm font-bold h-5 text-green-600';
+                    setTimeout(() => { manualStatus.textContent = ''; }, 3000);
+
+                } catch (err) {
+                    console.error("Manual add failed:", err);
+                    manualStatus.textContent = 'エラー: データの追加に失敗しました。';
+                    manualStatus.className = 'text-sm font-bold h-5 text-red-500';
+                } finally {
+                    manualSubmitButton.disabled = false;
+                    manualSubmitButton.innerHTML = '<i class="fas fa-plus mr-2"></i>追加する';
+                }
+            };
 
             tableHeader.onclick = e => {
                 const header = e.target.closest('.sortable-header');
