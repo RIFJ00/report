@@ -33,8 +33,8 @@
   </div>
 
   <!-- ==================== アップロード画面 ==================== -->
-  <div id="view-upload" class="hidden flex-grow pt-16 px-4 pb-10">
-    <div class="max-w-3xl mx-auto">
+  <div id="view-upload" class="hidden flex-grow pt-16 px-4 pb-10 flex-col w-full">
+    <div class="max-w-3xl mx-auto w-full">
       <div class="text-center mb-10">
         <h1 class="text-3xl font-bold text-gray-900 mb-3">PDFアップローダー</h1>
         <p class="text-gray-500">PDFファイルをアップロードして、共有可能なURLを発行します。</p>
@@ -121,7 +121,9 @@
         </div>
 
       </div>
+    </div>
 
+    <div class="max-w-5xl mx-auto w-full">
       <!-- アップロード履歴セクション (直近3日) -->
       <div id="upload-list-section" class="mt-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hidden">
         <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
@@ -184,7 +186,7 @@
       </button>
     </div>
 
-    <div class="max-w-3xl mx-auto w-full p-4 pt-8">
+    <div class="max-w-5xl mx-auto w-full p-4 pt-8">
       <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="p-0 relative">
           <!-- Loading -->
@@ -282,7 +284,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- Firebase 初期化 ---
     const firebaseConfig = {
@@ -721,18 +723,89 @@
         itemDiv.className = "flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 hover:bg-gray-50 transition-colors gap-4";
         
         itemDiv.innerHTML = `
-          <div class="flex items-center gap-4 overflow-hidden w-full">
-            <div class="bg-blue-100 p-2.5 rounded-lg flex-shrink-0">
+          <div class="flex items-start sm:items-center gap-4 w-full min-w-0">
+            <div class="bg-blue-100 p-2.5 rounded-lg flex-shrink-0 self-start sm:self-auto mt-1 sm:mt-0">
               <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
             </div>
-            <div class="truncate">
-              <p class="font-medium text-gray-800 truncate">${file.filename}</p>
+            <div class="flex-grow min-w-0">
+              <div id="display-container-${mode}-${file.id}" class="flex items-start gap-2 group">
+                <p id="filename-text-${mode}-${file.id}" class="font-medium text-gray-800 break-words">${file.filename}</p>
+                <button id="btn-edit-${mode}-${file.id}" class="p-1 text-gray-400 hover:text-blue-600 transition-colors flex-shrink-0 sm:opacity-0 sm:group-hover:opacity-100" title="ファイル名を変更">
+                  <i data-lucide="edit-2" class="w-4 h-4"></i>
+                </button>
+              </div>
+              <div id="edit-container-${mode}-${file.id}" class="hidden items-center gap-2 mt-1 mb-1">
+                <input type="text" id="input-filename-${mode}-${file.id}" class="flex-grow border border-gray-300 rounded-md px-2 py-1 text-sm text-gray-800 focus:outline-none focus:border-blue-500 w-full" value="${file.filename}">
+                <button id="btn-save-${mode}-${file.id}" class="p-1.5 text-white bg-green-500 hover:bg-green-600 rounded-md transition-colors flex-shrink-0" title="保存">
+                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                </button>
+                <button id="btn-cancel-edit-${mode}-${file.id}" class="p-1.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors flex-shrink-0" title="キャンセル">
+                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
               <p class="text-xs text-gray-500 mt-0.5">${dateStr} • ${sizeMB}</p>
             </div>
           </div>
-          <div class="flex gap-2 w-full sm:w-auto flex-shrink-0" id="actions-${mode}-${file.id}"></div>
+          <div class="flex gap-2 w-full sm:w-auto flex-shrink-0 mt-3 sm:mt-0 justify-end" id="actions-${mode}-${file.id}"></div>
         `;
         listContainer.appendChild(itemDiv);
+
+        // --- ファイル名編集処理 ---
+        const btnEdit = itemDiv.querySelector(`#btn-edit-${mode}-${file.id}`);
+        const btnSave = itemDiv.querySelector(`#btn-save-${mode}-${file.id}`);
+        const btnCancelEdit = itemDiv.querySelector(`#btn-cancel-edit-${mode}-${file.id}`);
+        const displayContainer = itemDiv.querySelector(`#display-container-${mode}-${file.id}`);
+        const editContainer = itemDiv.querySelector(`#edit-container-${mode}-${file.id}`);
+        const inputFilename = itemDiv.querySelector(`#input-filename-${mode}-${file.id}`);
+        const filenameText = itemDiv.querySelector(`#filename-text-${mode}-${file.id}`);
+
+        btnEdit.addEventListener('click', () => {
+          displayContainer.classList.add('hidden');
+          editContainer.classList.remove('hidden');
+          editContainer.classList.add('flex');
+          inputFilename.focus();
+        });
+
+        btnCancelEdit.addEventListener('click', () => {
+          editContainer.classList.add('hidden');
+          editContainer.classList.remove('flex');
+          displayContainer.classList.remove('hidden');
+          inputFilename.value = file.filename; // リセット
+        });
+
+        btnSave.addEventListener('click', async () => {
+          const newName = inputFilename.value.trim();
+          if (!newName) {
+            alert("ファイル名を入力してください。");
+            return;
+          }
+          if (newName === file.filename) {
+            btnCancelEdit.click();
+            return;
+          }
+          
+          btnSave.disabled = true;
+          const originalHtml = btnSave.innerHTML;
+          btnSave.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>';
+          lucide.createIcons();
+
+          try {
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata', file.id), {
+              filename: newName
+            });
+            file.filename = newName; // ローカル状態更新
+            filenameText.textContent = newName; // 表示更新
+            btnCancelEdit.click(); // 表示を元に戻す
+          } catch (error) {
+            console.error("Filename update error:", error);
+            alert("ファイル名の更新に失敗しました。");
+          } finally {
+            btnSave.disabled = false;
+            btnSave.innerHTML = originalHtml;
+            lucide.createIcons();
+          }
+        });
+        // ------------------------
 
         const actionsDiv = itemDiv.querySelector(`#actions-${mode}-${file.id}`);
         
