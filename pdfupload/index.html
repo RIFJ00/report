@@ -364,6 +364,17 @@
       } catch (e) {}
     }
 
+    // Base64からUint8Arrayへの変換 (旧方式PDF復元に必須の関数)
+    const base64ToUint8Array = (base64) => {
+      const binary_string = atob(base64);
+      const len = binary_string.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+          bytes[i] = binary_string.charCodeAt(i);
+      }
+      return bytes;
+    };
+
     // クリップボード
     const copyToClipboard = async (text) => {
       try {
@@ -744,12 +755,16 @@
       if (fileObj.type === 'metadata_v2' && fileObj.storagePath) {
         const storageRef = ref(storage, fileObj.storagePath);
         try { await deleteObject(storageRef); } catch(e) {}
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata', pdfId));
       } else if (fileObj.chunkCount) {
+        // 旧方式の削除にも完全対応
+        const chunkCollection = fileObj.isLegacyStorage ? 'pdf_storage' : 'pdf_chunks';
         for(let i=0; i<fileObj.chunkCount; i++){
-          await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_chunks', `${pdfId}_chunk_${i}`));
+          await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', chunkCollection, `${pdfId}_chunk_${i}`));
         }
+        const metaCollection = fileObj.isLegacyStorage ? 'pdf_storage' : 'pdf_metadata';
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', metaCollection, pdfId));
       }
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata', pdfId));
     }
 
 
@@ -844,7 +859,10 @@
           lucide.createIcons();
 
           try {
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata', file.id), { filename: newName });
+            // 旧方式のファイル名変更にも対応
+            const metaCollection = file.isLegacyStorage ? 'pdf_storage' : 'pdf_metadata';
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', metaCollection, file.id), { filename: newName });
+            
             file.filename = newName;
             filenameText.textContent = newName;
             
@@ -913,6 +931,17 @@
         let files = [];
         querySnapshot.forEach((doc) => files.push({ id: doc.id, ...doc.data() }));
 
+        // 極めて古い方式(pdf_storage)の履歴も取得して統合する
+        try {
+          const legacySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'pdf_storage'));
+          legacySnapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.type === 'metadata') {
+              files.push({ id: doc.id, ...data, isLegacyStorage: true });
+            }
+          });
+        } catch (e) {}
+
         const currentDeviceId = getDeviceId();
         const hiddenPdfs = getHiddenPdfs();
         const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
@@ -949,6 +978,17 @@
         const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata'));
         let files = [];
         querySnapshot.forEach((doc) => files.push({ id: doc.id, ...doc.data() }));
+
+        // 極めて古い方式(pdf_storage)の履歴も取得して統合する
+        try {
+          const legacySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'pdf_storage'));
+          legacySnapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.type === 'metadata') {
+              files.push({ id: doc.id, ...data, isLegacyStorage: true });
+            }
+          });
+        } catch (e) {}
 
         const currentDeviceId = getDeviceId();
         files = files.filter(f => f.uploaderId === currentUser.uid || f.deviceId === currentDeviceId);
@@ -1018,7 +1058,18 @@
           const chunkDocs = await Promise.all(chunkPromises);
           
           let base64String = "";
-          chunkDocs.sort((a, b) => a.data().index - b.data().index).forEach(c => base64String += c.data().data);
+          
+          // エラーに強い結合処理に修正
+          const validChunks = chunkDocs
+            .map(d => d.exists() ? d.data() : null)
+            .filter(d => d !== null)
+            .sort((a, b) => a.index - b.index);
+            
+          if (validChunks.length !== meta.chunkCount) {
+             throw new Error("一部のデータが破損しているか読み込めませんでした。");
+          }
+          
+          validChunks.forEach(c => base64String += c.data);
           
           const uint8Array = base64ToUint8Array(base64String);
           const blob = new Blob([uint8Array], { type: 'application/pdf' });
