@@ -177,14 +177,40 @@
           <span class="font-semibold text-gray-800">すべてのアップロード履歴</span>
         </div>
       </div>
-      <button id="btn-delete-all" class="hidden px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors text-sm font-medium flex items-center gap-2">
-        <i data-lucide="trash-2" class="w-4 h-4"></i>
-        <span class="hidden sm:inline">一括完全削除</span>
-      </button>
     </div>
 
-    <div class="max-w-5xl mx-auto w-full p-4 pt-8">
+    <div class="max-w-5xl mx-auto w-full p-4 pt-6">
+      
+      <!-- 検索とアクションのツールバー -->
+      <div class="mb-4 bg-white rounded-xl shadow-sm border border-gray-200 p-3 flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <!-- 検索バー -->
+        <div class="relative w-full sm:w-80">
+          <input type="text" id="search-input" placeholder="ファイル名で検索..." class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+          <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-2.5"></i>
+        </div>
+        
+        <!-- 一括操作アクション -->
+        <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+          <label class="flex sm:hidden items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" id="check-all-mobile" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+            すべて選択
+          </label>
+          <button id="btn-delete-selected" class="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+            <span>選択項目を削除 (<span id="selected-count">0</span>)</span>
+          </button>
+        </div>
+      </div>
+
       <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <!-- ヘッダー行 (デスクトップ用) -->
+        <div class="hidden sm:flex px-4 py-3 border-b border-gray-100 bg-gray-50 items-center gap-4">
+          <div class="pl-1 pt-1 flex-shrink-0">
+            <input type="checkbox" id="check-all-desktop" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" title="すべて選択">
+          </div>
+          <span class="text-xs font-medium text-gray-500 uppercase tracking-wider">アップロードされたファイル</span>
+        </div>
+
         <div class="p-0 relative">
           <div id="all-list-loading" class="py-10 flex flex-col items-center justify-center">
             <i data-lucide="loader-2" class="animate-spin w-8 h-8 text-blue-600 mb-2"></i>
@@ -192,8 +218,8 @@
           </div>
           
           <div id="all-list-empty" class="py-10 text-center hidden">
-            <i data-lucide="inbox" class="w-10 h-10 text-gray-300 mx-auto mb-3"></i>
-            <p class="text-gray-500 text-sm">アップロードしたファイルはまだありません。</p>
+            <i data-lucide="search-x" class="w-10 h-10 text-gray-300 mx-auto mb-3"></i>
+            <p id="all-list-empty-text" class="text-gray-500 text-sm">アップロードしたファイルはまだありません。</p>
           </div>
           
           <div id="all-list-container" class="flex flex-col divide-y divide-gray-100">
@@ -286,7 +312,7 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const storage = getStorage(app); // Storageの初期化
+    const storage = getStorage(app); 
     const appId = firebaseConfig.appId;
 
     let currentUser = null;
@@ -435,7 +461,6 @@
         showError("PDFファイルのみアップロード可能です。");
         return;
       }
-      // Cloud Storageに切り替えたため、ファイルサイズの厳しい制限(15MB)を撤廃しました。
       
       selectedFile = file;
       document.getElementById('selected-file-name').textContent = file.name;
@@ -482,11 +507,7 @@
       uploadStateProgress.classList.remove('hidden');
       
       const pdfId = generateUUID();
-      
-      // Cloud Storageへの参照を作成 (保存場所のパス)
       const storageRef = ref(storage, `pdfs/${appId}/${pdfId}.pdf`);
-      
-      // アップロードタスクの開始
       const uploadTask = uploadBytesResumable(storageRef, selectedFile);
 
       const progressBar = document.getElementById('upload-progress-bar');
@@ -494,31 +515,27 @@
 
       uploadTask.on('state_changed', 
         (snapshot) => {
-          // 進捗状況の表示
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
           progressBar.style.width = `${progress}%`;
           progressText.textContent = `${Math.round(progress)}% 完了`;
         }, 
         (error) => {
-          // エラーハンドリング
           console.error("Storage upload error:", error);
           showError("アップロード中にエラーが発生しました。");
         }, 
         async () => {
-          // アップロード完了後、Firestoreにメタデータを保存
           try {
-            // Storageから直接ダウンロードできるURLを取得
             const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
 
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata', pdfId), {
-              type: 'metadata_v2', // Storage版であることを示す
+              type: 'metadata_v2',
               filename: selectedFile.name,
               size: selectedFile.size,
               uploadedAt: Date.now(),
               uploaderId: currentUser.uid,
               deviceId: getDeviceId(),
               storagePath: `pdfs/${appId}/${pdfId}.pdf`,
-              downloadUrl: downloadUrl // 取得したダウンロードURLも保存しておく
+              downloadUrl: downloadUrl
             });
             
             uploadStateProgress.classList.add('hidden');
@@ -558,7 +575,6 @@
 
     document.getElementById('btn-upload-another').addEventListener('click', () => {
       resetUploadUI();
-      // UIリセット直後にファイル選択ダイアログを自動で開く
       document.getElementById('file-upload').click();
     });
     
@@ -571,10 +587,77 @@
     document.getElementById('btn-back-from-history').addEventListener('click', () => updateUrlAndRoute(''));
     document.getElementById('btn-refresh-recent').addEventListener('click', () => fetchRecentFiles());
 
-    // ==================== 削除機能 (Storage対応) ====================
-    let currentLoadedFiles = [];
+    // ==================== 検索と複数選択ロジック (全件一覧用) ====================
+    let allFilesData = [];
+    let filteredFilesData = [];
+    let selectedFileIds = new Set();
+
+    const searchInput = document.getElementById('search-input');
+    const checkAllDesktop = document.getElementById('check-all-desktop');
+    const checkAllMobile = document.getElementById('check-all-mobile');
+
+    searchInput.addEventListener('input', (e) => {
+      const keyword = e.target.value.toLowerCase();
+      filteredFilesData = allFilesData.filter(file => file.filename.toLowerCase().includes(keyword));
+      renderAllList();
+    });
+
+    function toggleAllSelection(e) {
+      const isChecked = e.target.checked;
+      checkAllDesktop.checked = isChecked;
+      checkAllMobile.checked = isChecked;
+
+      if (isChecked) {
+        filteredFilesData.forEach(f => selectedFileIds.add(f.id));
+      } else {
+        filteredFilesData.forEach(f => selectedFileIds.delete(f.id));
+      }
+      
+      // UIに反映
+      const checkboxes = document.querySelectorAll('.file-checkbox');
+      checkboxes.forEach(cb => cb.checked = isChecked);
+      updateSelectionUI();
+    }
+
+    checkAllDesktop.addEventListener('change', toggleAllSelection);
+    checkAllMobile.addEventListener('change', toggleAllSelection);
+
+    function updateSelectionUI() {
+      const btnDeleteSelected = document.getElementById('btn-delete-selected');
+      const selectedCount = document.getElementById('selected-count');
+      const count = selectedFileIds.size;
+      
+      selectedCount.textContent = count;
+      btnDeleteSelected.disabled = count === 0;
+
+      // すべて選択チェックボックスの状態同期
+      const allSelected = filteredFilesData.length > 0 && filteredFilesData.every(f => selectedFileIds.has(f.id));
+      checkAllDesktop.checked = allSelected;
+      checkAllMobile.checked = allSelected;
+    }
+
+    function renderAllList() {
+      const listEmpty = document.getElementById('all-list-empty');
+      const listEmptyText = document.getElementById('all-list-empty-text');
+      
+      if (filteredFilesData.length === 0) {
+        listEmpty.classList.remove('hidden');
+        if (allFilesData.length > 0) {
+          listEmptyText.textContent = "検索条件に一致するファイルがありません。";
+        } else {
+          listEmptyText.textContent = "アップロードしたファイルはまだありません。";
+        }
+        document.getElementById('all-list-container').innerHTML = '';
+      } else {
+        listEmpty.classList.add('hidden');
+        renderList(filteredFilesData, 'all-list-container', 'all');
+      }
+      updateSelectionUI();
+    }
+
+    // ==================== 削除機能 ====================
     let targetToDelete = null;
-    let deleteMode = 'hide';
+    let deleteMode = 'hide'; // 'hide' | 'delete' | 'delete-selected'
 
     const deleteModal = document.getElementById('delete-modal');
     const deleteModalTitle = document.getElementById('delete-modal-title');
@@ -583,6 +666,10 @@
     const btnCancelDelete = document.getElementById('btn-cancel-delete');
     const btnConfirmDelete = document.getElementById('btn-confirm-delete');
     const deleteBtnText = document.getElementById('delete-btn-text');
+
+    document.getElementById('btn-delete-selected').addEventListener('click', () => {
+      if (selectedFileIds.size > 0) openDeleteModal(null, 'delete-selected');
+    });
 
     function openDeleteModal(target, mode) {
       targetToDelete = target;
@@ -594,14 +681,14 @@
         deleteModalDesc.textContent = `「${target.filename}」をこの画面から隠しますか？（URLは引き続き有効です）`;
         deleteBtnText.textContent = "非表示にする";
         btnConfirmDelete.className = "px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg font-medium transition-colors text-sm flex items-center gap-2";
+      } else if (mode === 'delete-selected') {
+        deleteModalTitle.textContent = "選択項目の削除";
+        deleteModalDesc.textContent = `選択された ${selectedFileIds.size} 件のファイルをデータベースから完全に消去しますか？`;
+        deleteBtnText.textContent = "完全に削除";
+        btnConfirmDelete.className = "px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors text-sm flex items-center gap-2";
       } else {
-        if (target) {
-          deleteModalTitle.textContent = "完全に削除";
-          deleteModalDesc.textContent = `「${target.filename}」をデータベースから完全に消去しますか？`;
-        } else {
-          deleteModalTitle.textContent = "一括完全削除";
-          deleteModalDesc.textContent = `表示されているすべてのアップロード履歴（${currentLoadedFiles.length}件）をデータベースから完全に消去しますか？`;
-        }
+        deleteModalTitle.textContent = "完全に削除";
+        deleteModalDesc.textContent = `「${target.filename}」をデータベースから完全に消去しますか？`;
         deleteBtnText.textContent = "完全に削除";
         btnConfirmDelete.className = "px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors text-sm flex items-center gap-2";
       }
@@ -627,14 +714,17 @@
           if (targetToDelete) addHiddenPdf(targetToDelete.id);
           deleteModal.classList.add('hidden');
           fetchRecentFiles();
-        } else {
-          if (targetToDelete) {
-            await performDelete(targetToDelete);
-          } else {
-            for (const file of currentLoadedFiles) {
-              await performDelete(file);
-            }
+        } else if (deleteMode === 'delete-selected') {
+          // 複数の一括削除
+          const filesToDelete = allFilesData.filter(f => selectedFileIds.has(f.id));
+          for (const file of filesToDelete) {
+            await performDelete(file);
           }
+          deleteModal.classList.add('hidden');
+          fetchAllFiles();
+        } else {
+          // 単一の削除
+          if (targetToDelete) await performDelete(targetToDelete);
           deleteModal.classList.add('hidden');
           fetchAllFiles();
         }
@@ -651,28 +741,17 @@
 
     async function performDelete(fileObj) {
       const pdfId = fileObj.id;
-      
       if (fileObj.type === 'metadata_v2' && fileObj.storagePath) {
-        // 新方式：Storageからファイルを削除
         const storageRef = ref(storage, fileObj.storagePath);
-        try {
-          await deleteObject(storageRef);
-        } catch(e) {
-          console.warn("Storage object already deleted or not found.");
-        }
+        try { await deleteObject(storageRef); } catch(e) {}
       } else if (fileObj.chunkCount) {
-        // 旧方式（Firestoreチャンク）の削除フォールバック
         for(let i=0; i<fileObj.chunkCount; i++){
           await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_chunks', `${pdfId}_chunk_${i}`));
         }
       }
-      // メタデータは共通でFirestoreから削除
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata', pdfId));
     }
 
-    document.getElementById('btn-delete-all').addEventListener('click', () => {
-      if (currentLoadedFiles.length > 0) openDeleteModal(null, 'delete');
-    });
 
     // ==================== リスト描画 ====================
     function renderList(files, containerId, mode) {
@@ -689,7 +768,12 @@
         itemDiv.className = "flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 hover:bg-gray-50 transition-colors gap-4";
         
         itemDiv.innerHTML = `
-          <div class="flex items-start sm:items-center gap-4 w-full min-w-0">
+          <div class="flex items-start sm:items-center gap-3 sm:gap-4 w-full min-w-0">
+            ${mode === 'all' ? `
+            <div class="flex items-center h-full pt-3.5 sm:pt-0 pl-1">
+              <input type="checkbox" class="file-checkbox w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" data-id="${file.id}" ${selectedFileIds.has(file.id) ? 'checked' : ''}>
+            </div>
+            ` : ''}
             <div class="bg-blue-100 p-2.5 rounded-lg flex-shrink-0 self-start sm:self-auto mt-1 sm:mt-0">
               <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
             </div>
@@ -715,6 +799,16 @@
           <div class="flex gap-2 w-full sm:w-auto flex-shrink-0 mt-3 sm:mt-0 justify-end" id="actions-${mode}-${file.id}"></div>
         `;
         listContainer.appendChild(itemDiv);
+
+        // チェックボックス処理 (全件一覧のみ)
+        if (mode === 'all') {
+          const checkbox = itemDiv.querySelector('.file-checkbox');
+          checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) selectedFileIds.add(file.id);
+            else selectedFileIds.delete(file.id);
+            updateSelectionUI();
+          });
+        }
 
         // 編集処理
         const btnEdit = itemDiv.querySelector(`#btn-edit-${mode}-${file.id}`);
@@ -753,6 +847,11 @@
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_metadata', file.id), { filename: newName });
             file.filename = newName;
             filenameText.textContent = newName;
+            
+            // 元データも更新しておく
+            const fileDataIndex = allFilesData.findIndex(f => f.id === file.id);
+            if(fileDataIndex > -1) allFilesData[fileDataIndex].filename = newName;
+
             btnCancelEdit.click();
           } catch (error) {
             alert("更新に失敗しました。");
@@ -835,12 +934,14 @@
 
     async function fetchAllFiles() {
       const listLoading = document.getElementById('all-list-loading');
-      const listEmpty = document.getElementById('all-list-empty');
-      const btnDeleteAll = document.getElementById('btn-delete-all');
       document.getElementById('all-list-container').innerHTML = '';
       listLoading.classList.remove('hidden');
-      listEmpty.classList.add('hidden');
-      btnDeleteAll.classList.add('hidden');
+      document.getElementById('all-list-empty').classList.add('hidden');
+      
+      // 検索・選択状態をリセット
+      selectedFileIds.clear();
+      searchInput.value = '';
+      updateSelectionUI();
 
       if (!currentUser) return;
 
@@ -852,15 +953,12 @@
         const currentDeviceId = getDeviceId();
         files = files.filter(f => f.uploaderId === currentUser.uid || f.deviceId === currentDeviceId);
         files.sort((a, b) => b.uploadedAt - a.uploadedAt);
-        currentLoadedFiles = files;
+        
+        allFilesData = files;
+        filteredFilesData = files;
 
         listLoading.classList.add('hidden');
-        if (files.length === 0) {
-          listEmpty.classList.remove('hidden');
-        } else {
-          btnDeleteAll.classList.remove('hidden');
-          renderList(files, 'all-list-container', 'all');
-        }
+        renderAllList();
       } catch (err) {
         listLoading.classList.add('hidden');
         document.getElementById('all-list-container').innerHTML = '<div class="p-6 text-center text-red-500 text-sm">エラーが発生しました。</div>';
