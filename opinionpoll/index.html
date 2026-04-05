@@ -12,24 +12,21 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   
-  <!-- PropTypes (Rechartsが依存しているため必要) -->
+  <!-- PropTypes -->
   <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js" crossorigin></script>
   
-  <!-- Recharts (UMDビルドの問題を回避するため、安定版の2.x系に固定) -->
+  <!-- Recharts -->
   <script src="https://unpkg.com/recharts@2.13.0/umd/Recharts.js" crossorigin></script>
   
-  <!-- Babel (for in-browser JSX compilation) -->
+  <!-- Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
-    /* カスタムスクロールバーとアニメーションの定義 */
     .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
-    
     .animate-spin { animation: spin 1s linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    
     .animate-in { animation: fadeIn 0.3s ease-in; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   </style>
@@ -37,10 +34,8 @@
 <body>
   <div id="root"></div>
 
-  <!-- アプリケーションコード -->
   <script type="text/babel">
     const initApp = async () => {
-      // 1. FirebaseモジュールをCDNから動的インポート
       const dynamicImport = new Function('url', 'return import(url)');
       const firebaseApp = await dynamicImport('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js');
       const firebaseAuth = await dynamicImport('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js');
@@ -50,11 +45,9 @@
       const { getAuth, signInAnonymously, onAuthStateChanged } = firebaseAuth;
       const { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc, writeBatch, updateDoc, deleteField } = firebaseFirestore;
 
-      // 2. React HooksとRechartsのコンポーネントをグローバルから展開
       const { useState, useEffect, useMemo, useRef } = React;
       const { BarChart, Bar, PieChart, Pie, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, Legend, ResponsiveContainer, Cell } = window.Recharts;
 
-      // 3. Lucideアイコン
       const SvgIcon = ({ d, ...props }) => (
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={props.className} dangerouslySetInnerHTML={{ __html: d }} {...props} />
       );
@@ -82,8 +75,8 @@
       const Layers = (p) => <SvgIcon d='<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>' {...p}/>;
       const Camera = (p) => <SvgIcon d='<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>' {...p}/>;
       const Home = (p) => <SvgIcon d='<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>' {...p}/>;
+      const ArrowDownUp = (p) => <SvgIcon d='<path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/>' {...p}/>;
 
-      // 4. アプリケーションコード
       const firebaseConfig = {
         apiKey: "AIzaSyCzxK80B7Tl2EoBemiWq2_rKFPHhr1vkVI",
         authDomain: "election-fe317.firebaseapp.com",
@@ -360,17 +353,18 @@
         const [tableViewMode, setTableViewMode] = useState('table');
         const [isTableTransposed, setIsTableTransposed] = useState(false);
         
-        // デフォルトで前月比を表示する
         const [showMoM, setShowMoM] = useState(true);
         
         const [selectedMediaForChart, setSelectedMediaForChart] = useState(['average']);
         const [selectedMediaForTable, setSelectedMediaForTable] = useState(null); 
+        
+        // 並べ替え順のstate (default: 機関順, date: 調査日順)
+        const [sortOrder, setSortOrder] = useState('default');
 
         const [generatedImage, setGeneratedImage] = useState(null);
         const [showImageModal, setShowImageModal] = useState(false);
         const [downloadFilename, setDownloadFilename] = useState('');
 
-        // 今月のデータをハイライトするための年月文字列 (例: "2026-04")
         const nowForHighlight = new Date();
         const currentMonthStrForHighlight = `${nowForHighlight.getFullYear()}-${String(nowForHighlight.getMonth() + 1).padStart(2, '0')}`;
 
@@ -490,7 +484,6 @@
           return () => unsubscribe();
         }, [user]);
 
-        // "latest" オプションをマルチセレクトに追加
         const availableMonths = useMemo(() => {
           const months = polls.map(p => {
             if (!p.date) return '';
@@ -507,7 +500,6 @@
           return ['latest', ...uniqueMonths];
         }, [polls]);
 
-        // 初期ロード時に latest をデフォルトとして選択
         useEffect(() => {
           if (isFirstLoad && polls.length > 0) {
             setSelectedMonths(['latest']);
@@ -518,7 +510,6 @@
           }
         }, [polls, isFirstLoad, isLoadingData]);
 
-        // フィルターされたデータの取得ロジック（latestモード対応）
         const filteredPolls = useMemo(() => {
           if (selectedMonths === null) return polls;
           if (selectedMonths.length === 0) return [];
@@ -609,6 +600,7 @@
           setChartViewMode('bar');
           setIsTableTransposed(false);
           setShowMoM(true);
+          setSortOrder('default');
           setInfoMsg('表示設定をデフォルトに戻しました。');
         };
 
@@ -664,10 +656,19 @@
 
         const averages = useMemo(() => {
           if (filteredPolls.length === 0) return {};
+
+          const mediaToInclude = selectedMediaForTable === null 
+              ? availableMediaFilter 
+              : selectedMediaForTable.filter(m => m !== 'average');
+              
+          const pollsToAverage = mediaToInclude.length > 0
+              ? filteredPolls.filter(p => mediaToInclude.includes(p.media))
+              : filteredPolls;
+
           const sums = {};
           const counts = {};
 
-          filteredPolls.forEach(poll => {
+          pollsToAverage.forEach(poll => {
             PARTIES.forEach(p => {
               if (typeof poll[p.key] === 'number') {
                 sums[p.key] = (sums[p.key] || 0) + poll[p.key];
@@ -690,7 +691,7 @@
           avgs.cabinetNonsupport = counts.cabinetNonsupport ? (sums.cabinetNonsupport / counts.cabinetNonsupport).toFixed(1) : '-';
 
           return avgs;
-        }, [filteredPolls]);
+        }, [filteredPolls, selectedMediaForTable, availableMediaFilter]);
 
         const isLatestOnly = selectedMonths !== null && selectedMonths.length === 1 && selectedMonths[0] === 'latest';
 
@@ -794,9 +795,34 @@
           }
           
           const selectedRealMedia = currentValues.filter(m => m !== 'average');
+          let realData = [];
           if (selectedRealMedia.length > 0) {
-            baseResult = [...baseResult, ...filteredPolls.filter(p => selectedRealMedia.includes(p.media))];
+            realData = filteredPolls.filter(p => selectedRealMedia.includes(p.media));
           }
+
+          if (sortOrder === 'date') {
+            realData.sort((a, b) => {
+              const dateA = new Date(a.date).getTime();
+              const dateB = new Date(b.date).getTime();
+              if (dateA !== dateB) return dateB - dateA;
+              const indexA = MEDIA_OPTIONS.indexOf(a.media);
+              const indexB = MEDIA_OPTIONS.indexOf(b.media);
+              const orderA = indexA !== -1 ? indexA : MEDIA_OPTIONS.length;
+              const orderB = indexB !== -1 ? indexB : MEDIA_OPTIONS.length;
+              return orderA - orderB;
+            });
+          } else {
+            realData.sort((a, b) => {
+              const indexA = MEDIA_OPTIONS.indexOf(a.media);
+              const indexB = MEDIA_OPTIONS.indexOf(b.media);
+              const orderA = indexA !== -1 ? indexA : MEDIA_OPTIONS.length;
+              const orderB = indexB !== -1 ? indexB : MEDIA_OPTIONS.length;
+              if (orderA !== orderB) return orderA - orderB;
+              return new Date(b.date) - new Date(a.date);
+            });
+          }
+          
+          baseResult = [...baseResult, ...realData];
           
           return baseResult.map(poll => {
             const pollWithMoM = { ...poll, mom: {} };
@@ -826,7 +852,7 @@
             }
             return pollWithMoM;
           });
-        }, [filteredPolls, selectedMediaForTable, availableMediaFilter, averages, latestDateInView, polls, prevAverages, isLatestOnly]);
+        }, [filteredPolls, selectedMediaForTable, availableMediaFilter, averages, latestDateInView, polls, prevAverages, isLatestOnly, sortOrder]);
 
         const handleExport = (type) => {
           const headers = ['機関名', '内閣支持', '内閣不支持', ...PARTIES.map(p => p.label), '調査日'];
@@ -1040,9 +1066,43 @@
           const mediaList = selectedMediaForChart === null ? ['average', ...availableMediaFilter] : selectedMediaForChart;
           const monthList = selectedMonths === null ? availableMonths.filter(m => m !== 'latest') : selectedMonths;
           
+          let sortedMediaList = [...mediaList];
+          
+          if (sortOrder === 'date') {
+            const latestDates = {};
+            sortedMediaList.forEach(m => {
+               if (m === 'average') {
+                  latestDates[m] = Infinity;
+               } else {
+                  const p = filteredPolls.find(poll => poll.media === m);
+                  latestDates[m] = p ? new Date(p.date).getTime() : 0;
+               }
+            });
+            sortedMediaList.sort((a, b) => {
+               if (a === 'average') return -1;
+               if (b === 'average') return 1;
+               if (latestDates[a] !== latestDates[b]) return latestDates[b] - latestDates[a];
+               const indexA = MEDIA_OPTIONS.indexOf(a);
+               const indexB = MEDIA_OPTIONS.indexOf(b);
+               const orderA = indexA !== -1 ? indexA : MEDIA_OPTIONS.length;
+               const orderB = indexB !== -1 ? indexB : MEDIA_OPTIONS.length;
+               return orderA - orderB;
+            });
+          } else {
+            sortedMediaList.sort((a, b) => {
+               if (a === 'average') return -1;
+               if (b === 'average') return 1;
+               const indexA = MEDIA_OPTIONS.indexOf(a);
+               const indexB = MEDIA_OPTIONS.indexOf(b);
+               const orderA = indexA !== -1 ? indexA : MEDIA_OPTIONS.length;
+               const orderB = indexB !== -1 ? indexB : MEDIA_OPTIONS.length;
+               return orderA - orderB;
+            });
+          }
+
           const result = [];
 
-          mediaList.forEach(mediaName => {
+          sortedMediaList.forEach(mediaName => {
             monthList.forEach(monthStr => {
               let targetPolls = [];
               let isAverageRow = false;
@@ -1062,7 +1122,10 @@
                 const latestArray = Array.from(latestPollsByMedia.values());
                 
                 if (mediaName === 'average') {
-                  targetPolls = latestArray;
+                  const mediaToInclude = mediaList.filter(m => m !== 'average');
+                  targetPolls = mediaToInclude.length > 0 
+                    ? latestArray.filter(p => mediaToInclude.includes(p.media))
+                    : latestArray;
                   isAverageRow = true;
                 } else {
                   targetPolls = latestArray.filter(p => p.media === mediaName);
@@ -1070,7 +1133,10 @@
               } else {
                 const pollsInMonth = polls.filter(p => p.date && p.date.substring(0, 7) === monthStr);
                 if (mediaName === 'average') {
-                  targetPolls = pollsInMonth;
+                  const mediaToInclude = mediaList.filter(m => m !== 'average');
+                  targetPolls = mediaToInclude.length > 0 
+                    ? pollsInMonth.filter(p => mediaToInclude.includes(p.media))
+                    : pollsInMonth;
                   isAverageRow = true;
                 } else {
                   targetPolls = pollsInMonth.filter(p => p.media === mediaName);
@@ -1113,7 +1179,7 @@
           });
 
           return result;
-        }, [polls, selectedMediaForChart, availableMediaFilter, selectedMonths, availableMonths]);
+        }, [polls, selectedMediaForChart, availableMediaFilter, selectedMonths, availableMonths, filteredPolls, sortOrder]);
 
         const isSingleData = chartDataArray.length === 1;
         const singleDataName = isSingleData ? chartDataArray[0].name : '';
@@ -1438,6 +1504,14 @@
                         >
                           <LayoutGrid className="w-4 h-4 mr-1" /> カード
                         </button>
+                        <div className="w-px bg-slate-200 my-1 mx-1"></div>
+                        <button 
+                            onClick={() => setSortOrder(sortOrder === 'default' ? 'date' : 'default')}
+                            className={`px-3 py-1 text-sm font-medium rounded-sm flex items-center transition-colors h-full ${sortOrder === 'date' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                            title="並べ替え"
+                        >
+                          <ArrowDownUp className="w-4 h-4 mr-1" /> {sortOrder === 'default' ? '機関順' : '調査日順'}
+                        </button>
                       </div>
                     )}
 
@@ -1463,6 +1537,14 @@
                             title="円グラフ"
                         >
                           <PieChartIcon className="w-4 h-4 mr-1" /> 円グラフ
+                        </button>
+                        <div className="w-px bg-slate-200 my-1 mx-1"></div>
+                        <button 
+                            onClick={() => setSortOrder(sortOrder === 'default' ? 'date' : 'default')}
+                            className={`px-3 py-1 text-sm font-medium rounded-sm flex items-center transition-colors h-full ${sortOrder === 'date' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                            title="並べ替え"
+                        >
+                          <ArrowDownUp className="w-4 h-4 mr-1" /> {sortOrder === 'default' ? '機関順' : '調査日順'}
                         </button>
                       </div>
                     )}
@@ -2139,6 +2221,7 @@
                             各調査機関のデータが表形式（テーブル）またはカード形式で確認できます。「表示機関」や「表示対象月」のプルダウンから、特定のデータのみを絞り込むことが可能です。<br/>
                             <ul className="list-disc list-inside text-slate-600 mt-1.5 ml-1 space-y-1">
                               <li><strong className="text-slate-700">初期状態では、各機関の「最新のデータ」と「前月比」が表示されます。</strong></li>
+                              <li><strong className="text-slate-700">また、常に画面上に表示対象として選ばれている機関のデータのみを使って自動的に平均値が再計算されます。</strong></li>
                               <li><strong className="text-slate-700">調査日が「今月」のデータは、黄色く網掛け表示されるため一目で確認できます。</strong></li>
                               <li>「縦横切替」ボタンで、表の行と列を反転させて比較しやすくできます。</li>
                               <li>「テーブル」「カード」ボタンで表示形式を切り替えられます。</li>
@@ -2156,6 +2239,7 @@
                           <li>
                             <span className="font-semibold bg-slate-100 px-1.5 py-0.5 rounded text-emerald-800 border border-slate-200 inline-block mb-1">便利な操作（フィルター・ボタン）</span><br/>
                             <ul className="list-disc list-inside text-slate-600 mt-1 ml-1 space-y-1">
+                              <li>表示切り替えボタン群の右端にある<strong>「機関順 / 調査日順」</strong>ボタンで、データの並び順を切り替えられます。</li>
                               <li>「表示対象月」のプルダウンから「最新(各社)」を選ぶと、各社の最も新しいデータが一覧になります。</li>
                               <li>「今月」ボタンを押すと、当月に行われた調査のみを素早く絞り込めます。</li>
                               <li>「最新表示」ボタンは各機関の最新データを、「デフォルトに戻す」ボタンは初期状態に戻します。</li>
