@@ -1588,7 +1588,7 @@
             const [loading, setLoading] = useState(true);
             const [editingMember, setEditingMember] = useState(null);
             const [deleteConfirmationItem, setDeleteConfirmationItem] = useState(null);
-            const [currentView, setCurrentView] = useState('list');
+            const [currentView, setCurrentView] = useState('list'); // 'list' | 'mail-history' | 'mail'
             
             const [sendingMailData, setSendingMailData] = useState(null);
             const [resendTargetReg, setResendTargetReg] = useState(null);
@@ -1649,14 +1649,27 @@
             }, [user]);
 
             const registrationsWithMailStatus = useMemo(() => {
-                return registrations.map(reg => {
-                    let mailLog = mails.find(m => m.metadata?.registrationId === reg.id);
-                    if (!mailLog) {
-                        mailLog = mails.find(m => {
-                            const toAddress = Array.isArray(m.to) ? m.to[0] : m.to;
-                            return toAddress === reg.email;
-                        });
+                // 最適化: メールログを Map にキャッシュして O(1) 検索可能にする
+                const mailByRegId = new Map();
+                const mailByEmail = new Map();
+
+                // mails は新しい順に取得されている前提
+                for (const mail of mails) {
+                    const regId = mail.metadata?.registrationId;
+                    if (regId && !mailByRegId.has(regId)) {
+                        mailByRegId.set(regId, mail);
                     }
+                    
+                    const toAddress = Array.isArray(mail.to) ? mail.to[0] : mail.to;
+                    if (toAddress && !mailByEmail.has(toAddress)) {
+                        mailByEmail.set(toAddress, mail);
+                    }
+                }
+
+                return registrations.map(reg => {
+                    // IDで検索し、見つからなければEmailでフォールバック検索
+                    const mailLog = mailByRegId.get(reg.id) || mailByEmail.get(reg.email);
+                    
                     return {
                         ...reg,
                         mailStatus: mailLog?.delivery?.state || 'MISSING', 
