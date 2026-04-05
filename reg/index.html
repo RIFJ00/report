@@ -725,17 +725,25 @@
 
                     const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), finalData);
                     
+                    // --- GASを利用したメール送信 ---
+                    const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw0TOi9JwFt-bpgTyrKeuaI6Hjq3q12FvaBs6QDOEyCRSN3n07kJa1ZLGGAqTd7ZqA9/exec';
+                    
                     try {
-                        await addDoc(collection(db, 'mail'), {
-                            to: [formData.email], 
-                            cc: ['seisaku@rifj.jp'], 
-                            message: {
-                                subject: subject,
-                                text: body
-                            },
-                            metadata: {
-                                registrationId: docRef.id
-                            }
+                        const gasFormData = new URLSearchParams();
+                        // フォームの基本情報
+                        gasFormData.append('companyName', finalData.companyName || '');
+                        gasFormData.append('lastName', finalData.lastName || '');
+                        gasFormData.append('firstName', finalData.firstName || '');
+                        gasFormData.append('email', finalData.email);
+                        // システム側で生成した件名と本文、およびCC情報を追加
+                        gasFormData.append('cc', 'seisaku@rifj.jp');
+                        gasFormData.append('subject', subject);
+                        gasFormData.append('message', body);
+
+                        await fetch(GAS_WEB_APP_URL, {
+                            method: 'POST',
+                            mode: 'no-cors',
+                            body: gasFormData
                         });
                     } catch (mailError) {
                         console.error("Trigger Email Error:", mailError);
