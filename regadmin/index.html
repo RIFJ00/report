@@ -115,6 +115,9 @@
         const db = getFirestore(app);
         
         const appId = "default-app-id";
+        
+        // GAS Web App URL
+        const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw0TOi9JwFt-bpgTyrKeuaI6Hjq3q12FvaBs6QDOEyCRSN3n07kJa1ZLGGAqTd7ZqA9/exec';
 
         // --- Helper Functions ---
         const getOfficialPlanName = (plan, cycle, useCreditCard = false) => {
@@ -891,7 +894,7 @@
                             </div>
                             <div className="border-t pt-4 mt-4">
                                 <label className="text-sm font-bold text-slate-700 block mb-1">備考</label>
-                                <textarea name="notes" value={formData.notes} onChange={handleChange} rows="3" className="w-full px-3 py-2 border rounded"></textarea>
+                                <textarea name="notes" value={formData.notes || ''} onChange={handleChange} rows="3" className="w-full px-3 py-2 border rounded"></textarea>
                             </div>
                             <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white">
                                 <button type="button" onClick={onClose} className="px-4 py-2 border border-slate-300 rounded text-slate-600 hover:bg-slate-50">キャンセル</button>
@@ -1210,6 +1213,26 @@
                         console.warn("Template fetch failed, using default.");
                     }
 
+                    // --- GASへのデータ送信処理 ---
+                    const gasFormData = new URLSearchParams();
+                    gasFormData.append('companyName', finalData.companyName || '');
+                    gasFormData.append('lastName', finalData.lastName || '');
+                    gasFormData.append('firstName', finalData.firstName || '');
+                    gasFormData.append('email', finalData.email);
+                    gasFormData.append('subject', subject);
+                    gasFormData.append('message', body);
+
+                    try {
+                        await fetch(GAS_WEB_APP_URL, {
+                            method: 'POST',
+                            mode: 'no-cors',
+                            body: gasFormData
+                        });
+                    } catch (gasError) {
+                        console.error("GAS Email Trigger Error:", gasError);
+                        // GASへの送信が失敗しても、Firebaseへの登録は続行する
+                    }
+
                     const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'registrations'), finalData);
                     
                     try {
@@ -1220,13 +1243,18 @@
                                 subject: subject,
                                 text: body
                             },
+                            delivery: {
+                                state: 'SUCCESS', // GASで送信したのでSUCCESS扱いにする
+                                startTime: serverTimestamp()
+                            },
                             metadata: {
-                                registrationId: docRef.id
+                                registrationId: docRef.id,
+                                method: 'GAS_WEBHOOK'
                             }
                         });
                     } catch (mailError) {
-                        console.error("Trigger Email Error:", mailError);
-                        showMessage("送信エラー", "登録は完了しましたが、自動返信メールの送信リクエストに失敗しました。\n管理者にお問い合わせください。\nエラー: " + mailError.message, 'error');
+                        console.error("Firebase Mail Log Error:", mailError);
+                        showMessage("送信エラー", "登録は完了しましたが、自動返信メールの送信履歴作成に失敗しました。\n管理者にお問い合わせください。\nエラー: " + mailError.message, 'error');
                     }
 
                     setSubmitStatus('success');
@@ -1859,6 +1887,25 @@
                         return; 
                     }
 
+                    // --- GASへのデータ送信処理 ---
+                    const gasFormData = new URLSearchParams();
+                    gasFormData.append('companyName', resendTargetReg.companyName || '');
+                    gasFormData.append('lastName', resendTargetReg.lastName || '');
+                    gasFormData.append('firstName', resendTargetReg.firstName || '');
+                    gasFormData.append('email', toList.join(','));
+                    gasFormData.append('subject', mailData.subject);
+                    gasFormData.append('message', mailData.body);
+
+                    try {
+                        await fetch(GAS_WEB_APP_URL, {
+                            method: 'POST',
+                            mode: 'no-cors',
+                            body: gasFormData
+                        });
+                    } catch (gasError) {
+                        console.error("GAS Email Trigger Error:", gasError);
+                    }
+
                     await addDoc(collection(db, 'mail'), {
                         to: toList,
                         cc: ccList,
@@ -1866,9 +1913,14 @@
                             subject: mailData.subject,
                             text: mailData.body
                         },
+                        delivery: {
+                            state: 'SUCCESS', // GASで送信したのでSUCCESS扱いにする
+                            startTime: serverTimestamp()
+                        },
                         metadata: {
                             registrationId: resendTargetReg.id,
-                            resend: true 
+                            resend: true,
+                            method: 'GAS_WEBHOOK'
                         }
                     });
 
@@ -2164,7 +2216,7 @@
         // --- App Component ---
         function App() {
             const [user, setUser] = useState(null);
-            const [activeTab, setActiveTab] = useState('admin'); 
+            const [activeTab, setActiveTab] = useState('form'); // デフォルトを申し込み画面に変更
             const [authError, setAuthError] = useState(null);
             const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -2212,7 +2264,8 @@
                 );
             }
 
-            if (!isAuthenticated) {
+            // 管理者画面の場合のみパスワード認証を要求
+            if (activeTab === 'admin' && !isAuthenticated) {
                 return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
             }
 
