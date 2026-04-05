@@ -182,6 +182,22 @@
 
     </main>
 
+    <!-- サイト閲覧認証モーダル (サイト全体を隠す) -->
+    <div id="siteAuthModal" class="fixed inset-0 bg-gray-100 z-[9999] flex items-center justify-center p-4 transition-opacity duration-500">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-8 text-center">
+            <div class="mb-6 flex justify-center">
+                <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-3xl">
+                    <i class="fas fa-lock"></i>
+                </div>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">閲覧制限</h2>
+            <p class="text-sm text-gray-600 mb-6">このサイトを閲覧するにはパスワードが必要です。</p>
+            <input type="password" id="sitePasswordInput" placeholder="パスワードを入力" class="w-full border border-gray-300 rounded-md px-4 py-3 mb-2 focus:outline-none focus:ring-2 focus:ring-red-500 transition text-center tracking-widest text-lg">
+            <p id="sitePasswordError" class="text-xs text-red-500 hidden mb-4">パスワードが間違っています。</p>
+            <button id="siteAuthBtn" class="w-full mt-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-md font-bold transition shadow-md">サイトを閲覧する</button>
+        </div>
+    </div>
+
     <!-- 完全上書き 確認モーダル -->
     <div id="confirmModal" class="fixed inset-0 bg-black/50 z-[300] hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
         <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden transform scale-95 transition-transform duration-300">
@@ -199,7 +215,7 @@
         </div>
     </div>
 
-    <!-- パスワード認証モーダル -->
+    <!-- API設定 パスワード認証モーダル -->
     <div id="passwordModal" class="fixed inset-0 bg-black/50 z-[300] hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
         <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform scale-95 transition-transform duration-300 p-6">
             <h3 class="text-lg font-bold text-gray-900 mb-3"><i class="fas fa-lock text-gray-500 mr-2"></i>管理者認証</h3>
@@ -320,7 +336,7 @@
         let currentSort = 'date-desc';
 
         // ==========================================
-        // 3. UI・ユーティリティ関数群 (ホイスティング問題回避のため前方に配置)
+        // 3. UI・ユーティリティ関数群
         // ==========================================
         function showToast(message, isError = false) {
             const existing = document.getElementById('toast-msg');
@@ -426,20 +442,16 @@
                         url = url.substring(0, url.length - trailingChars.length);
                     }
 
-                    // マッチした部分の前のテキスト
                     result += escapeHTML(text.substring(lastIndex, match.index));
                     
-                    // 二重エンコード破壊を防ぐため、href属性にはブラウザの自動エンコードに任せてそのまま入れる
                     const escapedUrl = escapeHTML(url);
                     result += `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline font-medium break-all">${escapedUrl}</a>`;
                     
-                    // 切り離した記号をただのテキストとして元に戻す
                     result += escapeHTML(trailingChars); 
                     
                     lastIndex = urlRegex.lastIndex;
                 }
                 
-                // 残りのテキストを追加
                 result += escapeHTML(text.substring(lastIndex));
                 return result;
             };
@@ -1081,205 +1093,28 @@
         // ==========================================
         // 6. 初期化・イベントリスナー設定
         // ==========================================
-        document.addEventListener('DOMContentLoaded', async () => {
-            const savedSelect = localStorage.getItem('yt_auto_playlist_select');
-            const savedApiKey = localStorage.getItem('yt_auto_api_key');
-            
-            if (savedSelect) {
-                const radio = document.querySelector(`input[name="playlistSelect"][value="${savedSelect}"]`);
-                if (radio) radio.checked = true;
-            }
-            if (savedApiKey) document.getElementById('apiKey').value = savedApiKey;
+        document.addEventListener('DOMContentLoaded', () => {
 
-            currentSort = 'date-desc';
-            const sortSelectEl = document.getElementById('sortSelect');
-            if (sortSelectEl) sortSelectEl.value = currentSort;
-            
-            document.getElementById('startBtn').addEventListener('click', () => fetchPlaylistData(false, true));
-            
-            document.getElementById('refreshBtn').addEventListener('click', () => {
+            // --- アプリのメイン初期化処理 (認証通過後に呼ばれる) ---
+            const initApp = async () => {
+                const savedSelect = localStorage.getItem('yt_auto_playlist_select');
+                const savedApiKey = localStorage.getItem('yt_auto_api_key');
+                
+                if (savedSelect) {
+                    const radio = document.querySelector(`input[name="playlistSelect"][value="${savedSelect}"]`);
+                    if (radio) radio.checked = true;
+                }
+                if (savedApiKey) document.getElementById('apiKey').value = savedApiKey;
+
                 currentSort = 'date-desc';
+                const sortSelectEl = document.getElementById('sortSelect');
                 if (sortSelectEl) sortSelectEl.value = currentSort;
                 
-                const currentVideoId = videoList[currentIndex]?.id;
-                sortVideoList();
+                document.getElementById('startBtn').addEventListener('click', () => fetchPlaylistData(false, true));
                 
-                if (currentVideoId) {
-                    const newIndex = videoList.findIndex(v => v.id === currentVideoId);
-                    if (newIndex !== -1) currentIndex = newIndex;
-                }
-                
-                renderPlaylist();
-            });
-            
-            document.querySelectorAll('input[name="playlistSelect"]').forEach(radio => {
-                radio.addEventListener('change', () => fetchPlaylistData(false, false));
-            });
-            
-            document.getElementById('updateInterval').addEventListener('change', () => {
-                lastUpdateTime = Date.now();
-            });
-
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible') {
-                    const intervalMinutes = parseInt(document.getElementById('updateInterval').value, 10) || 60;
-                    if (intervalMinutes < 1) return;
-                    const intervalMs = intervalMinutes * 60 * 1000;
-                    
-                    if (Date.now() - lastUpdateTime >= intervalMs) {
-                        console.log("タブの復帰を検知: 規定時間が経過しているため更新を実行します。");
-                        fetchPlaylistData(true, true);
-                    }
-                }
-            });
-
-            const searchInput = document.getElementById('searchInput');
-            const clearSearchBtn = document.getElementById('clearSearchBtn');
-
-            searchInput.addEventListener('input', () => {
-                if (searchInput.value.trim() !== '') {
-                    clearSearchBtn.classList.remove('hidden');
-                } else {
-                    clearSearchBtn.classList.add('hidden');
-                }
-                renderPlaylist();
-            });
-
-            clearSearchBtn.addEventListener('click', () => {
-                searchInput.value = '';
-                clearSearchBtn.classList.add('hidden');
-                renderPlaylist();
-            });
-
-            const apiSettingsDetails = document.getElementById('apiSettingsDetails');
-            const apiSettingsSummary = apiSettingsDetails.querySelector('summary');
-            const passwordModal = document.getElementById('passwordModal');
-            const passwordContent = passwordModal.querySelector('div.bg-white');
-            const adminPasswordInput = document.getElementById('adminPasswordInput');
-            const submitPasswordBtn = document.getElementById('submitPasswordBtn');
-            const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
-            const passwordError = document.getElementById('passwordError');
-            
-            let isAuthenticated = false;
-
-            apiSettingsSummary.addEventListener('click', (e) => {
-                if (!isAuthenticated) {
-                    e.preventDefault();
-                    
-                    adminPasswordInput.value = '';
-                    passwordError.classList.add('hidden');
-                    passwordModal.classList.remove('hidden');
-                    setTimeout(() => {
-                        passwordModal.classList.remove('opacity-0');
-                        passwordContent.classList.remove('scale-95');
-                        adminPasswordInput.focus();
-                    }, 10);
-                }
-            });
-
-            const closePasswordModal = () => {
-                passwordModal.classList.add('opacity-0');
-                passwordContent.classList.add('scale-95');
-                setTimeout(() => {
-                    passwordModal.classList.add('hidden');
-                }, 300);
-            };
-
-            cancelPasswordBtn.addEventListener('click', closePasswordModal);
-
-            const checkPassword = () => {
-                if (adminPasswordInput.value === 'youtube') {
-                    isAuthenticated = true;
-                    closePasswordModal();
-                    
-                    document.getElementById('adminHelpSection').classList.remove('hidden');
-                    
-                    setTimeout(() => {
-                        apiSettingsDetails.setAttribute('open', '');
-                        const icon = apiSettingsSummary.querySelector('.fas.fa-cog');
-                        if(icon) {
-                            icon.classList.remove('fa-cog');
-                            icon.classList.add('fa-unlock', 'text-blue-500');
-                        }
-                        showToast("管理者としてロックを解除しました。");
-                    }, 200);
-                } else {
-                    passwordError.classList.remove('hidden');
-                    passwordContent.classList.add('translate-x-1');
-                    setTimeout(() => passwordContent.classList.remove('translate-x-1'), 100);
-                }
-            };
-
-            submitPasswordBtn.addEventListener('click', checkPassword);
-            
-            adminPasswordInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    checkPassword();
-                }
-            });
-
-            passwordModal.addEventListener('click', (e) => {
-                if (e.target === passwordModal) closePasswordModal();
-            });
-
-            const confirmModal = document.getElementById('confirmModal');
-            const confirmContent = confirmModal.querySelector('div.bg-white');
-
-            document.getElementById('overwriteBtn').addEventListener('click', () => {
-                apiSettingsDetails.removeAttribute('open');
-                
-                confirmModal.classList.remove('hidden');
-                setTimeout(() => {
-                    confirmModal.classList.remove('opacity-0');
-                    confirmContent.classList.remove('scale-95');
-                }, 10);
-            });
-
-            const closeConfirm = () => {
-                confirmModal.classList.add('opacity-0');
-                confirmContent.classList.add('scale-95');
-                setTimeout(() => {
-                    confirmModal.classList.add('hidden');
-                }, 300);
-            };
-
-            document.getElementById('cancelOverwriteBtn').addEventListener('click', closeConfirm);
-            
-            document.getElementById('executeOverwriteBtn').addEventListener('click', () => {
-                closeConfirm();
-                fetchPlaylistData(false, true, true);
-            });
-            
-            confirmModal.addEventListener('click', (e) => {
-                if (e.target === confirmModal) closeConfirm();
-            });
-
-            const playlistContainer = document.getElementById('playlistContainer');
-            const scrollTopBtnHeader = document.getElementById('scrollTopBtnHeader');
-            const scrollTopBtnFloat = document.getElementById('scrollTopBtnFloat');
-
-            const scrollToTop = () => {
-                if (playlistContainer) playlistContainer.scrollTo({ top: 0, behavior: 'smooth' });
-            };
-
-            if (scrollTopBtnHeader) scrollTopBtnHeader.addEventListener('click', scrollToTop);
-            if (scrollTopBtnFloat) scrollTopBtnFloat.addEventListener('click', scrollToTop);
-
-            if (playlistContainer) {
-                playlistContainer.addEventListener('scroll', () => {
-                    if (playlistContainer.scrollTop > 100) {
-                        scrollTopBtnFloat.classList.remove('opacity-0', 'pointer-events-none');
-                        scrollTopBtnFloat.classList.add('opacity-100');
-                    } else {
-                        scrollTopBtnFloat.classList.add('opacity-0', 'pointer-events-none');
-                        scrollTopBtnFloat.classList.remove('opacity-100');
-                    }
-                });
-            }
-
-            if (sortSelectEl) {
-                sortSelectEl.addEventListener('change', (e) => {
-                    currentSort = e.target.value;
+                document.getElementById('refreshBtn').addEventListener('click', () => {
+                    currentSort = 'date-desc';
+                    if (sortSelectEl) sortSelectEl.value = currentSort;
                     
                     const currentVideoId = videoList[currentIndex]?.id;
                     sortVideoList();
@@ -1291,41 +1126,271 @@
                     
                     renderPlaylist();
                 });
+                
+                document.querySelectorAll('input[name="playlistSelect"]').forEach(radio => {
+                    radio.addEventListener('change', () => fetchPlaylistData(false, false));
+                });
+                
+                document.getElementById('updateInterval').addEventListener('change', () => {
+                    lastUpdateTime = Date.now();
+                });
+
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible') {
+                        const intervalMinutes = parseInt(document.getElementById('updateInterval').value, 10) || 60;
+                        if (intervalMinutes < 1) return;
+                        const intervalMs = intervalMinutes * 60 * 1000;
+                        
+                        if (Date.now() - lastUpdateTime >= intervalMs) {
+                            console.log("タブの復帰を検知: 規定時間が経過しているため更新を実行します。");
+                            fetchPlaylistData(true, true);
+                        }
+                    }
+                });
+
+                const searchInput = document.getElementById('searchInput');
+                const clearSearchBtn = document.getElementById('clearSearchBtn');
+
+                searchInput.addEventListener('input', () => {
+                    if (searchInput.value.trim() !== '') {
+                        clearSearchBtn.classList.remove('hidden');
+                    } else {
+                        clearSearchBtn.classList.add('hidden');
+                    }
+                    renderPlaylist();
+                });
+
+                clearSearchBtn.addEventListener('click', () => {
+                    searchInput.value = '';
+                    clearSearchBtn.classList.add('hidden');
+                    renderPlaylist();
+                });
+
+                const apiSettingsDetails = document.getElementById('apiSettingsDetails');
+                const apiSettingsSummary = apiSettingsDetails.querySelector('summary');
+                const passwordModal = document.getElementById('passwordModal');
+                const passwordContent = passwordModal.querySelector('div.bg-white');
+                const adminPasswordInput = document.getElementById('adminPasswordInput');
+                const submitPasswordBtn = document.getElementById('submitPasswordBtn');
+                const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
+                const passwordError = document.getElementById('passwordError');
+                
+                let isAuthenticated = false;
+
+                apiSettingsSummary.addEventListener('click', (e) => {
+                    if (!isAuthenticated) {
+                        e.preventDefault();
+                        
+                        adminPasswordInput.value = '';
+                        passwordError.classList.add('hidden');
+                        passwordModal.classList.remove('hidden');
+                        setTimeout(() => {
+                            passwordModal.classList.remove('opacity-0');
+                            passwordContent.classList.remove('scale-95');
+                            adminPasswordInput.focus();
+                        }, 10);
+                    }
+                });
+
+                const closePasswordModal = () => {
+                    passwordModal.classList.add('opacity-0');
+                    passwordContent.classList.add('scale-95');
+                    setTimeout(() => {
+                        passwordModal.classList.add('hidden');
+                    }, 300);
+                };
+
+                cancelPasswordBtn.addEventListener('click', closePasswordModal);
+
+                const checkPassword = () => {
+                    if (adminPasswordInput.value === 'youtube') {
+                        isAuthenticated = true;
+                        closePasswordModal();
+                        
+                        document.getElementById('adminHelpSection').classList.remove('hidden');
+                        
+                        setTimeout(() => {
+                            apiSettingsDetails.setAttribute('open', '');
+                            const icon = apiSettingsSummary.querySelector('.fas.fa-cog');
+                            if(icon) {
+                                icon.classList.remove('fa-cog');
+                                icon.classList.add('fa-unlock', 'text-blue-500');
+                            }
+                            showToast("管理者としてロックを解除しました。");
+                        }, 200);
+                    } else {
+                        passwordError.classList.remove('hidden');
+                        passwordContent.classList.add('translate-x-1');
+                        setTimeout(() => passwordContent.classList.remove('translate-x-1'), 100);
+                    }
+                };
+
+                submitPasswordBtn.addEventListener('click', checkPassword);
+                
+                adminPasswordInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        checkPassword();
+                    }
+                });
+
+                passwordModal.addEventListener('click', (e) => {
+                    if (e.target === passwordModal) closePasswordModal();
+                });
+
+                const confirmModal = document.getElementById('confirmModal');
+                const confirmContent = confirmModal.querySelector('div.bg-white');
+
+                document.getElementById('overwriteBtn').addEventListener('click', () => {
+                    apiSettingsDetails.removeAttribute('open');
+                    
+                    confirmModal.classList.remove('hidden');
+                    setTimeout(() => {
+                        confirmModal.classList.remove('opacity-0');
+                        confirmContent.classList.remove('scale-95');
+                    }, 10);
+                });
+
+                const closeConfirm = () => {
+                    confirmModal.classList.add('opacity-0');
+                    confirmContent.classList.add('scale-95');
+                    setTimeout(() => {
+                        confirmModal.classList.add('hidden');
+                    }, 300);
+                };
+
+                document.getElementById('cancelOverwriteBtn').addEventListener('click', closeConfirm);
+                
+                document.getElementById('executeOverwriteBtn').addEventListener('click', () => {
+                    closeConfirm();
+                    fetchPlaylistData(false, true, true);
+                });
+                
+                confirmModal.addEventListener('click', (e) => {
+                    if (e.target === confirmModal) closeConfirm();
+                });
+
+                const playlistContainer = document.getElementById('playlistContainer');
+                const scrollTopBtnHeader = document.getElementById('scrollTopBtnHeader');
+                const scrollTopBtnFloat = document.getElementById('scrollTopBtnFloat');
+
+                const scrollToTop = () => {
+                    if (playlistContainer) playlistContainer.scrollTo({ top: 0, behavior: 'smooth' });
+                };
+
+                if (scrollTopBtnHeader) scrollTopBtnHeader.addEventListener('click', scrollToTop);
+                if (scrollTopBtnFloat) scrollTopBtnFloat.addEventListener('click', scrollToTop);
+
+                if (playlistContainer) {
+                    playlistContainer.addEventListener('scroll', () => {
+                        if (playlistContainer.scrollTop > 100) {
+                            scrollTopBtnFloat.classList.remove('opacity-0', 'pointer-events-none');
+                            scrollTopBtnFloat.classList.add('opacity-100');
+                        } else {
+                            scrollTopBtnFloat.classList.add('opacity-0', 'pointer-events-none');
+                            scrollTopBtnFloat.classList.remove('opacity-100');
+                        }
+                    });
+                }
+
+                if (sortSelectEl) {
+                    sortSelectEl.addEventListener('change', (e) => {
+                        currentSort = e.target.value;
+                        
+                        const currentVideoId = videoList[currentIndex]?.id;
+                        sortVideoList();
+                        
+                        if (currentVideoId) {
+                            const newIndex = videoList.findIndex(v => v.id === currentVideoId);
+                            if (newIndex !== -1) currentIndex = newIndex;
+                        }
+                        
+                        renderPlaylist();
+                    });
+                }
+
+                const helpModal = document.getElementById('helpModal');
+                const helpModalContent = helpModal.querySelector('div.bg-white');
+                
+                const openHelp = () => {
+                    helpModal.classList.remove('hidden');
+                    setTimeout(() => {
+                        helpModal.classList.remove('opacity-0');
+                        helpModalContent.classList.remove('scale-95');
+                    }, 10);
+                };
+                
+                const closeHelp = () => {
+                    helpModal.classList.add('opacity-0');
+                    helpModalContent.classList.add('scale-95');
+                    setTimeout(() => {
+                        helpModal.classList.add('hidden');
+                    }, 300);
+                };
+
+                document.getElementById('openHelpBtn').addEventListener('click', openHelp);
+                document.getElementById('closeHelpBtn').addEventListener('click', closeHelp);
+                document.getElementById('closeHelpBtnBottom').addEventListener('click', closeHelp);
+                
+                helpModal.addEventListener('click', (e) => {
+                    if (e.target === helpModal) closeHelp();
+                });
+
+                await initAuth();
+                user = auth.currentUser;
+                fetchPlaylistData(false, false);
+                
+                updatePlaylistDates();
+                startAutoUpdateChecker();
+            };
+
+            // --- サイト閲覧用パスワード認証ロジック ---
+            const siteAuthModal = document.getElementById('siteAuthModal');
+            const sitePasswordInput = document.getElementById('sitePasswordInput');
+            const siteAuthBtn = document.getElementById('siteAuthBtn');
+            const sitePasswordError = document.getElementById('sitePasswordError');
+
+            // URLパラメータからパスワードを取得 (例: ?pw=youtube)
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlPw = urlParams.get('pw');
+
+            if (urlPw === 'youtube') {
+                // パスワードが一致した場合、URLからパラメータを消去（ブラウザの履歴やアドレスバーから隠す）
+                urlParams.delete('pw');
+                const newSearch = urlParams.toString();
+                const newPath = window.location.pathname + (newSearch ? '?' + newSearch : '');
+                window.history.replaceState({}, document.title, newPath);
+                
+                // モーダルを即座に非表示にしてメイン処理を開始
+                siteAuthModal.style.display = 'none';
+                initApp();
+            } else {
+                // パスワードが無い、または間違っている場合はモーダルで入力を待つ
+                const attemptSiteAuth = () => {
+                    if (sitePasswordInput.value === 'youtube') {
+                        sitePasswordError.classList.add('hidden');
+                        siteAuthModal.classList.add('opacity-0');
+                        setTimeout(() => {
+                            siteAuthModal.style.display = 'none';
+                            initApp();
+                        }, 500); // フェードアウト後に初期化
+                    } else {
+                        sitePasswordError.classList.remove('hidden');
+                        sitePasswordInput.classList.add('border-red-500');
+                        // エラー時に少し揺らす
+                        const modalContent = siteAuthModal.querySelector('div.bg-white');
+                        modalContent.classList.add('translate-x-1');
+                        setTimeout(() => modalContent.classList.remove('translate-x-1'), 100);
+                    }
+                };
+
+                siteAuthBtn.addEventListener('click', attemptSiteAuth);
+                sitePasswordInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') attemptSiteAuth();
+                });
+                
+                // 入力欄にフォーカスを当てる
+                setTimeout(() => sitePasswordInput.focus(), 100);
             }
-
-            const helpModal = document.getElementById('helpModal');
-            const helpModalContent = helpModal.querySelector('div.bg-white');
-            
-            const openHelp = () => {
-                helpModal.classList.remove('hidden');
-                setTimeout(() => {
-                    helpModal.classList.remove('opacity-0');
-                    helpModalContent.classList.remove('scale-95');
-                }, 10);
-            };
-            
-            const closeHelp = () => {
-                helpModal.classList.add('opacity-0');
-                helpModalContent.classList.add('scale-95');
-                setTimeout(() => {
-                    helpModal.classList.add('hidden');
-                }, 300);
-            };
-
-            document.getElementById('openHelpBtn').addEventListener('click', openHelp);
-            document.getElementById('closeHelpBtn').addEventListener('click', closeHelp);
-            document.getElementById('closeHelpBtnBottom').addEventListener('click', closeHelp);
-            
-            helpModal.addEventListener('click', (e) => {
-                if (e.target === helpModal) closeHelp();
-            });
-
-            await initAuth();
-            user = auth.currentUser;
-            fetchPlaylistData(false, false);
-            
-            updatePlaylistDates();
-            startAutoUpdateChecker();
         });
     </script>
 </body>
