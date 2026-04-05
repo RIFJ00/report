@@ -43,7 +43,7 @@
 
       const { initializeApp } = firebaseApp;
       const { getAuth, signInAnonymously, onAuthStateChanged } = firebaseAuth;
-      const { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc, writeBatch, updateDoc, deleteField } = firebaseFirestore;
+      const { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc, writeBatch, updateDoc, deleteField, setDoc } = firebaseFirestore;
 
       const { useState, useEffect, useMemo, useRef } = React;
       const { BarChart, Bar, PieChart, Pie, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, Legend, ResponsiveContainer, Cell } = window.Recharts;
@@ -76,6 +76,8 @@
       const Camera = (p) => <SvgIcon d='<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>' {...p}/>;
       const Home = (p) => <SvgIcon d='<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>' {...p}/>;
       const ArrowDownUp = (p) => <SvgIcon d='<path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/>' {...p}/>;
+      const Bot = (p) => <SvgIcon d='<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>' {...p}/>;
+      const Sparkles = (p) => <SvgIcon d='<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>' {...p}/>;
 
       const firebaseConfig = {
         apiKey: "AIzaSyCzxK80B7Tl2EoBemiWq2_rKFPHhr1vkVI",
@@ -358,12 +360,18 @@
         const [selectedMediaForChart, setSelectedMediaForChart] = useState(['average']);
         const [selectedMediaForTable, setSelectedMediaForTable] = useState(null); 
         
-        // 並べ替え順のstate (default: 機関順, date: 調査日順)
         const [sortOrder, setSortOrder] = useState('default');
 
         const [generatedImage, setGeneratedImage] = useState(null);
         const [showImageModal, setShowImageModal] = useState(false);
         const [downloadFilename, setDownloadFilename] = useState('');
+
+        // AI設定・コメント用のState
+        const [appConfig, setAppConfig] = useState({ geminiApiKey: '', geminiModel: 'gemini-1.5-pro', aiComment: '', aiCommentUpdatedAt: '' });
+        const [inputApiKey, setInputApiKey] = useState('');
+        const [inputModel, setInputModel] = useState('gemini-1.5-pro');
+        const [isAnalyzing, setIsAnalyzing] = useState(false);
+        const [showDeleteCommentConfirm, setShowDeleteCommentConfirm] = useState(false);
 
         const nowForHighlight = new Date();
         const currentMonthStrForHighlight = `${nowForHighlight.getFullYear()}-${String(nowForHighlight.getMonth() + 1).padStart(2, '0')}`;
@@ -482,6 +490,22 @@
           });
 
           return () => unsubscribe();
+        }, [user]);
+
+        // 設定の購読と古いモデルの修正処理
+        useEffect(() => {
+          if (!user) return;
+          const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config');
+          const unsubscribeConfig = onSnapshot(configDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              let modelName = data.geminiModel || 'gemini-1.5-pro';
+              setAppConfig({ geminiModel: modelName, ...data });
+              if (data.geminiApiKey) setInputApiKey(data.geminiApiKey);
+              setInputModel(modelName);
+            }
+          });
+          return () => unsubscribeConfig();
         }, [user]);
 
         const availableMonths = useMemo(() => {
@@ -652,6 +676,23 @@
             return;
           }
           handleDeleteClick(id);
+        };
+
+        // APIキーの保存
+        const handleSaveApiKey = async (e) => {
+          e.preventDefault();
+          if (!isAdmin) return;
+          setIsSubmitting(true);
+          try {
+            const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config');
+            await setDoc(configDocRef, { geminiApiKey: inputApiKey, geminiModel: inputModel }, { merge: true });
+            setInfoMsg("API設定を保存しました。");
+          } catch (err) {
+            console.error(err);
+            setErrorMsg("API設定の保存に失敗しました。");
+          } finally {
+            setIsSubmitting(false);
+          }
         };
 
         const averages = useMemo(() => {
@@ -1310,6 +1351,110 @@
           }).sort((a, b) => a.name.localeCompare(b.name));
         }, [polls, selectedMediaForChart, availableMediaFilter]);
 
+        // AI分析の実行 (自動リトライ対応)
+        const handleAnalyze = async () => {
+          setIsAnalyzing(true);
+          setInfoMsg("最新データを分析中です...");
+          
+          try {
+            const recentMonths = availableMonths.filter(m => m !== 'latest').slice(0, 6);
+            const recentTrendData = trendData.filter(d => recentMonths.includes(d.name)).slice(-6);
+            
+            const dataStrList = [];
+            dataStrList.push("【各月の平均支持率推移（直近6ヶ月）】");
+            recentTrendData.forEach(d => {
+              let str = `[${d.name}] 内閣支持:${d.cabinetSupport}% 不支持:${d.cabinetNonsupport}% | `;
+              const partyStrs = PARTIES.map(p => `${p.label}:${d[p.key] || 0}%`).join(', ');
+              str += partyStrs;
+              dataStrList.push(str);
+            });
+
+            const prompt = `以下の政党支持率・内閣支持率の月次推移データをもとに、内閣支持率と各政党の支持率の推移、および直近の動向を分析してください。分析は客観的かつプロの政治アナリストの視点で、分かりやすく300〜500文字程度でまとめてください。マークダウン等は使用せずプレーンテキストで回答してください。\n\n${dataStrList.join('\n')}`;
+
+            // APIキーは常に空文字にし、システム内蔵のプレビューモデルを使用する
+            const apiKey = "";
+            const modelName = 'gemini-2.5-flash-preview-09-2025';
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+            
+            const payload = {
+              contents: [{ parts: [{ text: prompt }] }],
+              systemInstruction: { parts: [{ text: "あなたはプロの政治アナリストです。提供されたデータから客観的な事実と傾向を抽出して分析してください。特定の政党を応援・批判するような主観的な意見は避けてください。" }] }
+            };
+
+            let success = false;
+            let comment = "";
+            let lastErrorMsg = "";
+            const delays = [1000, 2000, 4000, 8000, 16000];
+
+            // 5回までの自動リトライ (エクスポネンシャル・バックオフ)
+            for (let i = 0; i <= 5; i++) {
+              try {
+                const response = await fetch(url, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                  const errorData = await response.json();
+                  throw new Error(errorData.error?.message || "API呼び出しに失敗しました");
+                }
+
+                const data = await response.json();
+                comment = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (comment) {
+                  success = true;
+                  break;
+                } else {
+                   throw new Error("分析コメントが生成されませんでした。");
+                }
+              } catch (err) {
+                lastErrorMsg = err.message;
+                if (i < 5) {
+                  await new Promise(res => setTimeout(res, delays[i]));
+                }
+              }
+            }
+
+            if (success) {
+              try {
+                const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config');
+                await setDoc(configDocRef, { 
+                  aiComment: comment, 
+                  aiCommentUpdatedAt: new Date().toISOString() 
+                }, { merge: true });
+                setInfoMsg("分析が完了しました。");
+              } catch (dbErr) {
+                setErrorMsg("分析は完了しましたが、データベースへの保存に失敗しました。");
+              }
+            } else {
+              setErrorMsg(`分析エラー: システム内蔵AIの呼び出しに失敗しました。（詳細: ${lastErrorMsg}）`);
+            }
+          } catch (err) {
+            console.error("Analysis Error:", err);
+            setErrorMsg("分析中に予期せぬエラーが発生しました: " + err.message);
+          } finally {
+            setIsAnalyzing(false);
+          }
+        };
+
+        const confirmDeleteComment = async () => {
+          if (!isAdmin) return;
+          setIsSubmitting(true);
+          try {
+            const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config');
+            await updateDoc(configDocRef, { aiComment: deleteField(), aiCommentUpdatedAt: deleteField() });
+            setInfoMsg("分析コメントを削除しました。");
+          } catch (error) {
+            console.error(error);
+            setErrorMsg("コメントの削除に失敗しました。");
+          } finally {
+            setIsSubmitting(false);
+            setShowDeleteCommentConfirm(false);
+          }
+        };
+
         const customTooltipFormatter = (value, name) => [`${value}%`, name];
 
         if (isLoadingData && !errorMsg) {
@@ -1325,6 +1470,9 @@
                                  isLatestOnly ? '最新データ' :
                                  selectedMonths.length === 1 ? selectedMonths[0] : 
                                  `${selectedMonths.length}ヶ月分`;
+
+        const nonAveragePolls = tablePolls.filter(p => !p.isAverage);
+        const areAllLatestCurrentMonth = nonAveragePolls.length > 0 && nonAveragePolls.every(p => p.date && p.date.startsWith(currentMonthStrForHighlight));
 
         return (
           <div className="min-h-screen bg-slate-100 text-slate-800 p-4 md:p-8 font-sans">
@@ -1596,26 +1744,74 @@
                       </div>
                     ) : (
                       <React.Fragment>
-                        <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-2">
+                        <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-2 overflow-x-auto">
                           <div className="flex space-x-2">
-                            <button onClick={() => { setInputMode('single'); if(editingId) cancelEdit(); }} className={`h-11 px-4 flex items-center rounded-t-lg text-sm font-medium transition-colors ${inputMode === 'single' && !editingId ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-50'}`}>
+                            <button onClick={() => { setInputMode('single'); if(editingId) cancelEdit(); }} className={`h-11 px-4 flex items-center rounded-t-lg text-sm font-medium transition-colors whitespace-nowrap ${inputMode === 'single' && !editingId ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-50'}`}>
                               1件ずつ手動入力
                             </button>
-                            <button onClick={() => { setInputMode('bulk'); if(editingId) cancelEdit(); }} className={`h-11 px-4 flex items-center rounded-t-lg text-sm font-medium transition-colors ${inputMode === 'bulk' ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-50'}`}>
+                            <button onClick={() => { setInputMode('bulk'); if(editingId) cancelEdit(); }} className={`h-11 px-4 flex items-center rounded-t-lg text-sm font-medium transition-colors whitespace-nowrap ${inputMode === 'bulk' ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-50'}`}>
                               Excelから一括コピペ
                             </button>
+                            <button onClick={() => { setInputMode('settings'); if(editingId) cancelEdit(); }} className={`h-11 px-4 flex items-center rounded-t-lg text-sm font-medium transition-colors whitespace-nowrap ${inputMode === 'settings' ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-50'}`}>
+                              <Bot className="w-4 h-4 mr-1" /> AI 分析設定
+                            </button>
                             {editingId && (
-                              <div className="h-11 px-4 flex items-center rounded-t-lg text-sm font-bold bg-amber-50 text-amber-700 border-b-2 border-amber-500">
+                              <div className="h-11 px-4 flex items-center rounded-t-lg text-sm font-bold bg-amber-50 text-amber-700 border-b-2 border-amber-500 whitespace-nowrap">
                                 <Pencil className="w-4 h-4 mr-2" /> データ編集中
                               </div>
                             )}
                           </div>
-                          <button onClick={handleLogout} className="h-11 px-3 text-sm font-medium text-slate-500 hover:text-slate-700 underline flex items-center">
+                          <button onClick={handleLogout} className="h-11 px-3 text-sm font-medium text-slate-500 hover:text-slate-700 underline flex items-center whitespace-nowrap">
                             ログアウト
                           </button>
                         </div>
 
-                        {inputMode === 'single' ? (
+                        {inputMode === 'settings' ? (
+                          <div className="space-y-8">
+                            <div className="bg-slate-50 p-5 rounded-lg border border-slate-200">
+                              <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                                <Bot className="w-5 h-5 mr-2 text-indigo-500" />
+                                AI 分析設定
+                              </h3>
+                              <p className="text-sm text-slate-600 mb-4">
+                                この環境ではシステム内蔵のAIが自動的に適用されるため、APIキー等の別途設定は不要です。設定を変更することなく、そのまま下記の「分析を実行する」ボタンをご利用いただけます。
+                              </p>
+                            </div>
+                            
+                            <div className="bg-indigo-50 p-5 rounded-lg border border-indigo-200">
+                              <h3 className="text-lg font-bold text-indigo-900 mb-2 flex items-center">
+                                <Sparkles className="w-5 h-5 mr-2 text-indigo-600" />
+                                AI分析の実行・管理
+                              </h3>
+                              <p className="text-sm text-indigo-700 mb-4">
+                                最新のデータをもとにAIに分析を行わせ、一覧表示画面の下部に分析コメントを表示します。
+                                {appConfig.aiCommentUpdatedAt && (
+                                  <span className="block mt-1 font-medium text-indigo-500">
+                                    (前回分析日時: {new Date(appConfig.aiCommentUpdatedAt).toLocaleString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })})
+                                  </span>
+                                )}
+                              </p>
+                              <div className="flex flex-wrap gap-3">
+                                <button 
+                                  onClick={handleAnalyze} 
+                                  disabled={isAnalyzing}
+                                  className="h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-sm transition-colors disabled:opacity-50 flex items-center justify-center"
+                                >
+                                  {isAnalyzing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Bot className="w-5 h-5 mr-2" />}
+                                  {appConfig.aiComment ? '再分析を実行する' : '分析を実行する'}
+                                </button>
+                                {appConfig.aiComment && (
+                                  <button 
+                                    onClick={() => setShowDeleteCommentConfirm(true)}
+                                    className="h-11 px-6 bg-white border border-slate-300 hover:bg-slate-50 text-red-600 font-bold rounded-lg shadow-sm transition-colors flex items-center justify-center"
+                                  >
+                                    コメントをクリア
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ) : inputMode === 'single' ? (
                           <form onSubmit={handleSubmit} className="space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div>
@@ -1712,7 +1908,7 @@
                               <tr>
                                 <th className="px-4 py-3 sticky left-0 bg-slate-100 z-10 border-r border-slate-300">項目</th>
                                 {tablePolls.map(poll => {
-                                  const isCurrentMonth = !poll.isAverage && poll.date && poll.date.startsWith(currentMonthStrForHighlight);
+                                  const isCurrentMonth = !poll.isAverage && poll.date && poll.date.startsWith(currentMonthStrForHighlight) && !areAllLatestCurrentMonth;
                                   return (
                                     <th key={`th-${poll.id}`} className={`px-4 py-3 text-center border-r border-slate-200 min-w-[120px] relative ${isCurrentMonth ? 'bg-yellow-50' : ''}`}>
                                       <div className="flex flex-col items-center justify-center">
@@ -1761,7 +1957,7 @@
                                 <tr className="border-b border-slate-100 bg-slate-50">
                                   <td className="px-4 py-2 font-medium sticky left-0 bg-slate-50 z-10 border-r border-slate-200">操作</td>
                                   {tablePolls.map(poll => {
-                                    const isCurrentMonth = !poll.isAverage && poll.date && poll.date.startsWith(currentMonthStrForHighlight);
+                                    const isCurrentMonth = !poll.isAverage && poll.date && poll.date.startsWith(currentMonthStrForHighlight) && !areAllLatestCurrentMonth;
                                     return (
                                       <td key={`op-${poll.id}`} className={`px-4 py-2 text-center border-r border-slate-100 align-middle ${isCurrentMonth ? 'bg-yellow-50/30' : ''}`}>
                                         {poll.isAverage ? (
@@ -1800,7 +1996,7 @@
                                 <tr><td colSpan={PARTIES.length + 4 + (isAdmin ? 1 : 0)} className="text-center py-8 text-slate-500">該当するデータがありません</td></tr>
                               ) : (
                                 tablePolls.map((poll) => {
-                                  const isCurrentMonth = !poll.isAverage && poll.date && poll.date.startsWith(currentMonthStrForHighlight);
+                                  const isCurrentMonth = !poll.isAverage && poll.date && poll.date.startsWith(currentMonthStrForHighlight) && !areAllLatestCurrentMonth;
                                   const rowClass = isCurrentMonth 
                                     ? "border-b border-yellow-200 bg-yellow-50/50 hover:bg-yellow-100/60 transition-colors" 
                                     : "border-b border-slate-100 hover:bg-slate-50 transition-colors";
@@ -1862,7 +2058,7 @@
                         ) : (
                           tablePolls.map(poll => {
                             const isSingleCard = tablePolls.length === 1;
-                            const isCurrentMonth = !poll.isAverage && poll.date && poll.date.startsWith(currentMonthStrForHighlight);
+                            const isCurrentMonth = !poll.isAverage && poll.date && poll.date.startsWith(currentMonthStrForHighlight) && !areAllLatestCurrentMonth;
                             
                             const pollParties = PARTIES.map(p => ({ ...p, value: typeof poll[p.key] === 'number' ? poll[p.key] : 0 }))
                               .filter(p => isSingleCard ? true : p.value > 0)
@@ -1947,6 +2143,28 @@
                         )}
                       </div>
                     )}
+
+                    {/* AIコメントセクション */}
+                    {appConfig.aiComment && (
+                      <div className="mt-8 bg-indigo-50/50 border border-indigo-100 rounded-xl p-6 shadow-sm relative animate-in fade-in">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4">
+                          <div className="flex items-center text-indigo-800 mb-4 sm:mb-0">
+                            <Sparkles className="w-5 h-5 mr-2 text-indigo-500" />
+                            <h3 className="text-lg font-bold">AIによる直近動向分析</h3>
+                            {appConfig.aiCommentUpdatedAt && (
+                              <span className="ml-3 text-xs font-medium text-indigo-500 bg-white px-2 py-0.5 rounded-full border border-indigo-100">
+                                分析日時: {new Date(appConfig.aiCommentUpdatedAt).toLocaleString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap bg-white p-5 rounded-lg border border-indigo-100/50">
+                          {appConfig.aiComment}
+                        </div>
+                      </div>
+                    )}
+
                   </div>
                 )}
 
@@ -2161,6 +2379,33 @@
                 </div>
               )}
               
+              {showDeleteCommentConfirm && (
+                <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4 animate-in fade-in">
+                  <div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full border border-slate-200">
+                    <div className="flex items-center text-red-600 mb-4">
+                      <AlertCircle className="w-6 h-6 mr-2" />
+                      <h3 className="text-lg font-bold">コメントの削除</h3>
+                    </div>
+                    <p className="text-slate-600 mb-6 text-sm">現在の分析コメントを削除してよろしいですか？</p>
+                    <div className="flex justify-end space-x-3">
+                      <button 
+                        onClick={() => setShowDeleteCommentConfirm(false)} 
+                        className="px-4 py-2 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition-colors"
+                      >
+                        キャンセル
+                      </button>
+                      <button 
+                        onClick={confirmDeleteComment} 
+                        disabled={isSubmitting}
+                        className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50"
+                      >
+                        {isSubmitting ? '削除中...' : '削除する'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {showLoginModal && (
                 <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4 animate-in fade-in">
                   <div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full border border-slate-200">
@@ -2264,6 +2509,10 @@
                             「1件ずつ手動入力」か「Excelから一括コピペ」を選べます。コピペ機能を利用すれば、Excel上の表をそのまま貼り付けるだけで複数月・複数機関のデータを一括で登録できます。システムが自動的に「平均」の行を無視したり、重複を検知したりします。
                           </li>
                           <li>
+                            <span className="font-semibold bg-slate-100 px-1 rounded">AI 分析設定</span><br/>
+                            データ入力タブの「AI 分析設定」から「AIによる直近動向分析」を実行でき、一覧表示の下部に自動生成された分析コメントを表示できるようになります。
+                          </li>
+                          <li>
                             <span className="font-semibold bg-slate-100 px-1 rounded">編集と削除</span><br/>
                             一覧表示タブにある「ペン」アイコンで数値の修正、「ゴミ箱」アイコンでデータの削除が可能です。
                           </li>
@@ -2330,6 +2579,10 @@
                 </div>
               )}
 
+            </div>
+
+            <div className="max-w-7xl mx-auto mt-4 px-2 text-xs text-slate-500 text-right">
+              * 調査日は一般社団法人日本みらい研がデータを整理した日であり、実際の各機関の調査日とは異なります。
             </div>
 
             <footer className="max-w-7xl mx-auto mt-8 text-center text-sm font-medium text-slate-500">
