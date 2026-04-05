@@ -1663,31 +1663,6 @@
                     }
                 }
 
-                // 外部フォームからの直接メールデータ（registrationsに紐付かないもの）
-                const externalMails = mails.filter(mail => {
-                    const regId = mail.metadata?.registrationId;
-                    const hasRegistration = registrations.some(reg => reg.id === regId || reg.email === (Array.isArray(mail.to) ? mail.to[0] : mail.to));
-                    return !hasRegistration;
-                }).map(mail => {
-                    // 外部フォーム（お問い合せ等）用のダミーRegistrationデータを作成
-                    return {
-                        id: mail.id,
-                        isExternal: true, // 外部フォームからのデータフラグ
-                        companyName: mail.companyName || '-',
-                        lastName: mail.lastName || 'お問い合わせ',
-                        firstName: mail.firstName || '',
-                        fullName: `${mail.lastName || ''} ${mail.firstName || ''}`.trim() || 'お問い合わせ',
-                        email: Array.isArray(mail.to) ? mail.to[0] : mail.to,
-                        plan: 'inquiry',
-                        paymentCycle: '',
-                        createdAtDate: mail.delivery?.startTime?.toDate ? mail.delivery.startTime.toDate() : new Date(),
-                        mailStatus: mail.delivery?.state || 'SUCCESS',
-                        mailError: mail.delivery?.error || null,
-                        mailDocId: mail.id,
-                        mailSubject: mail.message?.subject || 'お問い合わせ',
-                    };
-                });
-
                 const regWithMails = registrations.map(reg => {
                     const mailLog = mailByRegId.get(reg.id) || mailByEmail.get(reg.email);
                     return {
@@ -1699,9 +1674,7 @@
                     };
                 });
 
-                // 通常の申し込みと、外部フォームからのみのデータをマージしてソート
-                const combined = [...regWithMails, ...externalMails];
-                return combined.sort((a, b) => b.createdAtDate - a.createdAtDate);
+                return regWithMails.sort((a, b) => b.createdAtDate - a.createdAtDate);
             }, [registrations, mails]);
 
             const toggleSelectAll = () => {
@@ -1724,15 +1697,15 @@
 
             const getTargetData = () => {
                 if (selectedIds.size > 0) {
-                    return registrationsWithMailStatus.filter(r => selectedIds.has(r.id) && !r.isExternal);
+                    return registrationsWithMailStatus.filter(r => selectedIds.has(r.id));
                 }
-                return registrationsWithMailStatus.filter(r => !r.isExternal); // PDFなどは正規の登録データのみ
+                return registrationsWithMailStatus;
             };
             
             const generateBulkPDF = async () => {
                 const targets = getTargetData();
                 if (targets.length === 0) {
-                    showMessage("通知", "PDFを出力する正規の登録データを選択してください。（外部からのお問い合わせは出力できません）", 'info');
+                    showMessage("通知", "PDFを出力するデータを選択してください。", 'info');
                     return;
                 }
 
@@ -1816,10 +1789,6 @@
             };
 
             const handleDeleteClick = (item) => {
-                if(item.isExternal) {
-                    showMessage("注意", "外部フォームからの問い合わせ履歴は、ここからは削除できません。", "info");
-                    return;
-                }
                 setDeleteConfirmationItem(item);
             };
 
@@ -2178,16 +2147,10 @@
                                                             </button>
                                                         </td>
                                                         <td className="p-4">
-                                                            {reg.isExternal ? (
-                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="p-1.5 text-slate-400" title="外部問い合わせは編集不可"><MessageSquare size={16} /></span>
-                                                                 </div>
-                                                            ) : (
-                                                                <div className="flex items-center gap-2">
-                                                                    <button onClick={() => setEditingMember(reg)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 hover:border-indigo-400 transition-colors" title="編集"><Edit size={16} /></button>
-                                                                    <button onClick={() => handleDeleteClick(reg)} className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 hover:border-red-400 transition-colors" title="削除"><Trash2 size={16} /></button>
-                                                                </div>
-                                                            )}
+                                                            <div className="flex items-center gap-2">
+                                                                <button onClick={() => setEditingMember(reg)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 hover:border-indigo-400 transition-colors" title="編集"><Edit size={16} /></button>
+                                                                <button onClick={() => handleDeleteClick(reg)} className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 hover:border-red-400 transition-colors" title="削除"><Trash2 size={16} /></button>
+                                                            </div>
                                                         </td>
                                                         <td className="p-4 text-center">
                                                             <div className="flex flex-row items-center justify-center gap-3">
@@ -2201,16 +2164,14 @@
                                                                     {reg.mailStatus === 'MISSING' && <span className="text-slate-300" title="送信記録なし"><Eye size={20} /></span>}
                                                                 </button>
                                                                 
-                                                                {!reg.isExternal && (
-                                                                    <button 
-                                                                        onClick={() => handlePrepareResendEmail(reg)}
-                                                                        className={`text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1 ${reg.mailStatus === 'SUCCESS' ? 'text-slate-400 border-slate-200 hover:bg-slate-50' : 'text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 font-bold'}`}
-                                                                        title="再送信"
-                                                                    >
-                                                                        <Send size={12} />
-                                                                        再送信
-                                                                    </button>
-                                                                )}
+                                                                <button 
+                                                                    onClick={() => handlePrepareResendEmail(reg)}
+                                                                    className={`text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1 ${reg.mailStatus === 'SUCCESS' ? 'text-slate-400 border-slate-200 hover:bg-slate-50' : 'text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 font-bold'}`}
+                                                                    title="再送信"
+                                                                >
+                                                                    <Send size={12} />
+                                                                    再送信
+                                                                </button>
                                                             </div>
                                                         </td>
                                                         <td className="p-4 text-sm">
@@ -2218,7 +2179,7 @@
                                                             <div className="text-xs opacity-70">{reg.createdAtDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</div>
                                                         </td>
                                                         <td className="p-4 text-sm">
-                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${reg.isExternal ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{reg.categoryCode || 'C00'}</span>
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">{reg.categoryCode || 'C00'}</span>
                                                         </td>
                                                         <td className="p-4 text-sm">
                                                             <div className="font-bold">{reg.companyName}</div>
@@ -2229,7 +2190,7 @@
                                                             {reg.position && <div className="text-xs opacity-70">{reg.position}</div>}
                                                         </td>
                                                         <td className="p-4">
-                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${reg.plan === 'corporate' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : reg.plan === 'personal' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : reg.isExternal ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${reg.plan === 'corporate' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : reg.plan === 'personal' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                                                                 {getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}
                                                             </span>
                                                         </td>
@@ -2239,7 +2200,7 @@
                                                         </td>
                                                         <td className="p-4 text-sm border-l border-slate-100 bg-slate-50/30">
                                                             <div className="font-medium truncate max-w-[150px]" title={reg.billingName}>{reg.billingName || '-'}</div>
-                                                            {!reg.useCreditCard && !reg.isExternal && (
+                                                            {!reg.useCreditCard && (
                                                                 <>
                                                                     <div className="text-xs opacity-70 truncate max-w-[150px]" title={reg.billingDepartment}>{reg.billingDepartment}</div>
                                                                     <div className="text-xs opacity-70 mt-1">{reg.billingPhone}</div>
