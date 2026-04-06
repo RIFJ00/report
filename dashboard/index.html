@@ -46,7 +46,6 @@
     <div id="auth-screen" class="bg-white rounded-3xl shadow-2xl p-8 md:p-12 max-w-md w-full text-center border border-gray-200">
         <div class="mb-6 flex justify-center">
             <div class="bg-indigo-100 p-4 rounded-full text-indigo-600">
-                
                 <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
             </div>
         </div>
@@ -336,26 +335,28 @@
         }
 
         function checkAuthentication() {
+            // URLパラメータ ?pw=dashboard8 または ハッシュ #dashboard8 をチェック
             const urlParams = new URLSearchParams(window.location.search);
             const pwParam = urlParams.get('pw');
             const pwHash = window.location.hash.substring(1);
 
+            // 💡 セッション保持(sessionStorage)を廃止。リロード時は常にここを通る。
             if (pwParam === CORRECT_PASSWORD || pwHash === CORRECT_PASSWORD) {
+                // アドレスバーからパスワードを削除 (履歴を置き換え)
+                // これによりリロード時はURLにパスワードが含まれなくなるため、再度入力を求める挙動になる
                 const cleanUrl = window.location.origin + window.location.pathname;
                 window.history.replaceState(null, document.title, cleanUrl);
                 showDashboard();
                 return;
             }
-
-            if (sessionStorage.getItem('site_authenticated') === 'true') {
-                showDashboard();
-            }
+            
+            // パスワードなしでリロードされた場合は、自動的に認証画面が表示されたままになる
         }
 
         authForm.onsubmit = (e) => {
             e.preventDefault();
             if (passwordInput.value === CORRECT_PASSWORD) {
-                sessionStorage.setItem('site_authenticated', 'true');
+                // 💡 sessionStorageへの保存を削除
                 showDashboard();
             } else {
                 authError.classList.remove('hidden');
@@ -370,6 +371,9 @@
             initImport();
         }
 
+        /**
+         * 日付オブジェクトをUIに反映
+         */
         function updateStatusDisplay(elementId, date) {
             const el = document.getElementById(elementId);
             if (!el || !date || isNaN(date.getTime())) return;
@@ -473,8 +477,6 @@
                 const data = snap.data();
                 const videos = data.videos || [];
                 if (videos.length === 0) return null;
-                
-                // 動画の「表示可能になった日時」(fetchedAt)の最大値を取得
                 const latestDisplayTime = Math.max(...videos.map(v => v.fetchedAt || v.pubDate || 0));
                 return latestDisplayTime > 0 ? new Date(latestDisplayTime) : null;
             };
