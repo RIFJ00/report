@@ -375,15 +375,22 @@
             if (!dateEl) return;
             
             if (videos && videos.length > 0) {
-                const latestDate = new Date(Math.max(...videos.map(v => v.pubDate.getTime())));
-                const shortDate = latestDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
+                // videos.updatedAt (Firebaseに実際に保存された日時) を優先して使用する
+                let updatedDate;
+                if (videos.updatedAt) {
+                    updatedDate = new Date(videos.updatedAt);
+                } else {
+                    updatedDate = new Date(Math.max(...videos.map(v => v.pubDate.getTime())));
+                }
+                
+                const shortDate = updatedDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
                 
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const yesterday = new Date(today);
                 yesterday.setDate(yesterday.getDate() - 1);
                 
-                const target = new Date(latestDate);
+                const target = new Date(updatedDate);
                 target.setHours(0, 0, 0, 0);
                 
                 let colorClass = 'text-gray-500';
@@ -490,7 +497,8 @@
             const infoEl = document.getElementById('playlistInfo');
             let latestDateStr = "";
             if (videoList.length > 0) {
-                const shortDate = videoList[0].pubDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const updatedDate = videoList.updatedAt ? new Date(videoList.updatedAt) : videoList[0].pubDate;
+                const shortDate = updatedDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 latestDateStr = ` (更新日: ${shortDate})`;
             }
 
@@ -684,10 +692,13 @@
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    return data.videos.map(v => ({
+                    const videos = data.videos.map(v => ({
                         ...v,
                         pubDate: new Date(v.pubDate)
                     }));
+                    // 保存されている更新日時を配列のプロパティとして引き継ぐ
+                    videos.updatedAt = data.updatedAt;
+                    return videos;
                 }
             } catch (e) {
                 console.error("Firebaseからの読み込みエラー:", e);
@@ -695,7 +706,7 @@
             return null;
         }
 
-        async function saveToFirebase(playlistId, videos) {
+        async function saveToFirebase(playlistId, videos, updatedAt = Date.now()) {
             if (!user) return;
             try {
                 const docRef = doc(db, 'artifacts', envAppId, 'public', 'data', 'playlists', playlistId);
@@ -707,7 +718,7 @@
                     pubDate: v.pubDate.getTime(),
                     isEstimated: !!v.isEstimated
                 }));
-                await setDoc(docRef, { videos: dataToSave, updatedAt: Date.now() });
+                await setDoc(docRef, { videos: dataToSave, updatedAt: updatedAt });
                 console.log(`動画リスト(${videos.length}件)をFirebaseに保存しました。`);
             } catch (e) {
                 console.error("Firebaseへの保存エラー:", e);
@@ -790,6 +801,8 @@
                     }
 
                     if (newVideos && newVideos.length > 0) {
+                        let isRealChange = overwriteFirebase;
+                        
                         if (!overwriteFirebase && existingVideos && existingVideos.length > 0) {
                             const videoMap = new Map();
                             existingVideos.forEach(v => videoMap.set(v.id, v));
@@ -797,12 +810,32 @@
                             
                             videos = Array.from(videoMap.values());
                             videos.sort((a, b) => b.pubDate - a.pubDate);
+                            
+                            // 既存のリストから本当に動画が追加/変更されたか判定する
+                            if (existingVideos.length !== videos.length) {
+                                isRealChange = true;
+                            } else {
+                                for (let i = 0; i < videos.length; i++) {
+                                    if (videos[i].id !== existingVideos[i].id) {
+                                        isRealChange = true;
+                                        break;
+                                    }
+                                }
+                            }
                         } else {
                             videos = newVideos;
+                            isRealChange = true;
                         }
                         
-                        await saveToFirebase(playlistId, videos);
-                        if (overwriteFirebase) showToast("データを現在のYouTubeの状態で完全に上書き同期しました。");
+                        // 変更があった場合は現在時刻を、無かった場合は既存の更新日時を維持する
+                        const finalUpdatedAt = isRealChange ? Date.now() : (existingVideos && existingVideos.updatedAt ? existingVideos.updatedAt : Date.now());
+                        videos.updatedAt = finalUpdatedAt;
+                        
+                        // 実質的な変更があった場合のみデータベースに上書き保存する
+                        if (isRealChange) {
+                            await saveToFirebase(playlistId, videos, finalUpdatedAt);
+                            if (overwriteFirebase) showToast("データを現在のYouTubeの状態で完全に上書き同期しました。");
+                        }
                     } else if (!videos) {
                         videos = existingVideos; 
                     }
