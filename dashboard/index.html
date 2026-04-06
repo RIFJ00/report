@@ -475,9 +475,16 @@
             const getLatestActualDisplayDate = (snap) => {
                 if (!snap.exists()) return null;
                 const data = snap.data();
+                
+                // システム側で「リストに差分があった時のみ」記録される更新日時を優先
+                if (data.lastModified) return toDateSafely(data.lastModified);
+                if (data.updatedAt) return toDateSafely(data.updatedAt);
+
                 const videos = data.videos || [];
                 if (videos.length === 0) return null;
-                const latestDisplayTime = Math.max(...videos.map(v => v.fetchedAt || v.pubDate || 0));
+                
+                // fetchedAt（巡回しただけの日時）を除外し、動画自体の追加日や公開日の最新を取得
+                const latestDisplayTime = Math.max(...videos.map(v => v.addedAt || v.pubDate || 0));
                 return latestDisplayTime > 0 ? new Date(latestDisplayTime) : null;
             };
 
