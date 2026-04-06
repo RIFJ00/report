@@ -3,966 +3,989 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>政策関連及び会議情報一覧（政策リサーチ）</title>
+    <title>政策リサーチ | 政府情報を先取りし、みらいをデザイン！</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- SheetJS for Excel parsing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a',
+                        },
+                        secondary: '#f97316'
+                    },
+                    fontFamily: {
+                        sans: ['"Noto Sans JP"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        .tab-btn.active {
-            background-color: #4f46e5; /* indigo-600 */
-            color: white;
-        }
-        .tab-btn {
-            transition: all 0.2s ease-in-out;
-        }
-        .sort-btn.active {
-            background-color: #e0e7ff; /* indigo-200 */
-            color: #3730a3; /* indigo-800 */
-            border-color: #a5b4fc; /* indigo-300 */
-        }
-        /* Style for the currently playing audio button */
-        .play-btn.playing {
-            background-color: #f59e0b; /* amber-500 */
-            animation: pulse 1.2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
-            70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-        }
-        /* Style for delete confirmation */
-        .delete-btn.delete-confirm {
-            background-color: #f97316; /* orange-500 */
-            transform: scale(1.1);
-        }
-        .delete-btn {
-            transition: all 0.2s ease-in-out;
-        }
-        /* Bookmark button styles */
-        .bookmark-btn {
-            color: #d1d5db; /* gray-300 */
-            transition: all 0.2s ease-in-out;
-        }
-        .bookmark-btn.bookmarked {
-            color: #f59e0b; /* amber-500 */
-        }
-        .bookmark-btn:hover {
-            transform: scale(1.2);
-        }
-
-        /* Pagination styles */
-        .page-btn.active {
-            z-index: 10;
-            background-color: #4f46e5;
-            color: white;
-            border-color: #4f46e5;
-        }
-        /* Custom modal for alerts */
-        .custom-modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
+        
+        /* * 注意: scroll-behavior: smooth はプレビュー環境での挙動を防ぐため外しています。
+         * 代わりにJavaScriptで確実なスクロール制御を行っています。
+         */
+        
+        .fade-up {
             opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s, visibility 0.3s;
+            transform: translateY(20px);
+            transition: opacity 0.8s ease-out, transform 0.8s ease-out;
         }
-        .custom-modal-overlay.visible {
+        /* JSでこのクラスが付与されると表示される */
+        .fade-up.is-visible {
             opacity: 1;
-            visibility: visible;
+            transform: translateY(0);
         }
-        .custom-modal {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            max-width: 90%;
-            width: 500px;
-            transform: scale(0.95);
-            transition: transform 0.3s;
-        }
-        .custom-modal-overlay.visible .custom-modal {
-            transform: scale(1);
-        }
-        .dark .custom-modal {
-            background-color: #1f2937; /* gray-800 */
-        }
+        
+        .delay-100 { transition-delay: 100ms; }
+        .delay-200 { transition-delay: 200ms; }
+        .delay-300 { transition-delay: 300ms; }
     </style>
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+<body class="font-sans text-gray-800 bg-gray-50 antialiased overflow-x-hidden">
 
-    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-5xl">
-        <header class="mb-8 text-center">
-            <h1 class="text-3xl sm:text-4xl font-bold text-indigo-600 dark:text-indigo-400">政策関連及び会議情報一覧（政策リサーチ）</h1>
-            <p class="mt-2 text-gray-600 dark:text-gray-400">タイトル名に関連するWEBサイトやPDFデータ、音声解説にアクセス</p>
-            <div id="user-info" class="mt-4 text-sm text-gray-500"></div>
-        </header>
-
-        <!-- Tab Navigation -->
-        <div class="mb-6 border-b border-gray-200 dark:border-gray-700">
-            <nav class="flex flex-wrap -mb-px" aria-label="Tabs">
-                <button id="tab-register-btn" class="tab-btn active px-4 py-3 text-sm font-medium text-center rounded-t-lg">
-                    登録
-                </button>
-                <button id="tab-list-btn" class="tab-btn px-4 py-3 text-sm font-medium text-center rounded-t-lg">
-                    一覧
-                </button>
-                <button id="tab-list-readonly-btn" class="tab-btn px-4 py-3 text-sm font-medium text-center rounded-t-lg">
-                    政策レポート
-                </button>
-                <button id="tab-meetings-btn" class="tab-btn px-4 py-3 text-sm font-medium text-center rounded-t-lg">
-                    本日のポイント
-                </button>
-                <button id="tab-bookmarks-btn" class="tab-btn px-4 py-3 text-sm font-medium text-center rounded-t-lg">
-                    ブックマーク
-                </button>
-                 <button id="tab-edit-btn" class="tab-btn hidden px-4 py-3 text-sm font-medium text-center rounded-t-lg">
-                    修正
-                </button>
-            </nav>
-        </div>
-
-        <!-- Tab Content -->
-        <main>
-            <!-- Registration View -->
-            <div id="view-register">
-                <!-- Single Item Registration -->
-                <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                    <h2 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">新規データ登録</h2>
-                    <form id="register-form" class="space-y-6">
-                        <div>
-                            <label for="reg-date" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">日付</label>
-                            <input type="date" id="reg-date" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" required>
-                        </div>
-                        <div>
-                            <label for="reg-title" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">タイトル</label>
-                            <input type="text" id="reg-title" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="タイトルを入力" required>
-                        </div>
-                         <div>
-                            <label for="reg-meeting" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">会議名 (任意)</label>
-                            <input type="text" id="reg-meeting" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="会議名を入力">
-                        </div>
-                        <div>
-                            <label for="reg-url1" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">URL1 (音声)</label>
-                            <input type="url" id="reg-url1" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="https://example.com/audio.mp3">
-                        </div>
-                        <div>
-                            <label for="reg-url2" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">URL2 (参考)</label>
-                            <input type="url" id="reg-url2" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="https://example.com/reference">
-                        </div>
-                        <div>
-                            <label for="reg-remarks" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">備考/知識</label>
-                            <textarea id="reg-remarks" rows="4" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="備考または知識を記入..."></textarea>
-                        </div>
-                        <button type="submit" class="w-full text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:outline-none focus:ring-indigo-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:focus:ring-indigo-800">登録する</button>
-                    </form>
+    <!-- Header -->
+    <header class="fixed w-full bg-white/90 backdrop-blur-md shadow-sm z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-24"> <!-- ヘッダーの高さを少し広げました (h-20 -> h-24) -->
+                <a href="#" class="flex-shrink-0 flex items-center gap-3 transition hover:opacity-80">
+                    <!-- ロゴ画像に変更し、サイズを大きくしました (w-12 h-12) -->
+                    <img src="3 2.png" alt="政策リサーチ ロゴ" class="w-12 h-12 object-contain rounded-full shadow-sm bg-white">
+                    <span class="font-bold text-3xl tracking-tight text-gray-900">政策リサーチ</span>
+                </a>
+                <nav class="hidden md:flex space-x-8">
+                    <a href="#about" class="text-gray-600 hover:text-primary-600 font-medium transition">選ばれる理由</a>
+                    <a href="#features" class="text-gray-600 hover:text-primary-600 font-medium transition">主要機能</a>
+                    <a href="#usecases" class="text-gray-600 hover:text-primary-600 font-medium transition">活用事例</a>
+                    <a href="#pricing" class="text-gray-600 hover:text-primary-600 font-medium transition">料金プラン</a>
+                </nav>
+                <div class="hidden md:flex">
+                    <a href="#contact" class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-full font-bold shadow-lg shadow-primary-500/30 transition transform hover:-translate-y-0.5">
+                        10日間無料トライアル
+                    </a>
                 </div>
-                <!-- Bulk Registration -->
-                <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mt-8">
-                    <h2 class="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">Excelファイルで一括登録</h2>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        以下の形式のExcelファイル(.xlsx)をアップロードしてください。<br>
-                        - 1行目はヘッダー行として無視されます。<br>
-                        - A列:日付, B列:タイトル, C列:URL1(音声), D列:URL2(参考), E列:備考, **F列:会議名**
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="relative pt-36 pb-20 lg:pt-52 lg:pb-32 overflow-hidden bg-gradient-to-br from-primary-50 via-white to-primary-50">
+        <!-- 背景装飾 -->
+        <div class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-primary-100 blur-3xl opacity-50 pointer-events-none"></div>
+        <div class="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 rounded-full bg-blue-100 blur-3xl opacity-50 pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                <div class="fade-up">
+                    <!-- トップの「一般社団法人日本みらい研 開発」バッジを削除しました -->
+                    
+                    <h1 class="text-4xl lg:text-5xl lg:leading-tight font-black mb-6 text-gray-900">
+                        政府情報を先取りし、<br>
+                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-blue-400">みらいをデザイン！</span>
+                    </h1>
+                    <p class="text-lg text-gray-600 mb-8 leading-relaxed font-medium">
+                        国の方針は調べ方がわからない。国の情報は使い方がわからない。<br>
+                        「政策リサーチ」は、5,000を超える政府・省庁の会議資料や予算、統計データを網羅し、AIで瞬時に解析・要約する日本唯一の政策情報解析システムです。
                     </p>
-                    <div class="space-y-4">
-                        <input type="file" id="excel-file-input" accept=".xlsx, .xls" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
-                        <button id="bulk-register-btn" class="w-full text-white bg-teal-600 hover:bg-teal-700 focus:ring-4 focus:outline-none focus:ring-teal-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-teal-600 dark:hover:bg-teal-700 dark:focus:ring-teal-800 disabled:opacity-50">一括登録する</button>
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <a href="#contact" class="bg-primary-600 hover:bg-primary-700 text-white text-center px-8 py-4 rounded-full font-bold text-lg shadow-xl shadow-primary-500/30 transition transform hover:-translate-y-1 flex justify-center items-center gap-2">
+                            10日間無料トライアル <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                        </a>
+                        <a href="#about" class="bg-white hover:bg-gray-50 text-gray-700 text-center px-8 py-4 rounded-full font-bold text-lg border border-gray-200 shadow-sm transition">
+                            機能を見る
+                        </a>
                     </div>
-                    <div id="bulk-upload-status" class="mt-4 text-sm"></div>
+                </div>
+                
+                <!-- Hero Image Replacement: Dashboard Mockup -->
+                <div class="fade-up delay-200 relative">
+                    <div class="absolute inset-0 bg-gradient-to-tr from-primary-200 to-blue-100 rounded-2xl transform rotate-3 scale-105 -z-10 opacity-70"></div>
+                    <div class="bg-white p-4 rounded-2xl shadow-2xl border border-gray-100 relative overflow-hidden flex flex-col h-full">
+                        <!-- Mockup Header -->
+                        <div class="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+                            <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                            </div>
+                            <div class="bg-gray-100 rounded-md px-3 py-1 text-xs text-gray-500 flex items-center gap-2 w-1/2">
+                                <i data-lucide="search" class="w-3 h-3"></i> 政策情報を検索...
+                            </div>
+                        </div>
+                        <!-- Mockup Body -->
+                        <div class="grid grid-cols-3 gap-4">
+                            <!-- Left Col: Stats & Alerts -->
+                            <div class="col-span-1 flex flex-col gap-4">
+                                <div class="bg-primary-50 rounded-lg p-3 border border-primary-100">
+                                    <div class="text-xs text-primary-600 font-bold mb-1">自社マッチ度</div>
+                                    <div class="flex items-end gap-2">
+                                        <span class="text-2xl font-black text-gray-800">85<span class="text-sm">%</span></span>
+                                        <i data-lucide="trending-up" class="w-4 h-4 text-green-500 mb-1"></i>
+                                    </div>
+                                </div>
+                                <div class="bg-gray-50 rounded-lg p-3 border border-gray-100 flex-1">
+                                    <div class="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1"><i data-lucide="bell" class="w-3 h-3 text-secondary"></i> 新着アラート</div>
+                                    <div class="space-y-2">
+                                        <div class="w-full h-2 bg-gray-200 rounded-full"></div>
+                                        <div class="w-4/5 h-2 bg-gray-200 rounded-full"></div>
+                                        <div class="w-full h-2 bg-gray-200 rounded-full mt-4"></div>
+                                        <div class="w-3/4 h-2 bg-gray-200 rounded-full"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Right Col: Main Chart -->
+                            <div class="col-span-2 bg-white rounded-lg border border-gray-100 p-4 shadow-sm flex flex-col justify-between">
+                                <div class="flex justify-between items-center mb-4">
+                                    <div class="text-sm font-bold text-gray-700">関連予算の推移予測</div>
+                                    <div class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded font-bold">DX・GX分野</div>
+                                </div>
+                                <!-- Bar Chart Mockup -->
+                                <div class="flex items-end gap-2 h-32 mt-auto">
+                                    <div class="w-1/6 bg-blue-100 rounded-t-md h-1/4 relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs opacity-0 group-hover:opacity-100">R3</div></div>
+                                    <div class="w-1/6 bg-blue-200 rounded-t-md h-2/4 relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs opacity-0 group-hover:opacity-100">R4</div></div>
+                                    <div class="w-1/6 bg-primary-300 rounded-t-md h-3/4 relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs opacity-0 group-hover:opacity-100">R5</div></div>
+                                    <div class="w-1/6 bg-primary-500 rounded-t-md h-[90%] relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold opacity-0 group-hover:opacity-100">R6</div></div>
+                                    <div class="w-1/6 bg-secondary rounded-t-md h-full relative group"><div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold text-secondary opacity-0 group-hover:opacity-100">要求</div></div>
+                                </div>
+                                <div class="flex justify-between mt-2 border-t border-gray-100 pt-2">
+                                    <div class="w-1/4 h-1.5 bg-gray-200 rounded"></div>
+                                    <div class="w-1/4 h-1.5 bg-gray-200 rounded"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-
-            <!-- List View (Editable) -->
-            <div id="view-list" class="hidden">
-                 <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                     <h2 id="list-title-editable" class="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">登録データ一覧（編集可）</h2>
-                     <div id="controls-editable" class="controls-panel"></div>
-                     <div id="item-list-editable" class="space-y-4 mt-6"></div>
-                     <div id="pagination-editable" class="mt-6"></div>
-                 </div>
-            </div>
-            
-            <!-- List View (Read-Only) -->
-            <div id="view-list-readonly" class="hidden">
-                 <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                     <h2 id="list-title-readonly" class="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">政策レポート</h2>
-                     <div id="controls-readonly" class="controls-panel"></div>
-                     <div id="item-list-readonly" class="space-y-4 mt-6"></div>
-                     <div id="pagination-readonly" class="mt-6"></div>
-                 </div>
-            </div>
-
-            <!-- List View (Meetings) -->
-            <div id="view-meetings" class="hidden">
-                 <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                     <h2 id="list-title-meetings" class="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">本日のポイント</h2>
-                     <div id="controls-meetings" class="controls-panel"></div>
-                     <div id="item-list-meetings" class="space-y-4 mt-6"></div>
-                     <div id="pagination-meetings" class="mt-6"></div>
-                 </div>
-            </div>
-
-            <!-- List View (Bookmarks) -->
-            <div id="view-bookmarks" class="hidden">
-                 <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                     <h2 id="list-title-bookmarks" class="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">ブックマーク一覧</h2>
-                     <div id="controls-bookmarks" class="controls-panel"></div>
-                     <div id="item-list-bookmarks" class="space-y-4 mt-6"></div>
-                     <div id="pagination-bookmarks" class="mt-6"></div>
-                 </div>
-            </div>
-
-            <!-- Edit View -->
-            <div id="view-edit" class="hidden">
-                <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                    <h2 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">データ修正</h2>
-                    <form id="edit-form" class="space-y-6">
-                        <input type="hidden" id="edit-doc-id">
-                        <div>
-                            <label for="edit-date" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">日付</label>
-                            <input type="date" id="edit-date" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" required>
-                        </div>
-                        <div>
-                            <label for="edit-title" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">タイトル</label>
-                            <input type="text" id="edit-title" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" required>
-                        </div>
-                        <div>
-                            <label for="edit-meeting" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">会議名 (任意)</label>
-                            <input type="text" id="edit-meeting" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
-                        </div>
-                        <div>
-                            <label for="edit-url1" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">URL1 (音声)</label>
-                            <input type="url" id="edit-url1" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
-                        </div>
-                        <div>
-                            <label for="edit-url2" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">URL2 (参考)</label>
-                            <input type="url" id="edit-url2" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
-                        </div>
-                        <div>
-                            <label for="edit-remarks" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">備考/知識</label>
-                            <textarea id="edit-remarks" rows="4" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"></textarea>
-                        </div>
-                        <button type="submit" class="w-full text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800">更新する</button>
-                    </form>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <!-- Custom Modal -->
-    <div id="custom-modal-overlay" class="custom-modal-overlay">
-        <div class="custom-modal">
-            <p id="custom-modal-text" class="mb-4 text-center"></p>
-            <button id="custom-modal-close" class="w-full text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:outline-none focus:ring-indigo-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:focus:ring-indigo-800">閉じる</button>
         </div>
-    </div>
+    </section>
 
-
-    <script type="module">
-        // Firebase imports
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, getDoc, updateDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // --- DO NOT EDIT ---
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'data-management-app';
-        // --- END DO NOT EDIT ---
-        
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-
-        let userId = null;
-        let itemsCollectionRef = null;
-        let unsubscribe = null;
-        let currentAudio = null;
-        let allItems = [];
-        let itemPendingDeletion = null; // State for delete confirmation
-        
-        // State Management
-        let searchTerm = '';
-        let sortConfig = { key: 'date', direction: 'desc' };
-        let pagination = { 
-            editable: { currentPage: 1 }, 
-            readonly: { currentPage: 1 }, 
-            meetings: {currentPage: 1},
-            bookmarks: {currentPage: 1}
-        };
-        const ITEMS_PER_PAGE = 50;
-
-        // DOM Elements
-        const tabRegisterBtn = document.getElementById('tab-register-btn');
-        const tabListBtn = document.getElementById('tab-list-btn');
-        const tabListReadonlyBtn = document.getElementById('tab-list-readonly-btn');
-        const tabMeetingsBtn = document.getElementById('tab-meetings-btn');
-        const tabBookmarksBtn = document.getElementById('tab-bookmarks-btn');
-        const tabEditBtn = document.getElementById('tab-edit-btn');
-        const viewRegister = document.getElementById('view-register');
-        const viewList = document.getElementById('view-list');
-        const viewListReadonly = document.getElementById('view-list-readonly');
-        const viewMeetings = document.getElementById('view-meetings');
-        const viewBookmarks = document.getElementById('view-bookmarks');
-        const viewEdit = document.getElementById('view-edit');
-        const registerForm = document.getElementById('register-form');
-        const editForm = document.getElementById('edit-form');
-        const itemListEditableContainer = document.getElementById('item-list-editable');
-        const itemListReadonlyContainer = document.getElementById('item-list-readonly');
-        const itemListMeetingsContainer = document.getElementById('item-list-meetings');
-        const itemListBookmarksContainer = document.getElementById('item-list-bookmarks');
-        const userInfoDiv = document.getElementById('user-info');
-        const excelFileInput = document.getElementById('excel-file-input');
-        const bulkRegisterBtn = document.getElementById('bulk-register-btn');
-        const bulkUploadStatus = document.getElementById('bulk-upload-status');
-        const controlsEditableContainer = document.getElementById('controls-editable');
-        const controlsReadonlyContainer = document.getElementById('controls-readonly');
-        const controlsMeetingsContainer = document.getElementById('controls-meetings');
-        const controlsBookmarksContainer = document.getElementById('controls-bookmarks');
-        const modalOverlay = document.getElementById('custom-modal-overlay');
-        const modalText = document.getElementById('custom-modal-text');
-        const modalCloseBtn = document.getElementById('custom-modal-close');
-
-        // --- Custom Alert ---
-        function customAlert(message) {
-            modalText.textContent = message;
-            modalOverlay.classList.add('visible');
-        }
-        modalCloseBtn.addEventListener('click', () => modalOverlay.classList.remove('visible'));
-        modalOverlay.addEventListener('click', (e) => {
-            if (e.target === modalOverlay) {
-                modalOverlay.classList.remove('visible');
-            }
-        });
-
-        // --- Authentication ---
-        onAuthStateChanged(auth, user => {
-            if (user) {
-                userId = user.uid;
-                userInfoDiv.style.display = 'none';
-                itemsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/items`);
-                listenForItems();
-            } else {
-                userId = null;
-                allItems = [];
-                userInfoDiv.textContent = '認証待機中...';
-                userInfoDiv.style.display = 'block';
-                if (unsubscribe) unsubscribe();
-                renderAllLists([], [], [], []);
-            }
-        });
-
-        (async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Authentication failed: ", error);
-                userInfoDiv.textContent = '認証に失敗しました。';
-            }
-        })();
-
-        // --- UI Initialization and Event Listeners ---
-        function createControlsHTML(idPrefix) {
-            return `
-                <div class="p-4 bg-gray-100 dark:bg-gray-900/50 rounded-lg">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                        <div>
-                            <label for="search-input-${idPrefix}" class="block text-sm font-medium text-gray-700 dark:text-gray-300">キーワード検索 (タイトル, 備考, PDF, WEB)</label>
-                            <div class="mt-1 flex rounded-md shadow-sm">
-                                <input type="text" id="search-input-${idPrefix}" class="search-input flex-1 block w-full rounded-none rounded-l-md sm:text-sm border-gray-300 dark:bg-gray-700 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500" placeholder="検索キーワード...">
-                                <button type="button" class="search-clear-btn -ml-px relative inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 dark:border-gray-600">解除</button>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">並び替え</label>
-                            <div class="mt-1 flex items-center space-x-2">
-                                <button type="button" class="sort-btn px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500" data-sort-key="date">日付順 <span class="sort-indicator"></span></button>
-                                <button type="button" class="sort-btn px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500" data-sort-key="title">タイトル順 <span class="sort-indicator"></span></button>
-                                <button type="button" class="sort-reset-btn px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200">リセット</button>
-                            </div>
-                        </div>
+    <!-- Problem Section -->
+    <section class="py-24 bg-gray-900 text-white relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="text-center max-w-3xl mx-auto mb-16 fade-up">
+                <h2 class="text-3xl md:text-4xl font-bold mb-6 leading-tight">情報不足による「見えない機会損失」に<br>気づいていますか？</h2>
+                <p class="text-gray-300 text-lg">
+                    大手企業において、政策情報の見落としは単なる「情報不足」ではなく、「経営判断の遅れ」として数十億〜数百億円単位の機会損失につながります。
+                </p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-gray-800/80 backdrop-blur p-8 rounded-2xl border border-gray-700 hover:border-red-500/50 transition-colors fade-up delay-100 group">
+                    <div class="w-14 h-14 bg-red-500/10 text-red-400 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <i data-lucide="trending-down" class="w-7 h-7"></i>
                     </div>
-                </div>`;
-        }
-        controlsEditableContainer.innerHTML = createControlsHTML('editable');
-        controlsReadonlyContainer.innerHTML = createControlsHTML('readonly');
-        controlsMeetingsContainer.innerHTML = createControlsHTML('meetings');
-        controlsBookmarksContainer.innerHTML = createControlsHTML('bookmarks');
-
-        function setupControlListeners(panelId) {
-            const panel = document.getElementById(panelId);
-            panel.querySelector('.search-input').addEventListener('input', (e) => {
-                searchTerm = e.target.value;
-                document.querySelectorAll('.search-input').forEach(el => el.value = searchTerm);
-                Object.keys(pagination).forEach(key => pagination[key].currentPage = 1);
-                updateAndRender();
-            });
-            panel.querySelector('.search-clear-btn').addEventListener('click', () => {
-                searchTerm = '';
-                document.querySelectorAll('.search-input').forEach(el => el.value = '');
-                updateAndRender();
-            });
-            panel.querySelectorAll('.sort-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const key = e.currentTarget.dataset.sortKey;
-                    if (sortConfig.key === key) {
-                        sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
-                    } else {
-                        sortConfig.key = key;
-                        sortConfig.direction = key === 'date' ? 'desc' : 'asc';
-                    }
-                    Object.keys(pagination).forEach(key => pagination[key].currentPage = 1);
-                    updateAndRender();
-                });
-            });
-            panel.querySelector('.sort-reset-btn').addEventListener('click', () => {
-                sortConfig = { key: 'date', direction: 'desc' };
-                updateAndRender();
-            });
-        }
-        setupControlListeners('controls-editable');
-        setupControlListeners('controls-readonly');
-        setupControlListeners('controls-meetings');
-        setupControlListeners('controls-bookmarks');
-
-        // --- Tab Management ---
-        function switchTab(activeView, activeBtn) {
-            [viewRegister, viewList, viewListReadonly, viewMeetings, viewBookmarks, viewEdit].forEach(view => view.classList.add('hidden'));
-            [tabRegisterBtn, tabListBtn, tabListReadonlyBtn, tabMeetingsBtn, tabBookmarksBtn, tabEditBtn].forEach(btn => btn.classList.remove('active'));
-            
-            activeView.classList.remove('hidden');
-            activeBtn.classList.add('active');
-            tabEditBtn.classList.toggle('hidden', activeView !== viewEdit);
-            if(activeView !== viewRegister && activeView !== viewEdit) updateAndRender();
-        }
-        tabRegisterBtn.addEventListener('click', () => switchTab(viewRegister, tabRegisterBtn));
-        tabListBtn.addEventListener('click', () => switchTab(viewList, tabListBtn));
-        tabListReadonlyBtn.addEventListener('click', () => switchTab(viewListReadonly, tabListReadonlyBtn));
-        tabMeetingsBtn.addEventListener('click', () => switchTab(viewMeetings, tabMeetingsBtn));
-        tabBookmarksBtn.addEventListener('click', () => switchTab(viewBookmarks, tabBookmarksBtn));
-        
-        // --- Data Fetching and Rendering ---
-        function listenForItems() {
-            if (unsubscribe) unsubscribe();
-            if (!itemsCollectionRef) return;
-            unsubscribe = onSnapshot(itemsCollectionRef, (querySnapshot) => {
-                allItems = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                updateAndRender();
-            }, (error) => {
-                console.error("Error fetching items: ", error);
-                renderAllLists([], [], [], []);
-            });
-        }
-        
-        function updateAndRender() {
-            let processedItems = [...allItems];
-            if (searchTerm) {
-                const lowerCaseSearchTerm = searchTerm.toLowerCase();
-                processedItems = processedItems.filter(item => {
-                    const titleMatch = item.title.toLowerCase().includes(lowerCaseSearchTerm);
-                    const remarksMatch = (item.remarks || '').toLowerCase().includes(lowerCaseSearchTerm) || (item.meeting || '').toLowerCase().includes(lowerCaseSearchTerm);
-                    let typeMatch = false;
-                    const hasLink = item.url2 && item.url2.trim() !== '';
-                    if (hasLink) {
-                        const isPdf = item.url2.toLowerCase().includes('.pdf');
-                        if (isPdf && 'pdf'.includes(lowerCaseSearchTerm)) typeMatch = true;
-                        else if (!isPdf && 'web'.includes(lowerCaseSearchTerm)) typeMatch = true;
-                    }
-                    return titleMatch || remarksMatch || typeMatch;
-                });
-            }
-            
-            processedItems.sort((a, b) => {
-                const key = sortConfig.key;
-                const direction = sortConfig.direction === 'asc' ? 1 : -1;
-                
-                let valA = a[key] || '';
-                let valB = b[key] || '';
-
-                if (key === 'date') {
-                    const dateA = new Date(valA).getTime() || 0;
-                    const dateB = new Date(valB).getTime() || 0;
-                    return (dateB - dateA) * (sortConfig.direction === 'desc' ? 1 : -1);
-                }
-                
-                return valA.localeCompare(valB, 'ja') * direction;
-            });
-
-
-            const allMeetingItems = processedItems.filter(item => item.meeting);
-            const allRegularItems = processedItems.filter(item => !item.meeting);
-            const allBookmarkedItems = processedItems.filter(item => item.bookmarked);
-            
-            const totalMeetings = allItems.filter(item => item.meeting).length;
-            const totalRegular = allItems.length - totalMeetings;
-            const totalBookmarks = allItems.filter(item => item.bookmarked).length;
-
-            document.getElementById('list-title-editable').textContent = `登録データ一覧（編集可） (全${allItems.length}件中 ${processedItems.length}件表示)`;
-            document.getElementById('list-title-readonly').textContent = `政策レポート (全${totalRegular}件中 ${allRegularItems.length}件表示)`;
-            document.getElementById('list-title-meetings').textContent = `本日のポイント (全${totalMeetings}件中 ${allMeetingItems.length}件表示)`;
-            document.getElementById('list-title-bookmarks').textContent = `ブックマーク (全${totalBookmarks}件中 ${allBookmarkedItems.length}件表示)`;
-
-            renderAllLists(processedItems, allRegularItems, allMeetingItems, allBookmarkedItems);
-            updateSortIndicators();
-        }
-
-        function renderAllLists(editable, readonly, meetings, bookmarks) {
-            renderPaginatedList('editable', editable || []);
-            renderPaginatedList('readonly', readonly || []);
-            renderPaginatedList('meetings', meetings || []);
-            renderPaginatedList('bookmarks', bookmarks || []);
-        }
-
-        function renderPaginatedList(type, items) {
-            const containerId = `item-list-${type}`;
-            const paginationId = `pagination-${type}`;
-            const container = document.getElementById(containerId);
-            const paginationContainer = document.getElementById(paginationId);
-            const currentPage = pagination[type].currentPage;
-            
-            container.innerHTML = '';
-            paginationContainer.innerHTML = '';
-
-            if (items.length === 0) {
-                container.innerHTML = '<p class="text-gray-500 dark:text-gray-400">データがありません。</p>';
-                return;
-            }
-
-            const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
-            if (currentPage > totalPages) pagination[type].currentPage = totalPages > 0 ? totalPages : 1;
-            
-            const start = (pagination[type].currentPage - 1) * ITEMS_PER_PAGE;
-            const end = start + ITEMS_PER_PAGE;
-            const pageItems = items.slice(start, end);
-            
-            pageItems.forEach(item => container.appendChild(createItemElement(item, type === 'readonly' || type === 'bookmarks' || type === 'meetings')));
-            renderPagination(paginationContainer, totalPages, pagination[type].currentPage, type);
-        }
-
-        function renderPagination(container, totalPages, currentPage, type) {
-            if (totalPages <= 1) return;
-            let paginationHTML = `
-                <nav class="flex items-center justify-between border-t border-gray-200 dark:border-gray-600 px-4 sm:px-0">
-                    <div class="-mt-px w-0 flex-1 flex">
-                        ${currentPage > 1 ? `<a href="#" class="page-link pt-4 pr-1 inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200" data-page="${currentPage - 1}" data-type="${type}">← 前へ</a>` : ''}
-                    </div>
-                    <div class="hidden md:-mt-px md:flex">
-                        <span class="pt-4 px-4 inline-flex items-center text-sm font-medium text-gray-500 dark:text-gray-400">
-                          ${totalPages}ページ中 ${currentPage}ページ目
-                        </span>
-                    </div>
-                    <div class="-mt-px w-0 flex-1 flex justify-end">
-                        ${currentPage < totalPages ? `<a href="#" class="page-link pt-4 pl-1 inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200" data-page="${currentPage + 1}" data-type="${type}">次へ →</a>` : ''}
-                    </div>
-                </nav>`;
-            container.innerHTML = paginationHTML;
-        }
-
-        function getDateDifferenceInDays(dateString) {
-            if (!dateString) return -1;
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            const parts = dateString.split('-');
-            if (parts.length !== 3) return -1;
-            const itemDate = new Date(parts[0], parts[1] - 1, parts[2]);
-            itemDate.setHours(0, 0, 0, 0);
-
-            if (isNaN(itemDate.getTime())) return -1;
-
-            const diffTime = today.getTime() - itemDate.getTime();
-            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-            return diffDays;
-        }
-
-        function createItemElement(item, isReadOnly) {
-            const itemEl = document.createElement('div');
-            itemEl.className = 'item-element bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg border border-gray-200 dark:border-gray-600 flex flex-col sm:flex-row items-center justify-between gap-4';
-            itemEl.dataset.itemId = item.id;
-
-            const hasLink = item.url2 && item.url2.trim() !== '';
-            const titleElement = hasLink 
-                ? `<a href="${item.url2}" target="_blank" rel="noopener noreferrer" class="text-lg font-bold text-indigo-500 hover:text-indigo-700 hover:underline dark:hover:text-indigo-300">${item.title}</a>` 
-                : `<span class="text-lg font-bold text-gray-700 dark:text-gray-300">${item.title}</span>`;
-            
-            let remarksHTML = '';
-             if (item.meeting) {
-                 remarksHTML = `<p class="text-sm text-gray-600 dark:text-gray-300 mt-1"><strong class="text-purple-600 dark:text-purple-400">会議:</strong> ${item.meeting} - ${item.remarks || ''}</p>`;
-            } else if (item.remarks) {
-                let label = `<strong>備考:</strong>`;
-                if (hasLink) {
-                    label = item.url2.toLowerCase().includes('.pdf') ? `<strong class="text-orange-600 dark:text-orange-400">PDF:</strong>` : `<strong class="text-green-600 dark:text-green-400">WEB:</strong>`;
-                }
-                remarksHTML = `<p class="text-sm text-gray-600 dark:text-gray-300 mt-1">${label} ${item.remarks}</p>`;
-            }
-            
-            const hasAudio = item.url1 && item.url1.trim() !== '';
-            const playButtonHTML = `<button data-id="${item.id}" data-url="${item.url1 || ''}" class="play-btn p-2 rounded-full ${hasAudio ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-400 text-white cursor-not-allowed'}" ${hasAudio ? '' : 'disabled'}><svg class="pointer-events-none" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg></button>`;
-            
-            const isPendingDelete = item.id === itemPendingDeletion;
-            const deleteBtnClasses = `delete-btn p-2 rounded-full bg-red-500 text-white hover:bg-red-600 ${isPendingDelete ? 'delete-confirm' : ''}`;
-            const bookmarkBtnClasses = `bookmark-btn p-2 rounded-full ${item.bookmarked ? 'bookmarked' : ''}`;
-            const bookmarkIcon = item.bookmarked 
-                ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="pointer-events-none" viewBox="0 0 16 16"><path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"/></svg>`
-                : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="pointer-events-none" viewBox="0 0 16 16"><path d="M2.866 14.85c-.078.444.36.791.746.593l4.39-2.256 4.389 2.256c.386.198.824-.149.746-.592l-.83-4.73 3.522-3.356c.33-.314.16-.888-.282-.95l-4.898-.696L8.465.792a.513.513 0 0 0-.927 0L5.354 5.12l-4.898.696c-.441.062-.612.636-.283.95l3.523 3.356-.83 4.73zm4.905-2.767-3.686 1.894.694-3.957a.565.565 0 0 0-.163-.505L1.71 6.745l4.052-.576a.525.525 0 0 0 .393-.288L8 2.223l1.847 3.658a.525.525 0 0 0 .393.288l4.052.575-2.906 2.77a.565.565 0 0 0-.163.506l.694 3.957-3.686-1.894a.503.503 0 0 0-.461 0z"/></svg>`;
-
-            const editButtonsHTML = isReadOnly ? '' : `
-                <button data-id="${item.id}" class="edit-btn p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600"><svg class="pointer-events-none" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/><path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/></svg></button>
-                <button data-id="${item.id}" class="${deleteBtnClasses}"><svg class="pointer-events-none" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg></button>
-            `;
-            
-            const dateDiff = getDateDifferenceInDays(item.date);
-            let dateClasses = 'text-gray-500 dark:text-gray-400'; // Default
-            if (dateDiff === 0) {
-                dateClasses = 'font-bold text-red-600 dark:text-red-400'; // Today
-            } else if (dateDiff === 1) {
-                dateClasses = 'text-red-500 dark:text-red-500'; // Yesterday
-            } else if (dateDiff === 2) {
-                dateClasses = 'text-red-400 dark:text-red-600'; // Day before yesterday
-            }
-
-            itemEl.innerHTML = `
-                <div class="flex-grow pr-4">
-                    ${titleElement}
-                    ${remarksHTML}
+                    <h3 class="text-xl font-bold mb-3">市場予測の遅れ</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">法案・制度が始まってから参入し、先行企業にシェアを奪われ、価格競争に巻き込まれる。</p>
                 </div>
-                <div class="flex-shrink-0 flex items-center space-x-4">
-                    <div class="flex items-center space-x-2">
-                        <button data-id="${item.id}" class="${bookmarkBtnClasses}">
-                            ${bookmarkIcon}
-                        </button>
-                        ${playButtonHTML}
-                        ${editButtonsHTML}
+                <div class="bg-gray-800/80 backdrop-blur p-8 rounded-2xl border border-gray-700 hover:border-red-500/50 transition-colors fade-up delay-200 group">
+                    <div class="w-14 h-14 bg-red-500/10 text-red-400 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <i data-lucide="coins" class="w-7 h-7"></i>
                     </div>
-                    <span class="text-sm ${dateClasses} whitespace-nowrap">${item.date}</span>
-                </div>`;
-            return itemEl;
-        }
+                    <h3 class="text-xl font-bold mb-3">補助金・支援の逃し</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">公募や使える補助金を知らずに全額自己負担。投資回収期間が長引き、競合に遅れをとる。</p>
+                </div>
+                <div class="bg-gray-800/80 backdrop-blur p-8 rounded-2xl border border-gray-700 hover:border-red-500/50 transition-colors fade-up delay-300 group">
+                    <div class="w-14 h-14 bg-red-500/10 text-red-400 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <i data-lucide="alert-triangle" class="w-7 h-7"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">コンプライアンス事故</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">法令やガイドラインの改正を見落とし、商品回収やシステム改修の突発対応に追われる。</p>
+                </div>
+                <div class="bg-gray-800/80 backdrop-blur p-8 rounded-2xl border border-gray-700 hover:border-red-500/50 transition-colors fade-up delay-300 group">
+                    <div class="w-14 h-14 bg-red-500/10 text-red-400 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <i data-lucide="map-pin-off" class="w-7 h-7"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">勘に頼った立地・採用</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">競争過密地への出店や、相場に合わない賃金設定により、採用失敗や不採算店舗を生む。</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
-        function updateSortIndicators() {
-            document.querySelectorAll('.sort-btn').forEach(btn => {
-                const key = btn.dataset.sortKey;
-                const indicator = btn.querySelector('.sort-indicator');
-                btn.classList.toggle('active', sortConfig.key === key);
-                if(sortConfig.key === key) {
-                     indicator.textContent = sortConfig.direction === 'asc' ? '▲' : '▼';
+    <!-- Core Value Section -->
+    <section id="about" class="py-24 bg-white relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-16 fade-up">
+                <span class="text-primary-600 font-bold tracking-wider uppercase text-sm bg-primary-50 px-3 py-1 rounded-full">Core Value</span>
+                <h2 class="text-3xl md:text-4xl font-bold mt-4 mb-6">政府情報を「経営インフラ」へ変える</h2>
+                <p class="text-gray-600 text-lg leading-relaxed">
+                    政策リサーチは、政府がどこに予算を付けるかを先に知り、制度変更の前触れを読み解くことで、<b class="text-gray-900 border-b-2 border-primary-300">「利益率改善・投資効率改善・失敗率低下」</b>を実現する画期的なビジネスツールです。
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+                <div class="text-center fade-up relative">
+                    <div class="w-24 h-24 mx-auto bg-gradient-to-br from-primary-100 to-blue-50 text-primary-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm transform rotate-3">
+                        <i data-lucide="search" class="w-12 h-12 -rotate-3"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">圧倒的な網羅性と検索力</h3>
+                    <p class="text-gray-600 text-sm text-left leading-relaxed">過去3年分、5,000を超える会議体の資料、予算、法案、統計、公募情報などを網羅。特許取得の技術により、全文検索や詳細な分野検索を可能にし、必要な情報を瞬時に引き出します。</p>
+                </div>
+                <div class="text-center fade-up delay-100">
+                    <div class="w-24 h-24 mx-auto bg-gradient-to-br from-primary-100 to-blue-50 text-primary-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm -rotate-3">
+                        <i data-lucide="bot" class="w-12 h-12 rotate-3"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">独自AIによる解析と要約</h3>
+                    <p class="text-gray-600 text-sm text-left leading-relaxed">長大で難解な政府のPDF資料を、専用の生成AIが瞬時に要約。さらにチャット形式で質問にも答えます。独自辞書による主要ワード抽出で、関連データやマッチ度を自動判定します。</p>
+                </div>
+                <div class="text-center fade-up delay-200">
+                    <div class="w-24 h-24 mx-auto bg-gradient-to-br from-primary-100 to-blue-50 text-primary-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm rotate-3">
+                        <div class="relative">
+                            <i data-lucide="bell-ring" class="w-12 h-12 -rotate-3"></i>
+                            <span class="absolute top-0 right-0 flex h-3 w-3">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span>
+                            </span>
+                        </div>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">重要情報を逃さないアラート</h3>
+                    <p class="text-gray-600 text-sm text-left leading-relaxed">気になるワードや会議名を登録しておけば、関連データがアップロードされた翌朝にメールで自動通知。競合に先んじて情報を取得し、事業の準備を前倒しで進めることができます。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="py-24 bg-gray-50 border-t border-gray-200 overflow-hidden">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-24 fade-up">
+                <span class="text-primary-600 font-bold tracking-wider uppercase text-sm bg-primary-100 px-3 py-1 rounded-full">Features</span>
+                <h2 class="text-3xl md:text-4xl font-bold mt-4">政策リサーチでできること</h2>
+                <p class="text-gray-600 mt-4 max-w-2xl mx-auto">特許取得の検索技術と最新のAIを組み合わせた、多彩な機能で情報収集の時間を大幅に削減します。</p>
+            </div>
+
+            <div class="space-y-32">
+                
+                <!-- Feature 1: 検索 -->
+                <div class="flex flex-col lg:flex-row items-center gap-12 fade-up">
+                    <div class="lg:w-1/2 w-full">
+                        <div class="bg-white p-4 rounded-2xl shadow-xl border border-gray-200">
+                            <!-- 検索UI モックアップ -->
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <div class="flex gap-2 mb-4">
+                                    <div class="flex-1 bg-white rounded-md border border-gray-300 flex items-center px-3 py-2 shadow-inner">
+                                        <i data-lucide="search" class="text-gray-400 w-5 h-5 mr-2"></i>
+                                        <span class="text-gray-400 text-sm">「脱炭素 補助金 設備」で検索</span>
+                                    </div>
+                                    <button class="bg-primary-600 text-white px-4 py-2 rounded-md font-bold text-sm">検索</button>
+                                </div>
+                                <div class="flex flex-wrap gap-2 mb-4">
+                                    <span class="text-xs bg-white border border-gray-200 px-2 py-1 rounded-full text-gray-600 flex items-center gap-1">経済産業省 <i data-lucide="x" class="w-3 h-3"></i></span>
+                                    <span class="text-xs bg-white border border-gray-200 px-2 py-1 rounded-full text-gray-600 flex items-center gap-1">会議資料 <i data-lucide="x" class="w-3 h-3"></i></span>
+                                    <span class="text-xs bg-white border border-primary-300 px-2 py-1 rounded-full text-primary-600 flex items-center gap-1"><i data-lucide="filter" class="w-3 h-3"></i> 絞り込み追加</span>
+                                </div>
+                                <div class="space-y-3">
+                                    <div class="bg-white p-3 rounded border border-gray-200 shadow-sm border-l-4 border-l-primary-500">
+                                        <div class="flex justify-between items-start mb-1">
+                                            <div class="text-sm font-bold text-gray-800">GX実現に向けた投資促進策について</div>
+                                            <span class="text-[10px] text-gray-400">2024/05/10</span>
+                                        </div>
+                                        <div class="text-xs text-gray-500 line-clamp-2">...今後の<span class="bg-yellow-200 font-bold text-gray-800">脱炭素</span>経営に向けた中堅・中小企業の<span class="bg-yellow-200 font-bold text-gray-800">設備</span>投資を支援する新たな<span class="bg-yellow-200 font-bold text-gray-800">補助金</span>の枠組みを...</div>
+                                    </div>
+                                    <div class="bg-white p-3 rounded border border-gray-200 shadow-sm opacity-70">
+                                        <div class="w-3/4 h-4 bg-gray-200 rounded mb-2"></div>
+                                        <div class="w-full h-3 bg-gray-100 rounded mb-1"></div>
+                                        <div class="w-5/6 h-3 bg-gray-100 rounded"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:w-1/2">
+                        <div class="w-14 h-14 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center mb-6 shadow-sm">
+                            <i data-lucide="file-search" class="w-7 h-7"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-4">特許取得技術による「高度な全文・分野検索」</h3>
+                        <p class="text-gray-600 leading-relaxed mb-6">
+                            毎日更新される政府や省庁の会議資料、プレスリリース、法案などを漏らさずデータベース化。「全文検索」ではPDF内のワードまで網羅して検索でき、「分野検索」では省庁・カテゴリー・キーワードを組み合わせて直感的に絞り込むことができます。
+                        </p>
+                        <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                            <h4 class="font-bold text-sm text-gray-900 mb-3 flex items-center gap-2"><i data-lucide="lightbulb" class="w-4 h-4 text-yellow-500"></i> 具体的な活用シーン</h4>
+                            <ul class="space-y-3 text-sm text-gray-700">
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>新しく発表されたガイドラインや規制改正の資料をピンポイントで発掘</span></li>
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>特定の会議体（規制改革推進会議など）の議事録だけを時系列で追跡</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature 2: AI要約 -->
+                <div class="flex flex-col lg:flex-row-reverse items-center gap-12 fade-up">
+                    <div class="lg:w-1/2 w-full">
+                        <div class="bg-white p-4 rounded-2xl shadow-xl border border-gray-200">
+                            <!-- AI要約＆チャットUI モックアップ -->
+                            <div class="flex h-64 gap-3">
+                                <!-- 左: PDF領域 -->
+                                <div class="w-1/2 bg-gray-100 rounded-lg border border-gray-300 p-3 overflow-hidden relative">
+                                    <div class="absolute top-0 right-0 bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">PDF</div>
+                                    <div class="text-center font-bold text-xs mb-3 border-b border-gray-300 pb-1">令和6年版 白書</div>
+                                    <div class="space-y-2">
+                                        <div class="w-full h-2 bg-gray-300 rounded"></div>
+                                        <div class="w-5/6 h-2 bg-gray-300 rounded"></div>
+                                        <div class="w-full h-2 bg-gray-300 rounded"></div>
+                                        <div class="w-4/5 h-2 bg-gray-300 rounded"></div>
+                                        <div class="w-2/3 h-16 bg-blue-100 border border-blue-200 mt-2 mx-auto"></div>
+                                    </div>
+                                </div>
+                                <!-- 右: チャット領域 -->
+                                <div class="w-1/2 bg-gray-50 rounded-lg border border-gray-200 flex flex-col relative overflow-hidden">
+                                    <div class="bg-white border-b border-gray-200 p-2 text-xs font-bold flex items-center gap-1">
+                                        <i data-lucide="sparkles" class="w-3 h-3 text-primary-500"></i> AIアシスタント
+                                    </div>
+                                    <div class="p-2 flex-1 space-y-2 overflow-y-auto">
+                                        <!-- Bot -->
+                                        <div class="flex gap-1.5">
+                                            <div class="w-5 h-5 rounded bg-primary-100 flex items-center justify-center flex-shrink-0"><i data-lucide="bot" class="w-3 h-3 text-primary-600"></i></div>
+                                            <div class="bg-white p-2 rounded-lg rounded-tl-none border border-gray-200 text-[10px] shadow-sm">
+                                                この資料は、次世代半導体に関する政府の投資計画です。要点をまとめますか？
+                                            </div>
+                                        </div>
+                                        <!-- User -->
+                                        <div class="flex gap-1.5 flex-row-reverse">
+                                            <div class="bg-primary-600 text-white p-2 rounded-lg rounded-tr-none text-[10px] shadow-sm">
+                                                自社（素材メーカー）への影響は？
+                                            </div>
+                                        </div>
+                                        <!-- Bot -->
+                                        <div class="flex gap-1.5">
+                                            <div class="w-5 h-5 rounded bg-primary-100 flex items-center justify-center flex-shrink-0"><i data-lucide="bot" class="w-3 h-3 text-primary-600"></i></div>
+                                            <div class="bg-white p-2 rounded-lg rounded-tl-none border border-gray-200 text-[10px] shadow-sm relative">
+                                                国内サプライチェーン強靭化のため、部素材メーカーへの設備投資補助枠（最大50億円）が新設される方針です。
+                                                <div class="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow border border-gray-100"><i data-lucide="thumbs-up" class="w-2 h-2 text-gray-400"></i></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:w-1/2">
+                        <div class="w-14 h-14 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center mb-6 shadow-sm">
+                            <i data-lucide="message-square-text" class="w-7 h-7"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-4">独自AIが長大な資料を瞬時に解読</h3>
+                        <p class="text-gray-600 leading-relaxed mb-6">
+                            専門家でも読み解くのに時間がかかる数百ページの報告書や白書を、専用の生成AIが一瞬で要約します。さらにチャット機能を使えば、資料に対する質問にも的確に回答。英語など海外の公的データも素早く日本語で把握できます。
+                        </p>
+                        <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                            <h4 class="font-bold text-sm text-gray-900 mb-3 flex items-center gap-2"><i data-lucide="lightbulb" class="w-4 h-4 text-yellow-500"></i> 具体的な活用シーン</h4>
+                            <ul class="space-y-3 text-sm text-gray-700">
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>「この資料における、自社業界への影響は？」とAIに質問して回答を得る</span></li>
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>海外政府の産業政策レポートを日本語に要約し、役員報告用の資料に活用</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature 3: マッチ度・レコメンド -->
+                <div class="flex flex-col lg:flex-row items-center gap-12 fade-up">
+                    <div class="lg:w-1/2 w-full">
+                        <div class="bg-white p-5 rounded-2xl shadow-xl border border-gray-200">
+                            <!-- マッチ度UI モックアップ -->
+                            <div class="flex flex-col gap-4">
+                                <div class="flex justify-between items-center pb-2 border-b border-gray-100">
+                                    <div class="font-bold text-sm text-gray-700">自社登録ワード: <span class="bg-gray-100 px-2 py-0.5 rounded text-primary-600">モビリティ</span> <span class="bg-gray-100 px-2 py-0.5 rounded text-primary-600">AI</span></div>
+                                    <div class="bg-secondary/10 text-secondary text-xs font-bold px-2 py-1 rounded">レコメンド ON</div>
+                                </div>
+                                <div class="flex items-center gap-6">
+                                    <!-- レーダーチャート風 -->
+                                    <div class="w-1/2 relative flex justify-center items-center h-32">
+                                        <svg viewBox="0 0 100 100" class="w-full h-full max-w-[120px]">
+                                            <!-- Web -->
+                                            <polygon points="50,5 95,27 95,73 50,95 5,73 5,27" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+                                            <polygon points="50,20 80,35 80,65 50,80 20,65 20,35" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+                                            <polygon points="50,35 65,45 65,55 50,65 35,55 35,45" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+                                            <!-- Axis -->
+                                            <line x1="50" y1="50" x2="50" y2="5" stroke="#e5e7eb" stroke-width="1"/>
+                                            <line x1="50" y1="50" x2="95" y2="27" stroke="#e5e7eb" stroke-width="1"/>
+                                            <line x1="50" y1="50" x2="95" y2="73" stroke="#e5e7eb" stroke-width="1"/>
+                                            <line x1="50" y1="50" x2="50" y2="95" stroke="#e5e7eb" stroke-width="1"/>
+                                            <line x1="50" y1="50" x2="5" y2="73" stroke="#e5e7eb" stroke-width="1"/>
+                                            <line x1="50" y1="50" x2="5" y2="27" stroke="#e5e7eb" stroke-width="1"/>
+                                            <!-- Data Polygon -->
+                                            <polygon points="50,15 85,30 60,65 50,75 15,60 30,30" fill="rgba(59, 130, 246, 0.3)" stroke="#3b82f6" stroke-width="2"/>
+                                            <!-- Labels (simulated) -->
+                                            <text x="50" y="4" font-size="6" text-anchor="middle" fill="#6b7280">関連度</text>
+                                        </svg>
+                                    </div>
+                                    <!-- リスト -->
+                                    <div class="w-1/2 space-y-3">
+                                        <div class="text-xs font-bold text-gray-500 mb-1">おすすめの新着資料</div>
+                                        <div class="bg-blue-50 border border-blue-100 p-2 rounded relative overflow-hidden">
+                                            <div class="absolute left-0 top-0 bottom-0 w-1 bg-primary-500"></div>
+                                            <div class="text-[10px] font-bold text-gray-800 truncate">自動運転レベル4に関する法整備</div>
+                                            <div class="flex justify-between items-center mt-1">
+                                                <div class="text-[9px] text-gray-500">警察庁</div>
+                                                <div class="text-[9px] font-bold text-secondary">マッチ度 92%</div>
+                                            </div>
+                                        </div>
+                                        <div class="bg-white border border-gray-200 p-2 rounded">
+                                            <div class="text-[10px] font-bold text-gray-800 truncate">次世代インフラ整備基本方針</div>
+                                            <div class="flex justify-between items-center mt-1">
+                                                <div class="text-[9px] text-gray-500">国土交通省</div>
+                                                <div class="text-[9px] font-bold text-green-600">マッチ度 78%</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:w-1/2">
+                        <div class="w-14 h-14 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center mb-6 shadow-sm">
+                            <i data-lucide="target" class="w-7 h-7"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-4">自社に直結する情報を届ける「マッチ度＆レコメンド」</h3>
+                        <p class="text-gray-600 leading-relaxed mb-6">
+                            事前に自社の業種や関心キーワード（マッチワード）を登録するだけで、最新の政策データとの合致度（マッチ度）を円グラフやレーダーチャートで自動判定。さらに、業種別にお薦めの会議資料、公募情報、注目ビジネスモデルを提案します。
+                        </p>
+                        <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                            <h4 class="font-bold text-sm text-gray-900 mb-3 flex items-center gap-2"><i data-lucide="lightbulb" class="w-4 h-4 text-yellow-500"></i> 具体的な活用シーン</h4>
+                            <ul class="space-y-3 text-sm text-gray-700">
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>毎朝ログイン時に、自社事業に影響する重要度の高い新着資料を一目で確認</span></li>
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>「建設・インフラ」など自業種を選択し、今注目の補助金・施策をリストアップ</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature 4: 予算・補助金 -->
+                <div class="flex flex-col lg:flex-row-reverse items-center gap-12 fade-up">
+                    <div class="lg:w-1/2 w-full">
+                        <div class="bg-white p-4 rounded-2xl shadow-xl border border-gray-200 bg-gradient-to-b from-white to-gray-50">
+                            <!-- 予算グラフUI モックアップ -->
+                            <div class="flex justify-between items-center mb-4">
+                                <div class="font-bold text-sm text-gray-800">令和6年度 概算要求（DX関連経費）</div>
+                                <i data-lucide="download" class="w-4 h-4 text-gray-400"></i>
+                            </div>
+                            <div class="flex gap-4 items-center">
+                                <!-- ドーナツグラフ SVG -->
+                                <div class="w-1/3 relative flex justify-center items-center">
+                                    <svg viewBox="0 0 36 36" class="w-full h-full max-w-[100px] transform -rotate-90">
+                                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f3f4f6" stroke-width="4"/>
+                                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#3b82f6" stroke-width="4" stroke-dasharray="45, 100"/>
+                                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f97316" stroke-width="4" stroke-dasharray="25, 100" stroke-dashoffset="-45"/>
+                                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" stroke-width="4" stroke-dasharray="20, 100" stroke-dashoffset="-70"/>
+                                    </svg>
+                                    <div class="absolute text-center">
+                                        <div class="text-[10px] text-gray-500">総額</div>
+                                        <div class="text-sm font-bold text-gray-800">1.2<span class="text-[10px]">兆円</span></div>
+                                    </div>
+                                </div>
+                                <!-- 凡例・リスト -->
+                                <div class="w-2/3 space-y-2">
+                                    <div class="flex items-center justify-between text-xs">
+                                        <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-primary-500"></div> 経産省 (中小企業支援)</div>
+                                        <div class="font-bold">45%</div>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-primary-500 h-1.5 rounded-full" style="width: 45%"></div></div>
+                                    
+                                    <div class="flex items-center justify-between text-xs pt-1">
+                                        <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-secondary"></div> 総務省 (インフラ整備)</div>
+                                        <div class="font-bold">25%</div>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-secondary h-1.5 rounded-full" style="width: 25%"></div></div>
+                                    
+                                    <div class="flex items-center justify-between text-xs pt-1">
+                                        <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-green-500"></div> デジタル庁 (システム)</div>
+                                        <div class="font-bold">20%</div>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-green-500 h-1.5 rounded-full" style="width: 20%"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:w-1/2">
+                        <div class="w-14 h-14 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center mb-6 shadow-sm">
+                            <i data-lucide="pie-chart" class="w-7 h-7"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-4">予算・補助金・施策を横断検索＆グラフ化</h3>
+                        <p class="text-gray-600 leading-relaxed mb-6">
+                            国の予算（概算要求、本予算など）や補助金をデータベース化。省庁を横断して検索できるだけでなく、「主要経費」「目的別」などで分類し、配分割合を円グラフや棒グラフで可視化。検索結果はCSVやExcelへエクスポート可能です。
+                        </p>
+                        <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                            <h4 class="font-bold text-sm text-gray-900 mb-3 flex items-center gap-2"><i data-lucide="lightbulb" class="w-4 h-4 text-yellow-500"></i> 具体的な活用シーン</h4>
+                            <ul class="space-y-3 text-sm text-gray-700">
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>「DX」や「脱炭素」関連の予算がどの省庁にどれだけ付いたかグラフで分析</span></li>
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>自社の所在地・目的に合った官公庁・自治体の補助金情報を一覧で取得</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature 5: トレンド解析 -->
+                <div class="flex flex-col lg:flex-row items-center gap-12 fade-up">
+                    <div class="lg:w-1/2 w-full">
+                        <div class="bg-gray-900 p-5 rounded-2xl shadow-xl border border-gray-700 text-white">
+                            <!-- SNSトレンド UI モックアップ -->
+                            <div class="flex justify-between items-center mb-4">
+                                <div class="font-bold text-sm flex items-center gap-2"><i data-lucide="trending-up" class="text-secondary w-4 h-4"></i> トレンドワード: <span class="text-secondary text-lg">#生成AIガイドライン</span></div>
+                            </div>
+                            <!-- 折れ線グラフ風 -->
+                            <div class="h-24 relative w-full mb-4 border-b border-l border-gray-700">
+                                <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
+                                    <path d="M0,80 Q10,70 20,75 T40,50 T60,60 T80,20 T100,10" fill="none" stroke="#f97316" stroke-width="3" vector-effect="non-scaling-stroke" stroke-linecap="round"/>
+                                    <!-- 塗りつぶし用グラデーション (表現用) -->
+                                    <path d="M0,80 Q10,70 20,75 T40,50 T60,60 T80,20 T100,10 L100,100 L0,100 Z" fill="rgba(249, 115, 22, 0.1)" stroke="none"/>
+                                </svg>
+                                <!-- Tooltip simulated -->
+                                <div class="absolute top-2 right-10 bg-gray-800 text-xs px-2 py-1 rounded border border-gray-600 shadow-lg">
+                                    ピーク: 12,400件/日
+                                </div>
+                            </div>
+                            <!-- 関連情報 -->
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <div class="text-[10px] text-gray-400 mb-1">関連ホットワード</div>
+                                    <div class="flex flex-wrap gap-1">
+                                        <span class="text-[10px] bg-gray-800 border border-gray-600 px-1.5 py-0.5 rounded">著作権</span>
+                                        <span class="text-[10px] bg-gray-800 border border-gray-600 px-1.5 py-0.5 rounded">ディープフェイク</span>
+                                        <span class="text-[10px] bg-gray-800 border border-gray-600 px-1.5 py-0.5 rounded text-red-300">規制強化</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="text-[10px] text-gray-400 mb-1">属性比率</div>
+                                    <div class="flex h-3 w-full rounded overflow-hidden">
+                                        <div class="bg-blue-500 w-2/3 flex items-center justify-center text-[8px]">男性 65%</div>
+                                        <div class="bg-pink-500 w-1/3 flex items-center justify-center text-[8px]">女性 35%</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:w-1/2">
+                        <div class="w-14 h-14 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center mb-6 shadow-sm">
+                            <i data-lucide="bar-chart-3" class="w-7 h-7"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-4">政策ワードの「SNSトレンド解析」</h3>
+                        <p class="text-gray-600 leading-relaxed mb-6">
+                            特定の政策キーワードについて、SNS上での評判や話題性をリアルタイムに解析。時間ごとのツイート数推移、男女比・世代比、関連度の高いキーワード、注目のニュース記事をダッシュボードに表示します。
+                        </p>
+                        <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                            <h4 class="font-bold text-sm text-gray-900 mb-3 flex items-center gap-2"><i data-lucide="lightbulb" class="w-4 h-4 text-yellow-500"></i> 具体的な活用シーン</h4>
+                            <ul class="space-y-3 text-sm text-gray-700">
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>「自動運転」「生成AI」など新規事業テーマの世間での関心度を定量的に調査</span></li>
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>新しい法案や規制に対する一般層や専門家の反応（ポジ・ネガ）を分析</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature 6: 統計データ -->
+                <div class="flex flex-col lg:flex-row-reverse items-center gap-12 fade-up">
+                    <div class="lg:w-1/2 w-full">
+                        <div class="bg-white p-4 rounded-2xl shadow-xl border border-gray-200 overflow-hidden relative">
+                            <!-- 統計データ UI モックアップ -->
+                             <div class="absolute -right-10 -bottom-10 opacity-5">
+                                 <!-- 簡易的な地図アイコンを背景に -->
+                                 <i data-lucide="map" class="w-64 h-64"></i>
+                             </div>
+                            <div class="relative z-10">
+                                <div class="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100">
+                                    <div class="bg-primary-100 text-primary-700 text-xs px-2 py-1 rounded font-bold">e-Stat API連携</div>
+                                    <div class="font-bold text-sm text-gray-800">市区町村別 人口推移推計 (東京都)</div>
+                                </div>
+                                <div class="flex gap-4">
+                                    <!-- バーグラフ（ピラミッド風） -->
+                                    <div class="w-full space-y-1.5">
+                                        <div class="flex items-center text-xs">
+                                            <div class="w-12 text-right pr-2 text-gray-500">港区</div>
+                                            <div class="flex-1 flex gap-1 items-center">
+                                                <div class="bg-blue-400 h-4 rounded-r" style="width: 80%"></div>
+                                                <span class="text-[9px] text-gray-400">+5.2%</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center text-xs">
+                                            <div class="w-12 text-right pr-2 text-gray-500">中央区</div>
+                                            <div class="flex-1 flex gap-1 items-center">
+                                                <div class="bg-blue-400 h-4 rounded-r" style="width: 70%"></div>
+                                                <span class="text-[9px] text-gray-400">+4.1%</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center text-xs">
+                                            <div class="w-12 text-right pr-2 text-gray-500">千代田区</div>
+                                            <div class="flex-1 flex gap-1 items-center">
+                                                <div class="bg-blue-400 h-4 rounded-r" style="width: 50%"></div>
+                                                <span class="text-[9px] text-gray-400">+2.8%</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center text-xs">
+                                            <div class="w-12 text-right pr-2 text-gray-500 text-[10px]">◯◯市</div>
+                                            <div class="flex-1 flex gap-1 items-center">
+                                                <div class="bg-red-400 h-4 rounded-r" style="width: 20%"></div>
+                                                <span class="text-[9px] text-red-500">-1.2%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-4 pt-3 border-t border-gray-100 flex justify-between text-xs text-gray-500">
+                                    <span>データソース: 国勢調査・人口動態統計</span>
+                                    <span class="flex items-center gap-1 cursor-pointer hover:text-primary-600"><i data-lucide="external-link" class="w-3 h-3"></i> 詳細分析へ</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:w-1/2">
+                        <div class="w-14 h-14 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center mb-6 shadow-sm">
+                            <i data-lucide="globe" class="w-7 h-7"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-4">データドリブンな経営を支える「国内外の統計連携」</h3>
+                        <p class="text-gray-600 leading-relaxed mb-6">
+                            政府統計（e-Stat）や、World Bank、OECD、IMFなどの海外統計APIと直接連携。人口、労働、産業などのマクロデータをシステム内で検索し、都道府県・市区町村別の比較グラフや、予測値を入力した「将来推計」を自動算出します。
+                        </p>
+                        <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                            <h4 class="font-bold text-sm text-gray-900 mb-3 flex items-center gap-2"><i data-lucide="lightbulb" class="w-4 h-4 text-yellow-500"></i> 具体的な活用シーン</h4>
+                            <ul class="space-y-3 text-sm text-gray-700">
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>市区町村別の人口動態や昼間人口データを地図と連動させ、新店舗の出店エリアを選定</span></li>
+                                <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-green-500 w-5 h-5 flex-shrink-0"></i> <span>OECDデータ等から対象国の経済指標や産業動向を抽出し、海外進出戦略の根拠に</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases Section -->
+    <section id="usecases" class="py-24 bg-primary-900 text-white relative overflow-hidden">
+        <!-- 背景パターン -->
+        <div class="absolute inset-0 opacity-5" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 20px 20px;"></div>
+        
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="text-center max-w-3xl mx-auto mb-16 fade-up">
+                <span class="text-primary-300 font-bold tracking-wider uppercase text-sm border border-primary-700 px-3 py-1 rounded-full">Use Cases</span>
+                <h2 class="text-3xl md:text-4xl font-bold mt-6 mb-6 leading-tight">政府情報を活用した場合の<br class="hidden md:block">圧倒的な「差」</h2>
+                <p class="text-gray-300 text-lg">情報を「知らなかった」では済まない。政策リサーチがもたらす具体的な利益率改善のモデルケースをご紹介します。</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Case 1 -->
+                <div class="bg-white text-gray-800 p-8 rounded-2xl shadow-2xl fade-up relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="p-3 bg-blue-100 text-blue-600 rounded-xl shadow-inner"><i data-lucide="factory" class="w-6 h-6"></i></div>
+                        <h3 class="text-xl font-bold text-gray-900">製造業の設備投資判断</h3>
+                    </div>
+                    <p class="text-sm font-bold text-primary-600 bg-primary-50 inline-block px-3 py-1 rounded-full mb-6">地方部品メーカー / 新工場 総投資2億円のケース</p>
+                    <div class="flex flex-col gap-4">
+                        <div class="bg-green-50 p-4 rounded-xl border border-green-200 relative">
+                            <div class="absolute -left-2 top-1/2 -translate-y-1/2 w-1 h-12 bg-green-500 rounded-r"></div>
+                            <div class="flex items-center gap-2 text-green-700 font-bold mb-2">
+                                <i data-lucide="check-circle" class="w-5 h-5"></i> 政策リサーチを活用した場合
+                            </div>
+                            <ul class="text-sm text-gray-700 space-y-2">
+                                <li>・補助支援活用で実質負担が <span class="font-bold text-lg text-green-600">2億円 → 1.2億円</span></li>
+                                <li>・着工を前倒しし、初年度売上 <span class="font-bold text-green-600">+5,000万〜1億円</span></li>
+                                <li>・投資回収期間を <span class="font-bold border-b border-green-400">8年 → 4年に半減</span></li>
+                            </ul>
+                        </div>
+                        <div class="p-4 rounded-xl border border-gray-200">
+                            <div class="flex items-center gap-2 text-gray-500 font-bold mb-2">
+                                <i data-lucide="x-circle" class="w-4 h-4"></i> 未活用の場合
+                            </div>
+                            <p class="text-sm text-gray-600">補助制度に気づかず申請時期を逃し、他社が先に立地。結果として<span class="font-bold text-red-500 bg-red-50 px-1">1億円超の機会損失</span>。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Case 2 -->
+                <div class="bg-white text-gray-800 p-8 rounded-2xl shadow-2xl fade-up delay-100 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="p-3 bg-purple-100 text-purple-600 rounded-xl shadow-inner"><i data-lucide="rocket" class="w-6 h-6"></i></div>
+                        <h3 class="text-xl font-bold text-gray-900">規制先読み × 新規事業</h3>
+                    </div>
+                    <p class="text-sm font-bold text-purple-600 bg-purple-50 inline-block px-3 py-1 rounded-full mb-6">スタートアップ / 市場規模3年後20億円のケース</p>
+                    <div class="flex flex-col gap-4">
+                        <div class="bg-green-50 p-4 rounded-xl border border-green-200 relative">
+                            <div class="absolute -left-2 top-1/2 -translate-y-1/2 w-1 h-12 bg-green-500 rounded-r"></div>
+                            <div class="flex items-center gap-2 text-green-700 font-bold mb-2">
+                                <i data-lucide="check-circle" class="w-5 h-5"></i> 政策リサーチを活用した場合
+                            </div>
+                            <ul class="text-sm text-gray-700 space-y-2">
+                                <li>・規制改革会議の資料から開発を前倒し</li>
+                                <li>・市場立ち上がり時のシェア <span class="font-bold text-green-600">3% → 8%</span></li>
+                                <li>・年商が <span class="font-bold border-b border-green-400 text-lg text-green-600">6,000万円 → 1.6億円</span> へ拡大</li>
+                            </ul>
+                        </div>
+                        <div class="p-4 rounded-xl border border-gray-200">
+                            <div class="flex items-center gap-2 text-gray-500 font-bold mb-2">
+                                <i data-lucide="x-circle" class="w-4 h-4"></i> 未活用の場合
+                            </div>
+                            <p class="text-sm text-gray-600">制度開始後に参入し価格競争に巻き込まれる。結果として<span class="font-bold text-red-500 bg-red-50 px-1">年間売上約1億円の差</span>。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Case 3 -->
+                <div class="bg-white text-gray-800 p-8 rounded-2xl shadow-2xl fade-up relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="p-3 bg-orange-100 text-orange-600 rounded-xl shadow-inner"><i data-lucide="store" class="w-6 h-6"></i></div>
+                        <h3 class="text-xl font-bold text-gray-900">出店エリア × 統計データ活用</h3>
+                    </div>
+                    <p class="text-sm font-bold text-orange-600 bg-orange-50 inline-block px-3 py-1 rounded-full mb-6">小売・サービス / 投資5,000万円 年商1.5億円</p>
+                    <div class="flex flex-col gap-4">
+                        <div class="bg-green-50 p-4 rounded-xl border border-green-200 relative">
+                            <div class="absolute -left-2 top-1/2 -translate-y-1/2 w-1 h-12 bg-green-500 rounded-r"></div>
+                            <div class="flex items-center gap-2 text-green-700 font-bold mb-2">
+                                <i data-lucide="check-circle" class="w-5 h-5"></i> 政策リサーチを活用した場合
+                            </div>
+                            <ul class="text-sm text-gray-700 space-y-2">
+                                <li>・e-Stat等の統計から商圏を正確に予測</li>
+                                <li>・営業利益率 <span class="font-bold text-lg text-green-600">3% → 8%</span></li>
+                                <li>・不採算撤退リスクを <span class="font-bold border-b border-green-400">大幅に低減</span></li>
+                            </ul>
+                        </div>
+                        <div class="p-4 rounded-xl border border-gray-200">
+                            <div class="flex items-center gap-2 text-gray-500 font-bold mb-2">
+                                <i data-lucide="x-circle" class="w-4 h-4"></i> 未活用の場合
+                            </div>
+                            <p class="text-sm text-gray-600">競争過密地に出店し2年で撤退。<span class="font-bold text-red-500 bg-red-50 px-1">撤退コスト等で2,000万円超の損失</span>。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Case 4 -->
+                <div class="bg-white text-gray-800 p-8 rounded-2xl shadow-2xl fade-up delay-100 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="p-3 bg-teal-100 text-teal-600 rounded-xl shadow-inner"><i data-lucide="shield-check" class="w-6 h-6"></i></div>
+                        <h3 class="text-xl font-bold text-gray-900">法改正・コンプライアンス</h3>
+                    </div>
+                    <p class="text-sm font-bold text-teal-600 bg-teal-50 inline-block px-3 py-1 rounded-full mb-6">大手企業 / 年商100億円企業のケース</p>
+                    <div class="flex flex-col gap-4">
+                        <div class="bg-green-50 p-4 rounded-xl border border-green-200 relative">
+                            <div class="absolute -left-2 top-1/2 -translate-y-1/2 w-1 h-12 bg-green-500 rounded-r"></div>
+                            <div class="flex items-center gap-2 text-green-700 font-bold mb-2">
+                                <i data-lucide="check-circle" class="w-5 h-5"></i> 政策リサーチを活用した場合
+                            </div>
+                            <ul class="text-sm text-gray-700 space-y-2">
+                                <li>・法令の改正をパブコメ段階で察知</li>
+                                <li>・システム改修や契約書変更を前倒しで完了</li>
+                                <li>・法務・監査コストを <span class="font-bold text-lg text-green-600 border-b border-green-400">5〜15%圧縮</span></li>
+                            </ul>
+                        </div>
+                        <div class="p-4 rounded-xl border border-gray-200">
+                            <div class="flex items-center gap-2 text-gray-500 font-bold mb-2">
+                                <i data-lucide="x-circle" class="w-4 h-4"></i> 未活用の場合
+                            </div>
+                            <p class="text-sm text-gray-600">直前の緊急対応で外注費増大。行政指導等のリスク含め<span class="font-bold text-red-500 bg-red-50 px-1">最大2億円規模の損失</span>。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="py-24 bg-gray-50 border-t border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-16 fade-up">
+                <span class="text-primary-600 font-bold tracking-wider uppercase text-sm bg-primary-100 px-3 py-1 rounded-full">Pricing</span>
+                <h2 class="text-3xl md:text-4xl font-bold mt-4 mb-6">ご利用料金</h2>
+                <p class="text-gray-600 text-lg">企業規模や用途に合わせたシンプルなプランをご用意しています。</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <!-- Personal Plan -->
+                <div class="bg-white rounded-3xl p-8 border border-gray-200 shadow-lg hover:shadow-xl transition relative fade-up">
+                    <h3 class="text-2xl font-bold mb-2 flex items-center gap-2 text-gray-900">
+                        <div class="p-2 bg-gray-100 rounded-lg text-gray-500"><i data-lucide="user" class="w-5 h-5"></i></div> 個人プラン
+                    </h3>
+                    <p class="text-gray-500 mb-6 font-medium">専門家や個人事業主向け（1ID）</p>
+                    <div class="mb-8 pb-8 border-b border-gray-100">
+                        <span class="text-4xl font-black text-gray-900">30,000</span>
+                        <span class="text-gray-500 font-bold">円 / 月</span>
+                        <p class="text-sm text-gray-400 mt-2">※ 別途消費税がかかります</p>
+                    </div>
+                    <ul class="space-y-4 mb-8 text-gray-700 font-medium">
+                        <li class="flex items-start gap-3"><i data-lucide="check" class="text-green-500 mt-0.5"></i> 全データ検索・閲覧</li>
+                        <li class="flex items-start gap-3"><i data-lucide="check" class="text-green-500 mt-0.5"></i> AI要約・トレンド解析機能</li>
+                        <li class="flex items-start gap-3"><i data-lucide="check" class="text-green-500 mt-0.5"></i> メールアラート設定</li>
+                    </ul>
+                </div>
+
+                <!-- Corporate Plan -->
+                <div class="bg-gradient-to-b from-primary-900 to-primary-800 rounded-3xl p-8 border border-primary-700 relative transform md:-translate-y-4 shadow-2xl shadow-primary-900/40 fade-up delay-100">
+                    <div class="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-secondary to-orange-400 text-white px-6 py-1.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-1 border border-orange-300/50">
+                        <i data-lucide="star" class="w-4 h-4 fill-current"></i> 一番人気
+                    </div>
+                    <h3 class="text-2xl font-bold mb-2 flex items-center gap-2 text-white">
+                        <div class="p-2 bg-primary-800 rounded-lg text-primary-300"><i data-lucide="building-2" class="w-5 h-5"></i></div> 法人プラン
+                    </h3>
+                    <p class="text-primary-200 mb-6 font-medium">チームでの情報共有に最適（5ID）</p>
+                    <div class="mb-8 pb-8 border-b border-primary-700">
+                        <span class="text-5xl font-black text-white">100,000</span>
+                        <span class="text-primary-200 font-bold">円 / 月</span>
+                        <p class="text-sm text-primary-300 mt-2">※ 別途消費税がかかります</p>
+                    </div>
+                    <ul class="space-y-4 mb-8 text-white font-medium">
+                        <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-secondary mt-0.5"></i> 5名様までアカウント付与</li>
+                        <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-secondary mt-0.5"></i> 全てのデータベース・AI機能</li>
+                        <li class="flex items-start gap-3"><i data-lucide="check-circle-2" class="text-secondary mt-0.5"></i> レコメンド・マッチ度判定</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="text-center mt-10 p-4 bg-white border border-gray-200 rounded-xl max-w-2xl mx-auto text-gray-600 text-sm font-medium fade-up delay-200 shadow-sm">
+                <i data-lucide="info" class="w-4 h-4 inline-block mb-0.5 text-primary-500 mr-1"></i> 初期登録費用として月額料金の0.5ヶ月分を頂戴いたします。<br>
+                <span class="text-primary-600 font-bold">（年間一括払いの場合は初期費用無料となります）</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section id="contact" class="py-24 bg-gradient-to-br from-primary-600 to-primary-900 text-white relative overflow-hidden">
+        <!-- Background Ornaments -->
+        <div class="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10 pointer-events-none">
+            <svg class="absolute -top-24 -right-24 w-96 h-96" fill="currentColor" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50"/></svg>
+            <svg class="absolute bottom-10 -left-10 w-64 h-64" fill="currentColor" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50"/></svg>
+        </div>
+
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 fade-up">
+            <div class="inline-flex items-center justify-center p-3 bg-white/10 rounded-full mb-6 backdrop-blur-sm">
+                <i data-lucide="rocket" class="w-8 h-8 text-white"></i>
+            </div>
+            <h2 class="text-3xl md:text-5xl font-black mb-6 leading-tight">政府情報を味方につけ、<br>ビジネスを加速させましょう</h2>
+            <p class="text-primary-100 text-lg md:text-xl mb-10 font-medium">
+                まずは10日間の無料トライアルで、圧倒的な情報網羅性とAI解析の力をご体感ください。
+            </p>
+            <div class="flex flex-col sm:flex-row justify-center gap-6">
+                <a href="#contact" class="bg-white text-primary-700 hover:bg-gray-50 px-8 py-4 rounded-full font-bold text-lg shadow-2xl transition transform hover:-translate-y-1 flex justify-center items-center gap-2 group">
+                    10日間無料トライアルに申し込む <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
+                </a>
+                <a href="#contact" class="bg-transparent border-2 border-white/50 hover:border-white text-white hover:bg-white/10 px-8 py-4 rounded-full font-bold text-lg transition flex justify-center items-center gap-2">
+                    お問い合わせ・資料請求
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-950 text-gray-400 py-6 border-t border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-3">
+                <div class="flex items-center gap-3">
+                    <!-- フッターのロゴ画像にも変更しました -->
+                    <img src="3 2.png" alt="政策リサーチ ロゴ" class="w-10 h-10 object-contain rounded-full opacity-80 bg-white p-0.5">
+                    <span class="font-bold text-2xl text-gray-300">政策リサーチ</span>
+                </div>
+                <div class="text-sm text-center md:text-right leading-tight">
+                    <span class="font-bold text-gray-300">開発・運営：一般社団法人日本みらい研</span><br>
+                    〒102-0093 東京都千代田区平河町2-16-6 je Vビル 7F
+                </div>
+            </div>
+            <div class="border-t border-gray-800/50 mt-4 pt-4 text-sm text-center flex flex-col md:flex-row justify-between items-center gap-3">
+                <div class="flex gap-4">
+                    <a href="javascript:void(0)" class="hover:text-gray-200 transition">利用規約</a>
+                    <a href="javascript:void(0)" class="hover:text-gray-200 transition">プライバシーポリシー</a>
+                </div>
+                <div>&copy; 2024 RIFJ All Rights Reserved. (特許取得済)</div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scroll to Top Button -->
+    <a href="#" id="scrollToTopBtn" class="fixed bottom-6 right-6 md:bottom-10 md:right-10 bg-gray-900/80 hover:bg-primary-600 text-white p-3 rounded-full shadow-xl backdrop-blur transition-all duration-300 opacity-0 pointer-events-none translate-y-4 z-50 group">
+        <i data-lucide="chevron-up" class="w-6 h-6 group-hover:-translate-y-1 transition-transform"></i>
+    </a>
+
+    <!-- Script -->
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        document.addEventListener("DOMContentLoaded", function() {
+            // ==========================================
+            // 1. スクロールアニメーション (Fade-up)
+            // ==========================================
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.1
+            };
+
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-visible');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, observerOptions);
+
+            const fadeElements = document.querySelectorAll('.fade-up');
+            fadeElements.forEach(el => {
+                observer.observe(el);
+            });
+
+            // ==========================================
+            // 2. トップへ戻るボタンの表示制御
+            // ==========================================
+            const scrollToTopBtn = document.getElementById('scrollToTopBtn');
+            window.addEventListener('scroll', () => {
+                if (window.pageYOffset > 500) {
+                    scrollToTopBtn.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+                    scrollToTopBtn.classList.add('opacity-100', 'translate-y-0');
                 } else {
-                    indicator.textContent = '';
+                    scrollToTopBtn.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+                    scrollToTopBtn.classList.remove('opacity-100', 'translate-y-0');
                 }
             });
-        }
-        
-        function handleItemClick(e) {
-            const button = e.target.closest('button');
-            if (!button) return;
-            
-            const docId = button.dataset.id;
-            if (button.classList.contains('play-btn')) playAudio(button);
-            else if (button.classList.contains('edit-btn')) showEditForm(docId);
-            else if (button.classList.contains('delete-btn')) deleteItem(docId);
-            else if (button.classList.contains('bookmark-btn')) toggleBookmark(docId);
-        }
-        
-        // Combined global click listener
-        document.body.addEventListener('click', (e) => {
-            const pageLink = e.target.closest('.page-link');
-            if (pageLink) {
-                e.preventDefault();
-                const page = parseInt(pageLink.dataset.page, 10);
-                const type = pageLink.dataset.type;
-                pagination[type].currentPage = page;
-                updateAndRender();
-                return;
-            }
 
-            // If an item is pending deletion and the user did NOT click a delete button
-            if (itemPendingDeletion !== null && !e.target.closest('.delete-btn')) {
-                itemPendingDeletion = null;
-                updateAndRender();
-            }
-        });
-        
-        itemListEditableContainer.addEventListener('click', handleItemClick);
-        itemListReadonlyContainer.addEventListener('click', handleItemClick);
-        itemListMeetingsContainer.addEventListener('click', handleItemClick);
-        itemListBookmarksContainer.addEventListener('click', handleItemClick);
-
-        registerForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const title = document.getElementById('reg-title').value.trim();
-            const date = document.getElementById('reg-date').value;
-            if (!title || !date) { customAlert("日付とタイトルは必須です。"); return; }
-
-            const isDuplicate = allItems.some(item => item.title.trim().toLowerCase() === title.toLowerCase() && item.date === date);
-            if(isDuplicate){ customAlert("同じ日付の同じタイトルが既に登録されています。"); return; }
+            // ==========================================
+            // 3. プレビュー環境対策: 完全手動スムーズスクロール
+            // ==========================================
+            const links = document.querySelectorAll('a[href^="#"]');
             
-            const url1 = document.getElementById('reg-url1').value.trim();
-            const url2 = document.getElementById('reg-url2').value.trim();
-            if (!url1 && !url2) { customAlert("URL1かURL2のどちらか一方は必須です。"); return; }
-            
-            if (!itemsCollectionRef) { customAlert("データベースに接続されていません。"); return; }
-            try {
-                await addDoc(itemsCollectionRef, {
-                    date: date, title, url1, url2,
-                    remarks: document.getElementById('reg-remarks').value,
-                    meeting: document.getElementById('reg-meeting').value.trim(),
-                    bookmarked: false,
-                    createdAt: serverTimestamp()
+            links.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    // HTMLの標準機能（ハッシュ変更とそれに伴うジャンプ）を強制キャンセル
+                    e.preventDefault(); 
+
+                    const targetId = this.getAttribute('href');
+                    
+                    // 単なる "#" や無効なリンクの場合はトップへスクロール
+                    if (targetId === '#' || targetId === '') {
+                        window.scrollTo({
+                            top: 0,
+                            behavior: "smooth"
+                        });
+                        return;
+                    }
+
+                    const targetElement = document.querySelector(targetId);
+                    
+                    if (targetElement) {
+                        // 固定ヘッダーの高さ (h-24 = 6rem = 96px)
+                        const headerHeight = 96; 
+                        
+                        // 要素の絶対位置を計算
+                        const elementPosition = targetElement.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.pageYOffset - headerHeight;
+                        
+                        // JavaScriptで自前でスクロールさせる
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: "smooth"
+                        });
+                    }
                 });
-                registerForm.reset();
-                document.getElementById('reg-date').valueAsDate = new Date();
-                switchTab(viewList, tabListBtn);
-            } catch (error) {
-                console.error("Error adding document: ", error);
-                if (error.code === 'permission-denied') {
-                     customAlert("データの登録に失敗しました。エラー：権限がありません。\nFirebaseのセキュリティルールが正しく設定されていない可能性があります。");
-                } else {
-                    customAlert("データの登録に失敗しました。");
-                }
-            }
-        });
-
-        function deleteItem(docId) {
-            if (itemPendingDeletion === docId) {
-                // Confirmed deletion (second click)
-                const docRef = doc(db, `artifacts/${appId}/users/${userId}/items`, docId);
-                deleteDoc(docRef).catch(error => { 
-                    console.error("Error removing document: ", error); 
-                    customAlert("データの削除に失敗しました。"); 
-                });
-                itemPendingDeletion = null; // Reset state immediately. onSnapshot will eventually trigger a re-render.
-            } else {
-                // Set pending state (first click)
-                itemPendingDeletion = docId;
-                updateAndRender(); // Re-render the UI to show the confirmation state
-            }
-        }
-
-        async function toggleBookmark(docId) {
-            if (!userId) return;
-            const docRef = doc(db, `artifacts/${appId}/users/${userId}/items`, docId);
-            try {
-                const item = allItems.find(i => i.id === docId);
-                if (item) {
-                    const currentStatus = item.bookmarked || false;
-                    await updateDoc(docRef, {
-                        bookmarked: !currentStatus
-                    });
-                } else {
-                     throw new Error("Item not found in local cache.");
-                }
-            } catch (error) {
-                console.error("Error toggling bookmark:", error);
-                customAlert("ブックマークの状態の更新に失敗しました。");
-            }
-        }
-        
-        async function showEditForm(docId) {
-            try {
-                const docRef = doc(db, `artifacts/${appId}/users/${userId}/items`, docId);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    document.getElementById('edit-doc-id').value = docId;
-                    document.getElementById('edit-date').value = data.date;
-                    document.getElementById('edit-title').value = data.title;
-                    document.getElementById('edit-meeting').value = data.meeting || '';
-                    document.getElementById('edit-url1').value = data.url1 || '';
-                    document.getElementById('edit-url2').value = data.url2 || '';
-                    document.getElementById('edit-remarks').value = data.remarks || '';
-                    switchTab(viewEdit, tabEditBtn);
-                } else { customAlert("編集するデータが見つかりません。"); }
-            } catch (error) { console.error("Error getting document for edit:", error); customAlert("データの読み込みに失敗しました。"); }
-        }
-
-        editForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const docId = document.getElementById('edit-doc-id').value;
-            const title = document.getElementById('edit-title').value.trim();
-            const date = document.getElementById('edit-date').value;
-            if (!title || !date) { customAlert("日付とタイトルは必須です。"); return; }
-
-            const isDuplicate = allItems.some(item => item.id !== docId && item.title.trim().toLowerCase() === title.toLowerCase() && item.date === date);
-            if(isDuplicate){ customAlert("同じ日付の同じタイトルが他のデータで既に登録されています。"); return; }
-
-            const url1 = document.getElementById('edit-url1').value.trim();
-            const url2 = document.getElementById('edit-url2').value.trim();
-            if (!url1 && !url2) { customAlert("URL1かURL2のどちらか一方は必須です。"); return; }
-            const docRef = doc(db, `artifacts/${appId}/users/${userId}/items`, docId);
-            try {
-                await updateDoc(docRef, {
-                    date, title, url1, url2,
-                    remarks: document.getElementById('edit-remarks').value,
-                    meeting: document.getElementById('edit-meeting').value.trim(),
-                });
-                switchTab(viewList, tabListBtn);
-            } catch(error) { console.error("Error updating document:", error); customAlert("データの更新に失敗しました。"); }
-        });
-        
-        function playAudio(clickedButton) {
-            const url = clickedButton.dataset.url;
-            if (!url) return;
-            const isPlaying = clickedButton.classList.contains('playing');
-            document.querySelectorAll('.play-btn.playing').forEach(btn => btn.classList.remove('playing'));
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio.remove();
-            }
-            if (isPlaying) {
-                currentAudio = null;
-                return;
-            }
-            
-            clickedButton.classList.add('playing');
-            currentAudio = new Audio(url);
-            currentAudio.play().catch(error => {
-                if (error.name !== 'AbortError') {
-                    console.error("Audio playback failed:", error);
-                    customAlert(`音声の再生に失敗しました: ${error.message}`);
-                }
-                clickedButton.classList.remove('playing');
             });
-
-            const stopPlayback = () => {
-                clickedButton.classList.remove('playing');
-                if (currentAudio) {
-                    currentAudio.onended = null;
-                    currentAudio.onpause = null;
-                }
-            };
-            currentAudio.onended = stopPlayback;
-            currentAudio.onpause = stopPlayback;
-        }
-        
-        document.getElementById('reg-date').valueAsDate = new Date();
-
-        bulkRegisterBtn.addEventListener('click', handleBulkUpload);
-        
-        function excelDateToYYYYMMDD(dateInput) {
-            if (!dateInput) return '';
-
-            let date;
-            if (dateInput instanceof Date && !isNaN(dateInput)) {
-                date = dateInput;
-                date.setUTCDate(date.getUTCDate() + 1);
-            } else if (typeof dateInput === 'number' && dateInput > 0) {
-                const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-                date = new Date(excelEpoch.getTime() + dateInput * 86400000);
-            } else if (typeof dateInput === 'string') {
-                const dateStr = dateInput.trim().replace(/\//g, '-');
-                if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
-                    const parts = dateStr.split('-').map(p => parseInt(p, 10));
-                    date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1));
-                }
-            }
-
-            if (date && !isNaN(date)) {
-                const year = date.getUTCFullYear();
-                const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-                const day = String(date.getUTCDate()).padStart(2, '0');
-                if (year >= 1900 && year <= 2100) {
-                    return `${year}-${month}-${day}`;
-                }
-            }
-
-            return '';
-        }
-
-        async function handleBulkUpload() {
-            const file = excelFileInput.files[0];
-            if (!file) { customAlert("Excelファイルを選択してください。"); return; }
-            if (!itemsCollectionRef) { customAlert("データベースに接続されていません。"); return; }
-            bulkRegisterBtn.disabled = true;
-            bulkUploadStatus.textContent = "処理中...";
-            bulkUploadStatus.className = "mt-4 text-sm text-blue-600";
-            
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                let processedCount = 0, skippedCount = 0;
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array', cellDates: true, cellNF: false, cellText: false});
-                    const sheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[sheetName];
-                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                    
-                    if (json.length < 2) { throw new Error("ファイルに登録するデータがありません。"); }
-                    
-                    const existingItems = new Set(allItems.map(item => `${item.title.trim().toLowerCase()}|${item.date}`));
-                    const itemsToUpload = [];
-                    
-                    for(const row of json.slice(1)) {
-                         if (!row || row.length < 2 || !row[1]) {
-                            skippedCount++;
-                            continue; 
-                        }
-                        
-                        const date = excelDateToYYYYMMDD(row[0]);
-                        const title = (row[1] || '').toString().trim();
-                        const lowerCaseTitle = title.toLowerCase();
-                        const key = `${lowerCaseTitle}|${date}`;
-                        const url1 = (row[2] || '').toString().trim();
-                        const url2 = (row[3] || '').toString().trim();
-                        const remarks = (row[4] || '').toString().trim();
-                        const meeting = (row[5] || '').toString().trim();
-                        
-                        const isValid = date && title && (url1 || url2);
-                        const isDuplicate = existingItems.has(key) || itemsToUpload.some(item => `${item.title.toLowerCase()}|${item.date}` === key);
-
-                        if (isValid && !isDuplicate) {
-                            itemsToUpload.push({
-                                date, title, url1, url2, meeting, remarks,
-                                bookmarked: false,
-                                createdAt: serverTimestamp() // Use server timestamp for consistency
-                            });
-                        } else {
-                            skippedCount++;
-                        }
-                    }
-
-                    if (itemsToUpload.length === 0) { throw new Error("有効で、かつ重複しないデータがありませんでした。"); }
-                    
-                    const batch = writeBatch(db);
-                    itemsToUpload.forEach(item => batch.set(doc(itemsCollectionRef), item));
-                    await batch.commit();
-
-                    processedCount = itemsToUpload.length;
-                    bulkUploadStatus.textContent = `${processedCount}件を登録し、${skippedCount}件をスキップしました。`;
-                    bulkUploadStatus.className = "mt-4 text-sm text-green-600";
-                    excelFileInput.value = ''; 
-                    sortConfig = { key: 'date', direction: 'desc' }; 
-                    switchTab(viewList, tabListBtn);
-                } catch (error) {
-                    console.error("Bulk upload failed:", error);
-                     if (error.code === 'permission-denied') {
-                         bulkUploadStatus.textContent = `エラー: 権限がありません。Firebaseのセキュリティルールが正しく設定されていない可能性があります。`;
-                    } else {
-                        bulkUploadStatus.textContent = `エラー: ${error.message}`;
-                    }
-                    bulkUploadStatus.className = "mt-4 text-sm text-red-600";
-                } finally {
-                    bulkRegisterBtn.disabled = false;
-                }
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        updateAndRender();
+        });
     </script>
 </body>
 </html>
