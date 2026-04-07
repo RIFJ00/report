@@ -5,10 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>政策リサーチ 申込フォーム</title>
     
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Babel Standalone -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <!-- PDF Generation Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 
@@ -25,6 +28,15 @@
         }
         .animate-fade-in {
             animation: fade-in 0.3s ease-out forwards;
+        }
+
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .7; }
         }
 
         /* 印刷時のスタイル調整 */
@@ -52,12 +64,14 @@
 </head>
 <body class="bg-slate-50 text-slate-800">
     <div id="root">
+        <!-- React App Loading Placeholder -->
         <div class="min-h-screen flex items-center justify-center flex-col">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
             <p class="text-slate-500">システムを読み込み中...</p>
         </div>
     </div>
 
+    <!-- React Application Script -->
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef, useMemo } from 'https://esm.sh/react@18.2.0';
         import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
@@ -68,7 +82,7 @@
             Search, FileText, AlertCircle, Building2, Briefcase, CreditCard, Receipt, 
             CheckSquare, Square, UserPlus, FileCode, Edit, Trash2, X, Save, 
             AlertTriangle, FileDown, LogOut, Copy, Settings, Info, History, RefreshCw, MailWarning, Eye, Printer,
-            Users, MessageSquare
+            Users, MessageSquare, Bell, Clock
         } from 'https://esm.sh/lucide-react@0.292.0';
 
         // Firebase SDKs
@@ -129,7 +143,7 @@
 
         const getPlanPrice = (plan, cycle) => {
             if (!plan || plan === 'inquiry' || plan === 'contact') return 0;
-            if (plan === 'trial') return '0';
+            if (plan === 'trial') return 0;
             if (plan === 'corporate') return cycle === 'yearly' ? 1200000 : 100000;
             if (plan === 'personal') return cycle === 'yearly' ? 360000 : 30000;
             return 0;
@@ -164,6 +178,17 @@
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
             });
             return halfWidth.replace(/[^0-9]/g, '');
+        };
+
+        const getTimeStatus = (date) => {
+            if (!date) return 'none';
+            const now = new Date();
+            const diffMs = now - date;
+            const hours = diffMs / (1000 * 60 * 60);
+            
+            if (hours < 24) return 'new';      // 24時間以内
+            if (hours < 72) return 'recent';   // 72時間以内
+            return 'none';
         };
 
         // --- Shared Components ---
@@ -741,7 +766,6 @@
                     // プランやサイクルが変わったらクレジット決済をリセット
                     if (name === 'plan' || name === 'paymentCycle') {
                         setUseCreditCard(false);
-                        // クレジットによる強制上書きを解除（必要に応じて）
                         if (useCreditCard) {
                              newData.isBillingDifferent = false;
                              newData.billingName = '';
@@ -887,7 +911,6 @@
                     return;
                 }
                 
-                // クレジット決済でない場合のみ、請求先の通常バリデーションを行う
                 if (formData.isBillingDifferent && !useCreditCard) {
                     if (formData.billingEmail !== formData.billingEmailConfirm) {
                         setValidationError("請求先のメールアドレスが一致しません。");
@@ -911,7 +934,6 @@
                 try {
                     let processingData = JSON.parse(JSON.stringify(formData));
 
-                    // 電話番号の正規化（代表者・請求先）
                     if (processingData.phone) {
                         processingData.phone = normalizePhoneNumber(processingData.phone);
                     }
@@ -919,11 +941,9 @@
                         processingData.billingPhone = normalizePhoneNumber(processingData.billingPhone);
                     }
 
-                    // クレジット決済の場合の請求先情報補完
                     if (useCreditCard) {
                         processingData.isBillingDifferent = true;
                         processingData.billingName = 'クレジット決済';
-                        // 必須項目を埋めるために利用者の情報をコピー（データとしては保持）
                         processingData.billingEmail = processingData.email;
                         processingData.billingPhone = processingData.phone;
                         processingData.billingDepartment = '';
@@ -947,7 +967,6 @@
                                 newMember.email = `${mainEmailLocalPart}${suffix}@mailinator.com`;
                             }
 
-                            // 追加メンバーの電話番号も正規化
                             if (newMember.phone) {
                                 newMember.phone = normalizePhoneNumber(newMember.phone);
                             } else {
@@ -975,7 +994,7 @@
                         billingEmail: isBillingDifferent ? baseData.billingEmail : baseData.email,
                         billingPhone: isBillingDifferent ? baseData.billingPhone : baseData.phone,
                         isBillingDifferent,
-                        useCreditCard, // フラグ保存
+                        useCreditCard, 
                         categoryCode: 'C00',
                         userId: user.uid,
                         createdAt: serverTimestamp(),
@@ -1320,7 +1339,7 @@
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                 <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">請求先名 <span className="text-red-500">*</span></label><input required type="text" name="billingName" value={formData.billingName} onChange={handleChange} placeholder="氏名（例：山田 太郎）" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
                                                                 <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">請求先部署 <span className="text-slate-400 font-normal text-xs">（任意）</span></label><input type="text" name="billingDepartment" value={formData.billingDepartment} onChange={handleChange} placeholder="経理部" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
-                                                                <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス <span className="text-red-500">*</span></label><input required type="email" name="billingEmail" value={formData.billingEmail} onChange={handleChange} placeholder="keiri@example.com" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                                                <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">請求先メール <span className="text-red-500">*</span></label><input required type="email" name="billingEmail" value={formData.billingEmail} onChange={handleChange} placeholder="keiri@example.com" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
                                                                 <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">メールアドレス（確認） <span className="text-red-500">*</span></label><input required type="email" name="billingEmailConfirm" value={formData.billingEmailConfirm} onChange={handleChange} placeholder="確認のため再入力" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
                                                                 <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">電話番号 <span className="text-red-500">*</span></label><input required type="tel" name="billingPhone" value={formData.billingPhone} onChange={handleChange} placeholder="03-9876-5432" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
                                                             </div>
@@ -1464,12 +1483,20 @@
                         mailStatus: mailLog?.delivery?.state || 'MISSING', 
                         mailError: mailLog?.delivery?.error || null,
                         mailDocId: mailLog?.id,
-                        mailSubject: mailLog?.message?.subject
+                        mailSubject: mailLog?.message?.subject,
+                        timeStatus: getTimeStatus(reg.createdAtDate)
                     };
                 });
 
                 return regWithMails.sort((a, b) => b.createdAtDate - a.createdAtDate);
             }, [registrations, mails]);
+
+            const { newCount, recentCount } = useMemo(() => {
+                return {
+                    newCount: registrationsWithMailStatus.filter(r => r.timeStatus === 'new').length,
+                    recentCount: registrationsWithMailStatus.filter(r => r.timeStatus === 'recent').length
+                };
+            }, [registrationsWithMailStatus]);
 
             const toggleSelectAll = () => {
                 if (selectedIds.size === registrationsWithMailStatus.length) {
@@ -1491,9 +1518,9 @@
 
             const getTargetData = () => {
                 if (selectedIds.size > 0) {
-                    return registrationsWithMailStatus.filter(r => selectedIds.has(r.id) && !r.isExternal);
+                    return registrationsWithMailStatus.filter(r => selectedIds.has(r.id));
                 }
-                return registrationsWithMailStatus.filter(r => !r.isExternal); // PDFなどは正規の登録データのみ
+                return registrationsWithMailStatus;
             };
             
             const generateBulkPDF = async () => {
@@ -1583,10 +1610,6 @@
             };
 
             const handleDeleteClick = (item) => {
-                if(item.isExternal) {
-                    showMessage("注意", "外部フォームからの問い合わせ履歴は、ここからは削除できません。", "info");
-                    return;
-                }
                 setDeleteConfirmationItem(item);
             };
 
@@ -1615,6 +1638,7 @@
                     delete updateData.mailError;
                     delete updateData.mailDocId;
                     delete updateData.mailSubject;
+                    delete updateData.timeStatus;
 
                     if (updateData.lastName && updateData.firstName) {
                         updateData.fullName = `${updateData.lastName} ${updateData.firstName}`;
@@ -1870,6 +1894,33 @@
                             type={messageModal.type}
                         />
                     )}
+
+                    {currentView === 'list' && (newCount > 0 || recentCount > 0) && (
+                        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm animate-fade-in space-y-3">
+                            {newCount > 0 && (
+                                <div className="flex items-center gap-3 text-yellow-800 bg-yellow-50 p-3 rounded border border-yellow-100">
+                                    <div className="bg-yellow-100 p-2 rounded-full">
+                                        <Bell className="w-5 h-5 text-yellow-600 animate-pulse-slow" />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold">新規の登録があります</p>
+                                        <p className="text-sm text-yellow-700">24時間以内に <span className="font-bold text-lg text-yellow-900">{newCount}</span> 件の申し込みがありました。</p>
+                                    </div>
+                                </div>
+                            )}
+                            {recentCount > 0 && (
+                                <div className="flex items-center gap-3 text-orange-800 bg-orange-50 p-3 rounded border border-orange-100">
+                                    <div className="bg-orange-100 p-2 rounded-full">
+                                        <Info className="w-5 h-5 text-orange-600" />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold">72時間以内の登録があります</p>
+                                        <p className="text-sm text-orange-700">24時間を超え72時間以内の申し込みが <span className="font-bold text-lg text-orange-900">{recentCount}</span> 件あります。対応状況を確認してください。</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                     
                     {/* Admin Nav */}
                     <div className="bg-white p-2 rounded-lg shadow-sm border border-slate-200 inline-flex gap-1 mb-2">
@@ -1938,23 +1989,17 @@
                                                 </tr>
                                             ) : (
                                                 registrationsWithMailStatus.map((reg) => (
-                                                    <tr key={reg.id} className={`hover:bg-indigo-50/30 transition-colors ${selectedIds.has(reg.id) ? 'bg-indigo-50/50' : ''} ${reg.useCreditCard ? 'text-red-600' : ''}`}>
+                                                    <tr key={reg.id} className={`hover:bg-indigo-50/30 transition-colors ${selectedIds.has(reg.id) ? 'bg-indigo-50/50' : reg.timeStatus === 'new' ? 'bg-yellow-50/50 border-l-4 border-yellow-400' : ''} ${reg.useCreditCard ? 'text-red-600' : ''}`}>
                                                         <td className="p-4">
                                                             <button onClick={() => toggleSelect(reg.id)} className="flex items-center text-slate-400 hover:text-slate-600">
                                                                 {selectedIds.has(reg.id) ? <CheckSquare size={20} className="text-indigo-600" /> : <Square size={20} />}
                                                             </button>
                                                         </td>
                                                         <td className="p-4">
-                                                            {reg.isExternal ? (
-                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="p-1.5 text-slate-400" title="外部問い合わせは編集不可"><MessageSquare size={16} /></span>
-                                                                 </div>
-                                                            ) : (
-                                                                <div className="flex items-center gap-2">
-                                                                    <button onClick={() => setEditingMember(reg)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 hover:border-indigo-400 transition-colors" title="編集"><Edit size={16} /></button>
-                                                                    <button onClick={() => handleDeleteClick(reg)} className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 hover:border-red-400 transition-colors" title="削除"><Trash2 size={16} /></button>
-                                                                </div>
-                                                            )}
+                                                            <div className="flex items-center gap-2">
+                                                                <button onClick={() => setEditingMember(reg)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 hover:border-indigo-400 transition-colors" title="編集"><Edit size={16} /></button>
+                                                                <button onClick={() => handleDeleteClick(reg)} className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 hover:border-red-400 transition-colors" title="削除"><Trash2 size={16} /></button>
+                                                            </div>
                                                         </td>
                                                         <td className="p-4 text-center">
                                                             <div className="flex flex-row items-center justify-center gap-3">
@@ -1968,24 +2013,30 @@
                                                                     {reg.mailStatus === 'MISSING' && <span className="text-slate-300" title="送信記録なし"><Eye size={20} /></span>}
                                                                 </button>
                                                                 
-                                                                {!reg.isExternal && (
-                                                                    <button 
-                                                                        onClick={() => handlePrepareResendEmail(reg)}
-                                                                        className={`text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1 ${reg.mailStatus === 'SUCCESS' ? 'text-slate-400 border-slate-200 hover:bg-slate-50' : 'text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 font-bold'}`}
-                                                                        title="再送信"
-                                                                    >
-                                                                        <Send size={12} />
-                                                                        再送信
-                                                                    </button>
-                                                                )}
+                                                                <button 
+                                                                    onClick={() => handlePrepareResendEmail(reg)}
+                                                                    className={`text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1 ${reg.mailStatus === 'SUCCESS' ? 'text-slate-400 border-slate-200 hover:bg-slate-50' : 'text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 font-bold'}`}
+                                                                    title="再送信"
+                                                                >
+                                                                    <Send size={12} />
+                                                                    再送信
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-sm relative">
+                                                            {reg.timeStatus === 'new' && (
+                                                                <span className="absolute top-2 right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5 animate-pulse-slow">
+                                                                    NEW
+                                                                </span>
+                                                            )}
+                                                            <div>{reg.createdAtDate.toLocaleDateString('ja-JP')}</div>
+                                                            <div className="text-xs opacity-70 flex items-center gap-1 mt-0.5">
+                                                                <Clock size={10} />
+                                                                {reg.createdAtDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
                                                             </div>
                                                         </td>
                                                         <td className="p-4 text-sm">
-                                                            {reg.createdAtDate.toLocaleDateString('ja-JP')}
-                                                            <div className="text-xs opacity-70">{reg.createdAtDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</div>
-                                                        </td>
-                                                        <td className="p-4 text-sm">
-                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${reg.isExternal ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{reg.categoryCode || 'C00'}</span>
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">{reg.categoryCode || 'C00'}</span>
                                                         </td>
                                                         <td className="p-4 text-sm">
                                                             <div className="font-bold">{reg.companyName}</div>
@@ -1996,7 +2047,7 @@
                                                             {reg.position && <div className="text-xs opacity-70">{reg.position}</div>}
                                                         </td>
                                                         <td className="p-4">
-                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${reg.plan === 'corporate' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : reg.plan === 'personal' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : reg.isExternal ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${reg.plan === 'corporate' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : reg.plan === 'personal' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                                                                 {getOfficialPlanName(reg.plan, reg.paymentCycle, reg.useCreditCard)}
                                                             </span>
                                                         </td>
@@ -2006,7 +2057,7 @@
                                                         </td>
                                                         <td className="p-4 text-sm border-l border-slate-100 bg-slate-50/30">
                                                             <div className="font-medium truncate max-w-[150px]" title={reg.billingName}>{reg.billingName || '-'}</div>
-                                                            {!reg.useCreditCard && !reg.isExternal && (
+                                                            {!reg.useCreditCard && (
                                                                 <>
                                                                     <div className="text-xs opacity-70 truncate max-w-[150px]" title={reg.billingDepartment}>{reg.billingDepartment}</div>
                                                                     <div className="text-xs opacity-70 mt-1">{reg.billingPhone}</div>
@@ -2089,54 +2140,59 @@
             return (
                 <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
                     <header className="bg-indigo-800 text-white shadow-lg print:hidden">
-                        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div className="max-w-[95%] mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 w-full">
                             <div className="flex items-center gap-2">
                                 <Shield className="w-8 h-8 text-indigo-200" />
                                 <h1 className="text-xl font-bold tracking-wide">
                                     {activeTab === 'admin' ? '政策リサーチ管理者画面' : '政策リサーチ申込画面'}
                                 </h1>
                             </div>
-                            <div className="flex bg-indigo-900/50 rounded-lg p-1">
-                                <button 
-                                    onClick={() => setActiveTab('admin')}
-                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'admin' ? 'bg-white text-indigo-800 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <List size={16} />
-                                        <span>管理者</span>
-                                    </div>
-                                </button>
-                                <button 
-                                    onClick={() => setActiveTab('form')}
-                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'form' ? 'bg-white text-indigo-800 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <User size={16} />
-                                        <span>申し込み</span>
-                                    </div>
-                                </button>
+                            <div className="flex items-center gap-4">
+                                <div className="flex bg-indigo-900/50 rounded-lg p-1">
+                                    <button 
+                                        onClick={() => setActiveTab('admin')}
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'admin' ? 'bg-white text-indigo-800 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <List size={16} />
+                                            <span>管理者</span>
+                                        </div>
+                                    </button>
+                                    <button 
+                                        onClick={() => setActiveTab('form')}
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'form' ? 'bg-white text-indigo-800 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <User size={16} />
+                                            <span>申し込み</span>
+                                        </div>
+                                    </button>
+                                </div>
+                                {activeTab === 'admin' && isAuthenticated && (
+                                    <button onClick={() => setIsAuthenticated(false)} className="text-indigo-200 hover:text-white flex items-center gap-1 text-sm font-bold">
+                                        <LogOut size={16} /> ログアウト
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </header>
-                    <main className="max-w-5xl mx-auto px-4 py-8 w-full flex-grow">
+                    <main className="max-w-[95%] mx-auto px-4 py-8 w-full flex-grow">
                         {activeTab === 'form' ? <RegistrationForm user={user} /> : <AdminDashboard user={user} />}
                     </main>
-                    <footer className="bg-slate-100 border-t border-slate-200 print:hidden">
-                        <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-4">
-                            <CorporateFooter />
-                            <div className="text-xs flex items-center justify-center gap-2 text-slate-400">
-                                <span>© 2025 Policy Research Portal. Secure Data System.</span>
-                                <span className="text-slate-300">|</span>
-                                <a 
-                                    href="https://www.rifj.jp/privacypolicy/" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="hover:text-indigo-800 hover:underline transition-colors flex items-center gap-1"
-                                >
-                                    プライバシーポリシーについて
-                                    <span className="text-xs">↗</span>
-                                </a>
-                            </div>
+                    <footer className="bg-slate-100 border-t border-slate-200 py-6 text-center text-xs text-slate-400 print:hidden">
+                        <CorporateFooter />
+                        <div className="mt-2 text-xs flex items-center justify-center gap-2 text-slate-400">
+                            <span>© 2025 Policy Research Portal. Secure Data System.</span>
+                            <span className="text-slate-300">|</span>
+                            <a 
+                                href="https://www.rifj.jp/privacypolicy/" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="hover:text-indigo-800 hover:underline transition-colors flex items-center gap-1"
+                            >
+                                プライバシーポリシーについて
+                                <span className="text-xs">↗</span>
+                            </a>
                         </div>
                     </footer>
                 </div>
