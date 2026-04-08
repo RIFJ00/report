@@ -219,7 +219,7 @@
     <div id="passwordModal" class="fixed inset-0 bg-black/50 z-[300] hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
         <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform scale-95 transition-transform duration-300 p-6">
             <h3 class="text-lg font-bold text-gray-900 mb-3"><i class="fas fa-lock text-gray-500 mr-2"></i>管理者認証</h3>
-            <p class="text-sm text-gray-600 mb-4">設定を開くにはパスワードを入力してください。</p>
+            <p class="text-sm text-gray-600 mb-4">設定や手動更新を行うにはパスワードを入力してください。</p>
             <input type="password" id="adminPasswordInput" placeholder="パスワード" class="w-full border border-gray-300 rounded-md px-3 py-2 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition">
             <p id="passwordError" class="text-xs text-red-500 hidden mb-4">パスワードが間違っています。</p>
             <div class="flex justify-end gap-3 mt-4">
@@ -334,6 +334,7 @@
         let autoUpdateIntervalId = null;
         let lastUpdateTime = Date.now();
         let currentSort = 'date-desc';
+        let isAuthenticated = false; // API設定と手動更新を制御する管理者フラグ
 
         // ==========================================
         // 3. UI・ユーティリティ関数群
@@ -738,6 +739,99 @@
             }
         }
 
+        // 裏側で特定のプレイリストを取得・統合し、変更があればFirebaseに保存する関数
+        async function silentFetchAndSave(playlistId, apiKey) {
+            let existingVideos = await loadFromFirebase(playlistId);
+            let newVideos = [];
+            let apiFailed = false;
+
+            if (apiKey) {
+                try {
+                    newVideos = await fetchWithApi(playlistId, apiKey);
+                } catch (apiError) {
+                    apiFailed = true;
+                }
+            } 
+
+            if (!apiKey || apiFailed) {
+                try {
+                    newVideos = await fetchWithRss(playlistId);
+                    if (!newVideos || newVideos.length === 0) throw new Error("RSS Empty");
+                } catch (rssError) {
+                    try {
+                        newVideos = await fetchWithHtmlScraping(playlistId);
+                    } catch (scrapeError) {
+                        // エラーは握りつぶす
+                    }
+                }
+            }
+
+            if (newVideos && newVideos.length > 0) {
+                let isRealChange = false;
+                let videos = [];
+                
+                if (existingVideos && existingVideos.length > 0) {
+                    const videoMap = new Map();
+                    existingVideos.forEach(v => videoMap.set(v.id, v));
+                    newVideos.forEach(v => videoMap.set(v.id, v));
+                    
+                    videos = Array.from(videoMap.values());
+                    videos.sort((a, b) => b.pubDate - a.pubDate);
+                    
+                    if (existingVideos.length !== videos.length) {
+                        isRealChange = true;
+                    } else {
+                        for (let i = 0; i < videos.length; i++) {
+                            if (videos[i].id !== existingVideos[i].id) {
+                                isRealChange = true;
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    videos = newVideos;
+                    isRealChange = true;
+                }
+                
+                if (isRealChange) {
+                    const finalUpdatedAt = Date.now();
+                    videos.updatedAt = finalUpdatedAt;
+                    await saveToFirebase(playlistId, videos, finalUpdatedAt);
+                    return true; // 変更あり
+                }
+            }
+            return false; // 変更なし
+        }
+
+        // 両方のプレイリストをバックグラウンドで更新する
+        async function updateAllPlaylistsSilently() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const playlists = [
+                "PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_",
+                "PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2"
+            ];
+            let currentPlaylistUpdated = false;
+            const currentSelectedId = document.querySelector('input[name="playlistSelect"]:checked')?.value;
+
+            for (const pid of playlists) {
+                const isChanged = await silentFetchAndSave(pid, apiKey);
+                if (isChanged && pid === currentSelectedId) {
+                    currentPlaylistUpdated = true;
+                }
+                // UIのボタン上の更新日を反映
+                const videos = await loadFromFirebase(pid);
+                updateDateUI(pid, videos);
+            }
+
+            // 現在表示中のリストに更新があった場合は画面をリフレッシュ (APIを叩かずFirebaseから読み込む)
+            if (currentPlaylistUpdated) {
+                showToast("新しい動画がバックグラウンドで追加されました。リストを更新します。");
+                fetchPlaylistData(true, false);
+            } else {
+                console.log("バックグラウンド更新完了。新しい動画はありませんでした。");
+            }
+        }
+
         async function fetchPlaylistData(isAutoUpdate = false, forceYouTube = false, overwriteFirebase = false) {
             lastUpdateTime = Date.now();
             const selectedRadio = document.querySelector('input[name="playlistSelect"]:checked');
@@ -1118,8 +1212,9 @@
                 const intervalMs = intervalMinutes * 60 * 1000;
                 
                 if (Date.now() - lastUpdateTime >= intervalMs) {
-                    console.log("規定時間が経過したため、バックグラウンド更新を実行します...");
-                    fetchPlaylistData(true, true);
+                    console.log("規定時間が経過したため、両プレイリストのバックグラウンド更新を実行します...");
+                    lastUpdateTime = Date.now();
+                    updateAllPlaylistsSilently(); // 現在見ているリストだけでなく、両方のリストを裏で取得・保存する
                 }
             }, 60000); 
         }
@@ -1144,7 +1239,14 @@
                 const sortSelectEl = document.getElementById('sortSelect');
                 if (sortSelectEl) sortSelectEl.value = currentSort;
                 
-                document.getElementById('startBtn').addEventListener('click', () => fetchPlaylistData(false, true));
+                // 【変更】手動更新ボタンは管理者（パスワード解除済み）のみ実行可能にする
+                document.getElementById('startBtn').addEventListener('click', () => {
+                    if (!isAuthenticated) {
+                        showToast("手動更新は管理者のみ実行可能です。API・データ設定からロックを解除してください。", true);
+                        return;
+                    }
+                    fetchPlaylistData(false, true);
+                });
                 
                 document.getElementById('refreshBtn').addEventListener('click', () => {
                     currentSort = 'date-desc';
@@ -1177,7 +1279,8 @@
                         
                         if (Date.now() - lastUpdateTime >= intervalMs) {
                             console.log("タブの復帰を検知: 規定時間が経過しているため更新を実行します。");
-                            fetchPlaylistData(true, true);
+                            lastUpdateTime = Date.now();
+                            updateAllPlaylistsSilently(); // スリープ復帰時も両方を裏で更新する
                         }
                     }
                 });
@@ -1209,8 +1312,6 @@
                 const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
                 const passwordError = document.getElementById('passwordError');
                 
-                let isAuthenticated = false;
-
                 apiSettingsSummary.addEventListener('click', (e) => {
                     if (!isAuthenticated) {
                         e.preventDefault();
