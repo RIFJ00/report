@@ -110,9 +110,18 @@
                            class="block w-full rounded-md border-gray-300 border px-3 py-2 focus:border-red-500 focus:ring-red-500 outline-none transition">
                 </div>
                 
-                <button id="startBtn" class="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded shadow transition duration-200 flex items-center justify-center shrink-0">
-                    <i class="fas fa-sync-alt mr-2"></i>更新
-                </button>
+                <!-- 更新ボタンと管理者メッセージのコンテナ -->
+                <div class="relative shrink-0 w-full md:w-auto flex flex-col items-center">
+                    <button id="startBtn" class="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded shadow transition duration-200 flex items-center justify-center shrink-0">
+                        <i class="fas fa-sync-alt mr-2"></i>更新
+                    </button>
+                    <!-- 管理者専用メッセージ (初期は非表示) -->
+                    <div id="updateBtnMsg" class="absolute top-[110%] w-64 bg-gray-800 text-white text-[11px] p-2.5 rounded shadow-lg text-center hidden z-50 pointer-events-none transition-opacity duration-300 opacity-0">
+                        このボタンは管理者のみが操作可能です。<br>データの更新は通常は自動的に行われております。
+                        <!-- 吹き出しの上向き矢印 -->
+                        <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 border-[5px] border-transparent border-b-gray-800"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </header>
@@ -813,22 +822,46 @@
             let currentPlaylistUpdated = false;
             const currentSelectedId = document.querySelector('input[name="playlistSelect"]:checked')?.value;
 
-            for (const pid of playlists) {
-                const isChanged = await silentFetchAndSave(pid, apiKey);
-                if (isChanged && pid === currentSelectedId) {
-                    currentPlaylistUpdated = true;
+            // UIを自動更新中に変更 (ボタン上でクルクル回してアピールする)
+            const btn = document.getElementById('startBtn');
+            let originalBtnText = "";
+            let wasDisabled = false;
+            if (btn) {
+                originalBtnText = btn.innerHTML;
+                wasDisabled = btn.disabled;
+                if (!wasDisabled) {
+                    btn.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-2"></i>自動更新中';
+                    // 更新中であることがわかるように色をオレンジに変更
+                    btn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    btn.classList.add('bg-orange-500');
                 }
-                // UIのボタン上の更新日を反映
-                const videos = await loadFromFirebase(pid);
-                updateDateUI(pid, videos);
             }
 
-            // 現在表示中のリストに更新があった場合は画面をリフレッシュ (APIを叩かずFirebaseから読み込む)
-            if (currentPlaylistUpdated) {
-                showToast("新しい動画がバックグラウンドで追加されました。リストを更新します。");
-                fetchPlaylistData(true, false);
-            } else {
-                console.log("バックグラウンド更新完了。新しい動画はありませんでした。");
+            try {
+                for (const pid of playlists) {
+                    const isChanged = await silentFetchAndSave(pid, apiKey);
+                    if (isChanged && pid === currentSelectedId) {
+                        currentPlaylistUpdated = true;
+                    }
+                    // UIのボタン上の更新日を反映
+                    const videos = await loadFromFirebase(pid);
+                    updateDateUI(pid, videos);
+                }
+
+                // 現在表示中のリストに更新があった場合は画面をリフレッシュ
+                if (currentPlaylistUpdated) {
+                    showToast("新しい動画がバックグラウンドで追加されました。リストを更新します。");
+                    fetchPlaylistData(true, false);
+                } else {
+                    console.log("バックグラウンド更新完了。新しい動画はありませんでした。");
+                }
+            } finally {
+                // UIの色とテキストを元に戻す
+                if (btn && !wasDisabled) {
+                    btn.innerHTML = originalBtnText;
+                    btn.classList.remove('bg-orange-500');
+                    btn.classList.add('bg-red-600', 'hover:bg-red-700');
+                }
             }
         }
 
@@ -846,12 +879,17 @@
             localStorage.setItem('yt_auto_playlist_select', playlistId);
             if (apiKey) localStorage.setItem('yt_auto_api_key', apiKey);
 
-            if (!isAutoUpdate) showToast("動画リストを取得中...");
-
+            // 自動更新の裏側で動く場合は、メイン画面の「取得中」UIをいじらないようにする
             const btn = document.getElementById('startBtn');
-            const originalBtnText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>取得中';
-            btn.disabled = true;
+            let originalBtnText = "";
+            if (!isAutoUpdate) {
+                showToast("動画リストを取得中...");
+                if (btn) {
+                    originalBtnText = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>取得中';
+                    btn.disabled = true;
+                }
+            }
 
             try {
                 let videos = null;
@@ -996,8 +1034,11 @@
                 }
                 showToast("取得エラー: " + errorMsg, true);
             } finally {
-                btn.innerHTML = originalBtnText;
-                btn.disabled = false;
+                // 手動更新だった場合のみボタンを元に戻す（自動更新のUI変更は上で制御）
+                if (btn && !isAutoUpdate) {
+                    btn.innerHTML = originalBtnText;
+                    btn.disabled = false;
+                }
             }
         }
 
@@ -1240,12 +1281,49 @@
                 if (sortSelectEl) sortSelectEl.value = currentSort;
                 
                 // 【変更】手動更新ボタンは管理者（パスワード解除済み）のみ実行可能にする
+                let updateBtnClickCount = 0;
+                let authSource = null; // 'settings' または 'updateBtn'
+                
                 document.getElementById('startBtn').addEventListener('click', () => {
-                    if (!isAuthenticated) {
-                        showToast("手動更新は管理者のみ実行可能です。API・データ設定からロックを解除してください。", true);
+                    // すでにロック解除済みの場合はすぐに更新処理へ
+                    if (isAuthenticated) {
+                        fetchPlaylistData(false, true);
                         return;
                     }
-                    fetchPlaylistData(false, true);
+
+                    if (updateBtnClickCount === 0) {
+                        // 1回目のクリック時：メッセージを小さく表示
+                        const msgEl = document.getElementById('updateBtnMsg');
+                        if (msgEl) {
+                            msgEl.classList.remove('hidden');
+                            setTimeout(() => msgEl.classList.remove('opacity-0'), 10);
+                            
+                            // 5秒後にフェードアウトして消す
+                            setTimeout(() => {
+                                msgEl.classList.add('opacity-0');
+                                setTimeout(() => msgEl.classList.add('hidden'), 300);
+                            }, 5000);
+                        }
+                        updateBtnClickCount++;
+                    } else {
+                        // 2回目のクリック時：パスワード入力を要求
+                        authSource = 'updateBtn';
+                        adminPasswordInput.value = '';
+                        passwordError.classList.add('hidden');
+                        passwordModal.classList.remove('hidden');
+                        setTimeout(() => {
+                            passwordModal.classList.remove('opacity-0');
+                            passwordContent.classList.remove('scale-95');
+                            adminPasswordInput.focus();
+                        }, 10);
+                        
+                        // メッセージが出っぱなしなら消す
+                        const msgEl = document.getElementById('updateBtnMsg');
+                        if (msgEl && !msgEl.classList.contains('hidden')) {
+                            msgEl.classList.add('opacity-0');
+                            setTimeout(() => msgEl.classList.add('hidden'), 300);
+                        }
+                    }
                 });
                 
                 document.getElementById('refreshBtn').addEventListener('click', () => {
@@ -1315,6 +1393,7 @@
                 apiSettingsSummary.addEventListener('click', (e) => {
                     if (!isAuthenticated) {
                         e.preventDefault();
+                        authSource = 'settings';
                         
                         adminPasswordInput.value = '';
                         passwordError.classList.add('hidden');
@@ -1344,15 +1423,26 @@
                         
                         document.getElementById('adminHelpSection').classList.remove('hidden');
                         
-                        setTimeout(() => {
-                            apiSettingsDetails.setAttribute('open', '');
-                            const icon = apiSettingsSummary.querySelector('.fas.fa-cog');
-                            if(icon) {
-                                icon.classList.remove('fa-cog');
-                                icon.classList.add('fa-unlock', 'text-blue-500');
-                            }
+                        const icon = apiSettingsSummary.querySelector('.fas.fa-cog');
+                        if(icon) {
+                            icon.classList.remove('fa-cog');
+                            icon.classList.add('fa-unlock', 'text-blue-500');
+                        }
+                        
+                        // 認証の呼び出し元（設定 or 更新ボタン）によって処理を分ける
+                        if (authSource === 'settings') {
                             showToast("管理者としてロックを解除しました。");
-                        }, 200);
+                            setTimeout(() => {
+                                apiSettingsDetails.setAttribute('open', '');
+                            }, 200);
+                        } else if (authSource === 'updateBtn') {
+                            showToast("管理者認証が完了しました。更新を開始します。");
+                            setTimeout(() => {
+                                fetchPlaylistData(false, true);
+                            }, 300);
+                        } else {
+                            showToast("管理者としてロックを解除しました。");
+                        }
                     } else {
                         passwordError.classList.remove('hidden');
                         passwordContent.classList.add('translate-x-1');
