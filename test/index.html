@@ -335,15 +335,23 @@
 
                         <!-- PDF表示エリア -->
                         <div class="col-span-1 md:col-span-2 mt-6 pt-8 border-t-2 border-gray-100">
-                            <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-4 gap-3">
-                                <div>
-                                    <div class="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-                                        該当資料（PDF等）
+                            <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-4 gap-3 border-b border-gray-200">
+                                <div class="w-full md:w-auto flex flex-col">
+                                    <!-- タブUI -->
+                                    <div class="flex space-x-2 w-full">
+                                        <button onclick="switchPdfTab('overview')" id="tab-overview" class="px-4 py-2 text-sm font-bold border-b-2 border-blue-600 text-blue-600 transition-colors focus:outline-none -mb-[2px]">
+                                            概要
+                                        </button>
+                                        <button onclick="switchPdfTab('roadmap')" id="tab-roadmap" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors focus:outline-none -mb-[2px]">
+                                            ロードマップ
+                                        </button>
+                                        <button onclick="switchPdfTab('member')" id="tab-member" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors focus:outline-none -mb-[2px]">
+                                            構成員
+                                        </button>
                                     </div>
-                                    <p id="pdf-warning" class="text-[11px] text-gray-500 mt-1 hidden">※枠内に表示されない場合は、別タブで開いてください。</p>
+                                    <p id="pdf-warning" class="text-[11px] text-gray-500 mt-2 mb-2 hidden">※枠内に表示されない場合は、別タブで開いてください。</p>
                                 </div>
-                                <div class="flex items-center gap-2 w-full md:w-auto">
+                                <div class="flex items-center gap-2 w-full md:w-auto mb-2">
                                     <!-- External Link -->
                                     <a id="pdf-external-link" href="#" target="_blank" rel="noopener noreferrer" class="bg-blue-600 text-white hover:bg-blue-700 px-4 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 hidden transition-colors shadow-md transform hover:scale-105 whitespace-nowrap">
                                         別タブで開く
@@ -353,7 +361,7 @@
                             </div>
                             
                             <!-- 表示枠 (PDF iframe) -->
-                            <div id="document-display-area" class="w-full relative">
+                            <div id="document-display-area" class="w-full relative mt-2">
                                 <!-- iframe枠 -->
                                 <iframe id="pdf-frame" src="" class="w-full h-[400px] md:h-[600px] rounded-lg shadow-inner border-2 border-gray-200 hidden bg-white"></iframe>
 
@@ -400,7 +408,7 @@
         <div class="bg-gray-100 p-6 border-t border-gray-200 text-center text-sm text-gray-500 rounded-b-2xl">
             <p class="mb-2">会議情報を時系列で追うことで、情報を先取りし、受動的な情報収集から能動的な事業開発を目指す。</p>
             <p class="font-bold text-gray-600">本サイトは一般社団法人日本みらい研が作成したものです。</p>
-            <p class="text-xs mt-2 text-gray-400" id="access-date"></p>
+            <p class="text-xs mt-2 text-gray-400">データ更新日: 2026年4月9日</p>
         </div>
     </div>
 
@@ -628,38 +636,64 @@
             }
         };
 
-        // 添付画像の構成に合わせたPDFのURL設定
-        const pdfUrls = {
+        // 概要タブ用のPDF URL設定
+        const overviewUrls = {
             // 17の重点分野
-            "17_1": "https://report.rifj.jp/pdfupload/?id=a6792457-7b48-4bdf-91a7-835b7fbc3ec2", // AI・半導体WG
-            "17_2": "https://report.rifj.jp/pdfupload/?id=69c0a17a-7f71-4023-8740-fb4dbff004de", // 造船WG
-            "17_3": "https://report.rifj.jp/pdfupload/?id=16e2025f-0f76-48e5-86b1-d759fe482366", // 量子WG
-            "17_4": "https://report.rifj.jp/pdfupload/?id=326b68ca-1022-4d15-b4ba-e33d94b811a8", // 合成生物学・バイオWG
-            "17_5": "https://report.rifj.jp/pdfupload/?id=9e75a0b0-6cb3-4952-b974-b9c4e14ee2b4", // 航空・宇宙WG
-            "17_6": "https://report.rifj.jp/pdfupload/?id=ac703401-6173-4c73-a344-7323027ca1e5", // デジタル・サイバーセキュリティWG
-            "17_7": "https://report.rifj.jp/pdfupload/?id=a6d3a01d-dd31-4488-a597-cd03ea376c90", // コンテンツ産業官民協議会
-            "17_8": "https://report.rifj.jp/pdfupload/?id=d864dae5-8089-432c-a066-39f568c4b225", // フードテックWG
-            "17_9": "https://report.rifj.jp/pdfupload/?id=1dc3a0f0-ccbb-488a-b0a8-4a5cf3cf0fc4", // GXに向けた専門家WG
-            "17_10": "https://report.rifj.jp/pdfupload/?id=c00fe7fa-9024-43f4-b711-18138b2ad36a", // 国土強靱化推進会議等
-            "17_11": "https://report.rifj.jp/pdfupload/?id=d560904a-086a-4098-a2ea-27307ec694e7", // 創薬・先端医療WG
-            "17_12": "https://report.rifj.jp/pdfupload/?id=17b7dd7b-c891-4449-8b29-ea290a67d870", // フュージョンエネルギーWG
-            "17_13": "https://report.rifj.jp/pdfupload/?id=79a37d41-5f8c-4fb5-a18d-be7e30463c46", // 産業構造審議会 製造産業分科会
-            "17_14": "https://report.rifj.jp/pdfupload/?id=17369f5f-8400-4dd0-9779-5f1cf077b2da", // 港湾ロジスティクスWG
-            "17_15": "https://report.rifj.jp/pdfupload/?id=b678b7c2-e06c-4002-bfb3-f02234ab5535", // 防衛産業WG
-            "17_16": "https://report.rifj.jp/pdfupload/?id=d2ccb3e7-fad0-404d-aefc-8e9f84a3c18c", // 情報通信成長戦略官民協議会
-            "17_17": "", // 海洋WG (画像で空白)
-
+            "17_1": "https://report.rifj.jp/pdfupload/?id=a6792457-7b48-4bdf-91a7-835b7fbc3ec2",
+            "17_2": "https://report.rifj.jp/pdfupload/?id=69c0a17a-7f71-4023-8740-fb4dbff004de",
+            "17_3": "https://report.rifj.jp/pdfupload/?id=16e2025f-0f76-48e5-86b1-d759fe482366",
+            "17_4": "https://report.rifj.jp/pdfupload/?id=326b68ca-1022-4d15-b4ba-e33d94b811a8",
+            "17_5": "https://report.rifj.jp/pdfupload/?id=9e75a0b0-6cb3-4952-b974-b9c4e14ee2b4",
+            "17_6": "https://report.rifj.jp/pdfupload/?id=ac703401-6173-4c73-a344-7323027ca1e5",
+            "17_7": "https://report.rifj.jp/pdfupload/?id=a6d3a01d-dd31-4488-a597-cd03ea376c90",
+            "17_8": "https://report.rifj.jp/pdfupload/?id=d864dae5-8089-432c-a066-39f568c4b225",
+            "17_9": "https://report.rifj.jp/pdfupload/?id=1dc3a0f0-ccbb-488a-b0a8-4a5cf3cf0fc4",
+            "17_10": "https://report.rifj.jp/pdfupload/?id=c00fe7fa-9024-43f4-b711-18138b2ad36a",
+            "17_11": "https://report.rifj.jp/pdfupload/?id=d560904a-086a-4098-a2ea-27307ec694e7",
+            "17_12": "https://report.rifj.jp/pdfupload/?id=17b7dd7b-c891-4449-8b29-ea290a67d870",
+            "17_13": "https://report.rifj.jp/pdfupload/?id=79a37d41-5f8c-4fb5-a18d-be7e30463c46",
+            "17_14": "https://report.rifj.jp/pdfupload/?id=17369f5f-8400-4dd0-9779-5f1cf077b2da",
+            "17_15": "https://report.rifj.jp/pdfupload/?id=b678b7c2-e06c-4002-bfb3-f02234ab5535",
+            "17_16": "https://report.rifj.jp/pdfupload/?id=d2ccb3e7-fad0-404d-aefc-8e9f84a3c18c",
+            "17_17": "https://report.rifj.jp/pdfupload/?id=f5281e76-c3e7-4978-9d17-4da3a1ec2079", 
             // 8つの横断分野
-            "8_1": "https://report.rifj.jp/pdfupload/?id=c2781549-f544-4405-b174-9f46c3a95772", // 日本成長戦略会議
-            "8_2": "https://report.rifj.jp/pdfupload/?id=e039abe2-f82b-4c35-907b-4751a04dec5d", // 人材育成分科会
-            "8_3": "https://report.rifj.jp/pdfupload/?id=a22fe717-5369-49ce-ba93-92e42a7d983c", // スタートアップ政策推進分科会
-            "8_4": "https://report.rifj.jp/pdfupload/?id=c1b46b0b-a9dd-4038-a897-9bd16223e465", // 新戦略策定のための資産運用立国推進分科会
-            "8_5": "https://report.rifj.jp/pdfupload/?id=d8df1234-f896-4c2e-a335-5c08fb6a4413", // 労働市場改革分科会
-            "8_6": "https://report.rifj.jp/pdfupload/?id=f97b0bae-5b6d-430b-9d2f-a2de40657959", // 家事等の負担軽減に資するサービスの利用
-            "8_7": "https://report.rifj.jp/pdfupload/?id=9306c869-49be-4cb0-9720-3d6c5beabce9", // 政労使の意見交換賃上げに向けた中小企業
-            "8_8": "https://report.rifj.jp/pdfupload/?id=3dce3012-d17c-4f58-9f92-5bed3b1b9159"  // サイバーセキュリティ推進専門家会議
+            "8_1": "https://report.rifj.jp/pdfupload/?id=c2781549-f544-4405-b174-9f46c3a95772",
+            "8_2": "https://report.rifj.jp/pdfupload/?id=e039abe2-f82b-4c35-907b-4751a04dec5d",
+            "8_3": "https://report.rifj.jp/pdfupload/?id=a22fe717-5369-49ce-ba93-92e42a7d983c",
+            "8_4": "https://report.rifj.jp/pdfupload/?id=c1b46b0b-a9dd-4038-a897-9bd16223e465",
+            "8_5": "https://report.rifj.jp/pdfupload/?id=d8df1234-f896-4c2e-a335-5c08fb6a4413",
+            "8_6": "https://report.rifj.jp/pdfupload/?id=f97b0bae-5b6d-430b-9d2f-a2de40657959",
+            "8_7": "https://report.rifj.jp/pdfupload/?id=9306c869-49be-4cb0-9720-3d6c5beabce9",
+            "8_8": "https://report.rifj.jp/pdfupload/?id=3dce3012-d17c-4f58-9f92-5bed3b1b9159"
         };
 
+        // ロードマップタブ用のPDF URL設定（必要に応じて追加）
+        const roadmapUrls = {
+            "17_1": "https://report.rifj.jp/pdfupload/?id=4a069202-4904-4c35-8da0-c2a3903eda85",
+            "17_2": "https://report.rifj.jp/pdfupload/?id=4c755c92-db79-412f-8bf7-e38ecc2479ea",
+            "17_3": "https://report.rifj.jp/pdfupload/?id=1ceb2dc0-658f-4606-ac2a-1ce5123942c6",
+            "17_4": "https://report.rifj.jp/pdfupload/?id=c275b7a8-22aa-4c7a-a503-4c76a360ef6c",
+            "17_5": "https://report.rifj.jp/pdfupload/?id=7b1ff55d-58a1-4ac9-8095-6057f0f2255b",
+            "17_6": "https://report.rifj.jp/pdfupload/?id=ff543d16-a0a7-408f-abcf-b891ae052121",
+            "17_7": "https://report.rifj.jp/pdfupload/?id=dddca687-c18d-47ec-b384-e9245639d2fb",
+            "17_8": "https://report.rifj.jp/pdfupload/?id=92cae06f-c7aa-4c5b-b097-7cdc52490630",
+            "17_9": "https://report.rifj.jp/pdfupload/?id=b8284e88-d0af-475a-9e10-784dbbe12de0",
+            "17_10": "https://report.rifj.jp/pdfupload/?id=19c3ec0a-1da1-4fa6-b11b-7cefbee9baa8",
+            "17_11": "https://report.rifj.jp/pdfupload/?id=0c97cf95-8518-4ca3-be45-a8263fdf4fad",
+            "17_12": "https://report.rifj.jp/pdfupload/?id=b0756e85-0acc-4c7e-b2e1-3a10b00a6f52",
+            "17_13": "https://report.rifj.jp/pdfupload/?id=922a4cc3-a3cb-44fc-b975-89325116cce8",
+            "17_14": "https://report.rifj.jp/pdfupload/?id=30a81f3c-d289-48cb-a227-85e151f2a4b2",
+            "17_15": "https://report.rifj.jp/pdfupload/?id=60e1667d-4c13-4aa9-b36f-bb814267c4d1",
+            "17_16": "https://report.rifj.jp/pdfupload/?id=5910dd52-67df-4f5e-be57-06f8d5d70cd1",
+            "17_17": "https://report.rifj.jp/pdfupload/?id=d2c009b9-4a3e-499a-b8a6-a43a286787a6"
+        };
+
+        // 構成員タブ用のPDF URL設定（必要に応じて追加）
+        const memberUrls = {
+            // 例: "17_1": "https://...",
+        };
+
+        let currentPdfTab = 'overview';
         let currentReportUrl = "";
         let currentReportBtn = null;
 
@@ -722,7 +756,52 @@
         }
 
         function getPdfUrl(id) {
-            return pdfUrls[id] || "";
+            if (currentPdfTab === 'overview') return overviewUrls[id] || "";
+            if (currentPdfTab === 'roadmap') return roadmapUrls[id] || "";
+            if (currentPdfTab === 'member') return memberUrls[id] || "";
+            return "";
+        }
+
+        function switchPdfTab(tabName) {
+            currentPdfTab = tabName;
+            
+            const tabs = ['overview', 'roadmap', 'member'];
+            tabs.forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                if (t === tabName) {
+                    el.classList.add('border-blue-600', 'text-blue-600');
+                    el.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                } else {
+                    el.classList.remove('border-blue-600', 'text-blue-600');
+                    el.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                }
+            });
+
+            updatePdfDisplay();
+        }
+
+        function updatePdfDisplay() {
+            const id = document.getElementById('field-select').value;
+            const url = getPdfUrl(id);
+            const pdfFrame = document.getElementById('pdf-frame');
+            const extLink = document.getElementById('pdf-external-link');
+            const pdfWarning = document.getElementById('pdf-warning');
+            const noPdfMsg = document.getElementById('no-pdf-message');
+
+            if (url) {
+                noPdfMsg.classList.add('hidden');
+                pdfFrame.src = url;
+                pdfFrame.classList.remove('hidden');
+                extLink.href = url;
+                extLink.classList.remove('hidden');
+                pdfWarning.classList.remove('hidden');
+            } else {
+                pdfFrame.src = "";
+                pdfFrame.classList.add('hidden');
+                noPdfMsg.classList.remove('hidden');
+                extLink.classList.add('hidden');
+                pdfWarning.classList.add('hidden');
+            }
         }
 
         function getDetailedInfo(id) {
@@ -800,32 +879,11 @@
                 councilContainer.classList.add('hidden');
             }
 
-            const url = getPdfUrl(id);
-            const pdfFrame = document.getElementById('pdf-frame');
-            const extLink = document.getElementById('pdf-external-link');
-            const pdfWarning = document.getElementById('pdf-warning');
-            const noPdfMsg = document.getElementById('no-pdf-message');
-
-            if (url) {
-                noPdfMsg.classList.add('hidden');
-                pdfFrame.src = url;
-                pdfFrame.classList.remove('hidden');
-                extLink.href = url;
-                extLink.classList.remove('hidden');
-                pdfWarning.classList.remove('hidden');
-            } else {
-                pdfFrame.src = "";
-                pdfFrame.classList.add('hidden');
-                noPdfMsg.classList.remove('hidden');
-                extLink.classList.add('hidden');
-                pdfWarning.classList.add('hidden');
-            }
+            updatePdfDisplay();
         }
 
         window.addEventListener('DOMContentLoaded', () => {
             updateFieldSelect();
-            const today = new Date();
-            document.getElementById('access-date').innerText = `アクセス日: ${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日`;
         });
 
         function openModal(type) {
