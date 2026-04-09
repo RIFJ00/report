@@ -62,12 +62,15 @@
         </div>
 
         <!-- ナビゲーションタブ -->
-        <div class="bg-blue-50 border-b border-blue-200 px-4 md:px-8 shadow-inner">
-            <div class="flex overflow-x-auto no-scrollbar space-x-1 md:space-x-4 pt-1">
+        <div class="bg-blue-50 border-b border-blue-200 px-4 md:px-8 shadow-inner flex flex-col lg:flex-row lg:justify-between lg:items-end">
+            <div class="flex overflow-x-auto no-scrollbar space-x-1 md:space-x-4 pt-1 w-full lg:w-auto">
                 <a href="#" onclick="scrollToSection('structure-section'); return false;" class="px-5 py-3.5 text-sm md:text-base font-bold text-blue-900 hover:text-blue-700 hover:bg-white border-b-4 border-transparent hover:border-blue-600 transition-all whitespace-nowrap rounded-t-xl">政策決定の構造</a>
                 <a href="#" onclick="scrollToSection('approach-section'); return false;" class="px-5 py-3.5 text-sm md:text-base font-bold text-blue-900 hover:text-blue-700 hover:bg-white border-b-4 border-transparent hover:border-blue-600 transition-all whitespace-nowrap rounded-t-xl">段階別アプローチ</a>
                 <a href="#" onclick="scrollToSection('detail-section'); return false;" class="px-5 py-3.5 text-sm md:text-base font-bold text-blue-900 hover:text-blue-700 hover:bg-white border-b-4 border-transparent hover:border-blue-600 transition-all whitespace-nowrap rounded-t-xl">分野別分析データ</a>
                 <a href="#" onclick="scrollToSection('pdf-display-section'); return false;" class="px-5 py-3.5 text-sm md:text-base font-bold text-blue-900 hover:text-blue-700 hover:bg-white border-b-4 border-transparent hover:border-blue-600 transition-all whitespace-nowrap rounded-t-xl">PDFビューワー</a>
+            </div>
+            <div class="pb-3 lg:pb-3.5 pt-2 lg:pt-0 text-xs md:text-sm font-bold text-blue-800 whitespace-nowrap text-right lg:text-left flex-shrink-0">
+                データ更新日: 2026年4月9日
             </div>
         </div>
 
@@ -438,7 +441,7 @@
         <div class="bg-gray-100 p-6 border-t border-gray-200 text-center text-sm text-gray-500 rounded-b-2xl">
             <p class="mb-2">会議情報を時系列で追うことで、情報を先取りし、受動的な情報収集から能動的な事業開発を目指す。</p>
             <p class="font-bold text-gray-600">本サイトは一般社団法人日本みらい研が作成したものです。</p>
-            <p class="text-xs mt-2 text-gray-400">データ更新日: 2026年4月9日</p>
+            <p class="text-xs mt-2 text-gray-400">データアクセス日: <span id="current-datetime"></span></p>
         </div>
     </div>
 
@@ -867,110 +870,27 @@
             updatePdfDisplay();
         }
 
-        function updatePdfDisplay() {
-            const id = document.getElementById('field-select').value;
-            const url = getPdfUrl(id);
-            const pdfFrame = document.getElementById('pdf-frame');
-            const extLink = document.getElementById('pdf-external-link');
-            const pdfWarning = document.getElementById('pdf-warning');
-            const noPdfMsg = document.getElementById('no-pdf-message');
-
-            if (url) {
-                noPdfMsg.classList.add('hidden');
-                pdfFrame.src = url;
-                pdfFrame.classList.remove('hidden');
-                extLink.href = url;
-                extLink.classList.remove('hidden');
-                pdfWarning.classList.remove('hidden');
-            } else {
-                pdfFrame.src = "";
-                pdfFrame.classList.add('hidden');
-                noPdfMsg.classList.remove('hidden');
-                extLink.classList.add('hidden');
-                pdfWarning.classList.add('hidden');
-            }
-        }
-
-        function getDetailedInfo(id) {
-            return detailedInfo[id] || {
-                status: "（資料等による現状・課題の明記情報を現在集約中）",
-                targets: ["（詳細を確認中）"],
-                measures: ["（詳細を確認中）"],
-                progress: ["（詳細を確認中）"]
-            };
-        }
-
-        function updateFieldSelect(autoDisplay = true) {
-            const categorySelect = document.getElementById('category-select');
-            const fieldSelect = document.getElementById('field-select');
-            const type = categorySelect.value;
-            fieldSelect.innerHTML = '';
-            const data = type === '17' ? areas17 : areas8;
-            data.forEach(item => {
-                const option = document.createElement('option');
-                option.value = `${type}_${item.no}`;
-                option.text = `${item.no}. ${item.name}`;
-                fieldSelect.appendChild(option);
-            });
-            if (autoDisplay) displayFieldData();
-        }
-
-        function displayFieldData() {
-            const fieldSelect = document.getElementById('field-select');
-            if (!fieldSelect.options[fieldSelect.selectedIndex]) return;
-            const id = fieldSelect.options[fieldSelect.selectedIndex].value;
-            const name = fieldSelect.options[fieldSelect.selectedIndex].text;
-            const data = getDetailedInfo(id);
+        function updateAccessDate() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
             
-            document.getElementById('data-title').innerText = name;
-            document.getElementById('data-status').innerText = data.status;
-            const createList = (items) => items.map(item => `<li>${item}</li>`).join('');
-            document.getElementById('data-targets').innerHTML = createList(data.targets);
-            document.getElementById('data-measures').innerHTML = createList(data.measures);
-            document.getElementById('data-progress').innerHTML = createList(data.progress);
-
-            // 予想市場規模の表示処理
-            const marketSizeContainer = document.getElementById('market-size-container');
-            const marketSizeValue = document.getElementById('market-size-value');
-            const marketSizeLabel = document.getElementById('market-size-label');
-
-            if (data.marketSize) {
-                marketSizeValue.innerText = data.marketSize.value;
-                marketSizeLabel.innerText = data.marketSize.label;
-                marketSizeContainer.classList.remove('hidden');
-                marketSizeContainer.classList.add('flex');
-            } else {
-                marketSizeContainer.classList.add('hidden');
-                marketSizeContainer.classList.remove('flex');
+            const datetimeStr = `${year}年${month}月${day}日 ${hours}:${minutes}:${seconds}`;
+            const elem = document.getElementById('current-datetime');
+            if (elem) {
+                elem.innerText = datetimeStr;
             }
-
-            const category = id.split('_')[0];
-            const no = parseInt(id.split('_')[1]);
-            const areaList = category === '17' ? areas17 : areas8;
-            const areaData = areaList.find(item => item.no === no);
-            const councilContainer = document.getElementById('data-council-link-container');
-            const councilLink = document.getElementById('data-council-link');
-            const councilName = document.getElementById('data-council-name');
-
-            if (areaData && areaData.url) {
-                councilContainer.classList.remove('hidden');
-                councilLink.href = areaData.url;
-                councilLink.className = "inline-flex items-center gap-1 text-sm font-bold text-blue-600 hover:text-blue-800 hover:underline transition-colors bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 w-fit shadow-sm";
-                councilName.innerText = areaData.council;
-            } else if (areaData && areaData.council) {
-                councilContainer.classList.remove('hidden');
-                councilLink.removeAttribute('href');
-                councilLink.className = "inline-flex items-center gap-1 text-sm font-bold text-gray-600 cursor-default bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 w-fit shadow-sm";
-                councilName.innerText = areaData.council;
-            } else {
-                councilContainer.classList.add('hidden');
-            }
-
-            updatePdfDisplay();
         }
 
         window.addEventListener('DOMContentLoaded', () => {
             updateFieldSelect();
+            updateAccessDate();
+            // 1秒ごとにアクセス日時を更新する
+            setInterval(updateAccessDate, 1000);
         });
 
         function openModal(type) {
