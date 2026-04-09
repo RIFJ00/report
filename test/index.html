@@ -787,6 +787,111 @@
         let currentReportUrl = "";
         let currentReportBtn = null;
 
+        function updateFieldSelect(autoDisplay = true) {
+            const category = document.getElementById('category-select').value;
+            const fieldSelect = document.getElementById('field-select');
+            fieldSelect.innerHTML = '';
+            
+            const data = category === '17' ? areas17 : areas8;
+            data.forEach(item => {
+                const option = document.createElement('option');
+                option.value = `${category}_${item.no}`;
+                option.text = `${item.no}. ${item.name}`;
+                fieldSelect.appendChild(option);
+            });
+            
+            if (autoDisplay) {
+                displayFieldData();
+            }
+        }
+
+        function displayFieldData() {
+            const fieldId = document.getElementById('field-select').value;
+            const info = detailedInfo[fieldId];
+            const [category, no] = fieldId.split('_');
+            const dataList = category === '17' ? areas17 : areas8;
+            const fieldData = dataList.find(item => item.no == no);
+            
+            if (!info || !fieldData) return;
+
+            document.getElementById('data-title').innerText = fieldData.name;
+            
+            const councilLinkContainer = document.getElementById('data-council-link-container');
+            const councilLink = document.getElementById('data-council-link');
+            const councilName = document.getElementById('data-council-name');
+            
+            if (fieldData.url) {
+                councilLink.href = fieldData.url;
+                councilName.innerText = fieldData.council;
+                councilLinkContainer.classList.remove('hidden');
+            } else {
+                councilLinkContainer.classList.add('hidden');
+            }
+
+            const marketSizeContainer = document.getElementById('market-size-container');
+            if (info.marketSize) {
+                document.getElementById('market-size-value').innerText = info.marketSize.value;
+                document.getElementById('market-size-label').innerText = info.marketSize.label;
+                marketSizeContainer.classList.remove('hidden');
+                marketSizeContainer.classList.add('flex');
+            } else {
+                marketSizeContainer.classList.add('hidden');
+                marketSizeContainer.classList.remove('flex');
+            }
+
+            document.getElementById('data-status').innerText = info.status || '';
+            
+            const targetsUl = document.getElementById('data-targets');
+            targetsUl.innerHTML = '';
+            (info.targets || []).forEach(target => {
+                const li = document.createElement('li');
+                li.innerText = target;
+                targetsUl.appendChild(li);
+            });
+
+            const measuresUl = document.getElementById('data-measures');
+            measuresUl.innerHTML = '';
+            (info.measures || []).forEach(measure => {
+                const li = document.createElement('li');
+                li.innerText = measure;
+                measuresUl.appendChild(li);
+            });
+
+            const progressUl = document.getElementById('data-progress');
+            progressUl.innerHTML = '';
+            (info.progress || []).forEach(prog => {
+                const li = document.createElement('li');
+                li.innerText = prog;
+                progressUl.appendChild(li);
+            });
+            
+            updatePdfDisplay();
+        }
+
+        function updatePdfDisplay() {
+            const fieldId = document.getElementById('field-select').value;
+            const url = getPdfUrl(fieldId);
+            const iframe = document.getElementById('pdf-frame');
+            const noMessage = document.getElementById('no-pdf-message');
+            const externalLink = document.getElementById('pdf-external-link');
+            const warning = document.getElementById('pdf-warning');
+
+            if (url) {
+                iframe.src = url;
+                iframe.classList.remove('hidden');
+                noMessage.classList.add('hidden');
+                externalLink.href = url;
+                externalLink.classList.remove('hidden');
+                warning.classList.remove('hidden');
+            } else {
+                iframe.src = "";
+                iframe.classList.add('hidden');
+                noMessage.classList.remove('hidden');
+                externalLink.classList.add('hidden');
+                warning.classList.add('hidden');
+            }
+        }
+
         function toggleReport(url, btnElement) {
             const detailSection = document.getElementById('detail-section');
             const reportSection = document.getElementById('report-viewer-section');
