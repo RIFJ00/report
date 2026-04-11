@@ -33,6 +33,24 @@
 </head>
 <body class="p-2 md:p-6 h-screen overflow-hidden bg-gray-100">
 
+    <!-- ログインオーバーレイ -->
+    <div id="login-overlay" class="fixed inset-0 bg-gray-900 z-[9999] flex justify-center items-center transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl w-11/12 md:w-96 overflow-hidden flex flex-col">
+            <div class="p-4 border-b bg-blue-50 flex justify-center items-center">
+                <h3 class="font-bold text-blue-900 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    閲覧パスワード
+                </h3>
+            </div>
+            <div class="p-6">
+                <p class="text-sm text-gray-600 mb-4 text-center">本ページを閲覧するためのパスワードを入力してください。</p>
+                <input type="password" id="view-password-input" class="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" onkeypress="if(event.key==='Enter') verifyViewPassword()" placeholder="パスワード">
+                <p id="view-password-error" class="text-red-500 text-xs mt-2 hidden text-center">パスワードが間違っています。</p>
+                <button onclick="verifyViewPassword()" class="mt-5 w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg shadow hover:bg-blue-700 transition-colors">閲覧する</button>
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl flex flex-col h-full overflow-hidden relative">
         
         <!-- ナビゲーションタブ (固定) -->
@@ -1280,7 +1298,50 @@
             }
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
+        const VIEW_PASSWORD = "strategy";
+
+        function verifyViewPassword() {
+            const pw = document.getElementById('view-password-input').value;
+            if (pw === VIEW_PASSWORD) {
+                unlockView();
+            } else {
+                document.getElementById('view-password-error').classList.remove('hidden');
+            }
+        }
+
+        function unlockView() {
+            const overlay = document.getElementById('login-overlay');
+            overlay.classList.add('opacity-0');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+            }, 300);
+            
+            initAppData();
+        }
+
+        function checkUrlPassword() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const pw = urlParams.get('pw') || urlParams.get('p') || urlParams.get('pass');
+            
+            if (pw === VIEW_PASSWORD) {
+                // URLからクエリパラメータを消去
+                const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                window.history.replaceState({path: newUrl}, '', newUrl);
+                unlockView();
+            } else {
+                // パスワードがない、または間違っている場合はそのままログイン画面を表示
+                setTimeout(() => {
+                    const input = document.getElementById('view-password-input');
+                    if(input) input.focus();
+                }, 100);
+            }
+        }
+
+        let isAppInitialized = false;
+        function initAppData() {
+            if (isAppInitialized) return;
+            isAppInitialized = true;
+            
             updateFieldSelect();
             updateAccessDate();
             setInterval(updateAccessDate, 60000);
@@ -1288,6 +1349,10 @@
             // 初回表示時にAPIからデータを取得
             fetchMeetingsData();
             fetchFieldCommentsData(); // 分野別リストの解説データを取得する
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            checkUrlPassword();
 
             const mainContent = document.getElementById('main-content');
             if (mainContent) {
