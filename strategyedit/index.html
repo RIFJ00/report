@@ -1,750 +1,852 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, onSnapshot, writeBatch, doc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { Upload, FileText, CheckCircle, AlertCircle, Info, RefreshCw, Trash2, Edit2, X, Save, Search, Download, ArrowUpDown, Database, Link, List } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>データ管理統合ツール</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="min-h-screen bg-gray-50 p-4 md:p-8 font-sans text-gray-800 relative">
+  <div class="max-w-7xl mx-auto space-y-6">
+    
+    <!-- ヘッダー -->
+    <header class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col md:flex-row justify-between items-start md:items-center">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 flex items-center">
+          <i data-lucide="file-text" class="w-6 h-6 mr-2 text-blue-600"></i>
+          データ管理統合ツール
+        </h1>
+        <p class="text-gray-500 mt-1 text-sm">各リストのインポート・編集・閲覧を一元管理します。</p>
+      </div>
+      <div class="mt-4 md:mt-0 flex items-center text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">
+        <div id="auth-status-dot" class="w-2 h-2 rounded-full mr-2 bg-gray-400"></div>
+        <span id="auth-status-text">接続中...</span>
+      </div>
+    </header>
 
-// ユーザー提供のFirebase Config
-const firebaseConfig = {
-  apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
-  authDomain: "seisakuresearch00.firebaseapp.com",
-  projectId: "seisakuresearch00",
-  storageBucket: "seisakuresearch00.firebasestorage.app",
-  messagingSenderId: "356788263577",
-  appId: "1:356788263577:web:ecc3782d0c82cb7da43608",
-  measurementId: "G-Y1C3GPNC9Z"
-};
+    <!-- タブナビゲーション -->
+    <div id="tabs-container" class="flex border-b border-gray-300"></div>
 
-// Firebaseの初期化
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+    <!-- メッセージエリア -->
+    <div id="message-container"></div>
 
-const APP_ID = 'seisakuresearch';
+    <!-- 初回警告エリア -->
+    <div id="warning-container" style="display: none;" class="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg flex items-start">
+      <i data-lucide="info" class="w-5 h-5 mr-3 mt-0.5 flex-shrink-0"></i>
+      <div class="text-sm">
+        <p class="font-semibold mb-1">初回利用時の注意事項</p>
+        <p>データを保存・表示するには、FirebaseのFirestoreセキュリティルールで以下のパスを許可してください。</p>
+        <code class="block bg-blue-100 p-2 mt-2 rounded text-xs select-all">
+          match /artifacts/seisakuresearch/public/data/{document=**} { allow read, write: if true; }
+        </code>
+      </div>
+    </div>
 
-// タブとコレクションの定義
-const TABS = [
-  { id: 'meetings', label: '会議体リスト', collection: 'meetings', icon: List, filterCol: '関連分野', sortCol: '順位', uniqueKeys: ['関連分野', '会議名'] },
-  { id: 'fields', label: '分野別リスト', collection: 'fields', icon: Database, filterCol: '分野', sortCol: null, uniqueKeys: ['分野'] },
-  { id: 'links', label: 'リンクリスト', collection: 'links', icon: Link, filterCol: '分野', sortCol: null, uniqueKeys: ['分野', '会議名'] }
-];
+    <!-- インポートセクション -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <h2 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2 flex items-center">
+        <span id="import-tab-name" class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-2"></span>
+        ファイルのインポート
+      </h2>
+      
+      <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
+        <div class="flex-1 w-full relative">
+          <input 
+            type="file" id="file-input" accept=".csv, .xlsx, .xls"
+            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors border border-gray-200 rounded-md"
+          >
+        </div>
+        
+        <div class="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+          <label id="shift-jis-label" class="flex items-center text-sm text-gray-600 cursor-pointer">
+            <input type="checkbox" id="use-shift-jis" checked class="mr-2 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50">
+            Excel用CSV (Shift_JIS)
+          </label>
 
-// 各タブの表示・保存用カラム（列）の定義
-const COLUMNS = {
-  meetings: ['関連分野', '区分', '順位', '会議名', 'URL', '所管', '対象分野', '直近開催日', '備考'],
-  fields: ['分野', '解説'],
-  links: ['分野', '会議名', '会議体URL', '構成員', 'ロードマップ', '概要']
-};
+          <label class="flex items-center text-sm text-gray-600 cursor-pointer" title="チェックを入れると、一意の項目が一致する既存データを新しいデータで上書きします">
+            <input type="checkbox" id="allow-overwrite" class="mr-2 rounded text-red-500 focus:ring-red-500">
+            重複時に既存データを上書き
+          </label>
 
-// Excel解析ライブラリ (SheetJS) の動的読み込みヘルパー
-const loadXLSX = () => {
-  return new Promise((resolve, reject) => {
-    if (window.XLSX) {
-      resolve(window.XLSX);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    script.onload = () => resolve(window.XLSX);
-    script.onerror = () => reject(new Error('Excel解析ライブラリの読み込みに失敗しました'));
-    document.head.appendChild(script);
-  });
-};
+          <button id="import-btn" class="flex items-center px-5 py-2.5 rounded-md font-medium text-white transition-all bg-gray-400 cursor-not-allowed" disabled>
+            <i data-lucide="upload" class="w-4 h-4 mr-2"></i>データを追加保存
+          </button>
+        </div>
+      </div>
+    </div>
 
-// CSVパース用のヘルパー関数
-function parseCSV(text) {
-  const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const result = [];
-  let row = [];
-  let inQuotes = false;
-  let currentValue = '';
+    <!-- データ一覧セクション -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="p-4 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div class="flex items-center">
+          <h2 id="list-tab-name" class="text-lg font-semibold text-gray-800 mr-4"></h2>
+          <span id="data-count-display" class="bg-white px-3 py-1 rounded-full text-xs font-medium text-gray-600 border shadow-sm">
+            表示 0 / 全 0 件
+          </span>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+          <!-- 分野絞り込みプルダウン -->
+          <div id="filter-select-container" class="relative w-full sm:w-48" style="display: none;">
+            <select id="filter-select" class="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors appearance-none">
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+          </div>
 
-  for (let i = 0; i < normalizedText.length; i++) {
-    const char = normalizedText[i];
-    if (char === '"') {
-      if (inQuotes && normalizedText[i + 1] === '"') {
-        currentValue += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
+          <!-- 検索バー -->
+          <div class="relative w-full sm:w-56">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i data-lucide="search" class="h-4 w-4 text-gray-400"></i>
+            </div>
+            <input type="text" id="search-input" placeholder="キーワード検索..." class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors">
+            <button id="clear-search-btn" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600" style="display: none;">
+              <i data-lucide="x" class="h-4 w-4"></i>
+            </button>
+          </div>
+
+          <!-- ソートボタン -->
+          <button id="sort-btn" class="flex items-center px-3 py-2 border rounded-md transition-colors text-sm font-medium w-full sm:w-auto justify-center bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
+            <i data-lucide="arrow-up-down" class="w-4 h-4 mr-1.5"></i>
+            <span id="sort-btn-text">順位で並べ替え</span>
+          </button>
+
+          <!-- エクスポートボタン -->
+          <button id="export-btn" class="flex items-center px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-sm font-medium w-full sm:w-auto justify-center">
+            <i data-lucide="download" class="w-4 h-4 mr-1.5"></i>CSV出力
+          </button>
+
+          <!-- 一括削除ボタン -->
+          <button id="bulk-delete-action-btn" class="flex items-center px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100 transition-colors text-sm font-medium w-full sm:w-auto justify-center" style="display: none;">
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <!-- 読み込み中 -->
+        <div id="loading-state" class="p-12 flex justify-center items-center text-gray-500">
+          <i data-lucide="refresh-cw" class="w-6 h-6 animate-spin mr-3 text-blue-500"></i>データを読み込み中...
+        </div>
+        
+        <!-- 空の状態 -->
+        <div id="empty-state" class="p-12 text-center text-gray-500" style="display: none;">
+          <i data-lucide="file-text" class="w-12 h-12 mx-auto text-gray-300 mb-3"></i>
+          <p id="empty-message">データがありません。ファイルをインポートしてください。</p>
+        </div>
+
+        <!-- テーブル -->
+        <table id="main-table" class="min-w-full divide-y divide-gray-200" style="display: none;">
+          <thead id="table-thead" class="bg-gray-100"></thead>
+          <tbody id="table-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- モーダル用コンテナ -->
+  <div id="modals-container"></div>
+
+  <!-- Firebase & Application Logic -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, onSnapshot, writeBatch, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
+      authDomain: "seisakuresearch00.firebaseapp.com",
+      projectId: "seisakuresearch00",
+      storageBucket: "seisakuresearch00.firebasestorage.app",
+      messagingSenderId: "356788263577",
+      appId: "1:356788263577:web:ecc3782d0c82cb7da43608",
+      measurementId: "G-Y1C3GPNC9Z"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const APP_ID = 'seisakuresearch';
+
+    const TABS = [
+      { id: 'meetings', label: '会議体リスト', collection: 'meetings', icon: 'list', filterCol: '関連分野', sortCol: '順位', uniqueKeys: ['関連分野', '会議名'] },
+      { id: 'fields', label: '分野別リスト', collection: 'fields', icon: 'database', filterCol: '分野', sortCol: null, uniqueKeys: ['分野'] },
+      { id: 'links', label: 'リンクリスト', collection: 'links', icon: 'link', filterCol: '分野', sortCol: null, uniqueKeys: ['分野', '会議名'] }
+    ];
+
+    const COLUMNS = {
+      meetings: ['関連分野', '区分', '順位', '会議名', 'URL', '所管', '対象分野', '直近開催日', '備考'],
+      fields: ['分野', '解説'],
+      links: ['分野', '会議名', '会議体URL', '構成員', 'ロードマップ', '概要']
+    };
+
+    // State
+    const state = {
+      user: null,
+      activeTab: 'meetings',
+      dataList: [],
+      loading: true,
+      file: null,
+      importing: false,
+      useShiftJis: true,
+      message: { text: '', type: '' },
+      editingItem: null,
+      deletingId: null,
+      searchQuery: '',
+      selectedIds: [],
+      showBulkDeleteConfirm: false,
+      allowOverwrite: false,
+      sortByRank: false,
+      selectedFieldFilter: ''
+    };
+
+    let processedData = [];
+    let unsubscribeSnapshot = null;
+
+    // Helpers
+    const loadXLSX = () => {
+      return new Promise((resolve, reject) => {
+        if (window.XLSX) return resolve(window.XLSX);
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        script.onload = () => resolve(window.XLSX);
+        script.onerror = () => reject(new Error('Excel解析ライブラリの読み込みに失敗しました'));
+        document.head.appendChild(script);
+      });
+    };
+
+    function parseCSV(text) {
+      const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const result = [];
+      let row = [];
+      let inQuotes = false;
+      let currentValue = '';
+
+      for (let i = 0; i < normalizedText.length; i++) {
+        const char = normalizedText[i];
+        if (char === '"') {
+          if (inQuotes && normalizedText[i + 1] === '"') {
+            currentValue += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          row.push(currentValue);
+          currentValue = '';
+        } else if (char === '\n' && !inQuotes) {
+          row.push(currentValue);
+          result.push(row);
+          row = [];
+          currentValue = '';
+        } else {
+          currentValue += char;
+        }
       }
-    } else if (char === ',' && !inQuotes) {
-      row.push(currentValue);
-      currentValue = '';
-    } else if (char === '\n' && !inQuotes) {
-      row.push(currentValue);
-      result.push(row);
-      row = [];
-      currentValue = '';
-    } else {
-      currentValue += char;
+      if (currentValue || row.length > 0) {
+        row.push(currentValue);
+        result.push(row);
+      }
+      return result;
     }
-  }
-  if (currentValue || row.length > 0) {
-    row.push(currentValue);
-    result.push(row);
-  }
-  return result;
-}
 
-// URL判定ヘルパー
-const isUrl = (text) => typeof text === 'string' && text.trim().startsWith('http');
+    const isUrl = (text) => typeof text === 'string' && text.trim().startsWith('http');
+    const escapeHTML = (str) => typeof str !== 'string' ? str : str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag]));
 
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('meetings'); // タブ切り替え状態
-  const [dataList, setDataList] = useState([]); // 現在のタブのデータ
-  const [loading, setLoading] = useState(true);
-  const [file, setFile] = useState(null);
-  const [importing, setImporting] = useState(false);
-  const [useShiftJis, setUseShiftJis] = useState(true);
-  const [message, setMessage] = useState({ text: '', type: '' });
-  const fileInputRef = useRef(null);
+    // Global Functions for UI Events
+    window.app = {
+      switchTab: (id) => {
+        state.activeTab = id;
+        state.selectedIds = [];
+        state.searchQuery = '';
+        state.selectedFieldFilter = '';
+        state.message = { text: '', type: '' };
+        state.sortByRank = false;
 
-  // 編集・削除用ステート
-  const [editingItem, setEditingItem] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [allowOverwrite, setAllowOverwrite] = useState(false);
-  const [sortByRank, setSortByRank] = useState(false);
-  const [selectedFieldFilter, setSelectedFieldFilter] = useState('');
+        document.getElementById('search-input').value = '';
+        document.getElementById('clear-search-btn').style.display = 'none';
 
-  const currentTabDef = TABS.find(t => t.id === activeTab);
-  const activeColumns = COLUMNS[activeTab];
+        renderTabs();
+        renderMessage();
+        updateImportUI();
 
-  // 1. Firebase 匿名認証
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        await signInAnonymously(auth);
-      } catch (err) {
-        console.error("Auth error:", err);
-        setMessage({ text: `認証エラー: ${err.message}`, type: 'error' });
+        const currentTabDef = TABS.find(t => t.id === state.activeTab);
+        document.getElementById('import-tab-name').textContent = currentTabDef.label + '用';
+        document.getElementById('list-tab-name').textContent = currentTabDef.label;
+        document.getElementById('sort-btn').style.display = currentTabDef.sortCol ? 'flex' : 'none';
+
+        if (unsubscribeSnapshot) unsubscribeSnapshot();
+        state.loading = true;
+        updateTable();
+
+        const dataRef = collection(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection);
+        unsubscribeSnapshot = onSnapshot(dataRef, (snapshot) => {
+          state.dataList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          state.loading = false;
+          updateFilterSelect();
+          updateTable();
+        }, (error) => {
+          console.error("Firestore error:", error);
+          showMessage("データの取得に失敗しました。", 'error');
+          state.loading = false;
+          updateTable();
+        });
+      },
+
+      handleFileChange: (e) => {
+        state.file = e.target.files[0] || null;
+        updateImportUI();
+      },
+
+      handleImport: async () => {
+        if (!state.file) return;
+        state.importing = true;
+        showMessage('', '');
+        updateImportUI();
+
+        const currentTabDef = TABS.find(t => t.id === state.activeTab);
+        const activeColumns = COLUMNS[state.activeTab];
+
+        try {
+          let parsedData = [];
+          const isExcelFile = state.file.name.toLowerCase().endsWith('.xlsx') || state.file.name.toLowerCase().endsWith('.xls');
+
+          if (isExcelFile) {
+            showMessage('Excelライブラリを読み込み中...', 'info');
+            const XLSX = await loadXLSX();
+            showMessage('Excelデータを解析中...', 'info');
+            
+            const arrayBuffer = await state.file.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            parsedData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+          } else {
+            const readAs = (encoding) => new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target.result);
+              reader.onerror = () => reject(new Error("ファイルの読み込みに失敗しました"));
+              reader.readAsText(state.file, encoding);
+            });
+
+            let textRaw = await readAs(state.useShiftJis ? 'Shift_JIS' : 'UTF-8');
+            const sampleCol = activeColumns[0];
+            
+            if (!textRaw.includes(sampleCol)) {
+              const alternateText = await readAs(state.useShiftJis ? 'UTF-8' : 'Shift_JIS');
+              if (alternateText.includes(sampleCol)) {
+                textRaw = alternateText;
+                state.useShiftJis = !state.useShiftJis;
+                document.getElementById('use-shift-jis').checked = state.useShiftJis;
+              }
+            }
+
+            const text = textRaw.replace(/^\uFEFF/, '');
+            parsedData = parseCSV(text);
+          }
+
+          if (!parsedData || parsedData.length === 0) throw new Error("ファイルにデータが含まれていません。");
+
+          const isHeaderRow = parsedData[0].some(h => typeof h === 'string' && activeColumns.includes(h.replace(/[\u200B-\u200D\uFEFF]/g, '').trim()));
+          let headers = [];
+          let startIndex = 0;
+          
+          if (isHeaderRow) {
+            headers = parsedData[0].map(h => typeof h === 'string' ? h.replace(/[\u200B-\u200D\uFEFF]/g, '').trim() : String(h));
+            startIndex = 1;
+          } else {
+            headers = activeColumns;
+            startIndex = 0;
+          }
+
+          const uploadDataList = [];
+          for (let i = startIndex; i < parsedData.length; i++) {
+            const row = parsedData[i];
+            if (!row || (row.length === 1 && row[0] === '')) continue; 
+            const item = {};
+            headers.forEach((header, index) => {
+              if (activeColumns.includes(header)) {
+                item[header] = row[index] !== undefined && row[index] !== null ? String(row[index]).trim() : '';
+              }
+            });
+            if (Object.values(item).some(val => val !== '')) uploadDataList.push(item);
+          }
+
+          if (uploadDataList.length === 0) throw new Error("有効なデータ行が見つかりませんでした。");
+
+          let skippedCount = 0; let updatedCount = 0; let addedCount = 0;
+          const existingMap = new Map();
+          state.dataList.forEach(m => {
+            const key = currentTabDef.uniqueKeys.map(k => m[k] || '').join('_');
+            existingMap.set(key, m.id);
+          });
+
+          const processedKeys = new Set();
+          const batch = writeBatch(db);
+          const dataRef = collection(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection);
+
+          uploadDataList.forEach((newItem, index) => {
+            const uniqueKey = currentTabDef.uniqueKeys.map(k => newItem[k] || '').join('_');
+            if (uniqueKey && processedKeys.has(uniqueKey)) return;
+            if (uniqueKey) processedKeys.add(uniqueKey);
+
+            const timestamp = Date.now() + index;
+
+            if (existingMap.has(uniqueKey)) {
+              if (state.allowOverwrite) {
+                const existingId = existingMap.get(uniqueKey);
+                batch.set(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, existingId), { ...newItem, createdAt: timestamp });
+                updatedCount++;
+              } else {
+                skippedCount++;
+              }
+            } else {
+              batch.set(doc(dataRef), { ...newItem, createdAt: timestamp });
+              addedCount++;
+            }
+          });
+
+          if (addedCount === 0 && updatedCount === 0) {
+            state.file = null;
+            document.getElementById('file-input').value = '';
+            showMessage(`更新されたデータはありません（${skippedCount}件スキップ）。`, 'info');
+            state.importing = false;
+            updateImportUI();
+            return;
+          }
+          
+          await batch.commit();
+          
+          state.file = null;
+          document.getElementById('file-input').value = '';
+          
+          let successMsg = [];
+          if (addedCount > 0) successMsg.push(`${addedCount}件を新規登録`);
+          if (updatedCount > 0) successMsg.push(`${updatedCount}件を上書き`);
+          if (skippedCount > 0) successMsg.push(`${skippedCount}件をスキップ`);
+          
+          showMessage(`インポート完了: ${successMsg.join(' / ')}しました。`, 'success');
+
+        } catch (err) {
+          console.error(err);
+          showMessage(`インポートエラー: ${err.message}`, 'error');
+        } finally {
+          state.importing = false;
+          updateImportUI();
+        }
+      },
+
+      openEditModal: (id) => {
+        const item = state.dataList.find(d => d.id === id);
+        if (item) {
+          state.editingItem = { ...item };
+          renderModals();
+        }
+      },
+      closeEditModal: () => { state.editingItem = null; renderModals(); },
+      
+      handleSaveEdit: async () => {
+        if (!state.editingItem) return;
+        const currentTabDef = TABS.find(t => t.id === state.activeTab);
+        const activeColumns = COLUMNS[state.activeTab];
+        
+        // Formの値を収集
+        activeColumns.forEach(col => {
+          const el = document.getElementById(`edit-input-${col}`);
+          if (el) state.editingItem[col] = el.value;
+        });
+
+        try {
+          const { id, ...updateData } = state.editingItem;
+          await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, id), updateData);
+          showMessage('データを更新しました。', 'success');
+          state.editingItem = null;
+          renderModals();
+        } catch (err) {
+          console.error(err);
+          showMessage(`更新エラー: ${err.message}`, 'error');
+        }
+      },
+
+      openDeleteModal: (id) => { state.deletingId = id; renderModals(); },
+      closeDeleteModal: () => { state.deletingId = null; renderModals(); },
+      
+      handleDelete: async () => {
+        if (!state.deletingId) return;
+        const currentTabDef = TABS.find(t => t.id === state.activeTab);
+        try {
+          await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, state.deletingId));
+          showMessage('データを削除しました。', 'success');
+        } catch (err) {
+          console.error(err);
+          showMessage(`削除エラー: ${err.message}`, 'error');
+        } finally {
+          state.deletingId = null;
+          renderModals();
+        }
+      },
+
+      openBulkDeleteModal: () => { state.showBulkDeleteConfirm = true; renderModals(); },
+      closeBulkDeleteModal: () => { state.showBulkDeleteConfirm = false; renderModals(); },
+
+      handleBulkDelete: async () => {
+        const currentTabDef = TABS.find(t => t.id === state.activeTab);
+        try {
+          const batch = writeBatch(db);
+          state.selectedIds.forEach(id => {
+            batch.delete(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, id));
+          });
+          await batch.commit();
+          showMessage(`${state.selectedIds.length}件のデータを削除しました。`, 'success');
+          state.selectedIds = [];
+          state.showBulkDeleteConfirm = false;
+          renderModals();
+        } catch (err) {
+          console.error(err);
+          showMessage(`一括削除エラー: ${err.message}`, 'error');
+        }
+      },
+
+      handleSelectAll: (e) => {
+        state.selectedIds = e.target.checked ? processedData.map(m => m.id) : [];
+        updateTable();
+      },
+
+      handleSelectOne: (e, id) => {
+        if (e.target.checked) state.selectedIds.push(id);
+        else state.selectedIds = state.selectedIds.filter(sId => sId !== id);
+        updateTable();
+      },
+
+      handleExport: () => {
+        if (processedData.length === 0) {
+          showMessage('出力するデータがありません。', 'info');
+          return;
+        }
+        const activeColumns = COLUMNS[state.activeTab];
+        const currentTabDef = TABS.find(t => t.id === state.activeTab);
+        
+        const csvRows = [];
+        csvRows.push(activeColumns.map(h => `"${h}"`).join(','));
+        processedData.forEach(item => {
+          const row = activeColumns.map(col => `"${(item[col] || '').replace(/"/g, '""')}"`);
+          csvRows.push(row.join(','));
+        });
+
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${currentTabDef.label}_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
       }
     };
-    initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
+    // UI Render Functions
+    function showMessage(text, type) {
+      state.message = { text, type };
+      renderMessage();
+    }
 
-  // 2. データのリアルタイム取得 (タブ切り替え時にリッスン先を変更)
-  useEffect(() => {
-    if (!user) return;
-
-    setLoading(true);
-    const dataRef = collection(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection);
-    
-    const unsubscribe = onSnapshot(dataRef, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setDataList(docs);
-      setLoading(false);
-    }, (error) => {
-      console.error("Firestore error:", error);
-      setMessage({ text: "データの取得に失敗しました。", type: 'error' });
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [user, activeTab]);
-
-  // ファイル選択
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) setFile(selectedFile);
-  };
-
-  // CSV/Excelインポート処理
-  const handleImport = async () => {
-    if (!file) return;
-    setImporting(true);
-    setMessage({ text: '', type: '' });
-    
-    try {
-      let parsedData = [];
-      const isExcelFile = file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls');
-
-      if (isExcelFile) {
-        setMessage({ text: 'Excelライブラリを読み込み中...', type: 'info' });
-        const XLSX = await loadXLSX();
-        setMessage({ text: 'Excelデータを解析中...', type: 'info' });
-        
-        const arrayBuffer = await file.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        parsedData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-      } else {
-        const readAs = (encoding) => {
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = () => reject(new Error("ファイルの読み込みに失敗しました"));
-            reader.readAsText(file, encoding);
-          });
-        };
-
-        let textRaw = await readAs(useShiftJis ? 'Shift_JIS' : 'UTF-8');
-        
-        // ヘッダーチェックで文字化け判定
-        const sampleCol = activeColumns[0];
-        if (!textRaw.includes(sampleCol)) {
-          const alternateText = await readAs(useShiftJis ? 'UTF-8' : 'Shift_JIS');
-          if (alternateText.includes(sampleCol)) {
-            textRaw = alternateText;
-            setUseShiftJis(!useShiftJis);
-          }
-        }
-
-        const text = textRaw.replace(/^\uFEFF/, '');
-        parsedData = parseCSV(text);
+    function renderMessage() {
+      const container = document.getElementById('message-container');
+      if (!state.message.text) {
+        container.innerHTML = '';
+        return;
       }
+      const typeMap = {
+        error: { bg: 'bg-red-50', text: 'text-red-800', border: 'border-red-200', icon: 'alert-circle' },
+        success: { bg: 'bg-green-50', text: 'text-green-800', border: 'border-green-200', icon: 'check-circle' },
+        info: { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200', icon: 'info' }
+      };
+      const style = typeMap[state.message.type] || typeMap.info;
+      container.innerHTML = `
+        <div class="flex items-center p-4 mb-6 rounded-md ${style.bg} ${style.text} border ${style.border}">
+          <i data-lucide="${style.icon}" class="w-5 h-5 mr-2 flex-shrink-0"></i><span>${escapeHTML(state.message.text)}</span>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+
+    function renderTabs() {
+      document.getElementById('tabs-container').innerHTML = TABS.map(tab => `
+        <button onclick="window.app.switchTab('${tab.id}')" class="flex items-center py-3 px-6 font-medium text-sm transition-all border-b-2 -mb-[2px] ${state.activeTab === tab.id ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-100/50'}">
+          <i data-lucide="${tab.icon}" class="w-4 h-4 mr-2 ${state.activeTab === tab.id ? 'text-blue-600' : 'text-gray-400'}"></i>${tab.label}
+        </button>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    function updateImportUI() {
+      const isFileSelected = !!state.file;
+      const isExcel = isFileSelected && (state.file.name.toLowerCase().endsWith('.xlsx') || state.file.name.toLowerCase().endsWith('.xls'));
       
-      if (!parsedData || parsedData.length === 0) {
-        throw new Error("ファイルにデータが含まれていません。");
-      }
-
-      // ヘッダーの有無を自動判定してマッピング
-      const isHeaderRow = parsedData[0].some(h => typeof h === 'string' && activeColumns.includes(h.replace(/[\u200B-\u200D\uFEFF]/g, '').trim()));
+      document.getElementById('use-shift-jis').disabled = state.importing || isExcel;
+      document.getElementById('shift-jis-label').className = `flex items-center text-sm ${isExcel ? 'text-gray-400' : 'text-gray-600 cursor-pointer'}`;
+      document.getElementById('file-input').disabled = state.importing;
+      document.getElementById('allow-overwrite').disabled = state.importing;
       
-      let headers = [];
-      let startIndex = 0;
+      const btn = document.getElementById('import-btn');
+      btn.disabled = !isFileSelected || state.importing;
+      btn.className = `flex items-center px-5 py-2.5 rounded-md font-medium text-white transition-all ${!isFileSelected || state.importing ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`;
+      btn.innerHTML = state.importing ? `<i data-lucide="refresh-cw" class="w-4 h-4 mr-2 animate-spin"></i>インポート中...` : `<i data-lucide="upload" class="w-4 h-4 mr-2"></i>データを追加保存`;
+      lucide.createIcons();
+    }
+
+    function updateFilterSelect() {
+      const currentTabDef = TABS.find(t => t.id === state.activeTab);
+      const filterColumn = currentTabDef.filterCol;
+      const selectContainer = document.getElementById('filter-select-container');
+      const selectEl = document.getElementById('filter-select');
       
-      if (isHeaderRow) {
-        headers = parsedData[0].map(h => typeof h === 'string' ? h.replace(/[\u200B-\u200D\uFEFF]/g, '').trim() : String(h));
-        startIndex = 1;
-      } else {
-        // ヘッダーがない場合（分野別解説など）は定義したカラムを順番に割り当てる
-        headers = activeColumns;
-        startIndex = 0;
-      }
-
-      const uploadDataList = [];
-      for (let i = startIndex; i < parsedData.length; i++) {
-        const row = parsedData[i];
-        if (!row || (row.length === 1 && row[0] === '')) continue; 
-        
-        const item = {};
-        headers.forEach((header, index) => {
-          if (activeColumns.includes(header)) {
-            item[header] = row[index] !== undefined && row[index] !== null ? String(row[index]).trim() : '';
-          }
-        });
-        
-        if (Object.values(item).some(val => val !== '')) {
-          uploadDataList.push(item);
-        }
-      }
-
-      if (uploadDataList.length === 0) throw new Error("有効なデータ行が見つかりませんでした。");
-
-      // 二重登録（重複）の防止・上書き処理
-      let skippedCount = 0; let updatedCount = 0; let addedCount = 0;
-      
-      const existingMap = new Map();
-      dataList.forEach(m => {
-        const key = currentTabDef.uniqueKeys.map(k => m[k] || '').join('_');
-        existingMap.set(key, m.id);
-      });
-
-      const processedKeys = new Set();
-      const batch = writeBatch(db);
-      const dataRef = collection(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection);
-
-      uploadDataList.forEach((newItem, index) => {
-        const uniqueKey = currentTabDef.uniqueKeys.map(k => newItem[k] || '').join('_');
-        
-        if (uniqueKey && processedKeys.has(uniqueKey)) return;
-        if (uniqueKey) processedKeys.add(uniqueKey);
-
-        const timestamp = Date.now() + index;
-
-        if (existingMap.has(uniqueKey)) {
-          if (allowOverwrite) {
-            const existingId = existingMap.get(uniqueKey);
-            batch.set(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, existingId), { ...newItem, createdAt: timestamp });
-            updatedCount++;
-          } else {
-            skippedCount++;
-          }
-        } else {
-          batch.set(doc(dataRef), { ...newItem, createdAt: timestamp });
-          addedCount++;
-        }
-      });
-
-      if (addedCount === 0 && updatedCount === 0) {
-        setFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        setMessage({ text: `更新されたデータはありません（${skippedCount}件スキップ）。`, type: 'info' });
-        setImporting(false);
+      if (!filterColumn) {
+        selectContainer.style.display = 'none';
         return;
       }
       
-      await batch.commit();
+      const uniqueFilterFields = Array.from(new Set([...state.dataList].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map(m => m[filterColumn]).filter(Boolean)));
       
-      setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      
-      let successMsg = [];
-      if (addedCount > 0) successMsg.push(`${addedCount}件を新規登録`);
-      if (updatedCount > 0) successMsg.push(`${updatedCount}件を上書き`);
-      if (skippedCount > 0) successMsg.push(`${skippedCount}件をスキップ`);
-      
-      setMessage({ text: `インポート完了: ${successMsg.join(' / ')}しました。`, type: 'success' });
-      
-    } catch (err) {
-      console.error(err);
-      setMessage({ text: `インポートエラー: ${err.message}`, type: 'error' });
-    } finally {
-      setImporting(false);
+      if (uniqueFilterFields.length > 0) {
+        selectContainer.style.display = 'block';
+        selectEl.innerHTML = `<option value="">すべての${escapeHTML(filterColumn)}</option>` + 
+          uniqueFilterFields.map(f => `<option value="${escapeHTML(f)}" ${state.selectedFieldFilter === f ? 'selected' : ''}>${escapeHTML(f)}</option>`).join('');
+      } else {
+        selectContainer.style.display = 'none';
+      }
     }
-  };
 
-  // ----- 削除処理 -----
-  const handleDelete = async (id) => {
-    try {
-      await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, id));
-      setMessage({ text: 'データを削除しました。', type: 'success' });
-    } catch (err) {
-      console.error(err);
-      setMessage({ text: `削除エラー: ${err.message}`, type: 'error' });
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  // ----- 編集処理 -----
-  const handleEditChange = (field, value) => setEditingItem(prev => ({ ...prev, [field]: value }));
-
-  const handleSaveEdit = async () => {
-    if (!editingItem) return;
-    try {
-      const { id, ...updateData } = editingItem;
-      await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, id), updateData);
-      setMessage({ text: 'データを更新しました。', type: 'success' });
-      setEditingItem(null);
-    } catch (err) {
-      console.error(err);
-      setMessage({ text: `更新エラー: ${err.message}`, type: 'error' });
-    }
-  };
-
-  // ----- 一括削除処理 -----
-  const handleBulkDelete = async () => {
-    try {
-      const batch = writeBatch(db);
-      selectedIds.forEach(id => {
-        batch.delete(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, id));
+    function computeProcessedData() {
+      const currentTabDef = TABS.find(t => t.id === state.activeTab);
+      const activeColumns = COLUMNS[state.activeTab];
+      const filterColumn = currentTabDef.filterCol;
+      
+      const fieldImportOrder = {};
+      state.dataList.forEach(m => {
+        const field = m[filterColumn] || '';
+        fieldImportOrder[field] = fieldImportOrder[field] === undefined ? (m.createdAt || 0) : Math.min(fieldImportOrder[field], m.createdAt || 0);
       });
-      await batch.commit();
-      setMessage({ text: `${selectedIds.length}件のデータを削除しました。`, type: 'success' });
-      setSelectedIds([]);
-      setShowBulkDeleteConfirm(false);
-    } catch (err) {
-      console.error(err);
-      setMessage({ text: `一括削除エラー: ${err.message}`, type: 'error' });
+
+      processedData = state.dataList.filter(item => {
+        if (state.selectedFieldFilter && item[filterColumn] !== state.selectedFieldFilter) return false;
+        if (!state.searchQuery) return true;
+        const lowerQuery = state.searchQuery.toLowerCase();
+        return activeColumns.some(col => String(item[col] || '').toLowerCase().includes(lowerQuery));
+      });
+
+      processedData.sort((a, b) => {
+        if (state.sortByRank && currentTabDef.sortCol) {
+          const sortCol = currentTabDef.sortCol;
+          const fieldA = a[filterColumn] || '';
+          const fieldB = b[filterColumn] || '';
+          
+          if (fieldA !== fieldB) {
+            const orderA = fieldImportOrder[fieldA] !== undefined ? fieldImportOrder[fieldA] : 9999999999999;
+            const orderB = fieldImportOrder[fieldB] !== undefined ? fieldImportOrder[fieldB] : 9999999999999;
+            if (orderA !== orderB) return orderA - orderB;
+            return fieldA.localeCompare(fieldB, 'ja');
+          }
+          const rankA = a[sortCol] ? parseInt(a[sortCol], 10) : 9999;
+          const rankB = b[sortCol] ? parseInt(b[sortCol], 10) : 9999;
+          if (rankA !== rankB) return rankA - rankB;
+        }
+        return (a.createdAt || 0) - (b.createdAt || 0);
+      });
     }
-  };
 
-  // ----- フィルタリングとソート処理 -----
-  const filterColumn = currentTabDef.filterCol;
-  
-  const fieldImportOrder = {};
-  dataList.forEach(m => {
-    const field = m[filterColumn] || '';
-    if (fieldImportOrder[field] === undefined) {
-      fieldImportOrder[field] = m.createdAt || 0;
-    } else {
-      fieldImportOrder[field] = Math.min(fieldImportOrder[field], m.createdAt || 0);
-    }
-  });
-
-  const processedData = dataList.filter(item => {
-    if (selectedFieldFilter && item[filterColumn] !== selectedFieldFilter) return false;
-    if (!searchQuery) return true;
-    const lowerQuery = searchQuery.toLowerCase();
-    return activeColumns.some(col => String(item[col] || '').toLowerCase().includes(lowerQuery));
-  });
-
-  processedData.sort((a, b) => {
-    if (sortByRank && currentTabDef.sortCol) {
-      const sortCol = currentTabDef.sortCol;
-      const fieldA = a[filterColumn] || '';
-      const fieldB = b[filterColumn] || '';
+    function updateTable() {
+      computeProcessedData();
+      document.getElementById('data-count-display').textContent = `表示 ${processedData.length} / 全 ${state.dataList.length} 件`;
       
-      if (fieldA !== fieldB) {
-        const orderA = fieldImportOrder[fieldA] !== undefined ? fieldImportOrder[fieldA] : 9999999999999;
-        const orderB = fieldImportOrder[fieldB] !== undefined ? fieldImportOrder[fieldB] : 9999999999999;
-        if (orderA !== orderB) return orderA - orderB;
-        return fieldA.localeCompare(fieldB, 'ja');
+      const bulkBtn = document.getElementById('bulk-delete-action-btn');
+      if (state.selectedIds.length > 0) {
+        bulkBtn.style.display = 'flex';
+        bulkBtn.innerHTML = `<i data-lucide="trash-2" class="w-4 h-4 mr-1.5"></i>選択した ${state.selectedIds.length} 件を削除`;
+      } else {
+        bulkBtn.style.display = 'none';
+      }
+      
+      const warning = document.getElementById('warning-container');
+      if (!state.loading && state.dataList.length === 0 && !state.message.text && !state.searchQuery && !state.selectedFieldFilter) {
+        warning.style.display = 'flex';
+      } else {
+        warning.style.display = 'none';
       }
 
-      const rankA = a[sortCol] ? parseInt(a[sortCol], 10) : 9999;
-      const rankB = b[sortCol] ? parseInt(b[sortCol], 10) : 9999;
-      if (rankA !== rankB) return rankA - rankB;
+      const thead = document.getElementById('table-thead');
+      const tbody = document.getElementById('table-tbody');
+      const loadingState = document.getElementById('loading-state');
+      const emptyState = document.getElementById('empty-state');
+      const mainTable = document.getElementById('main-table');
+
+      if (state.loading) {
+        loadingState.style.display = 'flex';
+        emptyState.style.display = 'none';
+        mainTable.style.display = 'none';
+      } else if (processedData.length === 0) {
+        loadingState.style.display = 'none';
+        emptyState.style.display = 'block';
+        mainTable.style.display = 'none';
+        document.getElementById('empty-message').textContent = (state.searchQuery || state.selectedFieldFilter) ? '条件に一致するデータがありません。' : 'データがありません。ファイルをインポートしてください。';
+      } else {
+        loadingState.style.display = 'none';
+        emptyState.style.display = 'none';
+        mainTable.style.display = 'table';
+        
+        const activeColumns = COLUMNS[state.activeTab];
+        const allSelected = processedData.length > 0 && state.selectedIds.length === processedData.length;
+        
+        thead.innerHTML = `<tr>
+          <th class="px-4 py-3 text-left w-12"><input type="checkbox" ${allSelected ? 'checked' : ''} onclick="window.app.handleSelectAll(event)" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"></th>
+          ${activeColumns.map(col => `<th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">${escapeHTML(col)}</th>`).join('')}
+          <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">操作</th>
+        </tr>`;
+        
+        tbody.innerHTML = processedData.map(item => `
+          <tr class="hover:bg-blue-50/50 transition-colors ${state.selectedIds.includes(item.id) ? 'bg-blue-50/30' : ''}">
+            <td class="px-4 py-3"><input type="checkbox" ${state.selectedIds.includes(item.id) ? 'checked' : ''} onclick="window.app.handleSelectOne(event, '${item.id}')" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"></td>
+            ${activeColumns.map(col => {
+              const val = item[col] || '';
+              const content = isUrl(val) ? `<a href="${escapeHTML(val)}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center">リンクを開く</a>` : `<div class="max-w-md break-words whitespace-pre-wrap">${escapeHTML(val) || '-'}</div>`;
+              return `<td class="px-4 py-3 text-sm text-gray-700">${content}</td>`;
+            }).join('')}
+            <td class="px-4 py-3 text-sm text-gray-700 text-right whitespace-nowrap">
+              <button onclick="window.app.openEditModal('${item.id}')" class="text-blue-600 hover:bg-blue-100 p-1.5 rounded mr-1 transition-colors" title="編集"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+              <button onclick="window.app.openDeleteModal('${item.id}')" class="text-red-600 hover:bg-red-100 p-1.5 rounded transition-colors" title="削除"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </td>
+          </tr>
+        `).join('');
+      }
+      lucide.createIcons();
     }
-    return (a.createdAt || 0) - (b.createdAt || 0);
-  });
 
-  const handleSelectAll = (e) => {
-    if (e.target.checked) setSelectedIds(processedData.map(m => m.id));
-    else setSelectedIds([]);
-  };
-
-  const handleSelectOne = (e, id) => {
-    if (e.target.checked) setSelectedIds(prev => [...prev, id]);
-    else setSelectedIds(prev => prev.filter(sId => sId !== id));
-  };
-
-  // ----- CSVエクスポート処理 -----
-  const handleExport = () => {
-    if (processedData.length === 0) {
-      setMessage({ text: '出力するデータがありません。', type: 'info' });
-      return;
+    function renderModals() {
+      const container = document.getElementById('modals-container');
+      let html = '';
+      
+      if (state.editingItem) {
+        const currentTabDef = TABS.find(t => t.id === state.activeTab);
+        const activeColumns = COLUMNS[state.activeTab];
+        
+        const fieldsHtml = activeColumns.map(col => {
+          const uniqueValues = Array.from(new Set([...state.dataList].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map(m => m[col]).filter(Boolean)));
+          const isTextArea = ['解説', '備考', '概要'].includes(col);
+          
+          let inputHtml = isTextArea 
+            ? `<textarea id="edit-input-${col}" rows="4" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all">${escapeHTML(state.editingItem[col] || '')}</textarea>`
+            : `<input list="datalist-${col}" type="text" id="edit-input-${col}" value="${escapeHTML(state.editingItem[col] || '')}" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all">` +
+              (['関連分野', '区分', '所管', '対象分野', '分野'].includes(col) ? `<datalist id="datalist-${col}">${uniqueValues.map(val => `<option value="${escapeHTML(val)}">`).join('')}</datalist>` : '');
+          
+          return `<div><label class="block text-sm font-semibold text-gray-700 mb-1">${escapeHTML(col)}</label>${inputHtml}</div>`;
+        }).join('');
+        
+        html += `<div class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
+              <h3 class="text-lg font-bold flex items-center text-gray-800"><i data-lucide="edit-2" class="w-5 h-5 mr-2 text-blue-600"></i>データの編集 (${currentTabDef.label})</h3>
+              <button onclick="window.app.closeEditModal()" class="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-1 rounded-md transition-colors"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 flex-1">${fieldsHtml}</div>
+            <div class="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3">
+              <button onclick="window.app.closeEditModal()" class="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md font-medium transition-colors">キャンセル</button>
+              <button onclick="window.app.handleSaveEdit()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium flex items-center shadow-sm transition-colors"><i data-lucide="save" class="w-4 h-4 mr-2"></i> 保存する</button>
+            </div>
+          </div>
+        </div>`;
+      }
+      
+      if (state.deletingId) {
+        html += `<div class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center">
+            <i data-lucide="alert-circle" class="w-14 h-14 text-red-500 mx-auto mb-4"></i><h3 class="text-xl font-bold text-gray-900 mb-2">削除の確認</h3>
+            <p class="text-sm text-gray-500 mb-8">このデータを削除してもよろしいですか？<br>この操作は取り消せません。</p>
+            <div class="flex justify-center space-x-3">
+              <button onclick="window.app.closeDeleteModal()" class="flex-1 px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-md font-medium transition-colors">キャンセル</button>
+              <button onclick="window.app.handleDelete()" class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white shadow-sm rounded-md font-medium transition-colors">削除する</button>
+            </div>
+          </div>
+        </div>`;
+      }
+      
+      if (state.showBulkDeleteConfirm) {
+        html += `<div class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center">
+            <i data-lucide="alert-circle" class="w-14 h-14 text-red-500 mx-auto mb-4"></i><h3 class="text-xl font-bold text-gray-900 mb-2">一括削除の確認</h3>
+            <p class="text-sm text-gray-500 mb-8">選択した ${state.selectedIds.length} 件のデータを削除してもよろしいですか？<br>この操作は取り消せません。</p>
+            <div class="flex justify-center space-x-3">
+              <button onclick="window.app.closeBulkDeleteModal()" class="flex-1 px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-md font-medium transition-colors">キャンセル</button>
+              <button onclick="window.app.handleBulkDelete()" class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white shadow-sm rounded-md font-medium transition-colors">削除する</button>
+            </div>
+          </div>
+        </div>`;
+      }
+      
+      container.innerHTML = html;
+      lucide.createIcons();
     }
 
-    const csvRows = [];
-    csvRows.push(activeColumns.map(h => `"${h}"`).join(','));
-    
-    processedData.forEach(item => {
-      const row = activeColumns.map(col => {
-        let val = item[col] || '';
-        val = val.replace(/"/g, '""');
-        return `"${val}"`;
+    // Initialization & Event Listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+
+      // Auth
+      const initAuth = async () => {
+        try { await signInAnonymously(auth); } 
+        catch (err) { showMessage(`認証エラー: ${err.message}`, 'error'); }
+      };
+      initAuth();
+
+      onAuthStateChanged(auth, (currentUser) => {
+        state.user = currentUser;
+        document.getElementById('auth-status-dot').className = `w-2 h-2 rounded-full mr-2 ${currentUser ? 'bg-green-500' : 'bg-gray-400'}`;
+        document.getElementById('auth-status-text').textContent = currentUser ? 'システム接続済' : '接続中...';
+        if (currentUser) window.app.switchTab('meetings');
       });
-      csvRows.push(row.join(','));
+
+      // Static Event Bindings
+      document.getElementById('file-input').addEventListener('change', window.app.handleFileChange);
+      document.getElementById('use-shift-jis').addEventListener('change', (e) => state.useShiftJis = e.target.checked);
+      document.getElementById('allow-overwrite').addEventListener('change', (e) => state.allowOverwrite = e.target.checked);
+      document.getElementById('import-btn').addEventListener('click', window.app.handleImport);
+      
+      document.getElementById('filter-select').addEventListener('change', (e) => { 
+        state.selectedFieldFilter = e.target.value; 
+        updateTable(); 
+      });
+      
+      const searchInput = document.getElementById('search-input');
+      const clearSearchBtn = document.getElementById('clear-search-btn');
+      searchInput.addEventListener('input', (e) => {
+        state.searchQuery = e.target.value;
+        clearSearchBtn.style.display = state.searchQuery ? 'flex' : 'none';
+        updateTable();
+      });
+      clearSearchBtn.addEventListener('click', () => {
+        state.searchQuery = '';
+        searchInput.value = '';
+        clearSearchBtn.style.display = 'none';
+        updateTable();
+      });
+
+      const sortBtn = document.getElementById('sort-btn');
+      sortBtn.addEventListener('click', () => {
+        state.sortByRank = !state.sortByRank;
+        sortBtn.className = `flex items-center px-3 py-2 border rounded-md transition-colors text-sm font-medium w-full sm:w-auto justify-center ${state.sortByRank ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`;
+        document.getElementById('sort-btn-text').textContent = state.sortByRank ? '順位ソート中' : '順位で並べ替え';
+        updateTable();
+      });
+
+      document.getElementById('export-btn').addEventListener('click', window.app.handleExport);
+      document.getElementById('bulk-delete-action-btn').addEventListener('click', window.app.openBulkDeleteModal);
     });
 
-    const csvString = csvRows.join('\n');
-    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-    const blob = new Blob([bom, csvString], { type: 'text/csv;charset=utf-8;' });
-    
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    link.download = `${currentTabDef.label}_${dateStr}.csv`;
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  // プルダウン用リスト（インポート順）
-  const uniqueFilterFields = Array.from(new Set(
-    [...dataList]
-      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
-      .map(m => m[filterColumn])
-      .filter(Boolean)
-  ));
-
-  const renderMessage = () => {
-    if (!message.text) return null;
-    let bgColor, textColor, borderColor, IconComp;
-    if (message.type === 'error') { bgColor = 'bg-red-50'; textColor = 'text-red-800'; borderColor = 'border-red-200'; IconComp = AlertCircle; }
-    else if (message.type === 'success') { bgColor = 'bg-green-50'; textColor = 'text-green-800'; borderColor = 'border-green-200'; IconComp = CheckCircle; }
-    else { bgColor = 'bg-blue-50'; textColor = 'text-blue-800'; borderColor = 'border-blue-200'; IconComp = Info; }
-    
-    return (
-      <div className={`flex items-center p-4 mb-6 rounded-md ${bgColor} ${textColor} border ${borderColor}`}>
-        <IconComp className="w-5 h-5 mr-2 flex-shrink-0" /><span>{message.text}</span>
-      </div>
-    );
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans text-gray-800 relative">
-      <div className="max-w-7xl mx-auto space-y-6">
-        
-        {/* ヘッダー */}
-        <header className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col md:flex-row justify-between items-start md:items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-              <FileText className="w-6 h-6 mr-2 text-blue-600" />
-              データ管理統合ツール
-            </h1>
-            <p className="text-gray-500 mt-1 text-sm">各リストのインポート・編集・閲覧を一元管理します。</p>
-          </div>
-          <div className="mt-4 md:mt-0 flex items-center text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">
-            <div className={`w-2 h-2 rounded-full mr-2 ${user ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-            {user ? 'システム接続済' : '接続中...'}
-          </div>
-        </header>
-
-        {/* タブナビゲーション */}
-        <div className="flex border-b border-gray-300">
-          {TABS.map(tab => {
-            const TabIcon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setSelectedIds([]);
-                  setSearchQuery('');
-                  setSelectedFieldFilter('');
-                  setMessage({ text: '', type: '' });
-                }}
-                className={`flex items-center py-3 px-6 font-medium text-sm transition-all border-b-2 -mb-[2px] ${
-                  isActive ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-100/50'
-                }`}
-              >
-                <TabIcon className={`w-4 h-4 mr-2 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {renderMessage()}
-
-        {/* Firestore ルール設定の警告 (初期表示用) */}
-        {!loading && dataList.length === 0 && !message.text && !searchQuery && !selectedFieldFilter && (
-          <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg flex items-start">
-            <Info className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-semibold mb-1">初回利用時の注意事項</p>
-              <p>データを保存・表示するには、FirebaseのFirestoreセキュリティルールで以下のパスを許可してください。</p>
-              <code className="block bg-blue-100 p-2 mt-2 rounded text-xs select-all">
-                match /artifacts/seisakuresearch/public/data/{"{document=**}"} {'{'} allow read, write: if true; {'}'}
-              </code>
-            </div>
-          </div>
-        )}
-
-        {/* インポートセクション */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2 flex items-center">
-            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-2">{currentTabDef.label}用</span>
-            ファイルのインポート
-          </h2>
-          
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-            <div className="flex-1 w-full relative">
-              <input 
-                type="file" accept=".csv, .xlsx, .xls" ref={fileInputRef} onChange={handleFileChange} disabled={importing}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors border border-gray-200 rounded-md"
-              />
-            </div>
-            
-            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-              <label className={`flex items-center text-sm ${file && (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) ? 'text-gray-400' : 'text-gray-600 cursor-pointer'}`}>
-                <input type="checkbox" checked={useShiftJis} onChange={(e) => setUseShiftJis(e.target.checked)} disabled={importing || (file && (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')))} className="mr-2 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50" />
-                Excel用CSV (Shift_JIS)
-              </label>
-
-              <label className="flex items-center text-sm text-gray-600 cursor-pointer" title="チェックを入れると、一意の項目が一致する既存データを新しいデータで上書きします">
-                <input type="checkbox" checked={allowOverwrite} onChange={(e) => setAllowOverwrite(e.target.checked)} disabled={importing} className="mr-2 rounded text-red-500 focus:ring-red-500" />
-                重複時に既存データを上書き
-              </label>
-
-              <button onClick={handleImport} disabled={!file || importing} className={`flex items-center px-5 py-2.5 rounded-md font-medium text-white transition-all ${!file || importing ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
-                {importing ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                {importing ? 'インポート中...' : 'データを追加保存'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* データ一覧セクション */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex items-center">
-              <h2 className="text-lg font-semibold text-gray-800 mr-4">{currentTabDef.label}</h2>
-              <span className="bg-white px-3 py-1 rounded-full text-xs font-medium text-gray-600 border shadow-sm">
-                表示 {processedData.length} / 全 {dataList.length} 件
-              </span>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-              
-              {/* 分野絞り込みプルダウン */}
-              {filterColumn && uniqueFilterFields.length > 0 && (
-                <div className="relative w-full sm:w-48">
-                  <select
-                    value={selectedFieldFilter} onChange={(e) => setSelectedFieldFilter(e.target.value)}
-                    className="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors appearance-none"
-                  >
-                    <option value="">すべての{filterColumn}</option>
-                    {uniqueFilterFields.map(field => <option key={field} value={field}>{field}</option>)}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </div>
-                </div>
-              )}
-
-              {/* 検索バー */}
-              <div className="relative w-full sm:w-56">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-4 w-4 text-gray-400" /></div>
-                <input
-                  type="text" placeholder="キーワード検索..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
-                />
-                {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>}
-              </div>
-
-              {/* ソートボタン (対応タブのみ) */}
-              {currentTabDef.sortCol && (
-                <button
-                  onClick={() => setSortByRank(!sortByRank)}
-                  className={`flex items-center px-3 py-2 border rounded-md transition-colors text-sm font-medium w-full sm:w-auto justify-center ${sortByRank ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-                >
-                  <ArrowUpDown className="w-4 h-4 mr-1.5" />
-                  {sortByRank ? '順位ソート中' : '順位で並べ替え'}
-                </button>
-              )}
-
-              {/* エクスポートボタン */}
-              <button onClick={handleExport} className="flex items-center px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-sm font-medium w-full sm:w-auto justify-center">
-                <Download className="w-4 h-4 mr-1.5" />CSV出力
-              </button>
-
-              {/* 一括削除ボタン */}
-              {selectedIds.length > 0 && (
-                <button onClick={() => setShowBulkDeleteConfirm(true)} className="flex items-center px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100 transition-colors text-sm font-medium w-full sm:w-auto justify-center">
-                  <Trash2 className="w-4 h-4 mr-1.5" />選択した {selectedIds.length} 件を削除
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            {loading ? (
-              <div className="p-12 flex justify-center items-center text-gray-500"><RefreshCw className="w-6 h-6 animate-spin mr-3 text-blue-500" />データを読み込み中...</div>
-            ) : processedData.length === 0 ? (
-              <div className="p-12 text-center text-gray-500">
-                <FileText className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                <p>{searchQuery || selectedFieldFilter ? '条件に一致するデータがありません。' : 'データがありません。ファイルをインポートしてください。'}</p>
-              </div>
-            ) : (
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="px-4 py-3 text-left w-12">
-                      <input type="checkbox" checked={processedData.length > 0 && selectedIds.length === processedData.length} onChange={handleSelectAll} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" />
-                    </th>
-                    {activeColumns.map(col => (
-                      <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">{col}</th>
-                    ))}
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {processedData.map((item) => (
-                    <tr key={item.id} className={`hover:bg-blue-50/50 transition-colors ${selectedIds.includes(item.id) ? 'bg-blue-50/30' : ''}`}>
-                      <td className="px-4 py-3">
-                        <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={(e) => handleSelectOne(e, item.id)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" />
-                      </td>
-                      {activeColumns.map(col => (
-                        <td key={col} className="px-4 py-3 text-sm text-gray-700">
-                          {isUrl(item[col]) ? (
-                            <a href={item[col]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center">
-                              リンクを開く
-                            </a>
-                          ) : (
-                            <div className="max-w-md break-words whitespace-pre-wrap">{item[col] || '-'}</div>
-                          )}
-                        </td>
-                      ))}
-                      <td className="px-4 py-3 text-sm text-gray-700 text-right whitespace-nowrap">
-                        <button onClick={() => setEditingItem({ ...item })} className="text-blue-600 hover:bg-blue-100 p-1.5 rounded mr-1 transition-colors" title="編集"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={() => setDeletingId(item.id)} className="text-red-600 hover:bg-red-100 p-1.5 rounded transition-colors" title="削除"><Trash2 className="w-4 h-4" /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* --- 編集モーダル --- */}
-      {editingItem && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
-              <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <Edit2 className="w-5 h-5 mr-2 text-blue-600" />データの編集 ({currentTabDef.label})
-              </h3>
-              <button onClick={() => setEditingItem(null)} className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-1 rounded-md transition-colors"><X className="w-6 h-6" /></button>
-            </div>
-            <div className="p-6 overflow-y-auto space-y-4 flex-1">
-              {activeColumns.map(col => {
-                const uniqueValues = Array.from(new Set([...dataList].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map(m => m[col]).filter(Boolean)));
-                // URLや解説など長文になりがちなものはテキストエリア、それ以外はインプット
-                const isTextArea = col === '解説' || col === '備考' || col === '概要';
-                return (
-                  <div key={col}>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">{col}</label>
-                    {isTextArea ? (
-                      <textarea
-                        value={editingItem[col] || ''} onChange={(e) => handleEditChange(col, e.target.value)} rows={4}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                      />
-                    ) : (
-                      <>
-                        <input
-                          list={`datalist-${col}`} type="text" value={editingItem[col] || ''} onChange={(e) => handleEditChange(col, e.target.value)}
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                        />
-                        {['関連分野', '区分', '所管', '対象分野', '分野'].includes(col) && (
-                          <datalist id={`datalist-${col}`}>{uniqueValues.map(val => <option key={val} value={val} />)}</datalist>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3">
-              <button onClick={() => setEditingItem(null)} className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md font-medium transition-colors">キャンセル</button>
-              <button onClick={handleSaveEdit} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium flex items-center shadow-sm transition-colors"><Save className="w-4 h-4 mr-2" /> 保存する</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- 各種確認モーダル（削除） --- */}
-      {deletingId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center">
-            <AlertCircle className="w-14 h-14 text-red-500 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-gray-900 mb-2">削除の確認</h3>
-            <p className="text-sm text-gray-500 mb-8">このデータを削除してもよろしいですか？<br/>この操作は取り消せません。</p>
-            <div className="flex justify-center space-x-3">
-              <button onClick={() => setDeletingId(null)} className="flex-1 px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-md font-medium transition-colors">キャンセル</button>
-              <button onClick={() => handleDelete(deletingId)} className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white shadow-sm rounded-md font-medium transition-colors">削除する</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showBulkDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center">
-            <AlertCircle className="w-14 h-14 text-red-500 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-gray-900 mb-2">一括削除の確認</h3>
-            <p className="text-sm text-gray-500 mb-8">選択した {selectedIds.length} 件のデータを削除してもよろしいですか？<br/>この操作は取り消せません。</p>
-            <div className="flex justify-center space-x-3">
-              <button onClick={() => setShowBulkDeleteConfirm(false)} className="flex-1 px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-md font-medium transition-colors">キャンセル</button>
-              <button onClick={handleBulkDelete} className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white shadow-sm rounded-md font-medium transition-colors">削除する</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-}
+  </script>
+</body>
+</html>
