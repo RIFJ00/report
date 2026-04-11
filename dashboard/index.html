@@ -69,6 +69,7 @@
             <h1 class="text-3xl md:text-5xl font-extrabold text-gray-800 leading-tight text-center md:text-left">
                 政策リサーチ 関連画面
             </h1>
+            <!-- ボタン群を右端に揃える -->
             <div class="flex flex-wrap justify-center md:justify-end gap-4 items-start w-full md:w-auto">
                 <!-- 使い方ボタン -->
                 <div class="flex flex-col items-center">
@@ -86,13 +87,13 @@
                     </button>
                     <p id="poll-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 確認中...</p>
                 </div>
-                <!-- 成長戦略概要ボタン (シアン) -->
+                <!-- 成長戦略概要ボタン (シアン) パスワード付き遷移へ変更 -->
                 <div class="flex flex-col items-center">
-                    <button onclick="window.open('https://report.rifj.jp/strategy/', '_blank')" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95 border border-teal-700">
+                    <button onclick="openUrlWithPassword('https://report.rifj.jp/strategy/', 'strategy')" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95 border border-teal-700">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
                         成長戦略概要
                     </button>
-                    <p id="strategy-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 受信待ち...</p>
+                    <p id="strategy-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 取得中...</p>
                 </div>
             </div>
         </div>
@@ -215,21 +216,37 @@
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
+            
             <div class="p-8 overflow-y-auto space-y-8">
                 <section>
                     <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
                         <span class="w-2 h-6 bg-blue-500 rounded-full"></span>
-                        成長戦略概要の更新通知
+                        データの更新日
                     </h3>
-                    <div class="bg-blue-50 rounded-2xl p-5">
+                    <div class="bg-blue-50 rounded-2xl p-5 space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-black text-red-600 bg-white px-2 py-1 rounded border border-red-200 mt-1 whitespace-nowrap">赤色・太字</span>
+                            <div class="text-sm text-gray-700">
+                                <p class="font-bold">データの更新日</p>
+                                <p class="text-xs opacity-90 leading-relaxed">更新情報のあるデータは直近の更新日を取得して表示しています。本日の更新は赤太字、前日の更新は赤字で表示しているので見逃しを防げます。</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section>
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                        <span class="w-2 h-6 bg-indigo-500 rounded-full"></span>
+                        成長戦略概要の同期
+                    </h3>
+                    <div class="bg-gray-50 rounded-2xl p-5">
                         <p class="text-sm text-gray-700 leading-relaxed">
-                            「成長戦略概要」の更新日は、外部システムから送信される通知を受け取ってリアルタイムに表示されます。
-                            通知を受信すると、最新の「更新日」としてヘッダー部分に表示されます。
+                            成長戦略概要ボタン下の「更新日」は、同ページ内の動向追跡データ（各分野の会議体情報など）が更新された最新の日時をリアルタイムで反映しています。
                         </p>
                     </div>
                 </section>
-                <!-- 他のセクションは維持 -->
             </div>
+            
             <div class="p-6 bg-gray-50/50 border-t border-gray-100 text-center">
                 <button id="closeManualBtn" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all active:scale-95">
                     閉じる
@@ -238,7 +255,7 @@
         </div>
     </div>
 
-    <!-- Firebase SDK & Notification Logic -->
+    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
         import { getFirestore, collection, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
@@ -249,6 +266,16 @@
         const firebaseConfigDiet = { apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs", authDomain: "user-9b981.firebaseapp.com", projectId: "user-9b981", appId: "unknown-diet-app" };
         const firebaseConfigImport = { apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04", authDomain: "import-b6097.firebaseapp.com", projectId: "import-b6097", storageBucket: "import-b6097.firebasestorage.app", messagingSenderId: "462510788117", appId: "1:462510788117:web:44ff1fd1af583f67bc081c" };
         const firebaseConfigPoll = { apiKey: "AIzaSyCzxK80B7Tl2EoBemiWq2_rKFPHhr1vkVI", authDomain: "election-fe317.firebaseapp.com", projectId: "election-fe317", storageBucket: "election-fe317.firebasestorage.app", messagingSenderId: "3312762738", appId: "1:3312762738:web:9f7c1430d5f5ceaacee7eb" };
+        
+        // 成長戦略管理ツールの設定
+        const firebaseConfigStrategy = {
+            apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
+            authDomain: "seisakuresearch00.firebaseapp.com",
+            projectId: "seisakuresearch00",
+            storageBucket: "seisakuresearch00.firebasestorage.app",
+            messagingSenderId: "356788263577",
+            appId: "1:356788263577:web:ecc3782d0c82cb7da43608"
+        };
 
         const appBlog = initializeApp(firebaseConfigBlog, "blogApp");
         const dbBlog = getFirestore(appBlog);
@@ -258,6 +285,8 @@
         const dbImport = getFirestore(appImport);
         const appPoll = initializeApp(firebaseConfigPoll, "pollApp");
         const dbPoll = getFirestore(appPoll);
+        const appStrategy = initializeApp(firebaseConfigStrategy, "strategyApp");
+        const dbStrategy = getFirestore(appStrategy);
 
         const CORRECT_PASSWORD = 'dashboard8';
         const authScreen = document.getElementById('auth-screen');
@@ -337,7 +366,9 @@
         const toDateSafely = (ts) => {
             if (!ts) return null;
             if (ts.toDate) return ts.toDate();
-            return new Date(ts);
+            // 数値（Date.now()形式）や文字列も許容
+            const d = new Date(ts);
+            return isNaN(d.getTime()) ? null : d;
         };
 
         async function safeAuth(app) {
@@ -390,6 +421,8 @@
 
         const initImport = async () => {
             await safeAuth(appImport);
+            await safeAuth(appStrategy);
+            
             const videoAppId = 'youtube-playlist-app';
             const videoUpdateTimes = { meeting: null, policy: null };
 
@@ -421,17 +454,32 @@
             }, (err) => console.warn("Policy report snapshot error", err));
 
             /**
-             * 成長戦略概要：通知受信方式
-             * notifyUpdateDateIfNeeded からの POST によって更新されるドキュメントを監視
+             * 成長戦略概要：データ管理統合ツールのロジックに合わせて取得
              */
-            onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/notifications/strategy"), (snap) => {
-                if (snap.exists()) {
-                    const data = snap.data();
-                    // 通知に含まれる日付（手動入力値）または更新時刻を優先取得
-                    const date = toDateSafely(data.manualDate || data.displayDate || data.date || data.updatedAt);
-                    if (date) updateStatusDisplay('strategy-status', date);
+            onSnapshot(collection(dbStrategy, "artifacts/seisakuresearch/public/data/meetings"), (snapshot) => {
+                let latestTime = 0;
+                
+                snapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    const times = [
+                        data.createdAt,
+                        data.updatedAt,
+                        data.timestamp,
+                        docSnap.updateTime?.toDate()
+                    ];
+
+                    times.forEach(ts => {
+                        const d = toDateSafely(ts);
+                        if (d && d.getTime() > latestTime) {
+                            latestTime = d.getTime();
+                        }
+                    });
+                });
+
+                if (latestTime > 0) {
+                    updateStatusDisplay('strategy-status', new Date(latestTime));
                 }
-            }, (err) => console.warn("Strategy notification fetch error", err));
+            }, (err) => console.warn("Strategy meetings fetch error", err));
 
             // 関連動画
             onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_'), (snap) => {
@@ -461,6 +509,9 @@
         openBtn.addEventListener('click', openModal);
         closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
 
+        /**
+         * パスワードをパラメータとハッシュの両方に付加してURLを開く
+         */
         function openUrlWithPassword(baseUrl, password) {
             const targetUrl = `${baseUrl}?pw=${password}#${password}`;
             window.open(targetUrl, '_blank');
