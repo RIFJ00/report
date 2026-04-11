@@ -11,6 +11,103 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
+    
+    <!-- Firebase SDK の読み込みと初期化 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
+            authDomain: "seisakuresearch00.firebaseapp.com",
+            projectId: "seisakuresearch00",
+            storageBucket: "seisakuresearch00.firebasestorage.app",
+            messagingSenderId: "356788263577",
+            appId: "1:356788263577:web:ecc3782d0c82cb7da43608",
+            measurementId: "G-Y1C3GPNC9Z"
+        };
+
+        // Firebaseの初期化
+        const app = initializeApp(firebaseConfig);
+        const storage = getStorage(app);
+        const db = getFirestore(app);
+
+        // グローバルに関数を公開してHTML側から呼び出せるようにする
+        window.handleFileUpload = async function() {
+            const fileInput = document.getElementById('file-upload-input');
+            const file = fileInput.files[0];
+            const statusEl = document.getElementById('upload-status');
+            
+            if (!file) {
+                statusEl.innerText = "ファイルを選択してください。";
+                statusEl.className = "text-xs font-bold text-red-600 w-full md:w-32 text-center";
+                return;
+            }
+
+            statusEl.innerText = "アップロード準備中...";
+            statusEl.className = "text-xs font-bold text-blue-600 w-full md:w-32 text-center";
+
+            try {
+                // 現在選択されている分野IDを取得
+                const fieldId = document.getElementById('field-select').value;
+                const timestamp = new Date().getTime();
+                // 日本語ファイル名等の文字化けやパスエラー防止のためファイル名を一部サニタイズ
+                const safeFileName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_'); 
+                const filePath = `uploads/${fieldId}/${timestamp}_${safeFileName}`;
+                
+                const storageRef = ref(storage, filePath);
+                const uploadTask = uploadBytesResumable(storageRef, file);
+
+                uploadTask.on('state_changed', 
+                    (snapshot) => {
+                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                        statusEl.innerText = '保存中: ' + Math.round(progress) + '%';
+                    }, 
+                    (error) => {
+                        console.error("Firebase Storage Upload error:", error);
+                        statusEl.innerText = "保存に失敗しました。";
+                        statusEl.className = "text-xs font-bold text-red-600 w-full md:w-32 text-center";
+                    }, 
+                    async () => {
+                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                        statusEl.innerText = "DBに記録中...";
+                        
+                        try {
+                            // Firestoreにアップロード履歴とメタデータを保存
+                            await addDoc(collection(db, "uploaded_files"), {
+                                originalFileName: file.name,
+                                fileUrl: downloadURL,
+                                storagePath: filePath,
+                                fieldId: fieldId,
+                                uploadedAt: serverTimestamp(),
+                                contentType: file.type,
+                                size: file.size
+                            });
+                            
+                            statusEl.innerText = "保存完了！";
+                            statusEl.className = "text-xs font-bold text-green-600 w-full md:w-32 text-center";
+                            
+                            // 3秒後にステータスをクリアし、inputをリセット
+                            setTimeout(() => {
+                                statusEl.innerText = "";
+                                fileInput.value = "";
+                            }, 5000);
+                            
+                        } catch(e) {
+                            console.error("Firestore Data Save error:", e);
+                            statusEl.innerText = "ファイル保存済(DB記録失敗)";
+                            statusEl.className = "text-xs font-bold text-yellow-600 w-full md:w-32 text-center";
+                        }
+                    }
+                );
+            } catch (error) {
+                console.error("System error:", error);
+                statusEl.innerText = "システムエラー発生";
+                statusEl.className = "text-xs font-bold text-red-600 w-full md:w-32 text-center";
+            }
+        };
+    </script>
     <style>
         html { scroll-behavior: smooth; }
         /* スクロール領域用のスムーズスクロール */
@@ -413,6 +510,23 @@
                                 <div id="no-pdf-message" class="w-full h-[200px] bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex flex-col justify-center items-center text-gray-500 transition-all cursor-default">
                                     <svg class="w-10 h-10 mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
                                     <p class="font-bold text-sm">該当するPDF資料はありません</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Firebase ファイル保存UI -->
+                            <div class="mt-8 pt-6 border-t border-gray-200">
+                                <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 md:p-5 flex flex-col md:flex-row items-center gap-4 shadow-sm">
+                                    <div class="flex items-center gap-2 text-indigo-900 font-bold min-w-max">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                                        データの保存
+                                    </div>
+                                    <div class="flex-1 w-full flex flex-col sm:flex-row gap-2 items-center">
+                                        <input type="file" id="file-upload-input" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer bg-white border border-indigo-200 rounded-full h-full">
+                                        <button onclick="handleFileUpload()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-sm transition-colors flex items-center justify-center gap-2 whitespace-nowrap">
+                                            保存する
+                                        </button>
+                                    </div>
+                                    <div id="upload-status" class="text-xs font-bold w-full md:w-32 text-center break-words"></div>
                                 </div>
                             </div>
                         </div>
@@ -2119,7 +2233,7 @@
 
             // Excelで文字化けしないためのBOM（Byte Order Mark）
             let csvContent = "\uFEFF"; 
-            const headers = ["区分", "順位", "会議名", "URL", "所管", "対象分野", "直近開催日", "備考"];
+            const headers = ["関連分野", "区分", "順位", "会議名", "URL", "所管", "対象分野", "直近開催日", "備考"];
             csvContent += headers.join(",") + "\n";
 
             // CSV用に文字列をエスケープする関数
@@ -2136,6 +2250,7 @@
             data.forEach((item, index) => {
                 const rank = getPriorityRank(fieldId, item.name);
                 const row = [
+                    escapeCSV(fieldName),
                     escapeCSV(item.category),
                     rank, // 順位があれば数字、なければ空欄
                     escapeCSV(item.name),
