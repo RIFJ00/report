@@ -580,6 +580,27 @@
                             <li>見づらい場合は「別タブで開く」を活用してください。</li>
                         </ul>
                     </div>
+                    
+                    <!-- 新機能 -->
+                    <div class="md:col-span-2 bg-gradient-to-r from-purple-50 to-white p-5 rounded-xl border border-purple-200 shadow-sm mt-2">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="bg-purple-100 text-purple-800 font-bold text-sm px-2 py-1 rounded flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>
+                                新機能
+                            </span>
+                            <h4 class="font-bold text-gray-800 text-sm">より深い分析のための追加機能</h4>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <h5 class="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>分野の解説機能</h5>
+                                <p class="text-xs text-gray-600 pl-2.5">横断8分野などを選択した際、「分野の解説」ボタンが表示されます。該当分野の政策的な位置づけや、関係する会議体全体の繋がりなど、詳細な背景情報を確認できます。</p>
+                            </div>
+                            <div>
+                                <h5 class="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>関連会議一覧のCSV出力</h5>
+                                <p class="text-xs text-gray-600 pl-2.5">「関連会議等一覧」ボタンから開くリスト画面に「CSV出力」ボタンが追加されました。表示されている会議の一覧データをダウンロードし、エクセル等で自社の分析資料として活用できます。</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="text-center pt-2">
@@ -2037,7 +2058,14 @@
                 tr.innerHTML = `
                     <td class="p-3 align-top"><span class="px-2 py-1 rounded text-[10px] font-bold ${catBadgeClass} whitespace-nowrap">${item.category}</span></td>
                     <td class="p-3 align-top text-center">${rankDisplay}</td>
-                    <td class="p-3 align-top leading-relaxed">${nameHtml}</td>
+                    <td class="p-3 align-top leading-relaxed">
+                        <div class="flex items-start justify-between gap-2">
+                            <div>${nameHtml}</div>
+                            <button onclick="copyToClipboard('${item.name.replace(/'/g, "\\'")}', this)" class="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50 flex-shrink-0" title="会議名をコピー">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            </button>
+                        </div>
+                    </td>
                     <td class="p-3 align-top whitespace-nowrap">${item.jurisdiction}</td>
                     <td class="p-3 align-top">${item.field}</td>
                     <td class="p-3 align-top whitespace-nowrap text-gray-600">${item.date}</td>
@@ -2051,6 +2079,32 @@
 
         function closeRelatedCouncilsModal() {
             document.getElementById('related-councils-modal').classList.add('hidden');
+        }
+
+        // コピー機能の実装
+        function copyToClipboard(text, btnElement) {
+            // iframe等での動作を考慮し、execCommandを使用
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "absolute";
+            textArea.style.left = "-999999px";
+            document.body.prepend(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                // コピー成功時のフィードバック表示
+                const originalHtml = btnElement.innerHTML;
+                btnElement.innerHTML = `<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
+                btnElement.classList.add('bg-green-50');
+                setTimeout(() => {
+                    btnElement.innerHTML = originalHtml;
+                    btnElement.classList.remove('bg-green-50');
+                }, 2000);
+            } catch (error) {
+                console.error("コピーに失敗しました", error);
+            } finally {
+                textArea.remove();
+            }
         }
 
         function downloadCSV() {
