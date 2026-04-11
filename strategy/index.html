@@ -443,7 +443,15 @@
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse min-w-[1100px]">
                         <thead class="bg-gray-100 text-gray-700 text-xs md:text-sm border-b-2 border-gray-300">
-                            <tr><th class="p-3 font-bold whitespace-nowrap w-20">区分</th><th class="p-3 font-bold whitespace-nowrap w-12 text-center">順位</th><th class="p-3 font-bold min-w-[200px] w-[22%]">会議名</th><th class="p-3 font-bold whitespace-nowrap w-24">所管</th><th class="p-3 font-bold min-w-[260px] w-[28%]">対象分野</th><th class="p-3 font-bold whitespace-nowrap w-32">直近開催日</th><th class="p-3 font-bold min-w-[200px] w-[25%]">備考</th></tr>
+                            <tr>
+                                <th class="p-3 font-bold whitespace-nowrap w-16">区分</th>
+                                <th class="p-3 font-bold whitespace-nowrap w-12 text-center">順位</th>
+                                <th class="p-3 font-bold min-w-[300px] w-[32%]">会議名</th>
+                                <th class="p-3 font-bold whitespace-nowrap w-20">所管</th>
+                                <th class="p-3 font-bold min-w-[180px] w-[20%]">対象分野</th>
+                                <th class="p-3 font-bold whitespace-nowrap w-28">直近開催日</th>
+                                <th class="p-3 font-bold min-w-[150px] w-[20%]">備考</th>
+                            </tr>
                         </thead>
                         <tbody id="related-modal-tbody" class="divide-y divide-gray-200 text-xs md:text-sm text-gray-700"></tbody>
                     </table>
@@ -1369,6 +1377,23 @@
             }
         });
 
+        // 省庁の建制順（ソート用）
+        const kenseiOrder = [
+            "官邸", "内閣官房", "内閣府", "国家公安委員会", "警察庁", "こども家庭庁", "金融庁", "消費者庁", "デジタル庁", "復興庁",
+            "総務省", "法務省", "外務省", "財務省", "文部科学省", "厚生労働省", "農林水産省", "経済産業省", "国土交通省", "環境省", "防衛省"
+        ];
+
+        function getJurisdictionRank(jurisdictionStr) {
+            if (!jurisdictionStr) return 999;
+            let minRank = 999;
+            for (let i = 0; i < kenseiOrder.length; i++) {
+                if (jurisdictionStr.includes(kenseiOrder[i])) {
+                    if (i < minRank) minRank = i;
+                }
+            }
+            return minRank;
+        }
+
         // テーブルの描画ロジックを分離
         function populateRelatedCouncilsTable() {
             const fieldId = document.getElementById('field-select').value;
@@ -1394,7 +1419,6 @@
 
             document.getElementById('related-modal-field-name').innerText = fieldData ? fieldData.name : "";
 
-            // デフォルトはインポート順（そのまま）。isSortedByRankがtrueの場合は順位でソートする
             const displayData = data.map((item, index) => ({ ...item, originalIndex: index }));
             
             const getRankNum = (rankStr) => {
@@ -1406,6 +1430,7 @@
             };
 
             if (isSortedByRank) {
+                // 順位でソート
                 displayData.sort((a, b) => {
                     const rankA = getRankNum(a.rank);
                     const rankB = getRankNum(b.rank);
@@ -1414,6 +1439,20 @@
                         return rankA - rankB;
                     }
                     return a.originalIndex - b.originalIndex;
+                });
+            } else {
+                // デフォルト：建制順 -> 会議名（50音順）
+                displayData.sort((a, b) => {
+                    const rankA = getJurisdictionRank(a.jurisdiction);
+                    const rankB = getJurisdictionRank(b.jurisdiction);
+                    
+                    if (rankA !== rankB) {
+                        return rankA - rankB;
+                    }
+                    // 所管が同じ場合は会議名で50音順
+                    const nameA = a.name || "";
+                    const nameB = b.name || "";
+                    return nameA.localeCompare(nameB, 'ja');
                 });
             }
 
@@ -1567,7 +1606,6 @@
                 return res.search(/("|,|\n)/) >= 0 ? `"${res}"` : res;
             };
             
-            // CSV出力時も表示と同じソート状態を適用
             const displayData = data.map((item, index) => ({ ...item, originalIndex: index }));
             
             const getRankNum = (rankStr) => {
@@ -1578,6 +1616,7 @@
             };
 
             if (isSortedByRank) {
+                // 順位でソート
                 displayData.sort((a, b) => {
                     const rankA = getRankNum(a.rank);
                     const rankB = getRankNum(b.rank);
@@ -1586,6 +1625,19 @@
                         return rankA - rankB;
                     }
                     return a.originalIndex - b.originalIndex;
+                });
+            } else {
+                // デフォルト：建制順 -> 会議名（50音順）
+                displayData.sort((a, b) => {
+                    const rankA = getJurisdictionRank(a.jurisdiction);
+                    const rankB = getJurisdictionRank(b.jurisdiction);
+                    
+                    if (rankA !== rankB) {
+                        return rankA - rankB;
+                    }
+                    const nameA = a.name || "";
+                    const nameB = b.name || "";
+                    return nameA.localeCompare(nameB, 'ja');
                 });
             }
             
