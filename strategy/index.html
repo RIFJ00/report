@@ -518,7 +518,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div><h5 class="text-xs font-bold text-gray-700 mb-1">「この分野の解説」機能</h5><p class="text-xs text-gray-600 pl-2.5">該当分野の政策的な位置づけなどを確認できます。</p></div>
                             <div><h5 class="text-xs font-bold text-gray-700 mb-1">会議の優先度付け（順位）</h5><p class="text-xs text-gray-600 pl-2.5">優先的に見た方が良い会議には「順位」がついています。</p></div>
-                            <div><h5 class="text-xs font-bold text-gray-700 mb-1">直近会議のハイライト表示</h5><p class="text-xs text-gray-600 pl-2.5">直近1ヶ月以内に開催された会議はリスト内でハイライト表示されます。</p></div>
+                            <div><h5 class="text-xs font-bold text-gray-700 mb-1">直近会議のハイライト表示</h5><p class="text-xs text-gray-600 pl-2.5">直近1ヶ月以内に開催の会議はリスト内でハイライト表示されます。</p></div>
                             <div><h5 class="text-xs font-bold text-gray-700 mb-1">関連会議一覧のCSV出力</h5><p class="text-xs text-gray-600 pl-2.5">リスト画面の「CSV出力」ボタンから一覧をダウンロードできます。</p></div>
                         </div>
                     </div>
@@ -634,6 +634,16 @@
                                     if (fieldId) {
                                         fieldComments[fieldId] = String(commentStr);
                                         foundCount++;
+                                        
+                                        // ★追加：データベースに代表会議名・URLがあれば固定データを上書きする
+                                        let targetArea = match17 || match8;
+                                        if (targetArea) {
+                                            const councilName = itemData.会議体名 || itemData.代表会議名 || itemData.council || itemData.会議名 || "";
+                                            if (councilName && String(councilName).trim() !== "") targetArea.council = councilName;
+                                            
+                                            const councilUrl = itemData.代表URL || itemData.会議体URL || itemData.url || itemData.URL || "";
+                                            if (councilUrl && String(councilUrl).trim() !== "") targetArea.url = councilUrl;
+                                        }
                                     }
                                 }
                             });
@@ -1075,6 +1085,118 @@
             "8_8": "https://report.rifj.jp/pdfupload/?id=765f69cb-6eb3-407e-81c3-0072d43b91fc"
         };
 
+        // カスタムのタブ名を保存するオブジェクト
+        let pdfTabNames = {
+            overview: {},
+            roadmap: {},
+            member: {}
+        };
+
+        // リンクリストから各タブのPDF用URLとタブ名を取得する関数
+        async function fetchPdfLinksData() {
+            const projectId = "seisakuresearch00";
+            const collectionNames = ["リンクリスト", "links", "pdf_links", "pdfLinks", "リンク"];
+            
+            for (const colName of collectionNames) {
+                const collectionPath = `artifacts/seisakuresearch/public/data/${colName}`;
+                let url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionPath}?pageSize=200`;
+
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const rawData = await response.json();
+                        if (rawData.documents && rawData.documents.length > 0) {
+                            let foundCount = 0;
+                            rawData.documents.forEach(doc => {
+                                const fields = doc.fields || {};
+                                const itemData = {};
+                                for (const [key, valDict] of Object.entries(fields)) {
+                                    const valType = Object.keys(valDict)[0];
+                                    itemData[key] = valDict[valType];
+                                }
+                                
+                                // 分野列を探す
+                                const fieldNameStr = String(itemData.分野 || itemData.分野名 || itemData.name || itemData.category || itemData.分野リスト || "");
+                                
+                                if (fieldNameStr) {
+                                    const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
+                                    
+                                    let fieldId = null;
+                                    // areas17との照合
+                                    let match17 = areas17.find(item => item.name === cleanFieldNameStr || cleanFieldNameStr.includes(item.name) || item.name.includes(cleanFieldNameStr));
+                                    if (match17) {
+                                        fieldId = `17_${match17.no}`;
+                                    } else {
+                                        // areas8との照合
+                                        let match8 = areas8.find(item => item.name === cleanFieldNameStr || cleanFieldNameStr.includes(item.name) || item.name.includes(cleanFieldNameStr));
+                                        if (match8) {
+                                            fieldId = `8_${match8.no}`;
+                                        }
+                                    }
+
+                                    if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) {
+                                        fieldId = fieldNameStr;
+                                    }
+
+                                    if (fieldId) {
+                                        // 概要URLとタブ名
+                                        const overviewUrl = itemData.概要 || itemData.overview || itemData.概要URL || itemData.overview_url || "";
+                                        const overviewName = itemData.概要名 || itemData.概要タブ名 || itemData.overview_name || "";
+                                        if (overviewUrl && String(overviewUrl).trim() !== "") {
+                                            overviewUrls[fieldId] = overviewUrl;
+                                        }
+                                        if (overviewName && String(overviewName).trim() !== "") {
+                                            pdfTabNames.overview[fieldId] = overviewName;
+                                        }
+
+                                        // ロードマップ等URLとタブ名
+                                        const roadmapUrl = itemData.ロードマップ || itemData.ロードマップ等 || itemData.roadmap || itemData.roadmap_url || itemData.ロードマップURL || "";
+                                        const roadmapName = itemData.ロードマップ名 || itemData.ロードマップタブ名 || itemData.roadmap_name || "";
+                                        if (roadmapUrl && String(roadmapUrl).trim() !== "") {
+                                            roadmapUrls[fieldId] = roadmapUrl;
+                                        }
+                                        if (roadmapName && String(roadmapName).trim() !== "") {
+                                            pdfTabNames.roadmap[fieldId] = roadmapName;
+                                        }
+
+                                        // 構成員等URLとタブ名
+                                        const memberUrl = itemData.構成員 || itemData.構成員等 || itemData.member || itemData.member_url || itemData.構成員URL || "";
+                                        const memberName = itemData.構成員名 || itemData.構成員タブ名 || itemData.member_name || "";
+                                        if (memberUrl && String(memberUrl).trim() !== "") {
+                                            memberUrls[fieldId] = memberUrl;
+                                        }
+                                        if (memberName && String(memberName).trim() !== "") {
+                                            pdfTabNames.member[fieldId] = memberName;
+                                        }
+
+                                        // データベースに代表会議名・URLがあれば固定データを上書きする
+                                        let targetArea = match17 || match8;
+                                        if (targetArea) {
+                                            const councilName = itemData.会議体名 || itemData.代表会議名 || itemData.council || itemData.会議名 || "";
+                                            if (councilName && String(councilName).trim() !== "") targetArea.council = councilName;
+                                            
+                                            const councilUrl = itemData.代表URL || itemData.会議体URL || itemData.url || itemData.URL || "";
+                                            if (councilUrl && String(councilUrl).trim() !== "") targetArea.url = councilUrl;
+                                        }
+
+                                        foundCount++;
+                                    }
+                                }
+                            });
+                            
+                            if (foundCount > 0) {
+                                console.log(`コレクション '${colName}' から ${foundCount} 件のPDFリンクデータを取得・更新しました。`);
+                                updatePdfDisplay(); // データ取得後にPDF表示を更新
+                                return; // 1つのコレクションから取得できたらループを終了
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`コレクション ${colName} の取得でエラーが発生しました。スキップします。`);
+                }
+            }
+        }
+
         let currentPdfTab = 'overview';
         let currentReportUrl = "";
         let currentReportBtn = null;
@@ -1189,6 +1311,11 @@
             const noMessage = document.getElementById('no-pdf-message');
             const externalLink = document.getElementById('pdf-external-link');
             const warning = document.getElementById('pdf-warning');
+
+            // タブの名前を分野ごとに更新する（データがない場合はデフォルト名）
+            document.getElementById('tab-overview').innerText = pdfTabNames.overview[fieldId] || "概要";
+            document.getElementById('tab-roadmap').innerText = pdfTabNames.roadmap[fieldId] || "ロードマップ等";
+            document.getElementById('tab-member').innerText = pdfTabNames.member[fieldId] || "構成員等";
 
             if (url) {
                 iframe.src = url;
@@ -1360,6 +1487,7 @@
             // 初回表示時にAPIからデータを取得
             fetchMeetingsData();
             fetchFieldCommentsData(); // 分野別リストの解説データを取得する
+            fetchPdfLinksData(); // リンクリストのPDFデータを取得する
         }
 
         window.addEventListener('DOMContentLoaded', () => {
