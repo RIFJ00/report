@@ -1635,15 +1635,34 @@
                     return a.originalIndex - b.originalIndex;
                 });
             } else {
-                // デフォルト：建制順 -> 会議名（50音順）
+                // デフォルト：区分（官邸 -> 省庁 -> 関連施策） -> 所管 -> 会議名（50音順）
                 displayData.sort((a, b) => {
-                    const rankA = getJurisdictionRank(a.jurisdiction);
-                    const rankB = getJurisdictionRank(b.jurisdiction);
+                    // 1. 区分 ('官邸' -> '省庁' -> '関連施策' の順、その他は文字列順)
+                    const getCategoryWeight = (cat) => {
+                        const c = cat || "";
+                        if (c.includes('官邸')) return 1;
+                        if (c.includes('省庁')) return 2;
+                        if (c.includes('関連施策')) return 3;
+                        return 4;
+                    };
+                    const weightA = getCategoryWeight(a.category);
+                    const weightB = getCategoryWeight(b.category);
+                    if (weightA !== weightB) return weightA - weightB;
                     
-                    if (rankA !== rankB) {
-                        return rankA - rankB;
-                    }
-                    // 所管が同じ場合は会議名で50音順
+                    const catA = a.category || "";
+                    const catB = b.category || "";
+                    if (catA !== catB) return catA.localeCompare(catB, 'ja');
+
+                    // 2. 所管 (建制順、無ければ文字列順)
+                    const jurRankA = getJurisdictionRank(a.jurisdiction);
+                    const jurRankB = getJurisdictionRank(b.jurisdiction);
+                    if (jurRankA !== jurRankB) return jurRankA - jurRankB;
+                    
+                    const jurA = a.jurisdiction || "";
+                    const jurB = b.jurisdiction || "";
+                    if (jurA !== jurB) return jurA.localeCompare(jurB, 'ja');
+
+                    // 3. 会議名
                     const nameA = a.name || "";
                     const nameB = b.name || "";
                     return nameA.localeCompare(nameB, 'ja');
@@ -1826,14 +1845,34 @@
                     return a.originalIndex - b.originalIndex;
                 });
             } else {
-                // デフォルト：建制順 -> 会議名（50音順）
+                // デフォルト：区分（官邸 -> 省庁 -> 関連施策） -> 所管 -> 会議名（50音順）
                 displayData.sort((a, b) => {
-                    const rankA = getJurisdictionRank(a.jurisdiction);
-                    const rankB = getJurisdictionRank(b.jurisdiction);
+                    // 1. 区分 ('官邸' -> '省庁' -> '関連施策' の順、その他は文字列順)
+                    const getCategoryWeight = (cat) => {
+                        const c = cat || "";
+                        if (c.includes('官邸')) return 1;
+                        if (c.includes('省庁')) return 2;
+                        if (c.includes('関連施策')) return 3;
+                        return 4;
+                    };
+                    const weightA = getCategoryWeight(a.category);
+                    const weightB = getCategoryWeight(b.category);
+                    if (weightA !== weightB) return weightA - weightB;
                     
-                    if (rankA !== rankB) {
-                        return rankA - rankB;
-                    }
+                    const catA = a.category || "";
+                    const catB = b.category || "";
+                    if (catA !== catB) return catA.localeCompare(catB, 'ja');
+
+                    // 2. 所管 (建制順、無ければ文字列順)
+                    const jurRankA = getJurisdictionRank(a.jurisdiction);
+                    const jurRankB = getJurisdictionRank(b.jurisdiction);
+                    if (jurRankA !== jurRankB) return jurRankA - jurRankB;
+                    
+                    const jurA = a.jurisdiction || "";
+                    const jurB = b.jurisdiction || "";
+                    if (jurA !== jurB) return jurA.localeCompare(jurB, 'ja');
+
+                    // 3. 会議名
                     const nameA = a.name || "";
                     const nameB = b.name || "";
                     return nameA.localeCompare(nameB, 'ja');
