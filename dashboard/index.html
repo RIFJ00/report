@@ -64,7 +64,7 @@
 
     <!-- メインコンテンツ -->
     <div id="main-content" class="bg-white rounded-3xl shadow-xl p-8 md:p-12 max-w-7xl w-full border border-gray-200">
-        <!-- ヘッダー部分: デスクトップで左右に振り分け -->
+        <!-- ヘッダー部分 -->
         <div class="flex flex-col md:flex-row items-center md:justify-between gap-6 mb-12">
             <h1 class="text-3xl md:text-5xl font-extrabold text-gray-800 leading-tight text-center md:text-left">
                 政策リサーチ 関連画面
@@ -87,19 +87,20 @@
                     </button>
                     <p id="poll-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 確認中...</p>
                 </div>
-                <!-- 成長戦略概要ボタン (シアン) パスワード付き遷移へ変更 -->
+                <!-- 成長戦略概要ボタン (シアン) -->
                 <div class="flex flex-col items-center">
                     <button onclick="openUrlWithPassword('https://report.rifj.jp/strategy/', 'strategy')" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95 border border-teal-700">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
                         成長戦略概要
                     </button>
-                    <p id="strategy-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 取得中...</p>
+                    <p id="strategy-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">修正日: 取得中...</p>
                 </div>
             </div>
         </div>
 
         <!-- グリッドレイアウト -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- 各カード (変更なし) -->
             <!-- 本日のポイント -->
             <div class="hover-card bg-gradient-to-tr from-green-50 to-green-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-green-200">
                 <div class="mb-6">
@@ -241,7 +242,7 @@
                     </h3>
                     <div class="bg-gray-50 rounded-2xl p-5">
                         <p class="text-sm text-gray-700 leading-relaxed">
-                            成長戦略概要ボタン下の「更新日」は、同ページ内の動向追跡データ（各分野の会議体情報など）が更新された最新の日時をリアルタイムで反映しています。
+                            成長戦略概要ボタン下の「修正日」は、インポート（ファイル読み込み）の日付ではなく、個別のデータに対して<strong>「内容の修正や追記が行われた最新の日時」</strong>をリアルタイムで反映しています。
                         </p>
                     </div>
                 </section>
@@ -267,14 +268,11 @@
         const firebaseConfigImport = { apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04", authDomain: "import-b6097.firebaseapp.com", projectId: "import-b6097", storageBucket: "import-b6097.firebasestorage.app", messagingSenderId: "462510788117", appId: "1:462510788117:web:44ff1fd1af583f67bc081c" };
         const firebaseConfigPoll = { apiKey: "AIzaSyCzxK80B7Tl2EoBemiWq2_rKFPHhr1vkVI", authDomain: "election-fe317.firebaseapp.com", projectId: "election-fe317", storageBucket: "election-fe317.firebasestorage.app", messagingSenderId: "3312762738", appId: "1:3312762738:web:9f7c1430d5f5ceaacee7eb" };
         
-        // 成長戦略管理ツールの設定
+        // 修正：提供された成長戦略プロジェクトの設定
         const firebaseConfigStrategy = {
             apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
             authDomain: "seisakuresearch00.firebaseapp.com",
-            projectId: "seisakuresearch00",
-            storageBucket: "seisakuresearch00.firebasestorage.app",
-            messagingSenderId: "356788263577",
-            appId: "1:356788263577:web:ecc3782d0c82cb7da43608"
+            projectId: "seisakuresearch00"
         };
 
         const appBlog = initializeApp(firebaseConfigBlog, "blogApp");
@@ -285,6 +283,8 @@
         const dbImport = getFirestore(appImport);
         const appPoll = initializeApp(firebaseConfigPoll, "pollApp");
         const dbPoll = getFirestore(appPoll);
+        
+        // 成長戦略プロジェクト初期化
         const appStrategy = initializeApp(firebaseConfigStrategy, "strategyApp");
         const dbStrategy = getFirestore(appStrategy);
 
@@ -336,7 +336,8 @@
             
             if (elementId === 'poll-status' || elementId === 'strategy-status') {
                 const simpleDate = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
-                el.textContent = `更新日: ${simpleDate}`;
+                const label = (elementId === 'strategy-status') ? '修正日' : '更新日';
+                el.textContent = `${label}: ${simpleDate}`;
             } else {
                 const formatted = date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
                 el.textContent = `最終更新: ${formatted}`;
@@ -366,7 +367,6 @@
         const toDateSafely = (ts) => {
             if (!ts) return null;
             if (ts.toDate) return ts.toDate();
-            // 数値（Date.now()形式）や文字列も許容
             const d = new Date(ts);
             return isNaN(d.getTime()) ? null : d;
         };
@@ -421,7 +421,7 @@
 
         const initImport = async () => {
             await safeAuth(appImport);
-            await safeAuth(appStrategy);
+            await safeAuth(appStrategy); // 成長戦略プロジェクトの認証
             
             const videoAppId = 'youtube-playlist-app';
             const videoUpdateTimes = { meeting: null, policy: null };
@@ -454,32 +454,40 @@
             }, (err) => console.warn("Policy report snapshot error", err));
 
             /**
-             * 成長戦略概要：データ管理統合ツールのロジックに合わせて取得
+             * 成長戦略概要：修正・更新日を監視
+             * 修正：seisakuresearch00 プロジェクトの meetings コレクションを直接参照
              */
-            onSnapshot(collection(dbStrategy, "artifacts/seisakuresearch/public/data/meetings"), (snapshot) => {
-                let latestTime = 0;
+            const strategyDataRef = collection(dbStrategy, 'artifacts', 'seisakuresearch', 'public', 'data', 'meetings');
+            onSnapshot(strategyDataRef, (snapshot) => {
+                let latestCorrectionTime = 0;
                 
                 snapshot.forEach(docSnap => {
                     const data = docSnap.data();
+                    
+                    // 修正・更新を示すタイムスタンプを抽出
+                    // updatedAt: 管理ツールで編集した際の日時
+                    // createdAt: インポート時の日時
                     const times = [
-                        data.createdAt,
                         data.updatedAt,
                         data.timestamp,
-                        docSnap.updateTime?.toDate()
+                        data.createdAt // 修正がない場合は作成日を暫定修正日とする
                     ];
 
                     times.forEach(ts => {
                         const d = toDateSafely(ts);
-                        if (d && d.getTime() > latestTime) {
-                            latestTime = d.getTime();
+                        if (d) {
+                            const timeVal = d.getTime();
+                            if (timeVal > latestCorrectionTime) {
+                                latestCorrectionTime = timeVal;
+                            }
                         }
                     });
                 });
 
-                if (latestTime > 0) {
-                    updateStatusDisplay('strategy-status', new Date(latestTime));
+                if (latestCorrectionTime > 0) {
+                    updateStatusDisplay('strategy-status', new Date(latestCorrectionTime));
                 }
-            }, (err) => console.warn("Strategy meetings fetch error", err));
+            }, (err) => console.warn("Strategy meetings correction date fetch error", err));
 
             // 関連動画
             onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_'), (snap) => {
