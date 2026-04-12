@@ -429,7 +429,16 @@
                     </h2>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button id="sort-rank-btn" onclick="toggleSort()" class="text-xs md:text-sm font-bold text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 px-3 py-1.5 rounded-lg shadow-sm transition-colors flex items-center gap-1.5" title="順位で並べ替える"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"></path></svg> 順位で並べ替え</button>
+                    <div class="relative">
+                        <select id="sort-select" onchange="applySort()" class="appearance-none text-xs md:text-sm font-bold text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 pl-3 pr-7 py-1.5 rounded-lg shadow-sm transition-colors focus:outline-none cursor-pointer" title="並べ替え">
+                            <option value="default">標準順</option>
+                            <option value="rank">順位順</option>
+                            <option value="date">開催日順</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-blue-700">
+                            <svg class="fill-current h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                        </div>
+                    </div>
                     <button onclick="downloadCSV()" class="text-xs md:text-sm font-bold text-teal-700 bg-white border border-teal-200 hover:bg-teal-50 px-3 py-1.5 rounded-lg shadow-sm transition-colors flex items-center gap-1.5" title="一覧をCSVでダウンロード"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> CSV出力</button>
                     <button onclick="closeRelatedCouncilsModal()" class="text-gray-400 hover:text-gray-800 transition-colors bg-white border border-gray-200 hover:bg-gray-100 rounded-full p-2 shadow-sm"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
                 </div>
@@ -568,7 +577,7 @@
 
     <script>
         let relatedCouncilsData = {};
-        let isSortedByRank = false; // ソート状態を保持
+        let currentSortMode = 'default'; // 'default', 'rank', 'date'
         // Firestoreの分野別リストデータから取得した解説を格納（初期値は空）
         let fieldComments = {};
 
@@ -1498,6 +1507,38 @@
             return minRank;
         }
 
+        // 日付文字列からDateオブジェクトを生成する関数（ソート用）
+        function parseMeetingDate(dateStr) {
+            if (!dateStr || typeof dateStr !== 'string') return new Date(0);
+            
+            // 令和X年X月X日
+            const reiwaRegex = /令和([0-9０-９]+|元)年([0-9０-９]{1,2})月([0-9０-９]{1,2})日/;
+            let match = reiwaRegex.exec(dateStr);
+            if (match) {
+                const yStr = match[1];
+                let year = yStr === '元' ? 2019 : 2018 + parseInt(yStr.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)));
+                let month = parseInt(match[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))) - 1;
+                let day = parseInt(match[3].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)));
+                return new Date(year, month, day);
+            }
+
+            // 西暦 (YYYY年MM月DD日)
+            const seirekiRegex = /([0-9]{4})年([0-9]{1,2})月([0-9]{1,2})日/;
+            match = seirekiRegex.exec(dateStr);
+            if (match) {
+                return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+            }
+
+            // スラッシュ (YYYY/MM/DD)
+            const slashRegex = /([0-9]{4})[/-]([0-9]{1,2})[/-]([0-9]{1,2})/;
+            match = slashRegex.exec(dateStr);
+            if (match) {
+                return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+            }
+
+            return new Date(0); // 解析不能な場合は過去の日付扱い
+        }
+
         // 日付文字列から直近1ヶ月の会議かどうかを判定する関数
         function isRecentMeeting(dateStr) {
             if (!dateStr || typeof dateStr !== 'string') return false;
@@ -1571,7 +1612,7 @@
                 return isNaN(num) ? 9999 : num;
             };
 
-            if (isSortedByRank) {
+            if (currentSortMode === 'rank') {
                 // 順位でソート
                 displayData.sort((a, b) => {
                     const rankA = getRankNum(a.rank);
@@ -1579,6 +1620,17 @@
                     
                     if (rankA !== rankB) {
                         return rankA - rankB;
+                    }
+                    return a.originalIndex - b.originalIndex;
+                });
+            } else if (currentSortMode === 'date') {
+                // 開催日でソート（新しい順・降順）
+                displayData.sort((a, b) => {
+                    const dateA = parseMeetingDate(a.date).getTime();
+                    const dateB = parseMeetingDate(b.date).getTime();
+                    
+                    if (dateA !== dateB) {
+                        return dateB - dateA;
                     }
                     return a.originalIndex - b.originalIndex;
                 });
@@ -1699,33 +1751,15 @@
             }
         }
         
-        function toggleSort() {
-            isSortedByRank = !isSortedByRank;
-            const btn = document.getElementById('sort-rank-btn');
-            if (btn) {
-                if (isSortedByRank) {
-                    btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"></path></svg> 元の順序に戻す`;
-                    btn.classList.replace('text-blue-700', 'text-gray-700');
-                    btn.classList.replace('border-blue-200', 'border-gray-300');
-                    btn.classList.replace('hover:bg-blue-50', 'hover:bg-gray-50');
-                } else {
-                    btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"></path></svg> 順位で並べ替え`;
-                    btn.classList.replace('text-gray-700', 'text-blue-700');
-                    btn.classList.replace('border-gray-300', 'border-blue-200');
-                    btn.classList.replace('hover:bg-gray-50', 'hover:bg-blue-50');
-                }
-            }
+        function applySort() {
+            currentSortMode = document.getElementById('sort-select').value;
             populateRelatedCouncilsTable();
         }
 
         function openRelatedCouncilsModal() {
-            isSortedByRank = false; // モーダルを開くときはデフォルトのインポート順に戻す
-            const btn = document.getElementById('sort-rank-btn');
-            if (btn) {
-                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"></path></svg> 順位で並べ替え`;
-                btn.classList.remove('text-gray-700', 'border-gray-300', 'hover:bg-gray-50');
-                btn.classList.add('text-blue-700', 'border-blue-200', 'hover:bg-blue-50');
-            }
+            currentSortMode = 'default';
+            const select = document.getElementById('sort-select');
+            if (select) select.value = 'default';
             populateRelatedCouncilsTable();
             document.getElementById('related-councils-modal').classList.remove('hidden');
         }
@@ -1769,7 +1803,7 @@
                 return isNaN(num) ? 9999 : num;
             };
 
-            if (isSortedByRank) {
+            if (currentSortMode === 'rank') {
                 // 順位でソート
                 displayData.sort((a, b) => {
                     const rankA = getRankNum(a.rank);
@@ -1777,6 +1811,17 @@
 
                     if (rankA !== rankB) {
                         return rankA - rankB;
+                    }
+                    return a.originalIndex - b.originalIndex;
+                });
+            } else if (currentSortMode === 'date') {
+                // 開催日でソート（新しい順・降順）
+                displayData.sort((a, b) => {
+                    const dateA = parseMeetingDate(a.date).getTime();
+                    const dateB = parseMeetingDate(b.date).getTime();
+                    
+                    if (dateA !== dateB) {
+                        return dateB - dateA;
                     }
                     return a.originalIndex - b.originalIndex;
                 });
