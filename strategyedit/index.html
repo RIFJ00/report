@@ -82,15 +82,20 @@
 
     <!-- データ一覧セクション -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div class="p-4 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div class="flex items-center">
-          <h2 id="list-tab-name" class="text-lg font-semibold text-gray-800 mr-4"></h2>
+      <div class="p-4 border-b border-gray-200 bg-gray-50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        
+        <div class="flex flex-wrap items-center gap-3">
+          <h2 id="list-tab-name" class="text-lg font-semibold text-gray-800"></h2>
           <span id="data-count-display" class="bg-white px-3 py-1 rounded-full text-xs font-medium text-gray-600 border shadow-sm">
             表示 0 / 全 0 件
           </span>
+          <span class="flex items-center text-xs text-gray-500">
+            <i data-lucide="clock" class="w-3.5 h-3.5 mr-1 text-gray-400"></i>
+            <span id="last-modified-display">最終更新: ---</span>
+          </span>
         </div>
         
-        <div class="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+        <div class="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
           <!-- 分野絞り込みプルダウン -->
           <div id="filter-select-container" class="relative w-full sm:w-48" style="display: none;">
             <select id="filter-select" class="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors appearance-none">
@@ -400,13 +405,13 @@
             if (existingMap.has(uniqueKey)) {
               if (state.allowOverwrite) {
                 const existingId = existingMap.get(uniqueKey);
-                batch.set(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, existingId), { ...newItem, createdAt: timestamp });
+                batch.set(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, existingId), { ...newItem, createdAt: timestamp, updatedAt: timestamp });
                 updatedCount++;
               } else {
                 skippedCount++;
               }
             } else {
-              batch.set(doc(dataRef), { ...newItem, createdAt: timestamp });
+              batch.set(doc(dataRef), { ...newItem, createdAt: timestamp, updatedAt: timestamp });
               addedCount++;
             }
           });
@@ -463,6 +468,8 @@
 
         try {
           const { id, ...updateData } = state.editingItem;
+          updateData.updatedAt = Date.now(); // 最終更新日時を付与
+          
           await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, id), updateData);
           showMessage('データを更新しました。', 'success');
           state.editingItem = null;
@@ -663,6 +670,22 @@
 
     function updateTable() {
       computeProcessedData();
+      
+      // 最終更新日時の計算
+      let maxTime = 0;
+      state.dataList.forEach(item => {
+        const t = item.updatedAt || item.createdAt || 0;
+        if (t > maxTime) maxTime = t;
+      });
+      const modDisplay = document.getElementById('last-modified-display');
+      if (maxTime > 0) {
+        const d = new Date(maxTime);
+        const formattedDate = `${d.getFullYear()}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+        modDisplay.textContent = `最終更新: ${formattedDate}`;
+      } else {
+        modDisplay.textContent = '最終更新: ---';
+      }
+
       document.getElementById('data-count-display').textContent = `表示 ${processedData.length} / 全 ${state.dataList.length} 件`;
       
       const bulkBtn = document.getElementById('bulk-delete-action-btn');
