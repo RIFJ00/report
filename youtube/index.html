@@ -51,7 +51,7 @@
                             <input type="text" id="apiKey" placeholder="AIzaSy... (任意)" 
                                    class="block w-full rounded-md border-gray-300 border px-3 py-2 focus:border-red-500 focus:ring-red-500 outline-none bg-white">
                             
-                            <!-- データ強制上書き機能 -->
+                            <!-- データ管理 -->
                             <div class="mt-4 pt-4 border-t border-gray-200">
                                 <h4 class="font-bold text-gray-800 mb-2 text-sm"><i class="fas fa-database text-orange-500 mr-1"></i> データ管理</h4>
                                 <p class="mb-3 text-xs text-gray-500 leading-relaxed">
@@ -69,7 +69,7 @@
                         <i class="fas fa-question-circle mr-1"></i> 使い方
                     </button>
 
-                    <!-- 検索ボックス (長めに変更) -->
+                    <!-- 検索ボックス -->
                     <div class="relative w-full sm:w-80 shrink-0">
                         <input type="text" id="searchInput" placeholder="複数ワードは空白区切り..." class="w-full pl-9 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:border-red-500 focus:ring-red-500 transition bg-white">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -103,11 +103,9 @@
                     </div>
                 </div>
                 
-                <!-- 自動更新の入力欄を非表示に (hidden クラスを追加) -->
-                <div class="w-full md:w-32 shrink-0 hidden">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">自動更新 (分)</label>
-                    <input type="number" id="updateInterval" value="60" min="5" 
-                           class="block w-full rounded-md border-gray-300 border px-3 py-2 focus:border-red-500 focus:ring-red-500 outline-none transition">
+                <!-- 自動更新の入力欄 (内部制御用としてhidden維持) -->
+                <div class="hidden">
+                    <input type="number" id="updateInterval" value="0">
                 </div>
                 
                 <!-- 更新ボタンと管理者メッセージのコンテナ -->
@@ -115,10 +113,9 @@
                     <button id="startBtn" class="w-full h-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 md:py-0 px-8 rounded shadow transition duration-200 flex items-center justify-center">
                         <i class="fas fa-sync-alt mr-2"></i>更新
                     </button>
-                    <!-- 管理者専用メッセージ (初期は非表示) -->
+                    <!-- 管理者専用メッセージ -->
                     <div id="updateBtnMsg" class="absolute top-[110%] right-0 md:left-1/2 md:right-auto md:transform md:-translate-x-1/2 w-64 bg-gray-800 text-white text-[11px] p-2.5 rounded shadow-lg text-center hidden z-50 pointer-events-none transition-opacity duration-300 opacity-0">
-                        このボタンは管理者のみが操作可能です。<br>データの更新は通常は自動的に行われております。
-                        <!-- 吹き出しの上向き矢印 -->
+                        このボタンは管理者のみが操作可能です。<br>データの更新は管理者による手動操作が必要となります。
                         <div class="absolute bottom-full right-8 md:right-auto md:left-1/2 md:transform md:-translate-x-1/2 border-[5px] border-transparent border-b-gray-800"></div>
                     </div>
                 </div>
@@ -131,7 +128,6 @@
         
         <!-- プレイヤー＆概要エリア -->
         <div class="w-full md:w-2/3 flex flex-col gap-4 h-full overflow-hidden">
-            <!-- 16:9 プレイヤー -->
             <div class="bg-black rounded-xl overflow-hidden shadow-lg relative w-full aspect-video shrink-0">
                 <div id="player" class="absolute inset-0"></div>
                 <div id="player-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-500 pointer-events-none">
@@ -142,7 +138,6 @@
                 </div>
             </div>
 
-            <!-- 概要パネル -->
             <div class="bg-white rounded-xl shadow-lg p-4 md:p-6 flex-1 overflow-y-auto border border-gray-200 min-h-[150px]">
                 <h2 id="currentTitle" class="text-xl md:text-2xl font-bold text-gray-900 mb-2 leading-tight">動画情報を読み込み中...</h2>
                 <p id="currentDate" class="text-sm text-gray-500 mb-4 border-b border-gray-100 pb-2"></p>
@@ -151,7 +146,6 @@
         </div>
         
         <!-- 再生リストエリア -->
-        <!-- relative クラスを追加してフローティングボタンの基準位置にする -->
         <div class="w-full md:w-1/3 bg-white rounded-xl shadow-lg flex flex-col h-[60vh] md:h-full border border-gray-200 overflow-hidden shrink-0 relative">
             <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
                 <h2 class="text-lg font-bold text-gray-800 flex-1"><i class="fas fa-list-ul mr-2 text-gray-600"></i>再生リスト</h2>
@@ -162,7 +156,6 @@
                         <option value="title-asc">タイトル (昇順)</option>
                         <option value="title-desc">タイトル (降順)</option>
                     </select>
-                    <!-- トップへ戻るボタン (ヘッダー部分) -->
                     <button id="scrollTopBtnHeader" class="text-gray-500 hover:text-blue-600 transition ml-1" title="リストの先頭へ移動">
                         <i class="fas fa-arrow-up"></i>
                     </button>
@@ -174,8 +167,6 @@
 
             <div class="px-4 py-2 bg-gray-100 text-xs text-gray-500 flex justify-between shrink-0">
                 <span id="playlistInfo">未取得</span>
-                <!-- 自動更新のカウントダウンを非表示に -->
-                <span id="nextUpdateInfo" class="hidden"></span>
             </div>
             <div id="playlistContainer" class="flex-1 overflow-y-auto">
                 <div class="p-6 text-center text-gray-400 text-sm">
@@ -183,7 +174,6 @@
                 </div>
             </div>
 
-            <!-- フローティング トップへ戻るボタン (スクロール時に右下に表示される) -->
             <button id="scrollTopBtnFloat" class="absolute bottom-4 right-4 bg-gray-700 hover:bg-gray-800 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-10" title="先頭へ戻る">
                 <i class="fas fa-arrow-up"></i>
             </button>
@@ -191,7 +181,7 @@
 
     </main>
 
-    <!-- サイト閲覧認証モーダル (サイト全体を隠す) -->
+    <!-- サイト閲覧認証モーダル -->
     <div id="siteAuthModal" class="fixed inset-0 bg-gray-100 z-[9999] flex items-center justify-center p-4 transition-opacity duration-500">
         <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-8 text-center">
             <div class="mb-6 flex justify-center">
@@ -224,7 +214,7 @@
         </div>
     </div>
 
-    <!-- API設定 パスワード認証モーダル -->
+    <!-- パスワード認証モーダル -->
     <div id="passwordModal" class="fixed inset-0 bg-black/50 z-[300] hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
         <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform scale-95 transition-transform duration-300 p-6">
             <h3 class="text-lg font-bold text-gray-900 mb-3"><i class="fas fa-lock text-gray-500 mr-2"></i>管理者認証</h3>
@@ -249,47 +239,23 @@
                 <div>
                     <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-play-circle text-red-500 mr-2"></i>基本的な使い方</h3>
                     <ul class="list-disc pl-5 space-y-1.5 text-gray-600">
-                        <li>上部のボタンから<strong>「会議等概要説明動画」</strong>または<strong>「政策レポート等解説動画」</strong>を選択します。<br><span class="text-xs text-gray-500">※ボタン内にはリストの最新更新日が表示され、<strong class="text-red-500">今日更新された場合は赤色</strong>でお知らせします。</span></li>
-                        <li>自動的に動画リストが読み込まれ、左側のプレイヤーで再生が始まります。</li>
-                        <li>動画が終わると、リストの次の動画が<strong>自動的に再生</strong>されます。</li>
-                        <li>手動で最新の状態に更新したい場合は、赤い<strong>「更新」</strong>ボタンを押してください。</li>
+                        <li>上部のボタンからカテゴリを選択すると、動画リストが読み込まれ再生が始まります。</li>
+                        <li>動画内ボタンの最新更新日が今日の場合は、<strong>赤色</strong>で表示されます。</li>
+                        <li>手動で最新の状態に更新したい場合は、右側の<strong>「更新」</strong>ボタンをクリックしてください（管理者用）。</li>
                     </ul>
                 </div>
                 <div>
-                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-list-ul text-purple-500 mr-2"></i>リストの操作（並べ替え・移動）</h3>
+                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-list-ul text-purple-500 mr-2"></i>リストの操作</h3>
                     <ul class="list-disc pl-5 space-y-1.5 text-gray-600">
-                        <li>リスト上部のメニューから、動画を<strong>「登録順（新しい順/古い順）」</strong>や<strong>「タイトル（昇順/降順）」</strong>に並べ替えることができます。</li>
-                        <li>その横の「<i class="fas fa-undo"></i>」ボタンを押すと、いつでもデフォルトの並び順（新しい順）に戻すことができます。</li>
-                        <li>リストを下へスクロールすると右下に<strong>「<i class="fas fa-arrow-up"></i>」ボタン</strong>が現れ、クリックするとリストの一番上に瞬時に戻ります。（上部の「<i class="fas fa-arrow-up"></i>」でも同様に戻れます）</li>
+                        <li>リスト上部のメニューから、動画を<strong>「登録順」</strong>や<strong>「タイトル順」</strong>に並べ替えることができます。</li>
                     </ul>
                 </div>
-                <div>
-                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-search text-blue-500 mr-2"></i>動画の検索機能</h3>
-                    <ul class="list-disc pl-5 space-y-1.5 text-gray-600">
-                        <li>右上の検索ボックスから、動画のタイトルや概要に含まれる言葉で検索できます。</li>
-                        <li>複数の単語を<strong>空白（スペース）で区切って</strong>入力すると、すべての単語を含む動画に絞り込めます（AND検索）。<br><span class="text-xs text-gray-500">例: <code>経産省 補助金</code> と入力すると両方を含む動画が表示されます。</span></li>
-                        <li>「経産省」「国交省」などの略称で入力しても、正式名称（経済産業省など）として検索ヒットします。</li>
-                    </ul>
-                </div>
-                
-                <!-- 管理者のみ表示されるセクション (初期状態はhidden) -->
                 <div id="adminHelpSection" class="hidden">
-                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-database text-green-500 mr-2"></i>データ・高度な設定 (管理者用)</h3>
+                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-database text-green-500 mr-2"></i>高度な設定 (管理者用)</h3>
                     <ul class="list-disc pl-5 space-y-1.5 text-gray-600 mb-3">
-                        <li>取得した動画リストはシステム内に蓄積され、過去の動画も検索・視聴可能です。</li>
-                        <li><strong>「API・データ設定」</strong>からご自身の YouTube API キーを設定することで、より安定して全件の動画データ（非公開リスト含む）を取得できます。</li>
-                        <li>また「API・データ設定」から、蓄積された過去のデータを消去し、現在のYouTube上のリストと完全に同期（上書き）することも可能です。</li>
+                        <li><strong>「API・データ設定」</strong>から YouTube API キーを設定することで、より安定して動画データを取得できます。</li>
+                        <li>蓄積されたデータを消去し、現在のYouTube上のリストと完全に同期（上書き）することも可能です。</li>
                     </ul>
-                    <div class="bg-blue-50 p-4 rounded-md border border-blue-100 mt-2">
-                        <h4 class="font-bold text-blue-800 mb-2 text-sm"><i class="fas fa-key mr-1"></i>YouTube APIキーの取得手順（無料）</h4>
-                        <ol class="list-decimal pl-5 space-y-1.5 text-blue-900 text-xs leading-relaxed">
-                            <li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-bold">Google Cloud Console</a> にGoogleアカウントでログインします。</li>
-                            <li>画面上部のプロジェクト選択メニューから「新しいプロジェクト」を作成します。</li>
-                            <li>左側メニューの「APIとサービス」＞「ライブラリ」を開き、<strong>「YouTube Data API v3」</strong>を検索して「有効にする」をクリックします。</li>
-                            <li>左側メニューの「認証情報」を開き、画面上部の「＋認証情報を作成」＞<strong>「APIキー」</strong>を選択します。</li>
-                            <li>発行された <code>AIzaSy...</code> で始まる文字列をコピーし、本ツールの「API設定」欄に貼り付けてください。</li>
-                        </ol>
-                    </div>
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 text-right">
@@ -339,11 +305,9 @@
         let isPlayerReady = false;
         let videoList = [];
         let currentIndex = 0;
-        let autoUpdateTimerId = null;
-        let autoUpdateIntervalId = null;
         let lastUpdateTime = Date.now();
         let currentSort = 'date-desc';
-        let isAuthenticated = false; // API設定と手動更新を制御する管理者フラグ
+        let isAuthenticated = false; 
 
         // ==========================================
         // 3. UI・ユーティリティ関数群
@@ -351,14 +315,11 @@
         function showToast(message, isError = false) {
             const existing = document.getElementById('toast-msg');
             if (existing) existing.remove();
-
             const toast = document.createElement('div');
             toast.id = 'toast-msg';
             toast.className = `fixed bottom-4 right-4 md:bottom-8 md:right-8 px-6 py-3 rounded shadow-lg text-white font-medium z-50 transform transition-all duration-300 translate-y-0 opacity-100 ${isError ? 'bg-red-600' : 'bg-gray-800'}`;
             toast.innerHTML = isError ? `<i class="fas fa-exclamation-circle mr-2"></i>${message}` : `<i class="fas fa-info-circle mr-2"></i>${message}`;
-            
             document.body.appendChild(toast);
-            
             setTimeout(() => {
                 toast.classList.add('translate-y-4', 'opacity-0');
                 setTimeout(() => toast.remove(), 300);
@@ -383,38 +344,15 @@
         function updateDateUI(playlistId, videos) {
             const dateEl = document.getElementById(`date-${playlistId}`);
             if (!dateEl) return;
-            
             if (videos && videos.length > 0) {
-                // videos.updatedAt (Firebaseに実際に保存された日時) を優先して使用する
-                let updatedDate;
-                if (videos.updatedAt) {
-                    updatedDate = new Date(videos.updatedAt);
-                } else {
-                    updatedDate = new Date(Math.max(...videos.map(v => v.pubDate.getTime())));
-                }
-                
-                // 時間（時・分）もフォーマットに追加
+                let updatedDate = videos.updatedAt ? new Date(videos.updatedAt) : new Date(Math.max(...videos.map(v => v.pubDate.getTime())));
                 const shortDate = updatedDate.toLocaleString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
-                
-                const target = new Date(updatedDate);
-                target.setHours(0, 0, 0, 0);
-                
-                let colorClass = 'text-gray-500';
-                let fwClass = '';
-                
-                if (target.getTime() === today.getTime()) {
-                    colorClass = 'text-red-600';
-                    fwClass = 'font-bold';
-                } else if (target.getTime() === yesterday.getTime()) {
-                    colorClass = 'text-red-400';
-                    fwClass = 'font-bold';
-                }
-                
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+                const target = new Date(updatedDate); target.setHours(0, 0, 0, 0);
+                let colorClass = 'text-gray-500', fwClass = '';
+                if (target.getTime() === today.getTime()) { colorClass = 'text-red-600'; fwClass = 'font-bold'; }
+                else if (target.getTime() === yesterday.getTime()) { colorClass = 'text-red-400'; fwClass = 'font-bold'; }
                 dateEl.textContent = `更新日: ${shortDate}`;
                 dateEl.className = `text-xs mt-1 transition-colors ${colorClass} ${fwClass}`;
             } else {
@@ -426,61 +364,31 @@
         function updateCurrentVideoInfo() {
             if (videoList.length === 0) return;
             const video = videoList[currentIndex];
-            
             document.getElementById('currentTitle').textContent = video.title;
-            
-            const dateStr = video.pubDate.toLocaleDateString('ja-JP', { 
-                year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-            });
+            const dateStr = video.pubDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             document.getElementById('currentDate').textContent = video.isEstimated ? `公開日: 約 ${dateStr} (推定)` : `公開日: ${dateStr}`;
-            
-            // URLをリンク化する処理 (日本語URLや.pdf対応の確実なロジック)
             const linkify = (text) => {
                 if (!text) return "";
-                const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({
-                    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-                }[tag] || tag));
-                
-                // 一旦、空白が来るまでを全てURLとして強気に巻き込んでマッチさせる
+                const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[tag] || tag));
                 const urlRegex = /(https?:\/\/[^\s]+)/g;
-                
-                let lastIndex = 0;
-                let result = "";
-                let match;
-                
+                let lastIndex = 0, result = "", match;
                 while ((match = urlRegex.exec(text)) !== null) {
-                    let url = match[0];
-                    let trailingChars = "";
-                    
-                    // URL末尾によくくっついてしまう日本語の句読点や閉じ括弧を切り離す
+                    let url = match[0], trailingChars = "";
                     const trailingRegex = /([。、）」』】\]\)]+)$/;
                     const tMatch = url.match(trailingRegex);
-                    if (tMatch) {
-                        trailingChars = tMatch[1];
-                        url = url.substring(0, url.length - trailingChars.length);
-                    }
-
+                    if (tMatch) { trailingChars = tMatch[1]; url = url.substring(0, url.length - trailingChars.length); }
                     result += escapeHTML(text.substring(lastIndex, match.index));
-                    
                     const escapedUrl = escapeHTML(url);
                     result += `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline font-medium break-all">${escapedUrl}</a>`;
-                    
-                    result += escapeHTML(trailingChars); 
-                    
+                    result += escapeHTML(trailingChars);
                     lastIndex = urlRegex.lastIndex;
                 }
-                
                 result += escapeHTML(text.substring(lastIndex));
                 return result;
             };
-
             const descEl = document.getElementById('currentDescription');
-            if (video.description) {
-                descEl.innerHTML = linkify(video.description);
-            } else {
-                descEl.textContent = "この動画に概要はありません。";
-                descEl.classList.add("text-gray-400");
-            }
+            if (video.description) descEl.innerHTML = linkify(video.description);
+            else { descEl.textContent = "この動画に概要はありません。"; descEl.classList.add("text-gray-400"); }
             descEl.classList.remove("text-gray-400");
         }
 
@@ -488,23 +396,15 @@
             const container = document.getElementById('playlistContainer');
             if (!container) return;
             container.innerHTML = '';
-            
             const normalizeText = (text) => {
                 if (!text) return "";
-                return text.toLowerCase()
-                    .replace(/経産省/g, "経済産業省")
-                    .replace(/国交省/g, "国土交通省")
-                    .replace(/文科省/g, "文部科学省")
-                    .replace(/厚労省/g, "厚生労働省")
-                    .replace(/農水省/g, "農林水産省");
+                return text.toLowerCase().replace(/経産省/g, "経済産業省").replace(/国交省/g, "国土交通省").replace(/文科省/g, "文部科学省").replace(/厚労省/g, "厚生労働省").replace(/農水省/g, "農林水産省");
             };
-            
             const searchInputEl = document.getElementById('searchInput');
             const rawQuery = searchInputEl ? searchInputEl.value : '';
             const queryStr = normalizeText(rawQuery).trim();
             const queries = queryStr ? queryStr.split(/[\s　]+/).filter(q => q.length > 0) : [];
             let displayedCount = 0;
-            
             const infoEl = document.getElementById('playlistInfo');
             let latestDateStr = "";
             if (videoList.length > 0) {
@@ -512,89 +412,48 @@
                 const shortDate = updatedDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 latestDateStr = ` (更新日: ${shortDate})`;
             }
-
             if (videoList.length === 0) {
                 container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">動画がありません</div>';
                 if (infoEl) infoEl.textContent = `全 0 件`;
                 return;
             }
-
             videoList.forEach((video, index) => {
                 if (queries.length > 0) {
-                    const titleLower = normalizeText(video.title);
-                    const descLower = normalizeText(video.description);
-                    const isMatch = queries.every(q => titleLower.includes(q) || descLower.includes(q));
-                    if (!isMatch) return;
+                    const titleLower = normalizeText(video.title), descLower = normalizeText(video.description);
+                    if (!queries.every(q => titleLower.includes(q) || descLower.includes(q))) return;
                 }
-                
                 displayedCount++;
-
                 const isActive = index === currentIndex;
                 const item = document.createElement('div');
                 item.className = `flex items-start gap-3 p-3 border-b border-gray-100 cursor-pointer hover:bg-red-50 transition-colors ${isActive ? 'active-video' : ''}`;
-                
-                item.onclick = () => {
-                    currentIndex = index;
-                    playCurrentVideo();
-                };
-                
+                item.onclick = () => { currentIndex = index; playCurrentVideo(); };
                 const imgContainer = document.createElement('div');
                 imgContainer.className = 'relative shrink-0 w-28 h-16 bg-black rounded overflow-hidden';
-                
                 const img = document.createElement('img');
                 img.src = video.thumbnail;
                 img.className = 'w-full h-full object-cover opacity-90';
-                
                 if (isActive) {
                     const overlay = document.createElement('div');
                     overlay.className = 'absolute inset-0 bg-black/40 flex items-center justify-center';
                     overlay.innerHTML = '<i class="fas fa-play text-white text-sm"></i>';
-                    imgContainer.appendChild(img);
-                    imgContainer.appendChild(overlay);
-                } else {
-                    imgContainer.appendChild(img);
-                }
-                
+                    imgContainer.appendChild(img); imgContainer.appendChild(overlay);
+                } else { imgContainer.appendChild(img); }
                 const textContainer = document.createElement('div');
                 textContainer.className = 'flex flex-col overflow-hidden justify-center h-full';
-                
                 const title = document.createElement('span');
                 title.className = `text-sm font-medium line-clamp-2 leading-tight ${isActive ? 'text-red-700 font-bold' : 'text-gray-800'}`;
                 title.textContent = video.title;
-                
                 const date = document.createElement('span');
                 date.className = 'text-xs text-gray-500 mt-1';
                 const shortDate = video.pubDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 date.textContent = video.isEstimated ? `約 ${shortDate}` : shortDate;
-                
-                textContainer.appendChild(title);
-                textContainer.appendChild(date);
-                
-                item.appendChild(imgContainer);
-                item.appendChild(textContainer);
+                textContainer.appendChild(title); textContainer.appendChild(date);
+                item.appendChild(imgContainer); item.appendChild(textContainer);
                 container.appendChild(item);
             });
-            
-            if (displayedCount === 0) {
-                container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">一致する動画が見つかりませんでした</div>';
-            }
-            
-            if (infoEl) {
-                if (queries.length > 0) {
-                    infoEl.textContent = `検索結果: ${displayedCount} 件 / 全 ${videoList.length} 件${latestDateStr}`;
-                } else {
-                    infoEl.textContent = `全 ${videoList.length} 件${latestDateStr}`;
-                }
-            }
-            
-            if (queries.length === 0) {
-                setTimeout(() => {
-                    const activeItem = container.querySelector('.active-video');
-                    if (activeItem) {
-                        activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    }
-                }, 100);
-            }
+            if (displayedCount === 0) container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">一致する動画が見つかりませんでした</div>';
+            if (infoEl) infoEl.textContent = queries.length > 0 ? `検索結果: ${displayedCount} 件 / 全 ${videoList.length} 件${latestDateStr}` : `全 ${videoList.length} 件${latestDateStr}`;
+            if (queries.length === 0) setTimeout(() => { const activeItem = container.querySelector('.active-video'); if (activeItem) activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
         }
 
         // ==========================================
@@ -602,99 +461,47 @@
         // ==========================================
         function playCurrentVideo() {
             if (videoList.length === 0 || !player || typeof player.loadVideoById !== 'function') return;
-            const video = videoList[currentIndex];
-            player.loadVideoById(video.id);
-            renderPlaylist();
-            updateCurrentVideoInfo();
+            player.loadVideoById(videoList[currentIndex].id);
+            renderPlaylist(); updateCurrentVideoInfo();
         }
 
         function playNextVideo() {
             if (videoList.length === 0) return;
             currentIndex++;
-            if (currentIndex >= videoList.length) {
-                currentIndex = 0;
-                showToast("プレイリストが一周しました。最初から再生します。");
-            }
+            if (currentIndex >= videoList.length) { currentIndex = 0; showToast("プレイリストが一周しました。最初から再生します。"); }
             playCurrentVideo();
         }
 
         function initPlayer() {
             if (player) return;
-            
-            if (typeof YT === 'undefined' || typeof YT.Player === 'undefined') {
-                setTimeout(initPlayer, 500);
-                return;
-            }
-
+            if (typeof YT === 'undefined' || typeof YT.Player === 'undefined') { setTimeout(initPlayer, 500); return; }
             const placeholder = document.getElementById('player-placeholder');
             if (placeholder) placeholder.style.display = 'none';
-            
-            const initialVideoId = videoList.length > 0 ? videoList[currentIndex].id : '';
-
             player = new YT.Player('player', {
-                height: '100%',
-                width: '100%',
-                videoId: initialVideoId,
+                height: '100%', width: '100%',
+                videoId: videoList.length > 0 ? videoList[currentIndex].id : '',
                 host: 'https://www.youtube-nocookie.com',
-                playerVars: {
-                    'playsinline': 1,
-                    'autoplay': 1,
-                    'mute': 0,
-                    'rel': 0,
-                    'enablejsapi': 1
-                },
-                events: {
-                    'onReady': onPlayerReady,
-                    'onStateChange': onPlayerStateChange,
-                    'onError': onPlayerError
-                }
+                playerVars: { 'playsinline': 1, 'autoplay': 1, 'mute': 0, 'rel': 0, 'enablejsapi': 1 },
+                events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange, 'onError': onPlayerError }
             });
         }
 
-        function onPlayerReady(event) {
-            renderPlaylist();
-            const playPromise = event.target.playVideo();
-            setTimeout(() => {
-                if(player && typeof player.unMute === 'function') {
-                    player.unMute();
-                    player.setVolume(100);
-                }
-            }, 500);
-            showToast("再生を開始します。※自動で始まらない場合は、動画画面をクリックしてください。");
-        }
-
-        function onPlayerStateChange(event) {
-            if (event.data === YT.PlayerState.ENDED) {
-                playNextVideo();
-            }
-        }
-
+        function onPlayerReady(event) { renderPlaylist(); event.target.playVideo(); setTimeout(() => { if(player && typeof player.unMute === 'function') { player.unMute(); player.setVolume(100); } }, 500); showToast("再生を開始します。"); }
+        function onPlayerStateChange(event) { if (event.data === YT.PlayerState.ENDED) playNextVideo(); }
         function onPlayerError(event) {
-            console.warn("動画の再生エラー コード:", event.data);
+            console.warn("再生エラー コード:", event.data);
             let errorMsg = "動画を再生できませんでした。";
-            if (event.data === 101 || event.data === 150) {
-                errorMsg = "埋め込み再生が許可されていない動画です。";
-            } else if (event.data === 100) {
-                errorMsg = "動画が見つかりません（削除・非公開等）。";
-            } else if (event.data === 2) {
-                errorMsg = "動画IDが不正です。";
-            }
-            showToast(errorMsg + " 次へスキップします。", true);
-            setTimeout(playNextVideo, 2000);
+            if (event.data === 101 || event.data === 150) errorMsg = "埋め込み再生が許可されていない動画です。";
+            else if (event.data === 100) errorMsg = "動画が見つかりません。";
+            showToast(errorMsg + " 次へスキップします。", true); setTimeout(playNextVideo, 2000);
         }
 
-        // --- YouTube IFrame API のロード ---
-        const tag = document.createElement('script');
-        tag.src = "https://www.youtube.com/iframe_api";
-        const firstScriptTag = document.getElementsByTagName('script')[0];
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-        window.onYouTubeIframeAPIReady = function() {
-            isPlayerReady = true;
-        };
+        const tag = document.createElement('script'); tag.src = "https://www.youtube.com/iframe_api";
+        document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
+        window.onYouTubeIframeAPIReady = function() { isPlayerReady = true; };
 
         // ==========================================
-        // 5. データ取得・自動更新ロジック
+        // 5. データ取得・手動更新ロジック
         // ==========================================
         async function loadFromFirebase(playlistId) {
             if (!user) return null;
@@ -703,917 +510,212 @@
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    const videos = data.videos.map(v => ({
-                        ...v,
-                        pubDate: new Date(v.pubDate)
-                    }));
-                    // 保存されている更新日時を配列のプロパティとして引き継ぐ
-                    videos.updatedAt = data.updatedAt;
-                    return videos;
+                    const videos = data.videos.map(v => ({ ...v, pubDate: new Date(v.pubDate) }));
+                    videos.updatedAt = data.updatedAt; return videos;
                 }
-            } catch (e) {
-                console.error("Firebaseからの読み込みエラー:", e);
-            }
-            return null;
+            } catch (e) { console.error("Firebase読込エラー:", e); } return null;
         }
 
         async function saveToFirebase(playlistId, videos, updatedAt = Date.now()) {
             if (!user) return;
             try {
                 const docRef = doc(db, 'artifacts', envAppId, 'public', 'data', 'playlists', playlistId);
-                const dataToSave = videos.map(v => ({
-                    id: v.id,
-                    title: v.title,
-                    description: v.description ? (v.description.length > 250 ? v.description.substring(0, 250) + "..." : v.description) : "",
-                    thumbnail: v.thumbnail || "",
-                    pubDate: v.pubDate.getTime(),
-                    isEstimated: !!v.isEstimated
-                }));
+                const dataToSave = videos.map(v => ({ id: v.id, title: v.title, description: v.description ? (v.description.length > 250 ? v.description.substring(0, 250) + "..." : v.description) : "", thumbnail: v.thumbnail || "", pubDate: v.pubDate.getTime(), isEstimated: !!v.isEstimated }));
                 await setDoc(docRef, { videos: dataToSave, updatedAt: updatedAt });
-                console.log(`動画リスト(${videos.length}件)をFirebaseに保存しました。`);
-            } catch (e) {
-                console.error("Firebaseへの保存エラー:", e);
-                showToast("データベースの保存容量上限により、保存に失敗しました。", true);
-            }
+            } catch (e) { console.error("Firebase保存エラー:", e); showToast("データベース保存エラーです。", true); }
         }
 
         async function updatePlaylistDates() {
-            const playlists = [
-                "PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_",
-                "PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2"
-            ];
-            for (const pid of playlists) {
-                const videos = await loadFromFirebase(pid);
-                updateDateUI(pid, videos);
-            }
+            const playlists = ["PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_", "PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2"];
+            for (const pid of playlists) { const videos = await loadFromFirebase(pid); updateDateUI(pid, videos); }
         }
 
-        // 裏側で特定のプレイリストを取得・統合し、変更があればFirebaseに保存する関数
         async function silentFetchAndSave(playlistId, apiKey) {
             let existingVideos = await loadFromFirebase(playlistId);
             let newVideos = [];
-            let apiFailed = false;
-
-            if (apiKey) {
-                try {
-                    newVideos = await fetchWithApi(playlistId, apiKey);
-                } catch (apiError) {
-                    apiFailed = true;
-                }
-            } 
-
-            if (!apiKey || apiFailed) {
-                try {
-                    newVideos = await fetchWithRss(playlistId);
-                    if (!newVideos || newVideos.length === 0) throw new Error("RSS Empty");
-                } catch (rssError) {
-                    try {
-                        newVideos = await fetchWithHtmlScraping(playlistId);
-                    } catch (scrapeError) {
-                        // エラーは握りつぶす
-                    }
-                }
-            }
-
+            if (apiKey) { try { newVideos = await fetchWithApi(playlistId, apiKey); } catch (apiError) { } }
+            if (!apiKey || newVideos.length === 0) { try { newVideos = await fetchWithRss(playlistId); if (!newVideos || newVideos.length === 0) throw 1; } catch (e) { try { newVideos = await fetchWithHtmlScraping(playlistId); } catch (e2) { } } }
             if (newVideos && newVideos.length > 0) {
-                let isRealChange = false;
-                let videos = [];
-                
+                let isRealChange = false, videos = [];
                 if (existingVideos && existingVideos.length > 0) {
-                    const videoMap = new Map();
-                    existingVideos.forEach(v => videoMap.set(v.id, v));
-                    newVideos.forEach(v => videoMap.set(v.id, v));
-                    
-                    videos = Array.from(videoMap.values());
-                    videos.sort((a, b) => b.pubDate - a.pubDate);
-                    
-                    if (existingVideos.length !== videos.length) {
-                        isRealChange = true;
-                    } else {
-                        for (let i = 0; i < videos.length; i++) {
-                            if (videos[i].id !== existingVideos[i].id) {
-                                isRealChange = true;
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    videos = newVideos;
-                    isRealChange = true;
-                }
-                
-                if (isRealChange) {
-                    const finalUpdatedAt = Date.now();
-                    videos.updatedAt = finalUpdatedAt;
-                    await saveToFirebase(playlistId, videos, finalUpdatedAt);
-                    return true; // 変更あり
-                }
+                    const videoMap = new Map(); existingVideos.forEach(v => videoMap.set(v.id, v)); newVideos.forEach(v => videoMap.set(v.id, v));
+                    videos = Array.from(videoMap.values()); videos.sort((a, b) => b.pubDate - a.pubDate);
+                    if (existingVideos.length !== videos.length) isRealChange = true;
+                    else { for (let i = 0; i < videos.length; i++) { if (videos[i].id !== existingVideos[i].id) { isRealChange = true; break; } } }
+                } else { videos = newVideos; isRealChange = true; }
+                if (isRealChange) { const finalUpdatedAt = Date.now(); videos.updatedAt = finalUpdatedAt; await saveToFirebase(playlistId, videos, finalUpdatedAt); return true; }
             }
-            return false; // 変更なし
+            return false;
         }
 
-        // 両方のプレイリストをバックグラウンドで更新する
-        async function updateAllPlaylistsSilently() {
+        async function updateAllPlaylistsByAdmin() {
             const apiKey = document.getElementById('apiKey').value.trim();
-            const playlists = [
-                "PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_",
-                "PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2"
-            ];
+            const playlists = ["PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_", "PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2"];
             let currentPlaylistUpdated = false;
             const currentSelectedId = document.querySelector('input[name="playlistSelect"]:checked')?.value;
-
-            // UIを自動更新中に変更 (ボタン上でクルクル回してアピールする)
             const btn = document.getElementById('startBtn');
-            let originalBtnText = "";
-            let wasDisabled = false;
-            if (btn) {
-                originalBtnText = btn.innerHTML;
-                wasDisabled = btn.disabled;
-                if (!wasDisabled) {
-                    btn.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-2"></i>自動更新中';
-                    // 更新中であることがわかるように色をオレンジに変更
-                    btn.classList.remove('bg-red-600', 'hover:bg-red-700');
-                    btn.classList.add('bg-orange-500');
-                }
-            }
+            const originalHTML = btn.innerHTML;
+            
+            btn.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-2"></i>更新中...';
+            btn.classList.remove('bg-red-600', 'hover:bg-red-700'); btn.classList.add('bg-orange-500'); btn.disabled = true;
 
             try {
                 for (const pid of playlists) {
                     const isChanged = await silentFetchAndSave(pid, apiKey);
-                    if (isChanged && pid === currentSelectedId) {
-                        currentPlaylistUpdated = true;
-                    }
-                    // UIのボタン上の更新日を反映
-                    const videos = await loadFromFirebase(pid);
-                    updateDateUI(pid, videos);
+                    if (isChanged && pid === currentSelectedId) currentPlaylistUpdated = true;
+                    const videos = await loadFromFirebase(pid); updateDateUI(pid, videos);
                 }
-
-                // 現在表示中のリストに更新があった場合は画面をリフレッシュ
-                if (currentPlaylistUpdated) {
-                    showToast("新しい動画がバックグラウンドで追加されました。リストを更新します。");
-                    fetchPlaylistData(true, false);
-                } else {
-                    console.log("バックグラウンド更新完了。新しい動画はありませんでした。");
-                }
+                if (currentPlaylistUpdated) { showToast("新しい動画が追加されました。リストを更新します。"); fetchPlaylistData(true, false); }
+                else { showToast("更新完了。新しい動画はありませんでした。"); }
             } finally {
-                // UIの色とテキストを元に戻す
-                if (btn && !wasDisabled) {
-                    btn.innerHTML = originalBtnText;
-                    btn.classList.remove('bg-orange-500');
-                    btn.classList.add('bg-red-600', 'hover:bg-red-700');
-                }
+                btn.innerHTML = originalHTML; btn.classList.remove('bg-orange-500'); btn.classList.add('bg-red-600', 'hover:bg-red-700'); btn.disabled = false;
             }
         }
 
-        async function fetchPlaylistData(isAutoUpdate = false, forceYouTube = false, overwriteFirebase = false) {
-            lastUpdateTime = Date.now();
+        async function fetchPlaylistData(isManualUpdate = false, forceYouTube = false) {
             const selectedRadio = document.querySelector('input[name="playlistSelect"]:checked');
             const playlistId = selectedRadio ? selectedRadio.value : null;
-            const apiKey = document.getElementById('apiKey').value.trim();
-            
-            if (!playlistId) {
-                showToast("プレイリストを選択してください", true);
-                return;
-            }
-
-            localStorage.setItem('yt_auto_playlist_select', playlistId);
-            if (apiKey) localStorage.setItem('yt_auto_api_key', apiKey);
-
-            // 自動更新の裏側で動く場合は、メイン画面の「取得中」UIをいじらないようにする
-            const btn = document.getElementById('startBtn');
-            let originalBtnText = "";
-            if (!isAutoUpdate) {
-                showToast("動画リストを取得中...");
-                if (btn) {
-                    originalBtnText = btn.innerHTML;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>取得中';
-                    btn.disabled = true;
-                }
-            }
-
-            try {
-                let videos = null;
-                let existingVideos = await loadFromFirebase(playlistId);
-
-                if (!forceYouTube) {
-                    videos = existingVideos;
-                }
-
-                if (!videos || videos.length === 0 || forceYouTube) {
-                    let newVideos = [];
-                    let usedScraping = false;
-                    let apiFailed = false;
-                    
-                    if (apiKey) {
-                        try {
-                            newVideos = await fetchWithApi(playlistId, apiKey);
-                        } catch (apiError) {
-                            console.warn("API取得エラー:", apiError);
-                            apiFailed = true;
-                            showToast(`${apiError.message}。代替手段（RSS等）での取得を試行します。`, true);
-                        }
-                    } 
-
-                    if (!apiKey || apiFailed) {
-                        try {
-                            newVideos = await fetchWithRss(playlistId);
-                            if (!newVideos || newVideos.length === 0) throw new Error("RSS Empty");
-                        } catch (rssError) {
-                            console.warn("RSSからの取得に失敗したため、限定公開用のHTML解析を試行します。", rssError);
-                            try {
-                                newVideos = await fetchWithHtmlScraping(playlistId);
-                                usedScraping = true;
-                            } catch (scrapeError) {
-                                console.warn("スクレイピング取得に失敗しました:", scrapeError);
-                            }
-                        }
-                    }
-
-                    if (usedScraping && newVideos && newVideos.length === 100) {
-                        setTimeout(() => showToast("APIキー未設定のため最新100件までしか取得できません。過去の全動画を取得するには高度な設定からAPIキーを入力してください。", true), 3500);
-                    }
-
-                    if (newVideos && newVideos.length > 0) {
-                        let isRealChange = overwriteFirebase;
-                        
-                        if (!overwriteFirebase && existingVideos && existingVideos.length > 0) {
-                            const videoMap = new Map();
-                            existingVideos.forEach(v => videoMap.set(v.id, v));
-                            newVideos.forEach(v => videoMap.set(v.id, v));
-                            
-                            videos = Array.from(videoMap.values());
-                            videos.sort((a, b) => b.pubDate - a.pubDate);
-                            
-                            // 既存のリストから本当に動画が追加/変更されたか判定する
-                            if (existingVideos.length !== videos.length) {
-                                isRealChange = true;
-                            } else {
-                                for (let i = 0; i < videos.length; i++) {
-                                    if (videos[i].id !== existingVideos[i].id) {
-                                        isRealChange = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        } else {
-                            videos = newVideos;
-                            isRealChange = true;
-                        }
-                        
-                        // 変更があった場合は現在時刻を、無かった場合は既存の更新日時を維持する
-                        const finalUpdatedAt = isRealChange ? Date.now() : (existingVideos && existingVideos.updatedAt ? existingVideos.updatedAt : Date.now());
-                        videos.updatedAt = finalUpdatedAt;
-                        
-                        // 実質的な変更があった場合のみデータベースに上書き保存する
-                        if (isRealChange) {
-                            await saveToFirebase(playlistId, videos, finalUpdatedAt);
-                            if (overwriteFirebase) showToast("データを現在のYouTubeの状態で完全に上書き同期しました。");
-                        }
-                    } else if (!videos) {
-                        videos = existingVideos; 
-                    }
-                }
-
-                if (!videos || videos.length === 0) {
-                    showToast("動画が見つかりませんでした。", true);
-                    return;
-                }
-
-                let isChanged = overwriteFirebase;
-                if (!isChanged) {
-                    if (!videoList || videoList.length !== videos.length) {
-                        isChanged = true;
-                    } else {
-                        for (let i = 0; i < videos.length; i++) {
-                            if (videos[i].id !== videoList[i].id) {
-                                isChanged = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (!isChanged && videoList.length > 0 && forceYouTube) {
-                    if (!isAutoUpdate) showToast("最新の状態です（新しく追加された動画はありません）。");
-                    return;
-                }
-
-                const currentVideoId = videoList[currentIndex]?.id;
-                
+            if (!playlistId) return;
+            const videos = await loadFromFirebase(playlistId);
+            if (!videos || videos.length === 0 || forceYouTube) {
+                // 初回読み込み等の処理
+                const apiKey = document.getElementById('apiKey').value.trim();
+                await silentFetchAndSave(playlistId, apiKey);
+                videoList = await loadFromFirebase(playlistId);
+            } else {
                 videoList = videos;
-
-                updateDateUI(playlistId, videoList);
-                sortVideoList();
-
-                let newIndex = videoList.findIndex(v => v.id === currentVideoId);
-                
-                if (!player) {
-                    currentIndex = 0;
-                    updateCurrentVideoInfo();
-                    initPlayer();
-                } else {
-                    if (newIndex === -1 && !isAutoUpdate) {
-                        currentIndex = 0;
-                        playCurrentVideo();
-                    } else if (newIndex !== -1) {
-                        currentIndex = newIndex;
-                        renderPlaylist();
-                    } else {
-                        currentIndex = 0;
-                        renderPlaylist();
-                    }
-                }
-
-                if (!isAutoUpdate) showToast("動画リストを読み込みました！");
-                
-            } catch (e) {
-                console.error(e);
-                let errorMsg = e.message;
-                if (e.name === 'TypeError' && e.message === 'Load failed') {
-                    errorMsg = "ネットワーク通信がブロックされました。APIキーの設定をお試しください。";
-                }
-                showToast("取得エラー: " + errorMsg, true);
-            } finally {
-                // 手動更新だった場合のみボタンを元に戻す（自動更新のUI変更は上で制御）
-                if (btn && !isAutoUpdate) {
-                    btn.innerHTML = originalBtnText;
-                    btn.disabled = false;
-                }
+            }
+            if (videoList) {
+                updateDateUI(playlistId, videoList); sortVideoList();
+                if (!player) { currentIndex = 0; updateCurrentVideoInfo(); initPlayer(); }
+                else { renderPlaylist(); }
             }
         }
 
         async function fetchWithRss(playlistId) {
             const rssUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`;
-            const proxies = [
-                `https://api.allorigins.win/raw?url=`,
-                `https://api.codetabs.com/v1/proxy/?quest=`,
-                `https://corsproxy.io/?`
-            ];
+            const proxies = [`https://api.allorigins.win/raw?url=`, `https://api.codetabs.com/v1/proxy/?quest=`, `https://corsproxy.io/?` ];
             let xmlText = null;
-            for (const proxy of proxies) {
-                try {
-                    const res = await fetch(proxy + encodeURIComponent(rssUrl));
-                    if (!res.ok) continue;
-                    xmlText = await res.text();
-                    if (xmlText && xmlText.includes('<feed')) break;
-                } catch (e) {
-                    console.warn(`Proxy ${proxy} failed:`, e);
-                }
-            }
-            if (!xmlText || !xmlText.includes('<feed')) {
-                throw new Error("通信に失敗しました。プレイリストが非公開か、通信制限の可能性があります。");
-            }
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-            const entries = xmlDoc.querySelectorAll("entry");
-            if (entries.length === 0) return [];
-            const items = Array.from(entries).map(entry => {
-                const idNode = entry.querySelector("id");
-                const vid = (idNode ? idNode.textContent : "").replace("yt:video:", "");
-                const titleNode = entry.querySelector("title");
-                const title = titleNode ? titleNode.textContent : "無題の動画";
-                const publishedNode = entry.querySelector("published");
-                const pubDateText = publishedNode ? publishedNode.textContent : new Date().toISOString();
-                let description = "";
-                const descNodes = entry.getElementsByTagNameNS("http://search.yahoo.com/mrss/", "description");
-                if (descNodes && descNodes.length > 0) {
-                    description = descNodes[0].textContent;
-                } else {
-                    const mediaDesc = entry.getElementsByTagName("media:description")[0];
-                    if (mediaDesc) description = mediaDesc.textContent;
-                }
-                return {
-                    id: vid,
-                    title: title,
-                    description: description,
-                    thumbnail: `https://i.ytimg.com/vi/${vid}/mqdefault.jpg`,
-                    pubDate: new Date(pubDateText)
-                };
+            for (const proxy of proxies) { try { const res = await fetch(proxy + encodeURIComponent(rssUrl)); if (res.ok) { xmlText = await res.text(); if (xmlText.includes('<feed')) break; } } catch (e) { } }
+            if (!xmlText) throw 1;
+            const parser = new DOMParser(), xmlDoc = parser.parseFromString(xmlText, "text/xml"), entries = xmlDoc.querySelectorAll("entry");
+            return Array.from(entries).map(entry => {
+                const vid = (entry.querySelector("id")?.textContent || "").replace("yt:video:", "");
+                const mediaDesc = entry.getElementsByTagName("media:description")[0]?.textContent || "";
+                return { id: vid, title: entry.querySelector("title")?.textContent || "無題", description: mediaDesc, thumbnail: `https://i.ytimg.com/vi/${vid}/mqdefault.jpg`, pubDate: new Date(entry.querySelector("published")?.textContent || Date.now()) };
             }).filter(item => isValidVideoId(item.id));
-            items.sort((a, b) => b.pubDate - a.pubDate);
-            return items;
         }
 
         async function fetchWithHtmlScraping(playlistId) {
             const url = `https://www.youtube.com/playlist?list=${playlistId}`;
-            const proxies = [
-                { url: `https://api.allorigins.win/get?url=`, type: 'json' },
-                { url: `https://api.codetabs.com/v1/proxy/?quest=`, type: 'text' },
-                { url: `https://corsproxy.io/?`, type: 'text' }
-            ];
+            const proxies = [{ url: `https://api.allorigins.win/get?url=`, type: 'json' }, { url: `https://api.codetabs.com/v1/proxy/?quest=`, type: 'text' }];
             let html = null;
-            for (const proxy of proxies) {
-                try {
-                    const res = await fetch(proxy.url + encodeURIComponent(url));
-                    if (!res.ok) continue;
-                    if (proxy.type === 'json') {
-                        const data = await res.json();
-                        html = data.contents;
-                    } else {
-                        html = await res.text();
-                    }
-                    if (html && html.includes('ytInitialData')) break;
-                } catch (e) {
-                    console.warn(`Scraping proxy ${proxy.url} failed:`, e);
-                }
-            }
-            if (!html) throw new Error("通信がブロックされました。ブラウザのセキュリティ設定を確認するか、APIキーを設定してください。");
-
-            let ytDataString = null;
-            const match1 = html.match(/var ytInitialData = (\{.*?\});<\/script>/);
-            const match2 = html.match(/window\["ytInitialData"\] = (\{.*?\});/);
-            if (match1) ytDataString = match1[1];
-            else if (match2) ytDataString = match2[1];
-            if (!ytDataString) throw new Error("解析不能。非公開設定になっているか、APIキーが必要です。");
-            
-            const ytData = JSON.parse(ytDataString);
-            function extractVideoItems(obj) {
-                let found = [];
-                if (!obj || typeof obj !== 'object') return found;
-                if (Array.isArray(obj)) {
-                    for (const item of obj) found.push(...extractVideoItems(item));
-                } else {
-                    if (obj.playlistVideoRenderer) {
-                        found.push(obj);
-                    } else if (obj.playlistPanelVideoRenderer) {
-                        found.push({ playlistVideoRenderer: obj.playlistPanelVideoRenderer });
-                    } else if (obj.gridVideoRenderer) {
-                        found.push({ playlistVideoRenderer: obj.gridVideoRenderer });
-                    } else {
-                        for (const key in obj) found.push(...extractVideoItems(obj[key]));
-                    }
-                }
+            for (const proxy of proxies) { try { const res = await fetch(proxy.url + encodeURIComponent(url)); if (res.ok) { html = proxy.type === 'json' ? (await res.json()).contents : await res.text(); if (html.includes('ytInitialData')) break; } } catch (e) { } }
+            if (!html) throw 1;
+            const match = html.match(/var ytInitialData = (\{.*?\});<\/script>/) || html.match(/window\["ytInitialData"\] = (\{.*?\});/);
+            if (!match) throw 1;
+            const ytData = JSON.parse(match[1]);
+            const extract = (obj) => {
+                let found = []; if (!obj || typeof obj !== 'object') return found;
+                if (Array.isArray(obj)) { for (const item of obj) found.push(...extract(item)); }
+                else { if (obj.playlistVideoRenderer) found.push(obj); else for (const key in obj) found.push(...extract(obj[key])); }
                 return found;
-            }
-            let items = [];
-            try { items = extractVideoItems(ytData); } catch (e) { throw new Error("データ抽出中のエラーです。"); }
-            
-            if (items.length === 0) {
-                console.warn("限定公開リスト内に動画が見つかりません。");
-                return [];
-            }
-
-            function estimateDateFromRelativeTime(relativeTimeText) {
-                const now = new Date();
-                const text = relativeTimeText || "";
-                let match = text.match(/(\d+)\s*(年|ヶ月|箇月|週間|日|時間|分)\s*前/);
-                if (!match) match = text.match(/(\d+)\s*(year|month|week|day|hour|minute)s?\s*ago/i);
-                if (match) {
-                    const num = parseInt(match[1], 10);
-                    const unit = match[2].toLowerCase();
-                    if (unit.includes('年') || unit.includes('year')) now.setFullYear(now.getFullYear() - num);
-                    else if (unit.includes('ヶ月') || unit.includes('箇月') || unit.includes('month')) now.setMonth(now.getMonth() - num);
-                    else if (unit.includes('週間') || unit.includes('week')) now.setDate(now.getDate() - (num * 7));
-                    else if (unit.includes('日') || unit.includes('day')) now.setDate(now.getDate() - num);
-                    else if (unit.includes('時間') || unit.includes('hour')) now.setHours(now.getHours() - num);
-                    else if (unit.includes('分') || unit.includes('minute')) now.setMinutes(now.getMinutes() - num);
-                    return now;
-                }
-                return null;
-            }
-            
-            let videos = [];
-            items.forEach((item, index) => {
-                const vidRenderer = item.playlistVideoRenderer;
-                if (vidRenderer && isValidVideoId(vidRenderer.videoId) && vidRenderer.isPlayable !== false) {
-                    let relativeTimeText = "";
-                    if (vidRenderer.videoInfo && vidRenderer.videoInfo.runs) {
-                        const timeRun = vidRenderer.videoInfo.runs.find(r => r.text && (r.text.includes('前') || r.text.includes('ago')));
-                        if (timeRun) relativeTimeText = timeRun.text;
-                    }
-                    let pubDate = estimateDateFromRelativeTime(relativeTimeText);
-                    if (pubDate) pubDate = new Date(pubDate.getTime() - (index * 1000));
-                    else pubDate = new Date(Date.now() - (index * 100000));
-
-                    videos.push({
-                        id: vidRenderer.videoId,
-                        title: vidRenderer.title?.runs?.[0]?.text || "無題の動画",
-                        description: relativeTimeText ? `※APIキー未設定の限定公開取得ルートを通ったため、詳細な概要は取得できません。\n（動画一覧に表示されていた公開時期: ${relativeTimeText}）` : "", 
-                        thumbnail: `https://i.ytimg.com/vi/${vidRenderer.videoId}/mqdefault.jpg`,
-                        pubDate: pubDate,
-                        isEstimated: true
-                    });
-                }
-            });
-            videos.sort((a, b) => b.pubDate - a.pubDate);
-            return videos;
+            };
+            return extract(ytData).map((item, index) => {
+                const v = item.playlistVideoRenderer;
+                return { id: v.videoId, title: v.title?.runs?.[0]?.text || "無題", description: "※スクレイピング取得のため概要なし", thumbnail: `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`, pubDate: new Date(Date.now() - (index * 60000)), isEstimated: true };
+            }).filter(i => isValidVideoId(i.id));
         }
 
         async function fetchWithApi(playlistId, apiKey) {
-            let videos = [];
-            let nextPageToken = '';
-            const maxResults = 50; 
-            
+            let videos = [], nextPageToken = '';
             while (true) {
-                const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=${maxResults}&playlistId=${playlistId}&key=${apiKey}&pageToken=${nextPageToken}`;
-                const res = await fetch(url);
-                if (!res.ok) {
-                    const err = await res.json();
-                    const msg = err.error?.message || "APIリクエストエラー";
-                    if (msg.includes("blocked") || msg.includes("not enabled")) {
-                        throw new Error("【設定エラー】GCPプロジェクトで「YouTube Data API v3」が有効になっていないか、APIキーに厳しい制限（HTTPリファラー等）がかかっています。GCPコンソールをご確認ください");
-                    }
-                    throw new Error(`APIエラー: ${msg}`);
-                }
+                const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${playlistId}&key=${apiKey}&pageToken=${nextPageToken}`;
+                const res = await fetch(url); if (!res.ok) throw 1;
                 const data = await res.json();
-                
                 data.items.forEach(item => {
-                    const publishedAt = item.contentDetails?.videoPublishedAt || item.snippet.publishedAt;
-                    videos.push({
-                        id: item.snippet.resourceId.videoId,
-                        title: item.snippet.title,
-                        description: item.snippet.description,
-                        thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
-                        pubDate: new Date(publishedAt)
-                    });
+                    videos.push({ id: item.snippet.resourceId.videoId, title: item.snippet.title, description: item.snippet.description, thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url, pubDate: new Date(item.contentDetails?.videoPublishedAt || item.snippet.publishedAt) });
                 });
-                
-                nextPageToken = data.nextPageToken;
-                if (!nextPageToken) break;
+                nextPageToken = data.nextPageToken; if (!nextPageToken) break;
             }
-            
-            videos = videos.filter(v => 
-                v.title !== 'Private video' && 
-                v.title !== 'Deleted video' && 
-                v.thumbnail &&
-                isValidVideoId(v.id)
-            );
-            
-            videos.sort((a, b) => b.pubDate - a.pubDate);
-            return videos;
-        }
-
-        function startAutoUpdateChecker() {
-            if (autoUpdateIntervalId) clearInterval(autoUpdateIntervalId);
-            
-            autoUpdateIntervalId = setInterval(() => {
-                const intervalMinutes = parseInt(document.getElementById('updateInterval').value, 10) || 60;
-                if (intervalMinutes < 1) return; 
-                
-                const intervalMs = intervalMinutes * 60 * 1000;
-                
-                if (Date.now() - lastUpdateTime >= intervalMs) {
-                    console.log("規定時間が経過したため、両プレイリストのバックグラウンド更新を実行します...");
-                    lastUpdateTime = Date.now();
-                    updateAllPlaylistsSilently(); // 現在見ているリストだけでなく、両方のリストを裏で取得・保存する
-                }
-            }, 60000); 
+            return videos.filter(v => v.title !== 'Private video' && v.title !== 'Deleted video' && isValidVideoId(v.id));
         }
 
         // ==========================================
         // 6. 初期化・イベントリスナー設定
         // ==========================================
         document.addEventListener('DOMContentLoaded', () => {
-
-            // --- アプリのメイン初期化処理 (認証通過後に呼ばれる) ---
             const initApp = async () => {
                 const savedSelect = localStorage.getItem('yt_auto_playlist_select');
                 const savedApiKey = localStorage.getItem('yt_auto_api_key');
-                
-                if (savedSelect) {
-                    const radio = document.querySelector(`input[name="playlistSelect"][value="${savedSelect}"]`);
-                    if (radio) radio.checked = true;
-                }
+                if (savedSelect) { const radio = document.querySelector(`input[name="playlistSelect"][value="${savedSelect}"]`); if (radio) radio.checked = true; }
                 if (savedApiKey) document.getElementById('apiKey').value = savedApiKey;
+                currentSort = 'date-desc'; document.getElementById('sortSelect').value = currentSort;
 
-                currentSort = 'date-desc';
-                const sortSelectEl = document.getElementById('sortSelect');
-                if (sortSelectEl) sortSelectEl.value = currentSort;
-                
-                // 【変更】手動更新ボタンは管理者（パスワード解除済み）のみ実行可能にする
-                let updateBtnClickCount = 0;
-                let authSource = null; // 'settings' または 'updateBtn'
-                
+                let updateBtnClickCount = 0, authSource = null;
                 document.getElementById('startBtn').addEventListener('click', () => {
-                    // すでにロック解除済みの場合はすぐに更新処理へ
-                    if (isAuthenticated) {
-                        fetchPlaylistData(false, true);
-                        return;
-                    }
-
+                    if (isAuthenticated) { updateAllPlaylistsByAdmin(); return; }
                     if (updateBtnClickCount === 0) {
-                        // 1回目のクリック時：メッセージを小さく表示
                         const msgEl = document.getElementById('updateBtnMsg');
-                        if (msgEl) {
-                            msgEl.classList.remove('hidden');
-                            setTimeout(() => msgEl.classList.remove('opacity-0'), 10);
-                            
-                            // 5秒後にフェードアウトして消す
-                            setTimeout(() => {
-                                msgEl.classList.add('opacity-0');
-                                setTimeout(() => msgEl.classList.add('hidden'), 300);
-                            }, 5000);
-                        }
+                        msgEl.classList.remove('hidden'); setTimeout(() => msgEl.classList.remove('opacity-0'), 10);
+                        setTimeout(() => { msgEl.classList.add('opacity-0'); setTimeout(() => msgEl.classList.add('hidden'), 300); }, 5000);
                         updateBtnClickCount++;
                     } else {
-                        // 2回目のクリック時：パスワード入力を要求
-                        authSource = 'updateBtn';
-                        adminPasswordInput.value = '';
-                        passwordError.classList.add('hidden');
-                        passwordModal.classList.remove('hidden');
-                        setTimeout(() => {
-                            passwordModal.classList.remove('opacity-0');
-                            passwordContent.classList.remove('scale-95');
-                            adminPasswordInput.focus();
-                        }, 10);
-                        
-                        // メッセージが出っぱなしなら消す
-                        const msgEl = document.getElementById('updateBtnMsg');
-                        if (msgEl && !msgEl.classList.contains('hidden')) {
-                            msgEl.classList.add('opacity-0');
-                            setTimeout(() => msgEl.classList.add('hidden'), 300);
-                        }
+                        authSource = 'updateBtn'; adminPasswordInput.value = ''; passwordError.classList.add('hidden'); passwordModal.classList.remove('hidden');
+                        setTimeout(() => { passwordModal.classList.remove('opacity-0'); passwordContent.classList.remove('scale-95'); adminPasswordInput.focus(); }, 10);
                     }
                 });
                 
-                document.getElementById('refreshBtn').addEventListener('click', () => {
-                    currentSort = 'date-desc';
-                    if (sortSelectEl) sortSelectEl.value = currentSort;
-                    
-                    const currentVideoId = videoList[currentIndex]?.id;
-                    sortVideoList();
-                    
-                    if (currentVideoId) {
-                        const newIndex = videoList.findIndex(v => v.id === currentVideoId);
-                        if (newIndex !== -1) currentIndex = newIndex;
-                    }
-                    
-                    renderPlaylist();
-                });
+                document.getElementById('refreshBtn').addEventListener('click', () => { currentSort = 'date-desc'; document.getElementById('sortSelect').value = currentSort; const curId = videoList[currentIndex]?.id; sortVideoList(); if (curId) { const idx = videoList.findIndex(v => v.id === curId); if (idx !== -1) currentIndex = idx; } renderPlaylist(); });
+                document.querySelectorAll('input[name="playlistSelect"]').forEach(radio => { radio.addEventListener('change', () => fetchPlaylistData(false, false)); });
                 
-                document.querySelectorAll('input[name="playlistSelect"]').forEach(radio => {
-                    radio.addEventListener('change', () => fetchPlaylistData(false, false));
-                });
+                const searchInput = document.getElementById('searchInput'), clearSearchBtn = document.getElementById('clearSearchBtn');
+                searchInput.addEventListener('input', () => { if (searchInput.value.trim() !== '') clearSearchBtn.classList.remove('hidden'); else clearSearchBtn.classList.add('hidden'); renderPlaylist(); });
+                clearSearchBtn.addEventListener('click', () => { searchInput.value = ''; clearSearchBtn.classList.add('hidden'); renderPlaylist(); });
+
+                const apiSettingsDetails = document.getElementById('apiSettingsDetails'), apiSettingsSummary = apiSettingsDetails.querySelector('summary'), passwordModal = document.getElementById('passwordModal'), passwordContent = passwordModal.querySelector('div.bg-white'), adminPasswordInput = document.getElementById('adminPasswordInput'), submitPasswordBtn = document.getElementById('submitPasswordBtn'), cancelPasswordBtn = document.getElementById('cancelPasswordBtn'), passwordError = document.getElementById('passwordError');
                 
-                document.getElementById('updateInterval').addEventListener('change', () => {
-                    lastUpdateTime = Date.now();
-                });
-
-                document.addEventListener('visibilitychange', () => {
-                    if (document.visibilityState === 'visible') {
-                        const intervalMinutes = parseInt(document.getElementById('updateInterval').value, 10) || 60;
-                        if (intervalMinutes < 1) return;
-                        const intervalMs = intervalMinutes * 60 * 1000;
-                        
-                        if (Date.now() - lastUpdateTime >= intervalMs) {
-                            console.log("タブの復帰を検知: 規定時間が経過しているため更新を実行します。");
-                            lastUpdateTime = Date.now();
-                            updateAllPlaylistsSilently(); // スリープ復帰時も両方を裏で更新する
-                        }
-                    }
-                });
-
-                const searchInput = document.getElementById('searchInput');
-                const clearSearchBtn = document.getElementById('clearSearchBtn');
-
-                searchInput.addEventListener('input', () => {
-                    if (searchInput.value.trim() !== '') {
-                        clearSearchBtn.classList.remove('hidden');
-                    } else {
-                        clearSearchBtn.classList.add('hidden');
-                    }
-                    renderPlaylist();
-                });
-
-                clearSearchBtn.addEventListener('click', () => {
-                    searchInput.value = '';
-                    clearSearchBtn.classList.add('hidden');
-                    renderPlaylist();
-                });
-
-                const apiSettingsDetails = document.getElementById('apiSettingsDetails');
-                const apiSettingsSummary = apiSettingsDetails.querySelector('summary');
-                const passwordModal = document.getElementById('passwordModal');
-                const passwordContent = passwordModal.querySelector('div.bg-white');
-                const adminPasswordInput = document.getElementById('adminPasswordInput');
-                const submitPasswordBtn = document.getElementById('submitPasswordBtn');
-                const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
-                const passwordError = document.getElementById('passwordError');
-                
-                apiSettingsSummary.addEventListener('click', (e) => {
-                    if (!isAuthenticated) {
-                        e.preventDefault();
-                        authSource = 'settings';
-                        
-                        adminPasswordInput.value = '';
-                        passwordError.classList.add('hidden');
-                        passwordModal.classList.remove('hidden');
-                        setTimeout(() => {
-                            passwordModal.classList.remove('opacity-0');
-                            passwordContent.classList.remove('scale-95');
-                            adminPasswordInput.focus();
-                        }, 10);
-                    }
-                });
-
-                const closePasswordModal = () => {
-                    passwordModal.classList.add('opacity-0');
-                    passwordContent.classList.add('scale-95');
-                    setTimeout(() => {
-                        passwordModal.classList.add('hidden');
-                    }, 300);
-                };
-
+                apiSettingsSummary.addEventListener('click', (e) => { if (!isAuthenticated) { e.preventDefault(); authSource = 'settings'; adminPasswordInput.value = ''; passwordError.classList.add('hidden'); passwordModal.classList.remove('hidden'); setTimeout(() => { passwordModal.classList.remove('opacity-0'); passwordContent.classList.remove('scale-95'); adminPasswordInput.focus(); }, 10); } });
+                const closePasswordModal = () => { passwordModal.classList.add('opacity-0'); passwordContent.classList.add('scale-95'); setTimeout(() => passwordModal.classList.add('hidden'), 300); };
                 cancelPasswordBtn.addEventListener('click', closePasswordModal);
-
                 const checkPassword = () => {
                     if (adminPasswordInput.value === 'youtube') {
-                        isAuthenticated = true;
-                        closePasswordModal();
-                        
-                        document.getElementById('adminHelpSection').classList.remove('hidden');
-                        
-                        const icon = apiSettingsSummary.querySelector('.fas.fa-cog');
-                        if(icon) {
-                            icon.classList.remove('fa-cog');
-                            icon.classList.add('fa-unlock', 'text-blue-500');
-                        }
-                        
-                        // 認証の呼び出し元（設定 or 更新ボタン）によって処理を分ける
-                        if (authSource === 'settings') {
-                            showToast("管理者としてロックを解除しました。");
-                            setTimeout(() => {
-                                apiSettingsDetails.setAttribute('open', '');
-                            }, 200);
-                        } else if (authSource === 'updateBtn') {
-                            showToast("管理者認証が完了しました。更新を開始します。");
-                            setTimeout(() => {
-                                fetchPlaylistData(false, true);
-                            }, 300);
-                        } else {
-                            showToast("管理者としてロックを解除しました。");
-                        }
-                    } else {
-                        passwordError.classList.remove('hidden');
-                        passwordContent.classList.add('translate-x-1');
-                        setTimeout(() => passwordContent.classList.remove('translate-x-1'), 100);
-                    }
+                        isAuthenticated = true; closePasswordModal(); document.getElementById('adminHelpSection').classList.remove('hidden');
+                        const icon = apiSettingsSummary.querySelector('.fas.fa-cog'); if(icon) { icon.classList.remove('fa-cog'); icon.classList.add('fa-unlock', 'text-blue-500'); }
+                        if (authSource === 'settings') { showToast("管理者のロックを解除しました。"); setTimeout(() => apiSettingsDetails.setAttribute('open', ''), 200); }
+                        else if (authSource === 'updateBtn') { showToast("管理者認証成功。全データを更新します。"); updateAllPlaylistsByAdmin(); }
+                    } else { passwordError.classList.remove('hidden'); passwordContent.classList.add('translate-x-1'); setTimeout(() => passwordContent.classList.remove('translate-x-1'), 100); }
                 };
+                submitPasswordBtn.addEventListener('click', checkPassword); adminPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') checkPassword(); });
+                passwordModal.addEventListener('click', (e) => { if (e.target === passwordModal) closePasswordModal(); });
 
-                submitPasswordBtn.addEventListener('click', checkPassword);
-                
-                adminPasswordInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        checkPassword();
-                    }
-                });
-
-                passwordModal.addEventListener('click', (e) => {
-                    if (e.target === passwordModal) closePasswordModal();
-                });
-
-                const confirmModal = document.getElementById('confirmModal');
-                const confirmContent = confirmModal.querySelector('div.bg-white');
-
-                document.getElementById('overwriteBtn').addEventListener('click', () => {
-                    apiSettingsDetails.removeAttribute('open');
-                    
-                    confirmModal.classList.remove('hidden');
-                    setTimeout(() => {
-                        confirmModal.classList.remove('opacity-0');
-                        confirmContent.classList.remove('scale-95');
-                    }, 10);
-                });
-
-                const closeConfirm = () => {
-                    confirmModal.classList.add('opacity-0');
-                    confirmContent.classList.add('scale-95');
-                    setTimeout(() => {
-                        confirmModal.classList.add('hidden');
-                    }, 300);
-                };
-
+                document.getElementById('overwriteBtn').addEventListener('click', () => { apiSettingsDetails.removeAttribute('open'); confirmModal.classList.remove('hidden'); setTimeout(() => { confirmModal.classList.remove('opacity-0'); confirmContent.classList.remove('scale-95'); }, 10); });
+                const closeConfirm = () => { confirmModal.classList.add('opacity-0'); confirmContent.classList.add('scale-95'); setTimeout(() => confirmModal.classList.add('hidden'), 300); };
                 document.getElementById('cancelOverwriteBtn').addEventListener('click', closeConfirm);
-                
-                document.getElementById('executeOverwriteBtn').addEventListener('click', () => {
-                    closeConfirm();
-                    fetchPlaylistData(false, true, true);
-                });
-                
-                confirmModal.addEventListener('click', (e) => {
-                    if (e.target === confirmModal) closeConfirm();
-                });
+                document.getElementById('executeOverwriteBtn').addEventListener('click', async () => { closeConfirm(); const pid = document.querySelector('input[name="playlistSelect"]:checked')?.value; if(pid) { await silentFetchAndSave(pid, document.getElementById('apiKey').value.trim()); fetchPlaylistData(true, true); } });
 
-                const playlistContainer = document.getElementById('playlistContainer');
-                const scrollTopBtnHeader = document.getElementById('scrollTopBtnHeader');
-                const scrollTopBtnFloat = document.getElementById('scrollTopBtnFloat');
+                const playlistContainer = document.getElementById('playlistContainer'), scTopH = document.getElementById('scrollTopBtnHeader'), scTopF = document.getElementById('scrollTopBtnFloat');
+                const scrollToTop = () => { if (playlistContainer) playlistContainer.scrollTo({ top: 0, behavior: 'smooth' }); };
+                if (scTopH) scTopH.addEventListener('click', scrollToTop); if (scTopF) scTopF.addEventListener('click', scrollToTop);
+                if (playlistContainer) playlistContainer.addEventListener('scroll', () => { if (playlistContainer.scrollTop > 100) { scTopF.classList.remove('opacity-0', 'pointer-events-none'); scTopF.classList.add('opacity-100'); } else { scTopF.classList.add('opacity-0', 'pointer-events-none'); scTopF.classList.remove('opacity-100'); } });
+                document.getElementById('sortSelect').addEventListener('change', (e) => { currentSort = e.target.value; const curId = videoList[currentIndex]?.id; sortVideoList(); if (curId) { const idx = videoList.findIndex(v => v.id === curId); if (idx !== -1) currentIndex = idx; } renderPlaylist(); });
 
-                const scrollToTop = () => {
-                    if (playlistContainer) playlistContainer.scrollTo({ top: 0, behavior: 'smooth' });
-                };
+                const helpModal = document.getElementById('helpModal'), helpContent = helpModal.querySelector('div.bg-white');
+                const openHelp = () => { helpModal.classList.remove('hidden'); setTimeout(() => { helpModal.classList.remove('opacity-0'); helpContent.classList.remove('scale-95'); }, 10); };
+                const closeHelp = () => { helpModal.classList.add('opacity-0'); helpContent.classList.add('scale-95'); setTimeout(() => helpModal.classList.add('hidden'), 300); };
+                document.getElementById('openHelpBtn').addEventListener('click', openHelp); document.getElementById('closeHelpBtn').addEventListener('click', closeHelp); document.getElementById('closeHelpBtnBottom').addEventListener('click', closeHelp);
+                helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp(); });
 
-                if (scrollTopBtnHeader) scrollTopBtnHeader.addEventListener('click', scrollToTop);
-                if (scrollTopBtnFloat) scrollTopBtnFloat.addEventListener('click', scrollToTop);
-
-                if (playlistContainer) {
-                    playlistContainer.addEventListener('scroll', () => {
-                        if (playlistContainer.scrollTop > 100) {
-                            scrollTopBtnFloat.classList.remove('opacity-0', 'pointer-events-none');
-                            scrollTopBtnFloat.classList.add('opacity-100');
-                        } else {
-                            scrollTopBtnFloat.classList.add('opacity-0', 'pointer-events-none');
-                            scrollTopBtnFloat.classList.remove('opacity-100');
-                        }
-                    });
-                }
-
-                if (sortSelectEl) {
-                    sortSelectEl.addEventListener('change', (e) => {
-                        currentSort = e.target.value;
-                        
-                        const currentVideoId = videoList[currentIndex]?.id;
-                        sortVideoList();
-                        
-                        if (currentVideoId) {
-                            const newIndex = videoList.findIndex(v => v.id === currentVideoId);
-                            if (newIndex !== -1) currentIndex = newIndex;
-                        }
-                        
-                        renderPlaylist();
-                    });
-                }
-
-                const helpModal = document.getElementById('helpModal');
-                const helpModalContent = helpModal.querySelector('div.bg-white');
-                
-                const openHelp = () => {
-                    helpModal.classList.remove('hidden');
-                    setTimeout(() => {
-                        helpModal.classList.remove('opacity-0');
-                        helpModalContent.classList.remove('scale-95');
-                    }, 10);
-                };
-                
-                const closeHelp = () => {
-                    helpModal.classList.add('opacity-0');
-                    helpModalContent.classList.add('scale-95');
-                    setTimeout(() => {
-                        helpModal.classList.add('hidden');
-                    }, 300);
-                };
-
-                document.getElementById('openHelpBtn').addEventListener('click', openHelp);
-                document.getElementById('closeHelpBtn').addEventListener('click', closeHelp);
-                document.getElementById('closeHelpBtnBottom').addEventListener('click', closeHelp);
-                
-                helpModal.addEventListener('click', (e) => {
-                    if (e.target === helpModal) closeHelp();
-                });
-
-                await initAuth();
-                user = auth.currentUser;
-                fetchPlaylistData(false, false);
-                
-                updatePlaylistDates();
-                startAutoUpdateChecker();
+                await initAuth(); user = auth.currentUser;
+                fetchPlaylistData(false, false); updatePlaylistDates();
             };
 
-            // --- サイト閲覧用パスワード認証ロジック ---
-            const siteAuthModal = document.getElementById('siteAuthModal');
-            const sitePasswordInput = document.getElementById('sitePasswordInput');
-            const siteAuthBtn = document.getElementById('siteAuthBtn');
-            const sitePasswordError = document.getElementById('sitePasswordError');
-
-            // URLパラメータからパスワードを取得 (例: ?pw=youtube)
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlPw = urlParams.get('pw');
-
-            if (urlPw === 'youtube') {
-                // パスワードが一致した場合、URLからパラメータを消去（ブラウザの履歴やアドレスバーから隠す）
-                urlParams.delete('pw');
-                const newSearch = urlParams.toString();
-                const newPath = window.location.pathname + (newSearch ? '?' + newSearch : '');
-                window.history.replaceState({}, document.title, newPath);
-                
-                // モーダルを即座に非表示にしてメイン処理を開始
-                siteAuthModal.style.display = 'none';
-                initApp();
-            } else {
-                // パスワードが無い、または間違っている場合はモーダルで入力を待つ
-                const attemptSiteAuth = () => {
-                    if (sitePasswordInput.value === 'youtube') {
-                        sitePasswordError.classList.add('hidden');
-                        siteAuthModal.classList.add('opacity-0');
-                        setTimeout(() => {
-                            siteAuthModal.style.display = 'none';
-                            initApp();
-                        }, 500); // フェードアウト後に初期化
-                    } else {
-                        sitePasswordError.classList.remove('hidden');
-                        sitePasswordInput.classList.add('border-red-500');
-                        // エラー時に少し揺らす
-                        const modalContent = siteAuthModal.querySelector('div.bg-white');
-                        modalContent.classList.add('translate-x-1');
-                        setTimeout(() => modalContent.classList.remove('translate-x-1'), 100);
-                    }
-                };
-
-                siteAuthBtn.addEventListener('click', attemptSiteAuth);
-                sitePasswordInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') attemptSiteAuth();
-                });
-                
-                // 入力欄にフォーカスを当てる
+            const siteAuthModal = document.getElementById('siteAuthModal'), sitePasswordInput = document.getElementById('sitePasswordInput'), siteAuthBtn = document.getElementById('siteAuthBtn'), sitePasswordError = document.getElementById('sitePasswordError');
+            const urlParams = new URLSearchParams(window.location.search), urlPw = urlParams.get('pw');
+            if (urlPw === 'youtube') { urlParams.delete('pw'); const newSearch = urlParams.toString(); window.history.replaceState({}, document.title, window.location.pathname + (newSearch ? '?' + newSearch : '')); siteAuthModal.style.display = 'none'; initApp(); }
+            else {
+                const attemptSiteAuth = () => { if (sitePasswordInput.value === 'youtube') { sitePasswordError.classList.add('hidden'); siteAuthModal.classList.add('opacity-0'); setTimeout(() => { siteAuthModal.style.display = 'none'; initApp(); }, 500); } else { sitePasswordError.classList.remove('hidden'); sitePasswordInput.classList.add('border-red-500'); siteAuthModal.querySelector('div.bg-white').classList.add('translate-x-1'); setTimeout(() => siteAuthModal.querySelector('div.bg-white').classList.remove('translate-x-1'), 100); } };
+                siteAuthBtn.addEventListener('click', attemptSiteAuth); sitePasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptSiteAuth(); });
                 setTimeout(() => sitePasswordInput.focus(), 100);
             }
         });
