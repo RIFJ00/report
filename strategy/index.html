@@ -600,15 +600,17 @@
         async function fetchFieldCommentsData() {
             try {
                 const db = await initFirebase();
-                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
 
                 // コレクションを 'fields' に指定
                 const dataRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'fields');
 
-                try {
-                    const snapshot = await getDocs(dataRef);
+                // onSnapshotでリアルタイムに監視
+                onSnapshot(dataRef, (snapshot) => {
+                    fieldComments = {}; // 再取得のたびに初期化
+                    let foundCount = 0;
+
                     if (!snapshot.empty) {
-                        let foundCount = 0;
                         snapshot.docs.forEach(doc => {
                             const itemData = doc.data();
                             
@@ -685,9 +687,9 @@
                     } else {
                         console.log(`コレクション 'fields' は空です。`);
                     }
-                } catch (error) {
-                    console.warn(`コレクション 'fields' の取得でエラーが発生しました。`, error);
-                }
+                }, (error) => {
+                    console.warn(`コレクション 'fields' のリアルタイム取得でエラーが発生しました。`, error);
+                });
             } catch (error) {
                 console.error("分野解説データの取得処理中にエラーが発生しました:", error);
             }
@@ -700,98 +702,106 @@
 
             try {
                 const db = await initFirebase();
-                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
                 const dataRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', targetCollection);
                 
-                const snapshot = await getDocs(dataRef);
-                const allDocuments = snapshot.docs.map(doc => doc.data());
-                
-                if (allDocuments.length > 0) {
-                    const parsedData = {};
+                // onSnapshotでリアルタイムに監視
+                onSnapshot(dataRef, (snapshot) => {
+                    const allDocuments = snapshot.docs.map(doc => doc.data());
+                    
+                    if (allDocuments.length > 0) {
+                        const parsedData = {};
 
-                    allDocuments.forEach(meeting => {
-                        const fieldNameStr = String(meeting.fieldId || meeting.field_id || meeting.relatedFieldId || meeting.related_field || meeting.関連分野 || meeting.分野 || "");
-                        let fieldId = null;
+                        allDocuments.forEach(meeting => {
+                            const fieldNameStr = String(meeting.fieldId || meeting.field_id || meeting.relatedFieldId || meeting.related_field || meeting.関連分野 || meeting.分野 || "");
+                            let fieldId = null;
 
-                        if (fieldNameStr) {
-                            const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
+                            if (fieldNameStr) {
+                                const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
 
-                            let match17 = areas17.find(item => item.name === cleanFieldNameStr);
-                            if (!match17) match17 = areas17.find(item => cleanFieldNameStr.includes(item.name) || item.name.includes(cleanFieldNameStr));
-                            
-                            if (match17) {
-                                fieldId = `17_${match17.no}`;
-                            } else {
-                                let match8 = areas8.find(item => item.name === cleanFieldNameStr);
-                                if (!match8) match8 = areas8.find(item => cleanFieldNameStr.includes(item.name) || item.name.includes(cleanFieldNameStr));
+                                let match17 = areas17.find(item => item.name === cleanFieldNameStr);
+                                if (!match17) match17 = areas17.find(item => cleanFieldNameStr.includes(item.name) || item.name.includes(cleanFieldNameStr));
                                 
-                                if (match8) {
-                                    fieldId = `8_${match8.no}`;
-                                }
-                            }
-                            
-                            if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) {
-                                fieldId = fieldNameStr;
-                            }
-                        }
-
-                        if (fieldId) {
-                            if (!parsedData[fieldId]) {
-                                parsedData[fieldId] = [];
-                            }
-                            parsedData[fieldId].push({
-                                category: meeting.category || meeting.区分 || "",
-                                rank: meeting.rank || meeting.順位 || "",
-                                name: meeting.name || meeting.会議名 || "",
-                                url: meeting.url || meeting.URL || "",
-                                jurisdiction: meeting.jurisdiction || meeting.所管 || "",
-                                field: meeting.field || meeting.対象分野 || "",
-                                date: meeting.date || meeting.直近開催日 || "",
-                                note: meeting.note || meeting.備考 || ""
-                            });
-
-                            // 万が一meetings側にも解説データがあれば補完する
-                            let commentStr = meeting.解説のコメント || meeting.分野の解説 || meeting.解説コメント || meeting.解説 || meeting.コメント || meeting.comment || meeting.field_comment || "";
-                            if (!commentStr) {
-                                for (const key of Object.keys(meeting)) {
-                                    if (key.includes('解説') || key.includes('コメント')) {
-                                        commentStr = meeting[key];
-                                        break;
+                                if (match17) {
+                                    fieldId = `17_${match17.no}`;
+                                } else {
+                                    let match8 = areas8.find(item => item.name === cleanFieldNameStr);
+                                    if (!match8) match8 = areas8.find(item => cleanFieldNameStr.includes(item.name) || item.name.includes(cleanFieldNameStr));
+                                    
+                                    if (match8) {
+                                        fieldId = `8_${match8.no}`;
                                     }
                                 }
+                                
+                                if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) {
+                                    fieldId = fieldNameStr;
+                                }
                             }
 
-                            if (commentStr && String(commentStr).trim() !== "" && !fieldComments[fieldId]) {
-                                fieldComments[fieldId] = String(commentStr);
+                            if (fieldId) {
+                                if (!parsedData[fieldId]) {
+                                    parsedData[fieldId] = [];
+                                }
+                                parsedData[fieldId].push({
+                                    category: meeting.category || meeting.区分 || "",
+                                    rank: meeting.rank || meeting.順位 || "",
+                                    name: meeting.name || meeting.会議名 || "",
+                                    url: meeting.url || meeting.URL || "",
+                                    jurisdiction: meeting.jurisdiction || meeting.所管 || "",
+                                    field: meeting.field || meeting.対象分野 || "",
+                                    date: meeting.date || meeting.直近開催日 || "",
+                                    note: meeting.note || meeting.備考 || ""
+                                });
+
+                                // 万が一meetings側にも解説データがあれば補完する
+                                let commentStr = meeting.解説のコメント || meeting.分野の解説 || meeting.解説コメント || meeting.解説 || meeting.コメント || meeting.comment || meeting.field_comment || "";
+                                if (!commentStr) {
+                                    for (const key of Object.keys(meeting)) {
+                                        if (key.includes('解説') || key.includes('コメント')) {
+                                            commentStr = meeting[key];
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (commentStr && String(commentStr).trim() !== "" && !fieldComments[fieldId]) {
+                                    fieldComments[fieldId] = String(commentStr);
+                                }
                             }
-                        }
-                    });
+                        });
+                        
+                        relatedCouncilsData = parsedData;
+                        console.log(`${allDocuments.length}件の関連会議データをFirestoreから取得・適用しました。`);
+
+                        // 画面のデータ更新日を反映（SDK経由のため現在日付をセット）
+                        const today = new Date();
+                        const year = today.getFullYear();
+                        const month = String(today.getMonth() + 1).padStart(2, '0');
+                        const day = String(today.getDate()).padStart(2, '0');
+                        document.getElementById('data-update-date').innerText = `${year}年${month}月${day}日取得`;
+
+                    } else {
+                        relatedCouncilsData = {}; // データがない場合は空にする
+                        console.log("Firestoreからの取得データが0件でした。");
+                        document.getElementById('data-update-date').innerText = "データなし";
+                    }
+
+                    if (loadingEl) loadingEl.classList.add('hidden');
+                    displayFieldData();
                     
-                    relatedCouncilsData = parsedData;
-                    console.log(`${allDocuments.length}件の関連会議データをFirestoreから取得・適用しました。`);
-
-                    // 画面のデータ更新日を反映（SDK経由のため現在日付をセット）
-                    const today = new Date();
-                    const year = today.getFullYear();
-                    const month = String(today.getMonth() + 1).padStart(2, '0');
-                    const day = String(today.getDate()).padStart(2, '0');
-                    document.getElementById('data-update-date').innerText = `${year}年${month}月${day}日取得`;
-
-                } else {
-                    console.log("Firestoreからの取得データが0件でした。");
-                    document.getElementById('data-update-date').innerText = "データなし";
-                }
+                    const modal = document.getElementById('related-councils-modal');
+                    if (modal && !modal.classList.contains('hidden')) {
+                        populateRelatedCouncilsTable();
+                    }
+                }, (error) => {
+                    console.warn("関連会議データのリアルタイム取得エラー:", error);
+                    document.getElementById('data-update-date').innerText = "取得失敗";
+                    if (loadingEl) loadingEl.classList.add('hidden');
+                });
             } catch (error) {
-                console.warn("関連会議データの取得に失敗しました:", error);
+                console.error("関連会議データの取得処理中にエラーが発生しました:", error);
                 document.getElementById('data-update-date').innerText = "取得失敗";
-            } finally {
                 if (loadingEl) loadingEl.classList.add('hidden');
-                displayFieldData();
-                
-                const modal = document.getElementById('related-councils-modal');
-                if (modal && !modal.classList.contains('hidden')) {
-                    populateRelatedCouncilsTable();
-                }
             }
         }
 
@@ -1013,13 +1023,19 @@
         async function fetchPdfLinksData() {
             try {
                 const db = await initFirebase();
-                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
 
                 // コレクションを 'links' に指定
                 const dataRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'links');
 
-                try {
-                    const snapshot = await getDocs(dataRef);
+                // onSnapshotでリアルタイムに監視
+                onSnapshot(dataRef, (snapshot) => {
+                    // 再取得のたびにオブジェクトを初期化
+                    Object.keys(overviewUrls).forEach(k => delete overviewUrls[k]);
+                    Object.keys(roadmapUrls).forEach(k => delete roadmapUrls[k]);
+                    Object.keys(memberUrls).forEach(k => delete memberUrls[k]);
+                    pdfTabNames = { overview: {}, roadmap: {}, member: {} };
+
                     if (!snapshot.empty) {
                         let foundCount = 0;
                         snapshot.docs.forEach(doc => {
@@ -1140,13 +1156,15 @@
                             updatePdfDisplay(); // データ取得後にPDF表示を更新
                         } else {
                             console.log(`コレクション 'links' にドキュメントはありましたが、照合できるデータが0件でした。`);
+                            updatePdfDisplay();
                         }
                     } else {
                         console.log(`コレクション 'links' は空です。`);
+                        updatePdfDisplay();
                     }
-                } catch (error) {
-                    console.warn(`コレクション 'links' の取得でエラーが発生しました。`, error);
-                }
+                }, (error) => {
+                    console.warn(`コレクション 'links' のリアルタイム取得でエラーが発生しました。`, error);
+                });
             } catch (error) {
                 console.error("PDFリンクデータの取得処理中にエラーが発生しました:", error);
             }
