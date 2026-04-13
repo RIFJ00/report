@@ -14,7 +14,7 @@ const cheerio = require('cheerio');
 const admin = require('firebase-admin');
 
 // --- 設定の読み込み ---
-const CSV_FILE_PATH = '会議体リスト_20260411.xlsx - in.csv'; // GitHubリポジトリ内のCSVファイル
+const CSV_FILE_PATH = '会議体リスト_20260413.xlsx - in.csv'; // GitHubリポジトリ内のCSVファイル
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 const FIREBASE_KEY_JSON = process.env.FIREBASE_SERVICE_ACCOUNT;
 
