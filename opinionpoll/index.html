@@ -366,7 +366,7 @@
           'cabinetSupport': '内閣支持', 'cabinetNonsupport': '内閣不支持',
           'media': '機関名', 'date': '調査日'
         };
-        const ORDERED_KEYS = ['機関名', '調査日', '内閣支持', '内閣不支持', '自民', '維新', '中道', '公明', '国民', '参政', 'みらい', '保守', '共産', 'れいわ', '社民', '支持なし'];
+        const ORDERED_KEYS = ['機関名', '調査月', '調査日', '内閣支持', '内閣不支持', '自民', '維新', '中道', '公明', '国民', '参政', 'みらい', '保守', '共産', 'れいわ', '社民', '支持なし'];
 
         const processed = useMemo(() => {
           if (!polls || polls.length === 0) return { raw: [], columns: { numeric: [], categorical: [], date: [] }, months: [], uniqueCats: [] };
@@ -377,6 +377,10 @@
               const newKey = KEY_MAP[k] || k;
               newRow[newKey] = row[k];
             });
+            // 調査日から「調査月(YYYY-MM)」を生成して追加
+            if (newRow['調査日']) {
+              newRow['調査月'] = newRow['調査日'].substring(0, 7);
+            }
             return newRow;
           });
 
@@ -396,7 +400,7 @@
           const columns = { numeric: [], categorical: [], date: [] };
           headers.forEach(header => {
             let isDate = false, isNumeric = false;
-            if (header.includes('日') || header.toLowerCase().includes('date')) {
+            if (header.includes('日') || header.includes('月') || header.toLowerCase().includes('date')) {
               isDate = true;
             } else {
               let numCount = 0;
@@ -465,6 +469,27 @@
         const chartRef = useRef(null);
         const [summaryData, setSummaryData] = useState(null);
         const [noDataMsg, setNoDataMsg] = useState('');
+
+        const handleAnalysisTypeChange = (e) => {
+            const newType = e.target.value;
+            setAnalysisType(newType);
+
+            if (newType === 'timeseries') {
+                if (processed.columns.date.includes('調査月')) {
+                    setXAxis('調査月');
+                } else if (processed.columns.date.length > 0) {
+                    setXAxis(processed.columns.date[0]);
+                }
+            } else if (newType === 'boxplot') {
+                setXAxis('機関名');
+            } else if (['histogram', 'scatter', 'bubble'].includes(newType)) {
+                if (processed.columns.numeric.length > 0) {
+                    setXAxis(processed.columns.numeric[0]);
+                }
+            } else if (['comparison', 'stackedbar', 'violin'].includes(newType)) {
+                setXAxis('全体');
+            }
+        };
 
         useEffect(() => {
           if (processed.months.length > 0 && !startMonth) {
@@ -1063,7 +1088,7 @@
                           </h2>
                           
                           <div className="mb-5">
-                              <select id="analysisTypeSel" value={analysisType} onChange={e => setAnalysisType(e.target.value)} className="w-full text-sm border-slate-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border bg-white font-medium">
+                              <select id="analysisTypeSel" value={analysisType} onChange={handleAnalysisTypeChange} className="w-full text-sm border-slate-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border bg-white font-medium">
                                   <option value="summary">1. 基本統計量 (表)</option>
                                   <option value="timeseries">2. 時系列推移 (折れ線グラフ)</option>
                                   <option value="comparison">3. カテゴリ別平均 (棒グラフ)</option>
