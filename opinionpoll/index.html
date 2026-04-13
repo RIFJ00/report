@@ -21,6 +21,9 @@
   <!-- Plotly.js for Advanced Charting -->
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 
+  <!-- jStat for Statistical Tests -->
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+
   <!-- Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
@@ -468,6 +471,7 @@
 
         const chartRef = useRef(null);
         const [summaryData, setSummaryData] = useState(null);
+        const [statTestData, setStatTestData] = useState(null);
         const [noDataMsg, setNoDataMsg] = useState('');
 
         const handleAnalysisTypeChange = (e) => {
@@ -480,7 +484,7 @@
                 } else if (processed.columns.date.length > 0) {
                     setXAxis(processed.columns.date[0]);
                 }
-            } else if (newType === 'boxplot') {
+            } else if (newType === 'boxplot' || newType === 'stripplot' || newType === 'ridgeline' || newType === 'stat_test') {
                 setXAxis('機関名');
             } else if (['histogram', 'scatter', 'bubble'].includes(newType)) {
                 if (processed.columns.numeric.length > 0) {
@@ -488,6 +492,13 @@
                 }
             } else if (['comparison', 'stackedbar', 'violin'].includes(newType)) {
                 setXAxis('全体');
+            } else if (newType === 'crosstab_heatmap') {
+                if (processed.columns.categorical.length > 0) setXAxis(processed.columns.categorical[0]);
+                if (processed.columns.date.includes('調査月')) setColorGroup('調査月');
+                if (processed.columns.numeric.length > 0) setColorAxis(processed.columns.numeric[0]);
+            } else if (newType === 'bumpchart') {
+                setXAxis('機関名');
+                if (processed.columns.numeric.length > 0) setColorAxis(processed.columns.numeric[0]);
             }
         };
 
@@ -537,6 +548,7 @@
         const executeAnalysis = () => {
           setNoDataMsg('');
           setSummaryData(null);
+          setStatTestData(null);
           if (chartRef.current && window.Plotly) window.Plotly.purge(chartRef.current);
 
           if (filteredData.length === 0) {
@@ -561,6 +573,11 @@
               case 'bubble': renderBubble(); break;
               case 'violin': renderViolin(); break;
               case 'parcoords': renderParcoords(); break;
+              case 'crosstab_heatmap': renderCrosstabHeatmap(); break;
+              case 'stripplot': renderStripPlot(); break;
+              case 'ridgeline': renderRidgelinePlot(); break;
+              case 'bumpchart': renderBumpChart(); break;
+              case 'stat_test': renderStatTest(); break;
           }
         };
 
@@ -575,7 +592,7 @@
           
           if (processed.columns.numeric.length > 0) {
             setYAxisChk(processed.columns.numeric.slice(0, 5));
-            setXAxis(processed.columns.date.length > 0 ? processed.columns.date[0] : '全体');
+            setXAxis('機関名');
             setYAxis(processed.columns.numeric[0]);
             setSizeAxis(processed.columns.numeric[1 % processed.columns.numeric.length]);
             setColorAxis(processed.columns.numeric[0]);
@@ -584,6 +601,7 @@
           setBins(20);
           
           setSummaryData(null);
+          setStatTestData(null);
           setNoDataMsg('');
           setResultTitle('分析結果');
           if (chartRef.current && window.Plotly) window.Plotly.purge(chartRef.current);
@@ -916,6 +934,256 @@
             if(window.Plotly) window.Plotly.newPlot(chartRef.current, [trace], layout, {responsive: true});
         };
 
+        const renderCrosstabHeatmap = () => {
+            const colX = xAxis;
+            const colY = colorGroup;
+            const colVal = colorAxis;
+            
+            if (colX === '全体' || colY === 'なし' || colY === '全体') {
+                alert('クロス集計にはX軸・Y軸にカテゴリ(機関名や調査月など)を選択してください。'); return;
+            }
+
+            let xLabels = [...new Set(filteredData.map(d => d[colX]).filter(Boolean))].sort();
+            let yLabels = [...new Set(filteredData.map(d => d[colY]).filter(Boolean))].sort();
+
+            let zData = [];
+            for (let i = 0; i < yLabels.length; i++) {
+                let row = [];
+                for (let j = 0; j < xLabels.length; j++) {
+                    let matching = filteredData.filter(d => d[colY] === yLabels[i] && d[colX] === xLabels[j]);
+                    let vals = matching.map(d => d[colVal]).filter(v => v !== null && v !== '' && !isNaN(v));
+                    if (vals.length > 0) {
+                        row.push(vals.reduce((a,b) => a + Number(b), 0) / vals.length);
+                    } else {
+                        row.push(null);
+                    }
+                }
+                zData.push(row);
+            }
+
+            let trace = {
+                z: zData,
+                x: xLabels,
+                y: yLabels,
+                type: 'heatmap',
+                colorscale: 'Viridis',
+                colorbar: { title: colVal }
+            };
+
+            let layout = { title: `クロス集計ヒートマップ (${colX} × ${colY} : ${colVal})`, margin: { t: 40, r: 20, l: 100, b: 60 }, xaxis: { tickangle: -45 } };
+            if(window.Plotly) window.Plotly.newPlot(chartRef.current, [trace], layout, {responsive: true});
+        };
+
+        const renderStripPlot = () => {
+            const xCol = xAxis;
+            const yCol = yAxis;
+            let traces = [];
+            if (xCol === '全体') {
+                traces.push({
+                    y: filteredData.map(d => d[yCol]).filter(v => v !== null && v !== '' && !isNaN(v)),
+                    type: 'box', name: yCol, boxpoints: 'all', pointpos: 0, jitter: 0.5,
+                    fillcolor: 'rgba(0,0,0,0)', line: {color: 'rgba(0,0,0,0)'}, marker: {size: 6, opacity: 0.7, color: '#3b82f6', line: {width: 1, color: '#1e3a8a'}}
+                });
+            } else {
+                let grouped = {};
+                filteredData.forEach(row => {
+                    let cat = row[xCol];
+                    if (!cat) cat = '不明';
+                    let val = row[yCol];
+                    if (val !== null && val !== '' && !isNaN(val)) {
+                        if (!grouped[cat]) grouped[cat] = [];
+                        grouped[cat].push(Number(val));
+                    }
+                });
+                Object.keys(grouped).forEach(cat => {
+                    traces.push({ 
+                      y: grouped[cat], type: 'box', name: cat, 
+                      boxpoints: 'all', pointpos: 0, jitter: 0.5,
+                      fillcolor: 'rgba(0,0,0,0)', line: {color: 'rgba(0,0,0,0)'}, 
+                      marker: {size: 6, opacity: 0.7, line: {width: 1}} 
+                    });
+                });
+            }
+
+            let layout = { title: `${yCol} の分布 (ストリッププロット)`, yaxis: { title: yCol }, xaxis: { title: xCol !== '全体' ? xCol : '' }, showlegend: false, margin: { t: 40, r: 20, l: 50, b: 80 } };
+            if(window.Plotly) window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+        };
+
+        const renderRidgelinePlot = () => {
+            const xCol = xAxis;
+            const yCol = yAxis;
+            if (xCol === '全体') {
+                alert('グループ化(X軸)を選択してください。'); return;
+            }
+
+            let grouped = {};
+            filteredData.forEach(row => {
+                let cat = row[xCol];
+                if (!cat) cat = '不明';
+                let val = row[yCol];
+                if (val !== null && val !== '' && !isNaN(val)) {
+                    if (!grouped[cat]) grouped[cat] = [];
+                    grouped[cat].push(Number(val));
+                }
+            });
+
+            let categories = Object.keys(grouped).sort().reverse(); 
+            
+            let traces = categories.map(cat => ({
+                type: 'violin',
+                x: grouped[cat],
+                name: cat,
+                side: 'positive',
+                orientation: 'h',
+                meanline: { visible: true },
+                points: false,
+                line: { color: '#1e3a8a', width: 1 },
+                fillcolor: 'rgba(59, 130, 246, 0.5)',
+                spanmode: 'hard'
+            }));
+
+            let layout = { 
+                title: `${yCol} の分布 (リッジラインプロット)`, 
+                xaxis: { title: yCol }, 
+                yaxis: { showgrid: false },
+                showlegend: false, 
+                margin: { t: 40, r: 20, l: 80, b: 50 },
+                hovermode: 'closest'
+            };
+            if(window.Plotly) window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+        };
+
+        const renderBumpChart = () => {
+            const valCol = colorAxis;
+            const groupCol = xAxis;
+            const timeCol = '調査月';
+
+            if (!processed.columns.date.includes(timeCol) && processed.columns.date.length > 0) {
+               alert('バンプチャートのデータには調査月が必要です。'); return;
+            }
+
+            let months = [...new Set(filteredData.map(d => d[timeCol]).filter(Boolean))].sort();
+            let groups = [...new Set(filteredData.map(d => d[groupCol]).filter(Boolean))];
+
+            let monthlyData = {};
+            months.forEach(m => {
+                monthlyData[m] = {};
+                groups.forEach(g => {
+                    let matching = filteredData.filter(d => d[timeCol] === m && d[groupCol] === g);
+                    let vals = matching.map(d => d[valCol]).filter(v => v !== null && v !== '' && !isNaN(v));
+                    if(vals.length > 0) {
+                        monthlyData[m][g] = vals.reduce((a,b)=>a+Number(b),0)/vals.length;
+                    }
+                });
+            });
+
+            let tracesData = {};
+            groups.forEach(g => tracesData[g] = {x:[], y:[], text:[]});
+
+            months.forEach(m => {
+                let items = Object.keys(monthlyData[m]).map(g => ({ group: g, val: monthlyData[m][g] }));
+                items.sort((a,b) => b.val - a.val);
+                items.forEach((item, index) => {
+                    let rank = index + 1;
+                    tracesData[item.group].x.push(m);
+                    tracesData[item.group].y.push(rank);
+                    tracesData[item.group].text.push(`${item.group}<br>${rank}位 (${item.val.toFixed(1)})`);
+                });
+            });
+
+            let traces = groups.map(g => ({
+                x: tracesData[g].x,
+                y: tracesData[g].y,
+                text: tracesData[g].text,
+                mode: 'lines+markers',
+                name: g,
+                line: { shape: 'spline', width: 4 },
+                marker: { size: 10 },
+                hoverinfo: 'text'
+            }));
+
+            let layout = { 
+                title: `${valCol} の順位推移 (バンプチャート)`, 
+                xaxis: { title: timeCol }, 
+                yaxis: { title: '順位', autorange: 'reversed', tickdtick: 1 }, 
+                hovermode: 'closest', margin: { t: 40, r: 20, l: 50, b: 60 } 
+            };
+            if(window.Plotly) window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+        };
+
+        const renderStatTest = () => {
+            const xCol = xAxis;
+            const yCol = yAxis;
+            if (xCol === '全体') {
+                alert('グループ化(X軸)を選択してください。'); return;
+            }
+
+            let grouped = {};
+            let allVals = [];
+            filteredData.forEach(row => {
+                let cat = row[xCol];
+                if (!cat) return;
+                let val = row[yCol];
+                if (val !== null && val !== '' && !isNaN(val)) {
+                    val = Number(val);
+                    if (!grouped[cat]) grouped[cat] = [];
+                    grouped[cat].push(val);
+                    allVals.push(val);
+                }
+            });
+
+            let groupKeys = Object.keys(grouped).filter(k => grouped[k].length > 0);
+            if (groupKeys.length < 2) {
+                alert('比較できるグループが2つ以上ありません。'); return;
+            }
+
+            const k = groupKeys.length;
+            const N = allVals.length;
+            
+            const overallMean = allVals.reduce((a,b)=>a+b,0) / N;
+
+            let SSB = 0;
+            let SSW = 0;
+
+            let groupStats = groupKeys.map(key => {
+                let vals = grouped[key];
+                let n = vals.length;
+                let mean = vals.reduce((a,b)=>a+b,0) / n;
+                let variance = vals.reduce((a,b)=>a+Math.pow(b-mean,2),0) / (n > 1 ? n-1 : 1);
+                
+                SSB += n * Math.pow(mean - overallMean, 2);
+                SSW += vals.reduce((a,b)=>a+Math.pow(b-mean,2),0);
+                
+                return { key, n, mean, variance };
+            });
+
+            const dfB = k - 1;
+            const dfW = N - k;
+            
+            const MSB = dfB > 0 ? SSB / dfB : 0;
+            const MSW = dfW > 0 ? SSW / dfW : 0;
+            
+            const F = MSW > 0 ? MSB / MSW : 0;
+            
+            let pValue = null;
+            if (window.jStat) {
+                pValue = 1 - window.jStat.centralF.cdf(F, dfB, dfW);
+            }
+
+            setStatTestData({
+                groupCol: xCol,
+                valCol: yCol,
+                groups: groupStats,
+                anova: { F, pValue, dfB, dfW }
+            });
+            
+            let traces = groupKeys.map(cat => ({
+                y: grouped[cat], type: 'box', name: cat, boxpoints: 'all', jitter: 0.3, pointpos: -1.8
+            }));
+            let layout = { title: `${yCol} のグループ間比較`, yaxis: { title: yCol }, xaxis: { title: xCol }, showlegend: false, margin: { t: 40, r: 20, l: 50, b: 80 } };
+            if(window.Plotly) window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+        };
+
         const monthOpts = processed.months.map(m => {
           const [y, mm] = m.split('-');
           return { value: m, label: `${y}年${parseInt(mm, 10)}月` };
@@ -1033,6 +1301,42 @@
                             <SelectControl label="線の色分け基準 (数値)" value={colorAxis} onChange={setColorAxis} options={activeNums} />
                         </React.Fragment>
                     );
+                case 'crosstab_heatmap':
+                    let heatmapCatOpts = [...processed.columns.categorical, ...processed.columns.date];
+                    return (
+                        <React.Fragment>
+                            <SelectControl label="X軸 (列カテゴリ)" value={xAxis} onChange={setXAxis} options={heatmapCatOpts} />
+                            <SelectControl label="Y軸 (行カテゴリ)" value={colorGroup} onChange={setColorGroup} options={heatmapCatOpts} />
+                            <SelectControl label="集計する数値 (Z軸)" value={colorAxis} onChange={setColorAxis} options={activeNums} />
+                        </React.Fragment>
+                    );
+                case 'stripplot':
+                case 'ridgeline':
+                    let stripCatOpts = [...processed.columns.categorical, ...processed.columns.date];
+                    return (
+                        <React.Fragment>
+                            <SelectControl label="グループ化 (X軸)" value={xAxis} onChange={setXAxis} options={['全体', ...stripCatOpts]} />
+                            <SelectControl label="分布を見る数値 (Y軸)" value={yAxis} onChange={setYAxis} options={activeNums} />
+                        </React.Fragment>
+                    );
+                case 'bumpchart':
+                    let bumpCatOpts = [...processed.columns.categorical];
+                    return (
+                        <React.Fragment>
+                            <SelectControl label="順位をつけるグループ" value={xAxis} onChange={setXAxis} options={bumpCatOpts} />
+                            <SelectControl label="順位の基準となる数値" value={colorAxis} onChange={setColorAxis} options={activeNums} />
+                            <p className="text-xs text-slate-500 mb-2 mt-2">※X軸は自動的に「調査月」になります。</p>
+                        </React.Fragment>
+                    );
+                case 'stat_test':
+                    let statCatOpts = [...processed.columns.categorical, ...processed.columns.date];
+                    return (
+                        <React.Fragment>
+                            <p className="text-xs text-slate-500 mb-2">一元配置分散分析(ANOVA)により、グループ間の平均値に統計的な差があるかを検定します。</p>
+                            <SelectControl label="比較するグループ (X軸)" value={xAxis} onChange={setXAxis} options={statCatOpts} />
+                            <SelectControl label="検定する数値 (Y軸)" value={yAxis} onChange={setYAxis} options={activeNums} />
+                        </React.Fragment>
+                    );
                 default:
                     return null;
             }
@@ -1102,6 +1406,11 @@
                                   <option value="bubble">11. バブルチャート (3変数比較)</option>
                                   <option value="violin">12. バイオリンプロット (分布の詳細)</option>
                                   <option value="parcoords">13. 平行座標プロット (多次元パターン)</option>
+                                  <option value="crosstab_heatmap">14. クロス集計ヒートマップ (月×機関)</option>
+                                  <option value="stripplot">15. ストリッププロット (データ点の分布)</option>
+                                  <option value="ridgeline">16. リッジラインプロット (分布の重なり)</option>
+                                  <option value="bumpchart">17. バンプチャート (順位推移)</option>
+                                  <option value="stat_test">18. 統計的検定 (分散分析 / t検定)</option>
                               </select>
                           </div>
 
@@ -1180,8 +1489,50 @@
                               </table>
                           </div>
                       )}
+
+                      {statTestData && (
+                          <div className="mt-4 p-4 border border-blue-200 bg-blue-50 rounded-lg shadow-sm text-sm text-slate-800 animate-in fade-in relative z-10">
+                              <h3 className="font-bold text-base mb-2 flex items-center"><Info className="w-5 h-5 mr-1 text-blue-600" /> 一元配置分散分析 (ANOVA) の結果</h3>
+                              <p className="mb-2"><strong>比較対象:</strong> 「{statTestData.groupCol}」ごとの「{statTestData.valCol}」の平均値の差</p>
+                              
+                              <div className="grid grid-cols-2 gap-4 mb-4">
+                                  <div className="bg-white p-3 rounded border border-slate-200">
+                                      <p className="text-xs text-slate-500 font-bold mb-1">F値 (グループ間の違いの大きさ)</p>
+                                      <p className="text-lg font-bold text-slate-700">{statTestData.anova.F.toFixed(3)}</p>
+                                  </div>
+                                  <div className="bg-white p-3 rounded border border-slate-200">
+                                      <p className="text-xs text-slate-500 font-bold mb-1">p値 (偶然この差が起きる確率)</p>
+                                      <p className="text-lg font-bold text-blue-700">
+                                          {statTestData.anova.pValue !== null ? (statTestData.anova.pValue < 0.001 ? '< 0.001' : statTestData.anova.pValue.toFixed(4)) : '計算不可'}
+                                      </p>
+                                  </div>
+                              </div>
+
+                              {statTestData.anova.pValue !== null && (
+                                  <div className={`p-3 rounded-lg font-bold ${statTestData.anova.pValue < 0.05 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-200 text-slate-700 border border-slate-300'}`}>
+                                      【判定】 {statTestData.anova.pValue < 0.05 ? '統計的に有意な差があります (p < 0.05)。グループによって平均値に違いがあると言えます。' : '統計的に有意な差はありません (p >= 0.05)。グループ間の違いは誤差の範囲内である可能性があります。'}
+                                  </div>
+                              )}
+                              
+                              <details className="mt-4">
+                                  <summary className="cursor-pointer text-blue-600 hover:underline font-medium">各グループの統計量 (クリックで展開)</summary>
+                                  <table className="w-full mt-2 bg-white border border-slate-200 text-right">
+                                      <thead className="bg-slate-100">
+                                          <tr><th className="px-3 py-2 text-left border-b border-slate-200">グループ</th><th className="px-3 py-2 border-b border-slate-200">データ数 (n)</th><th className="px-3 py-2 border-b border-slate-200">平均値</th><th className="px-3 py-2 border-b border-slate-200">分散</th></tr>
+                                      </thead>
+                                      <tbody>
+                                          {statTestData.groups.map(g => (
+                                              <tr key={g.key} className="border-b border-slate-100">
+                                                  <td className="px-3 py-1.5 text-left">{g.key}</td><td className="px-3 py-1.5">{g.n}</td><td className="px-3 py-1.5 font-bold">{g.mean.toFixed(2)}</td><td className="px-3 py-1.5">{g.variance.toFixed(2)}</td>
+                                              </tr>
+                                          ))}
+                                      </tbody>
+                                  </table>
+                              </details>
+                          </div>
+                      )}
                       
-                      {!summaryData && !chartRef.current?.children.length && !noDataMsg && (
+                      {!summaryData && !statTestData && !chartRef.current?.children.length && !noDataMsg && (
                           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
                               <p className="text-lg font-bold text-slate-500">条件を選択して「分析を実施」を押してください</p>
                           </div>
@@ -1190,9 +1541,50 @@
               </section>
           </div>
         );
+      }
+
+      const handleDownloadImage = async (elementId, filename) => {
+        // Function handles image downloading
+        const element = document.getElementById(elementId);
+        if (!element) return;
+        
+        try {
+          let h2c = window.html2canvas;
+          if (!h2c) {
+            await new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+              script.onload = () => resolve();
+              script.onerror = reject;
+              document.head.appendChild(script);
+            });
+            h2c = window.html2canvas;
+          }
+
+          const canvas = await h2c(element, {
+            backgroundColor: '#ffffff',
+            scale: 2,
+            logging: false,
+          });
+
+          const dataUrl = canvas.toDataURL('image/png');
+          
+          try {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } catch (dlError) {
+            console.warn('Auto download blocked by browser environment', dlError);
+          }
+        } catch (err) {
+          console.error('Image generation error:', err);
+        }
       };
 
-      function App() {
+      function AppWrapper() {
         const [user, setUser] = useState(null);
         const [polls, setPolls] = useState([]);
         const [isLoadingData, setIsLoadingData] = useState(true);
@@ -1285,53 +1677,10 @@
           }
         };
 
-        const handleDownloadImage = async (elementId, filename) => {
+        const handleDownloadImageWrapper = async (elementId, filename) => {
           setInfoMsg('画像を生成しています。少しお待ちください...');
-          const element = document.getElementById(elementId);
-          if (!element) return;
-
-          try {
-            let h2c = window.html2canvas;
-            if (!h2c) {
-              await new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-                script.onload = () => resolve();
-                script.onerror = reject;
-                document.head.appendChild(script);
-              });
-              h2c = window.html2canvas;
-            }
-
-            const canvas = await h2c(element, {
-              backgroundColor: '#ffffff',
-              scale: 2,
-              logging: false,
-            });
-
-            const dataUrl = canvas.toDataURL('image/png');
-            
-            setGeneratedImage(dataUrl);
-            setDownloadFilename(filename);
-            setShowImageModal(true);
-
-            try {
-              const link = document.createElement('a');
-              link.download = filename;
-              link.href = dataUrl;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            } catch (dlError) {
-              console.warn('Auto download blocked by browser environment', dlError);
-            }
-            
-            setInfoMsg('画像を生成しました。');
-          } catch (err) {
-            console.error('Image generation error:', err);
-            setErrorMsg('画像の生成に失敗しました。');
-            setInfoMsg('');
-          }
+          await handleDownloadImage(elementId, filename);
+          setInfoMsg('画像を生成しました。');
         };
 
         useEffect(() => {
@@ -3125,7 +3474,7 @@
                           <div id="chart-party" className="bg-white p-6 border border-slate-200 rounded-xl shadow-sm flex flex-col h-[500px] relative">
                             <div className="absolute top-4 right-4 z-10" data-html2canvas-ignore="true">
                               <button 
-                                onClick={() => handleDownloadImage('chart-party', `政党支持率_${displayMonthText}.png`)}
+                                onClick={() => handleDownloadImageWrapper('chart-party', `政党支持率_${displayMonthText}.png`)}
                                 className="text-slate-400 hover:text-blue-600 p-2 rounded-md hover:bg-blue-50 transition-colors bg-white/80"
                                 title="画像として保存"
                               >
@@ -3190,7 +3539,7 @@
                           <div id="chart-cabinet" className="bg-white p-6 border border-slate-200 rounded-xl shadow-sm flex flex-col h-[500px] relative">
                             <div className="absolute top-4 right-4 z-10" data-html2canvas-ignore="true">
                               <button 
-                                onClick={() => handleDownloadImage('chart-cabinet', `内閣支持率_${displayMonthText}.png`)}
+                                onClick={() => handleDownloadImageWrapper('chart-cabinet', `内閣支持率_${displayMonthText}.png`)}
                                 className="text-slate-400 hover:text-blue-600 p-2 rounded-md hover:bg-blue-50 transition-colors bg-white/80"
                                 title="画像として保存"
                               >
@@ -3257,7 +3606,7 @@
                           <div id="chart-trend" className="bg-white p-6 border border-slate-200 rounded-xl shadow-sm mt-8 relative">
                             <div className="absolute top-4 right-4 z-10" data-html2canvas-ignore="true">
                               <button 
-                                onClick={() => handleDownloadImage('chart-trend', `支持率推移トレンド.png`)}
+                                onClick={() => handleDownloadImageWrapper('chart-trend', `支持率推移トレンド.png`)}
                                 className="text-slate-400 hover:text-blue-600 p-2 rounded-md hover:bg-blue-50 transition-colors bg-white/80"
                                 title="画像として保存"
                               >
@@ -3532,7 +3881,7 @@
       }
 
       const root = ReactDOM.createRoot(document.getElementById('root'));
-      root.render(<App />);
+      root.render(<AppWrapper />);
     };
 
     initApp().catch(console.error);
