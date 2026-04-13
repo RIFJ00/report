@@ -1,0 +1,30 @@
+name: Meeting Checker Cron Job
+
+on:
+  schedule:
+    # 毎日 日本時間の朝8:00 (UTC 23:00) に実行
+    - cron: '0 23 * * *'
+  # 手動実行用トリガー
+  workflow_dispatch:
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v3
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: 依存関係のインストール
+        run: npm ci || npm install
+
+      - name: チェック用スクリプトの実行
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: node checker-backend.js
