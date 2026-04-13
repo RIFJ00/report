@@ -14,7 +14,7 @@ const cheerio = require('cheerio');
 const admin = require('firebase-admin');
 
 // --- 設定の読み込み ---
-const CSV_FILE_PATH = '会議体リスト_20260413.csv'; // GitHubリポジトリ内のCSVファイル
+const CSV_FILE_PATH = '会議体リスト_20260411.xlsx - in.csv'; // GitHubリポジトリ内のCSVファイル
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 const FIREBASE_KEY_JSON = process.env.FIREBASE_SERVICE_ACCOUNT;
 
@@ -132,14 +132,12 @@ async function runCheck() {
         const docRef = db.collection('meetings').doc(docId);
         const docSnap = await docRef.get();
         
-        let shouldUpdate = false;
         let lastDate = new Date(0); // デフォルトは古い日付
+        let isExisting = docSnap.exists;
+        let existingData = isExisting ? docSnap.data() : null;
 
-        if (docSnap.exists) {
-          const data = docSnap.data();
-          if (data.latestDateTimestamp) {
-            lastDate = new Date(data.latestDateTimestamp);
-          }
+        if (isExisting && existingData.latestDateTimestamp) {
+          lastDate = new Date(existingData.latestDateTimestamp);
         }
 
         // 4. 比較して新しければ更新＆通知
@@ -159,28 +157,41 @@ async function runCheck() {
             lastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
             status: 'updated'
           }, { merge: true });
-        } else {
-          // 更新がない場合も、最終確認日時だけは更新しておく
+        } else if (!isExisting) {
+          // 新規追加だが日付は古かった場合（初回データ作成）
           await docRef.set({
-            meetingName: meetingName, // 初回データ生成用
+            meetingName: meetingName,
             agency: agency,
             url: url,
+            latestDateString: newestFoundDateStr,
+            latestDateTimestamp: newestFoundDate.getTime(),
             lastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
             status: 'unchanged'
           }, { merge: true });
+        } else {
+          // 【重要: 節約処理】更新がない場合は、Firestoreへの書き込みをスキップする
+          console.log(`[変更なし] ${meetingName} (DB書き込みスキップ)`);
         }
       }
     } catch (error) {
       console.log(`[取得エラー] ${meetingName} (${url}): ${error.message}`);
-      // エラー状態を記録
+      
+      // 【重要: 節約処理】エラーも毎回書き込まず、新規エラー時のみ記録する
       const docRef = db.collection('meetings').doc(docId);
-      await docRef.set({
-        meetingName: meetingName,
-        url: url,
-        lastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
-        status: 'error',
-        errorMessage: error.message
-      }, { merge: true });
+      const docSnap = await docRef.get();
+      
+      if (!docSnap.exists || docSnap.data().status !== 'error') {
+        await docRef.set({
+          meetingName: meetingName,
+          agency: agency,
+          url: url,
+          lastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
+          status: 'error',
+          errorMessage: error.message
+        }, { merge: true });
+      } else {
+        console.log(`[エラー継続] ${meetingName} (DB書き込みスキップ)`);
+      }
     }
     
     // サーバー負荷軽減のためのインターバル
