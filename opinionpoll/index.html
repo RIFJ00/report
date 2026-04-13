@@ -1219,12 +1219,73 @@
                 </div>
             );
 
+            const AnalysisDescription = ({ title, desc, useCase }) => {
+                const [isOpen, setIsOpen] = useState(false);
+                
+                return (
+                    <div className="mb-4">
+                        <button 
+                            type="button"
+                            onClick={() => setIsOpen(true)}
+                            className="flex items-center text-sm font-bold text-indigo-600 hover:text-indigo-800 hover:underline transition-colors"
+                        >
+                            <Info className="w-4 h-4 mr-1.5" />
+                            {title} についての解説を見る
+                        </button>
+                        
+                        {isOpen && (
+                            <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 p-4 animate-in fade-in" style={{zIndex: 100}}>
+                                <div className="bg-white rounded-xl shadow-xl max-w-md w-full border border-slate-200 overflow-hidden">
+                                    <div className="flex justify-between items-center p-4 border-b border-slate-200 bg-indigo-50">
+                                        <div className="flex items-center text-indigo-800">
+                                            <Info className="w-5 h-5 mr-2" />
+                                            <h3 className="font-bold text-lg">{title}</h3>
+                                        </div>
+                                        <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors">
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                    <div className="p-5 text-sm text-slate-700 space-y-4">
+                                        <div>
+                                            <span className="block font-bold text-indigo-700 mb-1 border-l-4 border-indigo-500 pl-2">概要</span>
+                                            <p className="leading-relaxed pl-3">{desc}</p>
+                                        </div>
+                                        <div>
+                                            <span className="block font-bold text-emerald-700 mb-1 border-l-4 border-emerald-500 pl-2">適した分析</span>
+                                            <p className="leading-relaxed pl-3">{useCase}</p>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 border-t border-slate-200 flex justify-end bg-slate-50">
+                                        <button onClick={() => setIsOpen(false)} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                                            閉じる
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
             switch (analysisType) {
                 case 'summary':
-                    return <p className="text-xs text-slate-500 mb-2">選択項目の基本統計量を表示します。</p>;
+                    return (
+                        <React.Fragment>
+                            <AnalysisDescription 
+                                title="基本統計量 (表)" 
+                                desc="データ数、平均値、標準偏差、最小値、中央値、最大値を一覧表で表示します。" 
+                                useCase="選択したデータ全体の傾向や散らばり具合を数値で正確に把握したい場合に適しています。" 
+                            />
+                        </React.Fragment>
+                    );
                 case 'timeseries':
                     return (
                         <React.Fragment>
+                            <AnalysisDescription 
+                                title="時系列推移 (折れ線グラフ)" 
+                                desc="時間の経過に伴う数値の変化を折れ線で表示します。" 
+                                useCase="支持率などが月ごとや調査日ごとにどのように変化しているか、上昇・下降トレンドを確認するのに適しています。" 
+                            />
                             {processed.columns.date.length > 0 ? <SelectControl label="X軸 (日付)" value={xAxis} onChange={setXAxis} options={processed.columns.date} /> : <p className="text-xs text-red-500 mb-2">日付と判定される列がありません。</p>}
                             <CheckboxesControl label="Y軸 (表示する数値)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />
                         </React.Fragment>
@@ -1233,8 +1294,14 @@
                 case 'boxplot':
                 case 'stackedbar':
                     let catOpts = [...processed.columns.categorical, ...processed.columns.date];
+                    let descObj = {};
+                    if(analysisType === 'comparison') descObj = { title: "カテゴリ別平均 (棒グラフ)", desc: "機関名や調査月などのグループごとに、平均値を棒グラフで並べて比較します。", useCase: "各機関の支持率の違いや、特定の月の平均的な支持率の比較など、グループ間の大小関係を見るのに適しています。" };
+                    if(analysisType === 'boxplot') descObj = { title: "分布・ばらつき (箱ひげ図)", desc: "データのばらつき（最大・最小、四分位数、中央値）を「箱」と「ひげ」で表現します。", useCase: "機関ごとの結果のブレ幅や、外れ値（極端な数値）が存在するかどうかを確認するのに適しています。" };
+                    if(analysisType === 'stackedbar') descObj = { title: "積み上げ棒グラフ (構成比)", desc: "複数の項目の数値を積み上げて1本の棒にし、グループごとの内訳を表示します。", useCase: "政党ごとの支持率を積み上げて、全体における各党の規模感や、月ごとの構成比の変化を見るのに適しています。" };
+
                     return (
                         <React.Fragment>
+                            <AnalysisDescription {...descObj} />
                             <SelectControl label="グループ化 (X軸)" value={xAxis} onChange={setXAxis} options={['全体', ...catOpts]} />
                             {analysisType === 'comparison' && <CheckboxesControl label="比較する数値 (Y軸)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />}
                             {analysisType === 'stackedbar' && <CheckboxesControl label="積み上げる数値 (Y軸)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />}
@@ -1242,10 +1309,23 @@
                         </React.Fragment>
                     );
                 case 'correlation':
-                    return <p className="text-xs text-slate-500 mb-2">選択した変数間の相関係数を計算し、ヒートマップで表示します。</p>;
+                    return (
+                        <React.Fragment>
+                            <AnalysisDescription 
+                                title="変数間相関 (ヒートマップ)" 
+                                desc="複数の数値データの間にどの程度の関係性（相関）があるかを色の濃淡で示します。" 
+                                useCase="「内閣支持率が上がると特定の政党の支持率も上がるか」などの連動性を探るのに適しています。" 
+                            />
+                        </React.Fragment>
+                    );
                 case 'scatter':
                     return (
                         <React.Fragment>
+                            <AnalysisDescription 
+                                title="散布図 (2変数比較)" 
+                                desc="縦軸と横軸に異なる数値を設定し、データを点として打ち出します。" 
+                                useCase="2つの項目の間にどのような関係（比例、反比例など）があるか、直感的に傾向を捉えるのに適しています。" 
+                            />
                             <SelectControl label="X軸" value={xAxis} onChange={setXAxis} options={activeNums} />
                             <SelectControl label="Y軸" value={yAxis} onChange={setYAxis} options={activeNums} />
                             {processed.columns.categorical.length > 0 && <SelectControl label="色分け (任意)" value={colorGroup} onChange={setColorGroup} options={['なし', ...processed.columns.categorical]} />}
@@ -1254,6 +1334,11 @@
                 case 'histogram':
                     return (
                         <React.Fragment>
+                            <AnalysisDescription 
+                                title="全体分布 (ヒストグラム)" 
+                                desc="データを一定の区間（ビン）に区切り、各区間に含まれるデータの数を棒グラフで示します。" 
+                                useCase="全体の中で、どのくらいの支持率を出す機関が多いのかなど、データの偏りやボリュームゾーンを見るのに適しています。" 
+                            />
                             <SelectControl label="対象データ" value={xAxis} onChange={setXAxis} options={activeNums} />
                             <div className="mb-3">
                                 <label className="block text-xs font-bold text-slate-700 mb-1">ビンの数 (階級数)</label>
@@ -1264,7 +1349,11 @@
                 case 'pie':
                     return (
                         <React.Fragment>
-                            <p className="text-xs text-slate-500 mb-2">選択項目の全体平均値を円グラフで表示します。</p>
+                            <AnalysisDescription 
+                                title="円グラフ (全体割合)" 
+                                desc="選択した項目の全体平均値を算出し、円グラフで割合として表示します。" 
+                                useCase="内閣支持・不支持の割合や、政党支持率のシェアなど、全体に対する各項目の比率を直感的に示すのに適しています。" 
+                            />
                             <CheckboxesControl label="割合を見る数値" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />
                         </React.Fragment>
                     );
@@ -1272,6 +1361,11 @@
                     let radarGroupOpts = [...processed.columns.categorical];
                     return (
                         <React.Fragment>
+                            <AnalysisDescription 
+                                title="レーダーチャート (多変量比較)" 
+                                desc="複数の項目を放射状の軸にとり、それぞれの値を線で結んで多角形を作ります。" 
+                                useCase="機関ごと、あるいは月ごとの「政党支持率のバランス」など、複数の要素を総合的に比較・評価するのに適しています。" 
+                            />
                             <SelectControl label="比較するグループ" value={xAxis} onChange={setXAxis} options={['全体', ...radarGroupOpts]} />
                             <CheckboxesControl label="比較する指標 (3つ以上推奨)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />
                         </React.Fragment>
@@ -1279,6 +1373,11 @@
                 case 'bubble':
                     return (
                         <React.Fragment>
+                            <AnalysisDescription 
+                                title="バブルチャート (3変数比較)" 
+                                desc="散布図の機能に加え、点の大きさ（バブル）で3つ目の数値を表現します。" 
+                                useCase="「内閣支持」と「不支持」の関係を見つつ、円の大きさで「特定の政党の支持率」を示すなど、3つの要素を同時に分析するのに適しています。" 
+                            />
                             <SelectControl label="X軸" value={xAxis} onChange={setXAxis} options={activeNums} />
                             <SelectControl label="Y軸" value={yAxis} onChange={setYAxis} options={activeNums} />
                             <SelectControl label="バブルの大きさ" value={sizeAxis} onChange={setSizeAxis} options={activeNums} />
@@ -1289,6 +1388,11 @@
                     let catOptsViolin = [...processed.columns.categorical, ...processed.columns.date];
                     return (
                         <React.Fragment>
+                            <AnalysisDescription 
+                                title="バイオリンプロット (分布の詳細)" 
+                                desc="箱ひげ図にデータの分布密度（ヒストグラムを滑らかにしたもの）を組み合わせたグラフです。" 
+                                useCase="箱ひげ図ではわからない、データがどこに集中しているかという具体的な分布の形（山の数など）を比較するのに適しています。" 
+                            />
                             <SelectControl label="グループ化 (X軸)" value={xAxis} onChange={setXAxis} options={['全体', ...catOptsViolin]} />
                             <SelectControl label="分布を見る数値 (Y軸)" value={yAxis} onChange={setYAxis} options={activeNums} />
                         </React.Fragment>
@@ -1296,7 +1400,11 @@
                 case 'parcoords':
                     return (
                         <React.Fragment>
-                            <p className="text-xs text-slate-500 mb-2">1行のデータを1本の線として描画します。</p>
+                            <AnalysisDescription 
+                                title="平行座標プロット (多次元パターン)" 
+                                desc="複数の縦軸を平行に並べ、1件のデータを1本の折れ線としてすべての軸をまたいで描画します。" 
+                                useCase="「この機関はA党は高く出すが、B党は低く出す」といった、複数の項目を横断した特徴的なパターンを発見するのに適しています。" 
+                            />
                             <CheckboxesControl label="比較する数値 (複数)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />
                             <SelectControl label="線の色分け基準 (数値)" value={colorAxis} onChange={setColorAxis} options={activeNums} />
                         </React.Fragment>
@@ -1305,6 +1413,11 @@
                     let heatmapCatOpts = [...processed.columns.categorical, ...processed.columns.date];
                     return (
                         <React.Fragment>
+                            <AnalysisDescription 
+                                title="クロス集計ヒートマップ (月×機関)" 
+                                desc="縦軸と横軸にカテゴリ（機関名や月など）を取り、交差するマスの色で数値の大小を表現します。" 
+                                useCase="「どの機関が、どの月に高い（低い）数値を出しがちか」という傾向を、一覧表のように俯瞰して見るのに適しています。" 
+                            />
                             <SelectControl label="X軸 (列カテゴリ)" value={xAxis} onChange={setXAxis} options={heatmapCatOpts} />
                             <SelectControl label="Y軸 (行カテゴリ)" value={colorGroup} onChange={setColorGroup} options={heatmapCatOpts} />
                             <SelectControl label="集計する数値 (Z軸)" value={colorAxis} onChange={setColorAxis} options={activeNums} />
@@ -1313,8 +1426,12 @@
                 case 'stripplot':
                 case 'ridgeline':
                     let stripCatOpts = [...processed.columns.categorical, ...processed.columns.date];
+                    let plotDesc = {};
+                    if (analysisType === 'stripplot') plotDesc = { title: "ストリッププロット (データ点の分布)", desc: "実際のデータ点を、グループごとに重ならないように散らして配置します。", useCase: "箱ひげ図のように統計値にまとめず、実際の生データがどこに偏っているか、個々の点を確認したい場合に適しています。" };
+                    if (analysisType === 'ridgeline') plotDesc = { title: "リッジラインプロット (分布の重なり)", desc: "グループごとの分布（山の形）を、山の稜線のように少しずつ重ねながら縦に並べます。", useCase: "多数の機関や月の分布を、省スペースで比較し、全体のトレンドの変化を美しく見せるのに適しています。" };
                     return (
                         <React.Fragment>
+                            <AnalysisDescription {...plotDesc} />
                             <SelectControl label="グループ化 (X軸)" value={xAxis} onChange={setXAxis} options={['全体', ...stripCatOpts]} />
                             <SelectControl label="分布を見る数値 (Y軸)" value={yAxis} onChange={setYAxis} options={activeNums} />
                         </React.Fragment>
@@ -1323,16 +1440,25 @@
                     let bumpCatOpts = [...processed.columns.categorical];
                     return (
                         <React.Fragment>
+                            <AnalysisDescription 
+                                title="バンプチャート (順位推移)" 
+                                desc="数値そのものではなく、グループ間の「順位」の変動を折れ線で追います。" 
+                                useCase="「今月、一番内閣支持率を高く出した機関はどこか」など、順位の入れ替わりに着目した分析に適しています。" 
+                            />
                             <SelectControl label="順位をつけるグループ" value={xAxis} onChange={setXAxis} options={bumpCatOpts} />
                             <SelectControl label="順位の基準となる数値" value={colorAxis} onChange={setColorAxis} options={activeNums} />
-                            <p className="text-xs text-slate-500 mb-2 mt-2">※X軸は自動的に「調査月」になります。</p>
+                            <p className="text-xs text-slate-500 mb-2 mt-2 bg-white p-2 border border-slate-200 rounded">※X軸は自動的に「調査月」になります。</p>
                         </React.Fragment>
                     );
                 case 'stat_test':
                     let statCatOpts = [...processed.columns.categorical, ...processed.columns.date];
                     return (
                         <React.Fragment>
-                            <p className="text-xs text-slate-500 mb-2">一元配置分散分析(ANOVA)により、グループ間の平均値に統計的な差があるかを検定します。</p>
+                            <AnalysisDescription 
+                                title="統計的検定 (分散分析 / t検定)" 
+                                desc="グループ間の平均値の差が、統計的に意味のある（有意な）差であるかを計算します。" 
+                                useCase="「A社の出す支持率とB社の出す支持率には、本当に差があると言えるのか（ただの誤差ではないか）」を厳密に判定したい場合に適しています。" 
+                            />
                             <SelectControl label="比較するグループ (X軸)" value={xAxis} onChange={setXAxis} options={statCatOpts} />
                             <SelectControl label="検定する数値 (Y軸)" value={yAxis} onChange={setYAxis} options={activeNums} />
                         </React.Fragment>
