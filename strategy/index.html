@@ -353,7 +353,20 @@
                                     </div>
                                 </div>
                                 <div id="document-display-area" class="w-full relative mt-2">
-                                    <iframe id="pdf-frame" src="" class="w-full h-[400px] md:h-[600px] rounded-lg shadow-inner border-2 border-gray-200 hidden bg-white"></iframe>
+                                    <!-- ローディング表示 -->
+                                    <div id="pdf-loading" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 rounded-lg border-2 border-gray-200 z-10 hidden">
+                                        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-3"></div>
+                                        <p class="text-sm font-bold text-gray-600">PDFを読み込み中...</p>
+                                    </div>
+                                    <!-- スマホ用フォールバック表示 -->
+                                    <div id="mobile-pdf-fallback" class="w-full h-[300px] bg-blue-50 rounded-lg border-2 border-blue-200 flex flex-col justify-center items-center text-blue-800 hidden">
+                                        <svg class="w-12 h-12 mb-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                        <p class="font-bold text-sm mb-4">スマートフォンでは別タブでの閲覧を推奨します</p>
+                                        <a id="mobile-pdf-btn" href="#" target="_blank" rel="noopener noreferrer" class="bg-blue-600 text-white px-6 py-2.5 rounded-full font-bold shadow-md hover:bg-blue-700 transition-colors">PDFを別タブで開く</a>
+                                    </div>
+                                    
+                                    <iframe id="pdf-frame" src="" class="w-full h-[400px] md:h-[600px] rounded-lg shadow-inner border-2 border-gray-200 hidden bg-white relative z-20" onload="document.getElementById('pdf-loading').classList.add('hidden')"></iframe>
+                                    
                                     <div id="no-pdf-message" class="w-full h-[200px] bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex flex-col justify-center items-center text-gray-500 transition-all cursor-default">
                                         <svg class="w-10 h-10 mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
                                         <p class="font-bold text-sm">該当するPDF資料はありません</p>
@@ -376,8 +389,20 @@
                             <button onclick="closeReportViewer()" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm border border-gray-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> 閉じる</button>
                         </div>
                     </div>
-                    <div class="p-4 md:p-6 bg-gray-50">
-                        <iframe id="report-pdf-frame" src="" class="w-full h-[600px] md:h-[800px] rounded-lg shadow-inner border-2 border-gray-200 bg-white"></iframe>
+                    <div class="p-4 md:p-6 bg-gray-50 relative">
+                        <!-- ローディング表示 -->
+                        <div id="report-loading" class="absolute inset-4 md:inset-6 flex flex-col items-center justify-center bg-white rounded-lg border-2 border-gray-200 z-10 hidden">
+                            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-yellow-600 mb-3"></div>
+                            <p class="text-sm font-bold text-gray-600">レポートを読み込み中...</p>
+                        </div>
+                        <!-- スマホ用フォールバック -->
+                        <div id="mobile-report-fallback" class="w-full h-[300px] bg-yellow-50 rounded-lg border-2 border-yellow-200 flex flex-col justify-center items-center text-yellow-900 hidden">
+                            <svg class="w-12 h-12 mb-3 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            <p class="font-bold text-sm mb-4">スマートフォンでは別タブでの閲覧を推奨します</p>
+                            <a id="mobile-report-btn" href="#" target="_blank" rel="noopener noreferrer" class="bg-yellow-600 text-white px-6 py-2.5 rounded-full font-bold shadow-md hover:bg-yellow-700 transition-colors">レポートを別タブで開く</a>
+                        </div>
+                    
+                        <iframe id="report-pdf-frame" src="" class="w-full h-[600px] md:h-[800px] rounded-lg shadow-inner border-2 border-gray-200 bg-white relative z-20 hidden" onload="document.getElementById('report-loading').classList.add('hidden')"></iframe>
                     </div>
                 </div>
 
@@ -1286,6 +1311,8 @@
             updatePdfDisplay();
         }
 
+        const isMobileDevice = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
         function updatePdfDisplay() {
             const fieldId = document.getElementById('field-select').value;
             const url = getPdfUrl(fieldId);
@@ -1293,6 +1320,9 @@
             const noMessage = document.getElementById('no-pdf-message');
             const externalLink = document.getElementById('pdf-external-link');
             const warning = document.getElementById('pdf-warning');
+            const loading = document.getElementById('pdf-loading');
+            const mobileFallback = document.getElementById('mobile-pdf-fallback');
+            const mobileBtn = document.getElementById('mobile-pdf-btn');
 
             // タブの名前を分野ごとに更新する（データがない場合はデフォルト名）
             document.getElementById('tab-overview').innerText = pdfTabNames.overview[fieldId] || "概要";
@@ -1300,25 +1330,45 @@
             document.getElementById('tab-member').innerText = pdfTabNames.member[fieldId] || "構成員等";
 
             if (url) {
-                iframe.src = url;
-                iframe.classList.remove('hidden');
-                noMessage.classList.add('hidden');
                 externalLink.href = url;
                 externalLink.classList.remove('hidden');
-                warning.classList.remove('hidden');
+                noMessage.classList.add('hidden');
+
+                if (isMobileDevice()) {
+                    // モバイルの場合
+                    iframe.src = "";
+                    iframe.classList.add('hidden');
+                    loading.classList.add('hidden');
+                    warning.classList.add('hidden');
+                    
+                    mobileBtn.href = url;
+                    mobileFallback.classList.remove('hidden');
+                    mobileFallback.classList.add('flex');
+                } else {
+                    // PCの場合
+                    mobileFallback.classList.add('hidden');
+                    mobileFallback.classList.remove('flex');
+                    warning.classList.remove('hidden');
+                    
+                    loading.classList.remove('hidden'); // ローディング開始
+                    iframe.classList.remove('hidden');
+                    iframe.src = url; // onloadでローディングが消える
+                }
             } else {
                 iframe.src = "";
                 iframe.classList.add('hidden');
                 noMessage.classList.remove('hidden');
                 externalLink.classList.add('hidden');
                 warning.classList.add('hidden');
+                loading.classList.add('hidden');
+                mobileFallback.classList.add('hidden');
+                mobileFallback.classList.remove('flex');
             }
         }
 
         function toggleReport(url, btnElement) {
             const detailSection = document.getElementById('detail-section');
             const reportSection = document.getElementById('report-viewer-section');
-            const reportFrame = document.getElementById('report-pdf-frame');
             const externalLink = document.getElementById('report-external-link');
             const titleEl = document.getElementById('report-viewer-title');
 
@@ -1341,8 +1391,31 @@
                 }
                 
                 titleEl.innerText = btnElement.querySelector('span').innerText;
-                reportFrame.src = url;
                 externalLink.href = url;
+                
+                const reportFrame = document.getElementById('report-pdf-frame');
+                const loading = document.getElementById('report-loading');
+                const mobileFallback = document.getElementById('mobile-report-fallback');
+                const mobileBtn = document.getElementById('mobile-report-btn');
+
+                if (isMobileDevice()) {
+                    // スマホ・タブレットの場合はiframeを使わずボタンを表示
+                    reportFrame.src = "";
+                    reportFrame.classList.add('hidden');
+                    loading.classList.add('hidden');
+                    
+                    mobileBtn.href = url;
+                    mobileFallback.classList.remove('hidden');
+                    mobileFallback.classList.add('flex');
+                } else {
+                    // PCの場合はiframeに読み込む
+                    mobileFallback.classList.add('hidden');
+                    mobileFallback.classList.remove('flex');
+                    
+                    loading.classList.remove('hidden');
+                    reportFrame.classList.remove('hidden');
+                    reportFrame.src = url;
+                }
                 
                 detailSection.classList.add('hidden');
                 reportSection.classList.remove('hidden');
