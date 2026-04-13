@@ -133,7 +133,7 @@
                 <div id="player-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-500 pointer-events-none">
                     <div class="text-center">
                         <i class="fas fa-video text-4xl mb-2"></i>
-                        <p>上部の「取得＆再生」ボタンを押して開始してください</p>
+                        <p>上部の「選択」ボタンを押して開始してください</p>
                     </div>
                 </div>
             </div>
@@ -240,14 +240,8 @@
                     <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-play-circle text-red-500 mr-2"></i>基本的な使い方</h3>
                     <ul class="list-disc pl-5 space-y-1.5 text-gray-600">
                         <li>上部のボタンからカテゴリを選択すると、動画リストが読み込まれ再生が始まります。</li>
-                        <li>動画内ボタンの最新更新日が今日の場合は、<strong>赤色</strong>で表示されます。</li>
+                        <li>動画が新たに追加・更新された際、ボタン内の更新日時が<strong>赤色</strong>で強調表示されます。</li>
                         <li>手動で最新の状態に更新したい場合は、右側の<strong>「更新」</strong>ボタンをクリックしてください（管理者用）。</li>
-                    </ul>
-                </div>
-                <div>
-                    <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-list-ul text-purple-500 mr-2"></i>リストの操作</h3>
-                    <ul class="list-disc pl-5 space-y-1.5 text-gray-600">
-                        <li>リスト上部のメニューから、動画を<strong>「登録順」</strong>や<strong>「タイトル順」</strong>に並べ替えることができます。</li>
                     </ul>
                 </div>
                 <div id="adminHelpSection" class="hidden">
@@ -288,11 +282,7 @@
         
         let user = null;
         async function initAuth() {
-            try {
-                await signInAnonymously(auth);
-            } catch (error) {
-                console.error("Firebase Authentication failed:", error);
-            }
+            try { await signInAnonymously(auth); } catch (error) { console.error("Auth Error:", error); }
         }
         onAuthStateChanged(auth, (u) => { user = u; });
 
@@ -302,15 +292,13 @@
         // 2. グローバル状態・変数
         // ==========================================
         let player = null;
-        let isPlayerReady = false;
         let videoList = [];
         let currentIndex = 0;
-        let lastUpdateTime = Date.now();
         let currentSort = 'date-desc';
         let isAuthenticated = false; 
 
         // ==========================================
-        // 3. UI・ユーティリティ関数群
+        // 3. UI・ユーティリティ
         // ==========================================
         function showToast(message, isError = false) {
             const existing = document.getElementById('toast-msg');
@@ -320,15 +308,10 @@
             toast.className = `fixed bottom-4 right-4 md:bottom-8 md:right-8 px-6 py-3 rounded shadow-lg text-white font-medium z-50 transform transition-all duration-300 translate-y-0 opacity-100 ${isError ? 'bg-red-600' : 'bg-gray-800'}`;
             toast.innerHTML = isError ? `<i class="fas fa-exclamation-circle mr-2"></i>${message}` : `<i class="fas fa-info-circle mr-2"></i>${message}`;
             document.body.appendChild(toast);
-            setTimeout(() => {
-                toast.classList.add('translate-y-4', 'opacity-0');
-                setTimeout(() => toast.remove(), 300);
-            }, 4000);
+            setTimeout(() => { toast.classList.add('translate-y-4', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 4000);
         }
 
-        function isValidVideoId(id) {
-            return id && /^[a-zA-Z0-9_-]{11}$/.test(id);
-        }
+        function isValidVideoId(id) { return id && /^[a-zA-Z0-9_-]{11}$/.test(id); }
 
         function sortVideoList() {
             if (videoList.length === 0) return;
@@ -344,19 +327,20 @@
         function updateDateUI(playlistId, videos) {
             const dateEl = document.getElementById(`date-${playlistId}`);
             if (!dateEl) return;
-            if (videos && videos.length > 0) {
-                let updatedDate = videos.updatedAt ? new Date(videos.updatedAt) : new Date(Math.max(...videos.map(v => v.pubDate.getTime())));
+            if (videos && videos.length > 0 && videos.updatedAt) {
+                const updatedDate = new Date(videos.updatedAt);
                 const shortDate = updatedDate.toLocaleString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                
                 const today = new Date(); today.setHours(0, 0, 0, 0);
-                const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
                 const target = new Date(updatedDate); target.setHours(0, 0, 0, 0);
+                
                 let colorClass = 'text-gray-500', fwClass = '';
                 if (target.getTime() === today.getTime()) { colorClass = 'text-red-600'; fwClass = 'font-bold'; }
-                else if (target.getTime() === yesterday.getTime()) { colorClass = 'text-red-400'; fwClass = 'font-bold'; }
-                dateEl.textContent = `更新日: ${shortDate}`;
+                
+                dateEl.textContent = `最終更新: ${shortDate}`;
                 dateEl.className = `text-xs mt-1 transition-colors ${colorClass} ${fwClass}`;
             } else {
-                dateEl.textContent = `更新日: 未取得`;
+                dateEl.textContent = `最終更新: 未取得`;
                 dateEl.className = `text-xs text-gray-500 mt-1 transition-colors`;
             }
         }
@@ -396,27 +380,17 @@
             const container = document.getElementById('playlistContainer');
             if (!container) return;
             container.innerHTML = '';
-            const normalizeText = (text) => {
-                if (!text) return "";
-                return text.toLowerCase().replace(/経産省/g, "経済産業省").replace(/国交省/g, "国土交通省").replace(/文科省/g, "文部科学省").replace(/厚労省/g, "厚生労働省").replace(/農水省/g, "農林水産省");
-            };
+            const normalizeText = (text) => text?.toLowerCase().replace(/経産省/g, "経済産業省").replace(/国交省/g, "国土交通省").replace(/文科省/g, "文部科学省").replace(/厚労省/g, "厚生労働省").replace(/農水省/g, "農林水産省") || "";
             const searchInputEl = document.getElementById('searchInput');
-            const rawQuery = searchInputEl ? searchInputEl.value : '';
-            const queryStr = normalizeText(rawQuery).trim();
+            const queryStr = normalizeText(searchInputEl?.value).trim();
             const queries = queryStr ? queryStr.split(/[\s　]+/).filter(q => q.length > 0) : [];
             let displayedCount = 0;
-            const infoEl = document.getElementById('playlistInfo');
-            let latestDateStr = "";
-            if (videoList.length > 0) {
-                const updatedDate = videoList.updatedAt ? new Date(videoList.updatedAt) : videoList[0].pubDate;
-                const shortDate = updatedDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                latestDateStr = ` (更新日: ${shortDate})`;
-            }
+
             if (videoList.length === 0) {
                 container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">動画がありません</div>';
-                if (infoEl) infoEl.textContent = `全 0 件`;
                 return;
             }
+
             videoList.forEach((video, index) => {
                 if (queries.length > 0) {
                     const titleLower = normalizeText(video.title), descLower = normalizeText(video.description);
@@ -452,12 +426,12 @@
                 container.appendChild(item);
             });
             if (displayedCount === 0) container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">一致する動画が見つかりませんでした</div>';
-            if (infoEl) infoEl.textContent = queries.length > 0 ? `検索結果: ${displayedCount} 件 / 全 ${videoList.length} 件${latestDateStr}` : `全 ${videoList.length} 件${latestDateStr}`;
-            if (queries.length === 0) setTimeout(() => { const activeItem = container.querySelector('.active-video'); if (activeItem) activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
+            const infoEl = document.getElementById('playlistInfo');
+            if (infoEl) infoEl.textContent = `全 ${videoList.length} 件 (検索結果: ${displayedCount} 件)`;
         }
 
         // ==========================================
-        // 4. 再生制御ロジック
+        // 4. 再生制御
         // ==========================================
         function playCurrentVideo() {
             if (videoList.length === 0 || !player || typeof player.loadVideoById !== 'function') return;
@@ -468,7 +442,7 @@
         function playNextVideo() {
             if (videoList.length === 0) return;
             currentIndex++;
-            if (currentIndex >= videoList.length) { currentIndex = 0; showToast("プレイリストが一周しました。最初から再生します。"); }
+            if (currentIndex >= videoList.length) { currentIndex = 0; showToast("最初から再生します。"); }
             playCurrentVideo();
         }
 
@@ -482,26 +456,15 @@
                 videoId: videoList.length > 0 ? videoList[currentIndex].id : '',
                 host: 'https://www.youtube-nocookie.com',
                 playerVars: { 'playsinline': 1, 'autoplay': 1, 'mute': 0, 'rel': 0, 'enablejsapi': 1 },
-                events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange, 'onError': onPlayerError }
+                events: { 'onReady': (e) => { renderPlaylist(); e.target.playVideo(); setTimeout(() => { if(player.unMute) player.unMute(); player.setVolume(100); }, 500); }, 'onStateChange': (e) => { if (e.data === YT.PlayerState.ENDED) playNextVideo(); }, 'onError': () => { showToast("スキップします。", true); setTimeout(playNextVideo, 2000); } }
             });
-        }
-
-        function onPlayerReady(event) { renderPlaylist(); event.target.playVideo(); setTimeout(() => { if(player && typeof player.unMute === 'function') { player.unMute(); player.setVolume(100); } }, 500); showToast("再生を開始します。"); }
-        function onPlayerStateChange(event) { if (event.data === YT.PlayerState.ENDED) playNextVideo(); }
-        function onPlayerError(event) {
-            console.warn("再生エラー コード:", event.data);
-            let errorMsg = "動画を再生できませんでした。";
-            if (event.data === 101 || event.data === 150) errorMsg = "埋め込み再生が許可されていない動画です。";
-            else if (event.data === 100) errorMsg = "動画が見つかりません。";
-            showToast(errorMsg + " 次へスキップします。", true); setTimeout(playNextVideo, 2000);
         }
 
         const tag = document.createElement('script'); tag.src = "https://www.youtube.com/iframe_api";
         document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
-        window.onYouTubeIframeAPIReady = function() { isPlayerReady = true; };
 
         // ==========================================
-        // 5. データ取得・手動更新ロジック
+        // 5. データ取得・保存 (実更新時のみ日時更新)
         // ==========================================
         async function loadFromFirebase(playlistId) {
             if (!user) return null;
@@ -513,136 +476,122 @@
                     const videos = data.videos.map(v => ({ ...v, pubDate: new Date(v.pubDate) }));
                     videos.updatedAt = data.updatedAt; return videos;
                 }
-            } catch (e) { console.error("Firebase読込エラー:", e); } return null;
+            } catch (e) { console.error("Firebase Load Error:", e); } return null;
         }
 
-        async function saveToFirebase(playlistId, videos, updatedAt = Date.now()) {
+        async function saveToFirebase(playlistId, videos, updatedAt) {
             if (!user) return;
             try {
                 const docRef = doc(db, 'artifacts', envAppId, 'public', 'data', 'playlists', playlistId);
-                const dataToSave = videos.map(v => ({ id: v.id, title: v.title, description: v.description ? (v.description.length > 250 ? v.description.substring(0, 250) + "..." : v.description) : "", thumbnail: v.thumbnail || "", pubDate: v.pubDate.getTime(), isEstimated: !!v.isEstimated }));
+                const dataToSave = videos.map(v => ({ id: v.id, title: v.title, description: v.description?.substring(0, 250), thumbnail: v.thumbnail, pubDate: v.pubDate.getTime(), isEstimated: !!v.isEstimated }));
                 await setDoc(docRef, { videos: dataToSave, updatedAt: updatedAt });
-            } catch (e) { console.error("Firebase保存エラー:", e); showToast("データベース保存エラーです。", true); }
-        }
-
-        async function updatePlaylistDates() {
-            const playlists = ["PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_", "PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2"];
-            for (const pid of playlists) { const videos = await loadFromFirebase(pid); updateDateUI(pid, videos); }
+            } catch (e) { console.error("Firebase Save Error:", e); }
         }
 
         async function silentFetchAndSave(playlistId, apiKey) {
             let existingVideos = await loadFromFirebase(playlistId);
             let newVideos = [];
-            if (apiKey) { try { newVideos = await fetchWithApi(playlistId, apiKey); } catch (apiError) { } }
-            if (!apiKey || newVideos.length === 0) { try { newVideos = await fetchWithRss(playlistId); if (!newVideos || newVideos.length === 0) throw 1; } catch (e) { try { newVideos = await fetchWithHtmlScraping(playlistId); } catch (e2) { } } }
-            if (newVideos && newVideos.length > 0) {
-                let isRealChange = false, videos = [];
+            if (apiKey) { try { newVideos = await fetchWithApi(playlistId, apiKey); } catch (e) {} }
+            if (newVideos.length === 0) { try { newVideos = await fetchWithRss(playlistId); } catch (e) { try { newVideos = await fetchWithHtmlScraping(playlistId); } catch (e2) {} } }
+            
+            if (newVideos.length > 0) {
+                let isRealChange = false, finalVideos = [];
                 if (existingVideos && existingVideos.length > 0) {
-                    const videoMap = new Map(); existingVideos.forEach(v => videoMap.set(v.id, v)); newVideos.forEach(v => videoMap.set(v.id, v));
-                    videos = Array.from(videoMap.values()); videos.sort((a, b) => b.pubDate - a.pubDate);
-                    if (existingVideos.length !== videos.length) isRealChange = true;
-                    else { for (let i = 0; i < videos.length; i++) { if (videos[i].id !== existingVideos[i].id) { isRealChange = true; break; } } }
-                } else { videos = newVideos; isRealChange = true; }
-                if (isRealChange) { const finalUpdatedAt = Date.now(); videos.updatedAt = finalUpdatedAt; await saveToFirebase(playlistId, videos, finalUpdatedAt); return true; }
+                    const videoMap = new Map();
+                    existingVideos.forEach(v => videoMap.set(v.id, v));
+                    newVideos.forEach(v => videoMap.set(v.id, v));
+                    finalVideos = Array.from(videoMap.values()).sort((a, b) => b.pubDate - a.pubDate);
+                    
+                    // 実質的なリスト変化（IDや件数）をチェック
+                    if (existingVideos.length !== finalVideos.length) isRealChange = true;
+                    else { for(let i=0; i<finalVideos.length; i++) if(finalVideos[i].id !== existingVideos[i].id) { isRealChange = true; break; } }
+                } else {
+                    finalVideos = newVideos; isRealChange = true;
+                }
+                
+                // ★ 新しい動画があった場合のみ、現在時刻を更新日時として保存する
+                const lastTimestamp = (existingVideos && existingVideos.updatedAt) ? existingVideos.updatedAt : Date.now();
+                const currentUpdatedAt = isRealChange ? Date.now() : lastTimestamp;
+                
+                if (isRealChange) {
+                    await saveToFirebase(playlistId, finalVideos, currentUpdatedAt);
+                    return true; // 更新あり
+                }
             }
-            return false;
+            return false; // 更新なし
         }
 
         async function updateAllPlaylistsByAdmin() {
             const apiKey = document.getElementById('apiKey').value.trim();
             const playlists = ["PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_", "PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2"];
-            let currentPlaylistUpdated = false;
-            const currentSelectedId = document.querySelector('input[name="playlistSelect"]:checked')?.value;
-            const btn = document.getElementById('startBtn');
-            const originalHTML = btn.innerHTML;
-            
+            const btn = document.getElementById('startBtn'); const originalHTML = btn.innerHTML;
             btn.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-2"></i>更新中...';
             btn.classList.remove('bg-red-600', 'hover:bg-red-700'); btn.classList.add('bg-orange-500'); btn.disabled = true;
 
+            let updatedAny = false;
             try {
                 for (const pid of playlists) {
-                    const isChanged = await silentFetchAndSave(pid, apiKey);
-                    if (isChanged && pid === currentSelectedId) currentPlaylistUpdated = true;
-                    const videos = await loadFromFirebase(pid); updateDateUI(pid, videos);
+                    const changed = await silentFetchAndSave(pid, apiKey);
+                    if (changed) updatedAny = true;
+                    const videos = await loadFromFirebase(pid);
+                    updateDateUI(pid, videos);
                 }
-                if (currentPlaylistUpdated) { showToast("新しい動画が追加されました。リストを更新します。"); fetchPlaylistData(true, false); }
-                else { showToast("更新完了。新しい動画はありませんでした。"); }
+                if (updatedAny) {
+                    showToast("新しい動画が追加されました！");
+                    const currentSelected = document.querySelector('input[name="playlistSelect"]:checked')?.value;
+                    videoList = await loadFromFirebase(currentSelected);
+                    renderPlaylist();
+                } else {
+                    showToast("最新の状態です。新しい動画はありませんでした。");
+                }
             } finally {
                 btn.innerHTML = originalHTML; btn.classList.remove('bg-orange-500'); btn.classList.add('bg-red-600', 'hover:bg-red-700'); btn.disabled = false;
             }
-        }
-
-        async function fetchPlaylistData(isManualUpdate = false, forceYouTube = false) {
-            const selectedRadio = document.querySelector('input[name="playlistSelect"]:checked');
-            const playlistId = selectedRadio ? selectedRadio.value : null;
-            if (!playlistId) return;
-            const videos = await loadFromFirebase(playlistId);
-            if (!videos || videos.length === 0 || forceYouTube) {
-                // 初回読み込み等の処理
-                const apiKey = document.getElementById('apiKey').value.trim();
-                await silentFetchAndSave(playlistId, apiKey);
-                videoList = await loadFromFirebase(playlistId);
-            } else {
-                videoList = videos;
-            }
-            if (videoList) {
-                updateDateUI(playlistId, videoList); sortVideoList();
-                if (!player) { currentIndex = 0; updateCurrentVideoInfo(); initPlayer(); }
-                else { renderPlaylist(); }
-            }
-        }
-
-        async function fetchWithRss(playlistId) {
-            const rssUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`;
-            const proxies = [`https://api.allorigins.win/raw?url=`, `https://api.codetabs.com/v1/proxy/?quest=`, `https://corsproxy.io/?` ];
-            let xmlText = null;
-            for (const proxy of proxies) { try { const res = await fetch(proxy + encodeURIComponent(rssUrl)); if (res.ok) { xmlText = await res.text(); if (xmlText.includes('<feed')) break; } } catch (e) { } }
-            if (!xmlText) throw 1;
-            const parser = new DOMParser(), xmlDoc = parser.parseFromString(xmlText, "text/xml"), entries = xmlDoc.querySelectorAll("entry");
-            return Array.from(entries).map(entry => {
-                const vid = (entry.querySelector("id")?.textContent || "").replace("yt:video:", "");
-                const mediaDesc = entry.getElementsByTagName("media:description")[0]?.textContent || "";
-                return { id: vid, title: entry.querySelector("title")?.textContent || "無題", description: mediaDesc, thumbnail: `https://i.ytimg.com/vi/${vid}/mqdefault.jpg`, pubDate: new Date(entry.querySelector("published")?.textContent || Date.now()) };
-            }).filter(item => isValidVideoId(item.id));
-        }
-
-        async function fetchWithHtmlScraping(playlistId) {
-            const url = `https://www.youtube.com/playlist?list=${playlistId}`;
-            const proxies = [{ url: `https://api.allorigins.win/get?url=`, type: 'json' }, { url: `https://api.codetabs.com/v1/proxy/?quest=`, type: 'text' }];
-            let html = null;
-            for (const proxy of proxies) { try { const res = await fetch(proxy.url + encodeURIComponent(url)); if (res.ok) { html = proxy.type === 'json' ? (await res.json()).contents : await res.text(); if (html.includes('ytInitialData')) break; } } catch (e) { } }
-            if (!html) throw 1;
-            const match = html.match(/var ytInitialData = (\{.*?\});<\/script>/) || html.match(/window\["ytInitialData"\] = (\{.*?\});/);
-            if (!match) throw 1;
-            const ytData = JSON.parse(match[1]);
-            const extract = (obj) => {
-                let found = []; if (!obj || typeof obj !== 'object') return found;
-                if (Array.isArray(obj)) { for (const item of obj) found.push(...extract(item)); }
-                else { if (obj.playlistVideoRenderer) found.push(obj); else for (const key in obj) found.push(...extract(obj[key])); }
-                return found;
-            };
-            return extract(ytData).map((item, index) => {
-                const v = item.playlistVideoRenderer;
-                return { id: v.videoId, title: v.title?.runs?.[0]?.text || "無題", description: "※スクレイピング取得のため概要なし", thumbnail: `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`, pubDate: new Date(Date.now() - (index * 60000)), isEstimated: true };
-            }).filter(i => isValidVideoId(i.id));
         }
 
         async function fetchWithApi(playlistId, apiKey) {
             let videos = [], nextPageToken = '';
             while (true) {
                 const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${playlistId}&key=${apiKey}&pageToken=${nextPageToken}`;
-                const res = await fetch(url); if (!res.ok) throw 1;
+                const res = await fetch(url); if (!res.ok) break;
                 const data = await res.json();
                 data.items.forEach(item => {
-                    videos.push({ id: item.snippet.resourceId.videoId, title: item.snippet.title, description: item.snippet.description, thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url, pubDate: new Date(item.contentDetails?.videoPublishedAt || item.snippet.publishedAt) });
+                    videos.push({ id: item.snippet.resourceId.videoId, title: item.snippet.title, description: item.snippet.description, thumbnail: item.snippet.thumbnails?.medium?.url, pubDate: new Date(item.contentDetails?.videoPublishedAt || item.snippet.publishedAt) });
                 });
                 nextPageToken = data.nextPageToken; if (!nextPageToken) break;
             }
             return videos.filter(v => v.title !== 'Private video' && v.title !== 'Deleted video' && isValidVideoId(v.id));
         }
 
+        async function fetchWithRss(playlistId) {
+            const rssUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`;
+            const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`); if(!res.ok) throw 1;
+            const xml = await res.text(); const doc = new DOMParser().parseFromString(xml, "text/xml");
+            return Array.from(doc.querySelectorAll("entry")).map(e => {
+                const vid = e.querySelector("id")?.textContent.replace("yt:video:", "");
+                return { id: vid, title: e.querySelector("title")?.textContent, thumbnail: `https://i.ytimg.com/vi/${vid}/mqdefault.jpg`, pubDate: new Date(e.querySelector("published")?.textContent) };
+            }).filter(i => isValidVideoId(i.id));
+        }
+
+        async function fetchWithHtmlScraping(playlistId) {
+            const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://www.youtube.com/playlist?list='+playlistId)}`);
+            const data = await res.json(); const html = data.contents;
+            const match = html.match(/var ytInitialData = (\{.*?\});/); if (!match) throw 1;
+            const ytData = JSON.parse(match[1]);
+            const extract = (obj) => {
+                let found = []; if (!obj || typeof obj !== 'object') return found;
+                if (Array.isArray(obj)) obj.forEach(i => found.push(...extract(i)));
+                else { if (obj.playlistVideoRenderer) found.push(obj); else Object.keys(obj).forEach(k => found.push(...extract(obj[k]))); }
+                return found;
+            };
+            return extract(ytData).map((i, idx) => {
+                const v = i.playlistVideoRenderer;
+                return { id: v.videoId, title: v.title?.runs[0]?.text, thumbnail: `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`, pubDate: new Date(Date.now() - (idx * 60000)), isEstimated: true };
+            }).filter(v => isValidVideoId(v.id));
+        }
+
         // ==========================================
-        // 6. 初期化・イベントリスナー設定
+        // 6. 初期化
         // ==========================================
         document.addEventListener('DOMContentLoaded', () => {
             const initApp = async () => {
@@ -650,73 +599,78 @@
                 const savedApiKey = localStorage.getItem('yt_auto_api_key');
                 if (savedSelect) { const radio = document.querySelector(`input[name="playlistSelect"][value="${savedSelect}"]`); if (radio) radio.checked = true; }
                 if (savedApiKey) document.getElementById('apiKey').value = savedApiKey;
-                currentSort = 'date-desc'; document.getElementById('sortSelect').value = currentSort;
 
-                let updateBtnClickCount = 0, authSource = null;
-                document.getElementById('startBtn').addEventListener('click', () => {
+                document.querySelectorAll('input[name="playlistSelect"]').forEach(r => {
+                    r.addEventListener('change', async (e) => {
+                        const pid = e.target.value; localStorage.setItem('yt_auto_playlist_select', pid);
+                        videoList = await loadFromFirebase(pid) || [];
+                        sortVideoList(); currentIndex = 0; updateCurrentVideoInfo(); renderPlaylist();
+                        if (!player) initPlayer(); else playCurrentVideo();
+                    });
+                });
+
+                // 管理者認証・更新ボタンロジック
+                let clickCount = 0;
+                const startBtn = document.getElementById('startBtn');
+                startBtn.addEventListener('click', () => {
                     if (isAuthenticated) { updateAllPlaylistsByAdmin(); return; }
-                    if (updateBtnClickCount === 0) {
-                        const msgEl = document.getElementById('updateBtnMsg');
-                        msgEl.classList.remove('hidden'); setTimeout(() => msgEl.classList.remove('opacity-0'), 10);
-                        setTimeout(() => { msgEl.classList.add('opacity-0'); setTimeout(() => msgEl.classList.add('hidden'), 300); }, 5000);
-                        updateBtnClickCount++;
+                    if (clickCount === 0) {
+                        const msg = document.getElementById('updateBtnMsg'); msg.classList.remove('hidden'); setTimeout(() => msg.classList.remove('opacity-0'), 10);
+                        setTimeout(() => { msg.classList.add('opacity-0'); setTimeout(() => msg.classList.add('hidden'), 300); }, 5000); clickCount++;
                     } else {
-                        authSource = 'updateBtn'; adminPasswordInput.value = ''; passwordError.classList.add('hidden'); passwordModal.classList.remove('hidden');
-                        setTimeout(() => { passwordModal.classList.remove('opacity-0'); passwordContent.classList.remove('scale-95'); adminPasswordInput.focus(); }, 10);
+                        document.getElementById('adminPasswordInput').value = '';
+                        document.getElementById('passwordModal').classList.remove('hidden');
+                        setTimeout(() => document.getElementById('passwordModal').classList.remove('opacity-0'), 10);
                     }
                 });
-                
-                document.getElementById('refreshBtn').addEventListener('click', () => { currentSort = 'date-desc'; document.getElementById('sortSelect').value = currentSort; const curId = videoList[currentIndex]?.id; sortVideoList(); if (curId) { const idx = videoList.findIndex(v => v.id === curId); if (idx !== -1) currentIndex = idx; } renderPlaylist(); });
-                document.querySelectorAll('input[name="playlistSelect"]').forEach(radio => { radio.addEventListener('change', () => fetchPlaylistData(false, false)); });
-                
-                const searchInput = document.getElementById('searchInput'), clearSearchBtn = document.getElementById('clearSearchBtn');
-                searchInput.addEventListener('input', () => { if (searchInput.value.trim() !== '') clearSearchBtn.classList.remove('hidden'); else clearSearchBtn.classList.add('hidden'); renderPlaylist(); });
-                clearSearchBtn.addEventListener('click', () => { searchInput.value = ''; clearSearchBtn.classList.add('hidden'); renderPlaylist(); });
 
-                const apiSettingsDetails = document.getElementById('apiSettingsDetails'), apiSettingsSummary = apiSettingsDetails.querySelector('summary'), passwordModal = document.getElementById('passwordModal'), passwordContent = passwordModal.querySelector('div.bg-white'), adminPasswordInput = document.getElementById('adminPasswordInput'), submitPasswordBtn = document.getElementById('submitPasswordBtn'), cancelPasswordBtn = document.getElementById('cancelPasswordBtn'), passwordError = document.getElementById('passwordError');
-                
-                apiSettingsSummary.addEventListener('click', (e) => { if (!isAuthenticated) { e.preventDefault(); authSource = 'settings'; adminPasswordInput.value = ''; passwordError.classList.add('hidden'); passwordModal.classList.remove('hidden'); setTimeout(() => { passwordModal.classList.remove('opacity-0'); passwordContent.classList.remove('scale-95'); adminPasswordInput.focus(); }, 10); } });
-                const closePasswordModal = () => { passwordModal.classList.add('opacity-0'); passwordContent.classList.add('scale-95'); setTimeout(() => passwordModal.classList.add('hidden'), 300); };
-                cancelPasswordBtn.addEventListener('click', closePasswordModal);
-                const checkPassword = () => {
-                    if (adminPasswordInput.value === 'youtube') {
-                        isAuthenticated = true; closePasswordModal(); document.getElementById('adminHelpSection').classList.remove('hidden');
-                        const icon = apiSettingsSummary.querySelector('.fas.fa-cog'); if(icon) { icon.classList.remove('fa-cog'); icon.classList.add('fa-unlock', 'text-blue-500'); }
-                        if (authSource === 'settings') { showToast("管理者のロックを解除しました。"); setTimeout(() => apiSettingsDetails.setAttribute('open', ''), 200); }
-                        else if (authSource === 'updateBtn') { showToast("管理者認証成功。全データを更新します。"); updateAllPlaylistsByAdmin(); }
-                    } else { passwordError.classList.remove('hidden'); passwordContent.classList.add('translate-x-1'); setTimeout(() => passwordContent.classList.remove('translate-x-1'), 100); }
-                };
-                submitPasswordBtn.addEventListener('click', checkPassword); adminPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') checkPassword(); });
-                passwordModal.addEventListener('click', (e) => { if (e.target === passwordModal) closePasswordModal(); });
+                document.getElementById('submitPasswordBtn').addEventListener('click', () => {
+                    if (document.getElementById('adminPasswordInput').value === 'youtube') {
+                        isAuthenticated = true; 
+                        document.getElementById('passwordModal').classList.add('opacity-0');
+                        setTimeout(() => document.getElementById('passwordModal').classList.add('hidden'), 300);
+                        document.getElementById('adminHelpSection').classList.remove('hidden');
+                        showToast("認証されました。更新を開始します。"); updateAllPlaylistsByAdmin();
+                    } else { document.getElementById('passwordError').classList.remove('hidden'); }
+                });
 
-                document.getElementById('overwriteBtn').addEventListener('click', () => { apiSettingsDetails.removeAttribute('open'); confirmModal.classList.remove('hidden'); setTimeout(() => { confirmModal.classList.remove('opacity-0'); confirmContent.classList.remove('scale-95'); }, 10); });
-                const closeConfirm = () => { confirmModal.classList.add('opacity-0'); confirmContent.classList.add('scale-95'); setTimeout(() => confirmModal.classList.add('hidden'), 300); };
-                document.getElementById('cancelOverwriteBtn').addEventListener('click', closeConfirm);
-                document.getElementById('executeOverwriteBtn').addEventListener('click', async () => { closeConfirm(); const pid = document.querySelector('input[name="playlistSelect"]:checked')?.value; if(pid) { await silentFetchAndSave(pid, document.getElementById('apiKey').value.trim()); fetchPlaylistData(true, true); } });
-
-                const playlistContainer = document.getElementById('playlistContainer'), scTopH = document.getElementById('scrollTopBtnHeader'), scTopF = document.getElementById('scrollTopBtnFloat');
-                const scrollToTop = () => { if (playlistContainer) playlistContainer.scrollTo({ top: 0, behavior: 'smooth' }); };
-                if (scTopH) scTopH.addEventListener('click', scrollToTop); if (scTopF) scTopF.addEventListener('click', scrollToTop);
-                if (playlistContainer) playlistContainer.addEventListener('scroll', () => { if (playlistContainer.scrollTop > 100) { scTopF.classList.remove('opacity-0', 'pointer-events-none'); scTopF.classList.add('opacity-100'); } else { scTopF.classList.add('opacity-0', 'pointer-events-none'); scTopF.classList.remove('opacity-100'); } });
-                document.getElementById('sortSelect').addEventListener('change', (e) => { currentSort = e.target.value; const curId = videoList[currentIndex]?.id; sortVideoList(); if (curId) { const idx = videoList.findIndex(v => v.id === curId); if (idx !== -1) currentIndex = idx; } renderPlaylist(); });
-
-                const helpModal = document.getElementById('helpModal'), helpContent = helpModal.querySelector('div.bg-white');
-                const openHelp = () => { helpModal.classList.remove('hidden'); setTimeout(() => { helpModal.classList.remove('opacity-0'); helpContent.classList.remove('scale-95'); }, 10); };
-                const closeHelp = () => { helpModal.classList.add('opacity-0'); helpContent.classList.add('scale-95'); setTimeout(() => helpModal.classList.add('hidden'), 300); };
-                document.getElementById('openHelpBtn').addEventListener('click', openHelp); document.getElementById('closeHelpBtn').addEventListener('click', closeHelp); document.getElementById('closeHelpBtnBottom').addEventListener('click', closeHelp);
-                helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp(); });
+                // 並べ替え・その他イベント
+                document.getElementById('sortSelect').addEventListener('change', (e) => { currentSort = e.target.value; sortVideoList(); renderPlaylist(); });
+                document.getElementById('refreshBtn').addEventListener('click', () => { currentSort = 'date-desc'; document.getElementById('sortSelect').value = 'date-desc'; sortVideoList(); renderPlaylist(); });
+                document.getElementById('scrollTopBtnHeader').addEventListener('click', () => document.getElementById('playlistContainer').scrollTo({top:0, behavior:'smooth'}));
+                document.getElementById('scrollTopBtnFloat').addEventListener('click', () => document.getElementById('playlistContainer').scrollTo({top:0, behavior:'smooth'}));
+                document.getElementById('playlistContainer').addEventListener('scroll', (e) => {
+                    const f = document.getElementById('scrollTopBtnFloat');
+                    if(e.target.scrollTop > 100) { f.classList.remove('opacity-0','pointer-events-none'); f.classList.add('opacity-100'); }
+                    else { f.classList.add('opacity-0','pointer-events-none'); f.classList.remove('opacity-100'); }
+                });
+                document.getElementById('searchInput').addEventListener('input', renderPlaylist);
+                document.getElementById('clearSearchBtn').addEventListener('click', () => { document.getElementById('searchInput').value = ''; renderPlaylist(); });
+                document.getElementById('openHelpBtn').addEventListener('click', () => { document.getElementById('helpModal').classList.remove('hidden'); setTimeout(() => document.getElementById('helpModal').classList.remove('opacity-0'), 10); });
+                document.getElementById('closeHelpBtn').addEventListener('click', () => { document.getElementById('helpModal').classList.add('opacity-0'); setTimeout(() => document.getElementById('helpModal').classList.add('hidden'), 300); });
+                document.getElementById('closeHelpBtnBottom').addEventListener('click', () => document.getElementById('closeHelpBtn').click());
 
                 await initAuth(); user = auth.currentUser;
-                fetchPlaylistData(false, false); updatePlaylistDates();
+                const initialPid = document.querySelector('input[name="playlistSelect"]:checked').value;
+                videoList = await loadFromFirebase(initialPid) || [];
+                if (videoList.length > 0) { sortVideoList(); updateCurrentVideoInfo(); initPlayer(); }
+                
+                // 両ボタンの日付を初期表示
+                const playlists = ["PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_", "PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2"];
+                for (const pid of playlists) { const v = await loadFromFirebase(pid); updateDateUI(pid, v); }
             };
 
-            const siteAuthModal = document.getElementById('siteAuthModal'), sitePasswordInput = document.getElementById('sitePasswordInput'), siteAuthBtn = document.getElementById('siteAuthBtn'), sitePasswordError = document.getElementById('sitePasswordError');
-            const urlParams = new URLSearchParams(window.location.search), urlPw = urlParams.get('pw');
-            if (urlPw === 'youtube') { urlParams.delete('pw'); const newSearch = urlParams.toString(); window.history.replaceState({}, document.title, window.location.pathname + (newSearch ? '?' + newSearch : '')); siteAuthModal.style.display = 'none'; initApp(); }
-            else {
-                const attemptSiteAuth = () => { if (sitePasswordInput.value === 'youtube') { sitePasswordError.classList.add('hidden'); siteAuthModal.classList.add('opacity-0'); setTimeout(() => { siteAuthModal.style.display = 'none'; initApp(); }, 500); } else { sitePasswordError.classList.remove('hidden'); sitePasswordInput.classList.add('border-red-500'); siteAuthModal.querySelector('div.bg-white').classList.add('translate-x-1'); setTimeout(() => siteAuthModal.querySelector('div.bg-white').classList.remove('translate-x-1'), 100); } };
-                siteAuthBtn.addEventListener('click', attemptSiteAuth); sitePasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptSiteAuth(); });
-                setTimeout(() => sitePasswordInput.focus(), 100);
+            const siteModal = document.getElementById('siteAuthModal');
+            const urlPw = new URLSearchParams(window.location.search).get('pw');
+            if (urlPw === 'youtube') {
+                const url = new URL(window.location); url.searchParams.delete('pw'); window.history.replaceState({}, '', url);
+                siteModal.style.display = 'none'; initApp();
+            } else {
+                document.getElementById('siteAuthBtn').addEventListener('click', () => {
+                    if (document.getElementById('sitePasswordInput').value === 'youtube') {
+                        siteModal.classList.add('opacity-0'); setTimeout(() => { siteModal.style.display = 'none'; initApp(); }, 500);
+                    } else { document.getElementById('sitePasswordError').classList.remove('hidden'); }
+                });
             }
         });
     </script>
