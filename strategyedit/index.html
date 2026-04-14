@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, writeBatch, doc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { Upload, FileText, CheckCircle, AlertCircle, Info, RefreshCw, Trash2, Edit2, X, Save, Search, Download, ArrowUpDown, Database, Link, List, ExternalLink, ChevronLeft } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Info, RefreshCw, Trash2, Edit2, X, Save, Search, Download, ArrowUpDown, Database, Link, List, ExternalLink, Clock } from 'lucide-react';
 
 // ユーザー提供のFirebase Config
 const firebaseConfig = {
@@ -93,7 +93,6 @@ const isUrl = (text) => typeof text === 'string' && text.trim().startsWith('http
 export default function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('meetings'); // タブ切り替え状態
-  const [showExternalView, setShowExternalView] = useState(false); // 外部サイト表示状態
   const [dataList, setDataList] = useState([]); // 現在のタブのデータ
   const [loading, setLoading] = useState(true);
   const [file, setFile] = useState(null);
@@ -114,6 +113,19 @@ export default function App() {
 
   const currentTabDef = TABS.find(t => t.id === activeTab);
   const activeColumns = COLUMNS[activeTab];
+
+  // 最終更新日時の計算
+  const lastModified = React.useMemo(() => {
+    if (dataList.length === 0) return null;
+    let maxTime = 0;
+    dataList.forEach(item => {
+      const t = Math.max(Number(item.updatedAt || 0), Number(item.createdAt || 0));
+      if (t > maxTime) maxTime = t;
+    });
+    if (maxTime === 0) return null;
+    const d = new Date(maxTime);
+    return `${d.getFullYear()}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  }, [dataList]);
 
   // 1. Firebase 匿名認証
   useEffect(() => {
@@ -194,7 +206,6 @@ export default function App() {
 
         let textRaw = await readAs(useShiftJis ? 'Shift_JIS' : 'UTF-8');
         
-        // ヘッダーチェックで文字化け判定
         const sampleCol = activeColumns[0];
         if (!textRaw.includes(sampleCol)) {
           const alternateText = await readAs(useShiftJis ? 'UTF-8' : 'Shift_JIS');
@@ -212,7 +223,6 @@ export default function App() {
         throw new Error("ファイルにデータが含まれていません。");
       }
 
-      // ヘッダーの有無を自動判定してマッピング
       const isHeaderRow = parsedData[0].some(h => typeof h === 'string' && activeColumns.includes(h.replace(/[\u200B-\u200D\uFEFF]/g, '').trim()));
       
       let headers = [];
@@ -222,7 +232,6 @@ export default function App() {
         headers = parsedData[0].map(h => typeof h === 'string' ? h.replace(/[\u200B-\u200D\uFEFF]/g, '').trim() : String(h));
         startIndex = 1;
       } else {
-        // ヘッダーがない場合（分野別解説など）は定義したカラムを順番に割り当てる
         headers = activeColumns;
         startIndex = 0;
       }
@@ -246,9 +255,7 @@ export default function App() {
 
       if (uploadDataList.length === 0) throw new Error("有効なデータ行が見つかりませんでした。");
 
-      // 二重登録（重複）の防止・上書き処理
       let skippedCount = 0; let updatedCount = 0; let addedCount = 0;
-      
       const existingMap = new Map();
       dataList.forEach(m => {
         const key = currentTabDef.uniqueKeys.map(k => m[k] || '').join('_');
@@ -270,13 +277,20 @@ export default function App() {
         if (existingMap.has(uniqueKey)) {
           if (allowOverwrite) {
             const existingId = existingMap.get(uniqueKey);
-            batch.set(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, existingId), { ...newItem, createdAt: timestamp });
+            const existingData = dataList.find(d => d.id === existingId) || {};
+            const originalCreatedAt = existingData.createdAt || timestamp;
+            
+            batch.set(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, existingId), { 
+              ...newItem, 
+              createdAt: originalCreatedAt, 
+              updatedAt: timestamp 
+            });
             updatedCount++;
           } else {
             skippedCount++;
           }
         } else {
-          batch.set(doc(dataRef), { ...newItem, createdAt: timestamp });
+          batch.set(doc(dataRef), { ...newItem, createdAt: timestamp, updatedAt: timestamp });
           addedCount++;
         }
       });
@@ -329,6 +343,7 @@ export default function App() {
     if (!editingItem) return;
     try {
       const { id, ...updateData } = editingItem;
+      updateData.updatedAt = Date.now();
       await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', currentTabDef.collection, id), updateData);
       setMessage({ text: 'データを更新しました。', type: 'success' });
       setEditingItem(null);
@@ -440,7 +455,6 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // プルダウン用リスト（インポート順）
   const uniqueFilterFields = Array.from(new Set(
     [...dataList]
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
@@ -448,49 +462,9 @@ export default function App() {
       .filter(Boolean)
   ));
 
-  const renderMessage = () => {
-    if (!message.text) return null;
-    let bgColor, textColor, borderColor, IconComp;
-    if (message.type === 'error') { bgColor = 'bg-red-50'; textColor = 'text-red-800'; borderColor = 'border-red-200'; IconComp = AlertCircle; }
-    else if (message.type === 'success') { bgColor = 'bg-green-50'; textColor = 'text-green-800'; borderColor = 'border-green-200'; IconComp = CheckCircle; }
-    else { bgColor = 'bg-blue-50'; textColor = 'text-blue-800'; borderColor = 'border-blue-200'; IconComp = Info; }
-    
-    return (
-      <div className={`flex items-center p-4 mb-6 rounded-md ${bgColor} ${textColor} border ${borderColor}`}>
-        <IconComp className="w-5 h-5 mr-2 flex-shrink-0" /><span>{message.text}</span>
-      </div>
-    );
+  const openExternalSite = () => {
+    window.open('https://strategy-monitor-rust.vercel.app', '_blank', 'noopener,noreferrer');
   };
-
-  // 外部ビューが表示されている場合
-  if (showExternalView) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col font-sans">
-        <header className="bg-white border-b border-gray-200 p-4 flex items-center justify-between shadow-sm sticky top-0 z-50">
-          <button 
-            onClick={() => setShowExternalView(false)}
-            className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors group"
-          >
-            <ChevronLeft className="w-5 h-5 mr-1 group-hover:-translate-x-1 transition-transform" />
-            前の画面に戻る
-          </button>
-          <div className="flex flex-col items-center">
-            <h1 className="text-lg font-bold text-gray-900">最新情報モニタ</h1>
-            <p className="text-xs text-gray-500">strategy-monitor-rust.vercel.app</p>
-          </div>
-          <div className="w-[120px] invisible">spacer</div>
-        </header>
-        <div className="flex-1 w-full bg-gray-50 relative">
-          <iframe 
-            src="https://strategy-monitor-rust.vercel.app" 
-            title="Strategy Monitor"
-            className="w-full h-full border-none"
-            allow="fullscreen"
-          />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans text-gray-800 relative">
@@ -512,7 +486,7 @@ export default function App() {
             </div>
             
             <button 
-              onClick={() => setShowExternalView(true)}
+              onClick={openExternalSite}
               className="flex items-center px-4 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-full shadow-sm transition-all active:scale-95"
             >
               <ExternalLink className="w-4 h-4 mr-2" />
@@ -547,19 +521,14 @@ export default function App() {
           })}
         </div>
 
-        {renderMessage()}
-
-        {/* Firestore ルール設定の警告 (初期表示用) */}
-        {!loading && dataList.length === 0 && !message.text && !searchQuery && !selectedFieldFilter && (
-          <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg flex items-start">
-            <Info className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-semibold mb-1">初回利用時の注意事項</p>
-              <p>データを保存・表示するには、FirebaseのFirestoreセキュリティルールで以下のパスを許可してください。</p>
-              <code className="block bg-blue-100 p-2 mt-2 rounded text-xs select-all">
-                match /artifacts/seisakuresearch/public/data/{"{document=**}"} {'{'} allow read, write: if true; {'}'}
-              </code>
-            </div>
+        {message.text && (
+          <div className={`flex items-center p-4 rounded-md border ${
+            message.type === 'error' ? 'bg-red-50 text-red-800 border-red-200' : 
+            message.type === 'success' ? 'bg-green-50 text-green-800 border-green-200' : 
+            'bg-blue-50 text-blue-800 border-blue-200'
+          }`}>
+            {message.type === 'error' ? <AlertCircle className="w-5 h-5 mr-2" /> : <CheckCircle className="w-5 h-5 mr-2" />}
+            <span>{message.text}</span>
           </div>
         )}
 
@@ -569,7 +538,6 @@ export default function App() {
             <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-2">{currentTabDef.label}用</span>
             ファイルのインポート
           </h2>
-          
           <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
             <div className="flex-1 w-full relative">
               <input 
@@ -577,21 +545,18 @@ export default function App() {
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors border border-gray-200 rounded-md"
               />
             </div>
-            
             <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
               <label className={`flex items-center text-sm ${file && (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) ? 'text-gray-400' : 'text-gray-600 cursor-pointer'}`}>
-                <input type="checkbox" checked={useShiftJis} onChange={(e) => setUseShiftJis(e.target.checked)} disabled={importing || (file && (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')))} className="mr-2 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50" />
+                <input type="checkbox" checked={useShiftJis} onChange={(e) => setUseShiftJis(e.target.checked)} disabled={importing || (file && (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')))} className="mr-2 rounded text-blue-600" />
                 Excel用CSV (Shift_JIS)
               </label>
-
-              <label className="flex items-center text-sm text-gray-600 cursor-pointer" title="チェックを入れると、一意の項目が一致する既存データを新しいデータで上書きします">
-                <input type="checkbox" checked={allowOverwrite} onChange={(e) => setAllowOverwrite(e.target.checked)} disabled={importing} className="mr-2 rounded text-red-500 focus:ring-red-500" />
+              <label className="flex items-center text-sm text-gray-600 cursor-pointer">
+                <input type="checkbox" checked={allowOverwrite} onChange={(e) => setAllowOverwrite(e.target.checked)} disabled={importing} className="mr-2 rounded text-red-500" />
                 重複時に既存データを上書き
               </label>
-
-              <button onClick={handleImport} disabled={!file || importing} className={`flex items-center px-5 py-2.5 rounded-md font-medium text-white transition-all ${!file || importing ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
+              <button onClick={handleImport} disabled={!file || importing} className={`flex items-center px-5 py-2.5 rounded-md font-medium text-white ${!file || importing ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
                 {importing ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                {importing ? 'インポート中...' : 'データを追加保存'}
+                追加保存
               </button>
             </div>
           </div>
@@ -599,62 +564,52 @@ export default function App() {
 
         {/* データ一覧セクション */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex items-center">
-              <h2 className="text-lg font-semibold text-gray-800 mr-4">{currentTabDef.label}</h2>
+          <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <h2 className="text-lg font-semibold text-gray-800">{currentTabDef.label}</h2>
               <span className="bg-white px-3 py-1 rounded-full text-xs font-medium text-gray-600 border shadow-sm">
                 表示 {processedData.length} / 全 {dataList.length} 件
               </span>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-              
-              {/* 分野絞り込みプルダウン */}
-              {filterColumn && uniqueFilterFields.length > 0 && (
-                <div className="relative w-full sm:w-48">
-                  <select
-                    value={selectedFieldFilter} onChange={(e) => setSelectedFieldFilter(e.target.value)}
-                    className="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors appearance-none"
-                  >
-                    <option value="">すべての{filterColumn}</option>
-                    {uniqueFilterFields.map(field => <option key={field} value={field}>{field}</option>)}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </div>
+              {lastModified && (
+                <div className="flex items-center text-xs text-gray-500 bg-white px-3 py-1 rounded-full border border-gray-100">
+                  <Clock className="w-3 h-3 mr-1.5 text-blue-400" />
+                  最終更新: {lastModified}
                 </div>
               )}
-
-              {/* 検索バー */}
+            </div>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+              {filterColumn && uniqueFilterFields.length > 0 && (
+                <select
+                  value={selectedFieldFilter} onChange={(e) => setSelectedFieldFilter(e.target.value)}
+                  className="block w-full sm:w-48 pl-3 pr-10 py-2 border border-gray-300 rounded-md text-sm appearance-none bg-white focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">すべての{filterColumn}</option>
+                  {uniqueFilterFields.map(field => <option key={field} value={field}>{field}</option>)}
+                </select>
+              )}
               <div className="relative w-full sm:w-56">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-4 w-4 text-gray-400" /></div>
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                 <input
                   type="text" placeholder="キーワード検索..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm"
                 />
-                {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>}
               </div>
-
-              {/* ソートボタン (対応タブのみ) */}
               {currentTabDef.sortCol && (
                 <button
                   onClick={() => setSortByRank(!sortByRank)}
-                  className={`flex items-center px-3 py-2 border rounded-md transition-colors text-sm font-medium w-full sm:w-auto justify-center ${sortByRank ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  className={`flex items-center px-3 py-2 border rounded-md text-sm font-medium ${sortByRank ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-700'}`}
                 >
                   <ArrowUpDown className="w-4 h-4 mr-1.5" />
-                  {sortByRank ? '順位ソート中' : '順位で並べ替え'}
+                  順位ソート
                 </button>
               )}
-
-              {/* エクスポートボタン */}
-              <button onClick={handleExport} className="flex items-center px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-sm font-medium w-full sm:w-auto justify-center">
-                <Download className="w-4 h-4 mr-1.5" />CSV出力
+              <button onClick={handleExport} className="flex items-center px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-md text-sm font-medium">
+                <Download className="w-4 h-4 mr-1.5" />出力
               </button>
-
-              {/* 一括削除ボタン */}
               {selectedIds.length > 0 && (
-                <button onClick={() => setShowBulkDeleteConfirm(true)} className="flex items-center px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100 transition-colors text-sm font-medium w-full sm:w-auto justify-center">
-                  <Trash2 className="w-4 h-4 mr-1.5" />選択した {selectedIds.length} 件を削除
+                <button onClick={() => setShowBulkDeleteConfirm(true)} className="flex items-center px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-md text-sm font-medium">
+                  <Trash2 className="w-4 h-4 mr-1.5" />一括削除({selectedIds.length})
                 </button>
               )}
             </div>
@@ -662,45 +617,47 @@ export default function App() {
 
           <div className="overflow-x-auto">
             {loading ? (
-              <div className="p-12 flex justify-center items-center text-gray-500"><RefreshCw className="w-6 h-6 animate-spin mr-3 text-blue-500" />データを読み込み中...</div>
+              <div className="p-12 text-center text-gray-500 flex items-center justify-center">
+                <RefreshCw className="w-6 h-6 animate-spin mr-3 text-blue-500" />読み込み中...
+              </div>
             ) : processedData.length === 0 ? (
               <div className="p-12 text-center text-gray-500">
                 <FileText className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                <p>{searchQuery || selectedFieldFilter ? '条件に一致するデータがありません。' : 'データがありません。ファイルをインポートしてください。'}</p>
+                <p>データが見つかりません</p>
               </div>
             ) : (
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-100">
+                <thead className="bg-gray-100 text-xs font-semibold text-gray-600 uppercase">
                   <tr>
                     <th className="px-4 py-3 text-left w-12">
-                      <input type="checkbox" checked={processedData.length > 0 && selectedIds.length === processedData.length} onChange={handleSelectAll} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" />
+                      <input type="checkbox" checked={processedData.length > 0 && selectedIds.length === processedData.length} onChange={handleSelectAll} className="rounded border-gray-300" />
                     </th>
                     {activeColumns.map(col => (
-                      <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">{col}</th>
+                      <th key={col} className="px-4 py-3 text-left whitespace-nowrap">{col}</th>
                     ))}
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">操作</th>
+                    <th className="px-4 py-3 text-right">操作</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {processedData.map((item) => (
-                    <tr key={item.id} className={`hover:bg-blue-50/50 transition-colors ${selectedIds.includes(item.id) ? 'bg-blue-50/30' : ''}`}>
+                    <tr key={item.id} className={`hover:bg-blue-50/30 transition-colors ${selectedIds.includes(item.id) ? 'bg-blue-50/50' : ''}`}>
                       <td className="px-4 py-3">
-                        <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={(e) => handleSelectOne(e, item.id)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" />
+                        <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={(e) => handleSelectOne(e, item.id)} className="rounded border-gray-300" />
                       </td>
                       {activeColumns.map(col => (
                         <td key={col} className="px-4 py-3 text-sm text-gray-700">
                           {isUrl(item[col]) ? (
-                            <a href={item[col]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center">
-                              リンクを開く
+                            <a href={item[col]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                              リンク
                             </a>
                           ) : (
                             <div className="max-w-md break-words whitespace-pre-wrap">{item[col] || '-'}</div>
                           )}
                         </td>
                       ))}
-                      <td className="px-4 py-3 text-sm text-gray-700 text-right whitespace-nowrap">
-                        <button onClick={() => setEditingItem({ ...item })} className="text-blue-600 hover:bg-blue-100 p-1.5 rounded mr-1 transition-colors" title="編集"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={() => setDeletingId(item.id)} className="text-red-600 hover:bg-red-100 p-1.5 rounded transition-colors" title="削除"><Trash2 className="w-4 h-4" /></button>
+                      <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
+                        <button onClick={() => setEditingItem({ ...item })} className="text-blue-600 hover:bg-blue-100 p-1.5 rounded mr-1"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => setDeletingId(item.id)} className="text-red-600 hover:bg-red-100 p-1.5 rounded"><Trash2 className="w-4 h-4" /></button>
                       </td>
                     </tr>
                   ))}
@@ -713,18 +670,17 @@ export default function App() {
 
       {/* --- 編集モーダル --- */}
       {editingItem && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Edit2 className="w-5 h-5 mr-2 text-blue-600" />データの編集 ({currentTabDef.label})
               </h3>
-              <button onClick={() => setEditingItem(null)} className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-1 rounded-md transition-colors"><X className="w-6 h-6" /></button>
+              <button onClick={() => setEditingItem(null)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
             </div>
             <div className="p-6 overflow-y-auto space-y-4 flex-1">
               {activeColumns.map(col => {
                 const uniqueValues = Array.from(new Set([...dataList].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map(m => m[col]).filter(Boolean)));
-                // URLや解説など長文になりがちなものはテキストエリア、それ以外はインプット
                 const isTextArea = col === '解説' || col === '備考' || col === '概要';
                 return (
                   <div key={col}>
@@ -732,13 +688,13 @@ export default function App() {
                     {isTextArea ? (
                       <textarea
                         value={editingItem[col] || ''} onChange={(e) => handleEditChange(col, e.target.value)} rows={4}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
                       />
                     ) : (
                       <>
                         <input
                           list={`datalist-${col}`} type="text" value={editingItem[col] || ''} onChange={(e) => handleEditChange(col, e.target.value)}
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
                         />
                         {['関連分野', '区分', '所管', '対象分野', '分野'].includes(col) && (
                           <datalist id={`datalist-${col}`}>{uniqueValues.map(val => <option key={val} value={val} />)}</datalist>
@@ -750,42 +706,43 @@ export default function App() {
               })}
             </div>
             <div className="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3">
-              <button onClick={() => setEditingItem(null)} className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md font-medium transition-colors">キャンセル</button>
-              <button onClick={handleSaveEdit} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium flex items-center shadow-sm transition-colors"><Save className="w-4 h-4 mr-2" /> 保存する</button>
+              <button onClick={() => setEditingItem(null)} className="px-4 py-2 text-gray-700 font-medium">キャンセル</button>
+              <button onClick={handleSaveEdit} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium flex items-center shadow-sm">
+                <Save className="w-4 h-4 mr-2" /> 保存
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- 各種確認モーダル（削除） --- */}
+      {/* --- 削除確認 --- */}
       {deletingId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center">
             <AlertCircle className="w-14 h-14 text-red-500 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-gray-900 mb-2">削除の確認</h3>
-            <p className="text-sm text-gray-500 mb-8">このデータを削除してもよろしいですか？<br/>この操作は取り消せません。</p>
+            <p className="text-sm text-gray-500 mb-8">このデータを削除してもよろしいですか？</p>
             <div className="flex justify-center space-x-3">
-              <button onClick={() => setDeletingId(null)} className="flex-1 px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-md font-medium transition-colors">キャンセル</button>
-              <button onClick={() => handleDelete(deletingId)} className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white shadow-sm rounded-md font-medium transition-colors">削除する</button>
+              <button onClick={() => setDeletingId(null)} className="flex-1 px-4 py-2 text-gray-700 border rounded-md font-medium">戻る</button>
+              <button onClick={() => handleDelete(deletingId)} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md font-medium">削除</button>
             </div>
           </div>
         </div>
       )}
 
       {showBulkDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center">
             <AlertCircle className="w-14 h-14 text-red-500 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-gray-900 mb-2">一括削除の確認</h3>
-            <p className="text-sm text-gray-500 mb-8">選択した {selectedIds.length} 件のデータを削除してもよろしいですか？<br/>この操作は取り消せません。</p>
+            <p className="text-sm text-gray-500 mb-8">選択した {selectedIds.length} 件を削除しますか？</p>
             <div className="flex justify-center space-x-3">
-              <button onClick={() => setShowBulkDeleteConfirm(false)} className="flex-1 px-4 py-2 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-md font-medium transition-colors">キャンセル</button>
-              <button onClick={handleBulkDelete} className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white shadow-sm rounded-md font-medium transition-colors">削除する</button>
+              <button onClick={() => setShowBulkDeleteConfirm(false)} className="flex-1 px-4 py-2 text-gray-700 border rounded-md font-medium">戻る</button>
+              <button onClick={handleBulkDelete} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md font-medium">一括削除</button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
