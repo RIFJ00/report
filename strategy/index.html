@@ -878,11 +878,10 @@
         async function fetchFieldCommentsData() {
             try {
                 const db = await initFirebase();
-                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
                 const fieldsRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'fields');
 
-                try {
-                    const snapshot = await getDocs(fieldsRef);
+                onSnapshot(fieldsRef, (snapshot) => {
                     const allDocuments = snapshot.docs.map(doc => ({
                         id: doc.id,
                         ...doc.data()
@@ -956,9 +955,9 @@
                             displayFieldData();
                         }
                     }
-                } catch (error) {
-                    console.error("分野解説データの取得エラー:", error);
-                }
+                }, (error) => {
+                    console.error("分野解説データのリアルタイム取得エラー:", error);
+                });
             } catch (error) {
                 console.error("分野解説データの初期化エラー:", error);
             }
@@ -970,11 +969,10 @@
 
             try {
                 const db = await initFirebase();
-                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
                 const meetingsRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'meetings');
                 
-                try {
-                    const snapshot = await getDocs(meetingsRef);
+                onSnapshot(meetingsRef, (snapshot) => {
                     const allDocuments = snapshot.docs.map(doc => ({
                         id: doc.id,
                         ...doc.data()
@@ -1063,11 +1061,11 @@
                     if (modal && !modal.classList.contains('hidden')) {
                         populateRelatedCouncilsTable();
                     }
-                } catch (error) {
-                    console.error("関連会議データの取得エラー:", error);
+                }, (error) => {
+                    console.error("関連会議データのリアルタイム取得エラー:", error);
                     document.getElementById('data-update-date').innerText = "取得失敗";
                     if (loadingEl) loadingEl.classList.add('hidden');
-                }
+                });
             } catch (error) {
                 console.error("関連会議データの初期化エラー:", error);
                 document.getElementById('data-update-date').innerText = "取得失敗";
@@ -1078,11 +1076,10 @@
         async function fetchPdfLinksData() {
             try {
                 const db = await initFirebase();
-                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
                 const linksRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'links');
 
-                try {
-                    const snapshot = await getDocs(linksRef);
+                onSnapshot(linksRef, (snapshot) => {
                     const allDocuments = snapshot.docs.map(doc => ({
                         id: doc.id,
                         ...doc.data()
@@ -1153,11 +1150,17 @@
 
                             if (fieldId) {
                                 // 概要URLとタブ名
-                                const overviewUrl = itemData['概要'] || itemData.overview || itemData['概要URL'] || itemData.overview_url || "";
-                                const overviewName = itemData['概要名'] || itemData['概要タブ名'] || itemData.overview_name || "";
+                                let overviewUrl = itemData['会議体URL'] || "";
+                                if (!overviewUrl && itemData['概要'] && String(itemData['概要']).startsWith('http')) {
+                                    overviewUrl = itemData['概要'];
+                                }
+                                if (!overviewUrl) {
+                                    overviewUrl = itemData.overview || itemData['概要URL'] || itemData.overview_url || "";
+                                }
                                 if (overviewUrl && String(overviewUrl).trim() !== "") {
                                     overviewUrls[fieldId] = overviewUrl;
                                 }
+                                const overviewName = itemData['概要名'] || itemData['概要タブ名'] || itemData.overview_name || "";
                                 if (overviewName && String(overviewName).trim() !== "") {
                                     pdfTabNames.overview[fieldId] = overviewName;
                                 }
@@ -1201,9 +1204,9 @@
                     } else {
                         updatePdfDisplay();
                     }
-                } catch (error) {
-                    console.error("PDFリンクデータの取得エラー:", error);
-                }
+                }, (error) => {
+                    console.error("PDFリンクデータのリアルタイム取得エラー:", error);
+                });
             } catch (error) {
                 console.error("PDFリンクデータの初期化エラー:", error);
             }
