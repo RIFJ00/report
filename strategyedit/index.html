@@ -101,9 +101,12 @@
           </div>
 
           <!-- 検索バー -->
-          <div class="relative">
-            <i data-lucide="search" class="absolute left-2 top-2.5 w-4 h-4 text-gray-400"></i>
-            <input type="text" id="search-input" placeholder="検索..." class="pl-8 p-2 border border-gray-300 rounded-md text-sm bg-white">
+          <div class="relative flex items-center">
+            <i data-lucide="search" class="absolute left-2 w-4 h-4 text-gray-400"></i>
+            <input type="text" id="search-input" placeholder="検索..." class="pl-8 pr-8 p-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+            <button id="clear-search-btn" class="absolute right-2 text-gray-400 hover:text-gray-600 hidden" title="クリア">
+              <i data-lucide="x-circle" class="w-4 h-4"></i>
+            </button>
           </div>
 
           <!-- ソートボタン -->
@@ -247,6 +250,7 @@
         state.sortByRank = false;
 
         document.getElementById('search-input').value = '';
+        document.getElementById('clear-search-btn').classList.add('hidden');
         renderTabs();
         renderMessage();
         updateImportUI();
@@ -493,7 +497,8 @@
       let filtered = state.dataList.filter(item => {
         if (state.selectedFieldFilter && item[filterCol] !== state.selectedFieldFilter) return false;
         if (!state.searchQuery) return true;
-        return activeColumns.some(col => String(item[col] || '').toLowerCase().includes(state.searchQuery.toLowerCase()));
+        const lowerQuery = state.searchQuery.toLowerCase();
+        return activeColumns.some(col => String(item[col] || '').toLowerCase().includes(lowerQuery));
       });
 
       const fieldOrder = {};
@@ -605,7 +610,27 @@
       document.getElementById('use-shift-jis').onchange = e => state.useShiftJis = e.target.checked;
       document.getElementById('allow-overwrite').onchange = e => state.allowOverwrite = e.target.checked;
       document.getElementById('import-btn').onclick = window.app.handleImport;
-      document.getElementById('search-input').oninput = e => { state.searchQuery = e.target.value; updateTable(); };
+      
+      const searchInput = document.getElementById('search-input');
+      const clearSearchBtn = document.getElementById('clear-search-btn');
+      
+      searchInput.oninput = e => { 
+        state.searchQuery = e.target.value; 
+        if (state.searchQuery) {
+          clearSearchBtn.classList.remove('hidden');
+        } else {
+          clearSearchBtn.classList.add('hidden');
+        }
+        updateTable(); 
+      };
+
+      clearSearchBtn.onclick = () => {
+        state.searchQuery = '';
+        searchInput.value = '';
+        clearSearchBtn.classList.add('hidden');
+        updateTable();
+      };
+
       document.getElementById('filter-select').onchange = e => { state.selectedFieldFilter = e.target.value; updateTable(); };
       document.getElementById('export-btn').onclick = window.app.handleExport;
       document.getElementById('bulk-delete-action-btn').onclick = window.app.openBulkDeleteModal;
