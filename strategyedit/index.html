@@ -45,12 +45,21 @@
     <!-- メッセージエリア -->
     <div id="message-container"></div>
 
-    <!-- インポートセクション -->
+    <!-- インポート・新規追加セクション -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h2 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2 flex items-center">
-        <span id="import-tab-name" class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-2"></span>
-        インポート
-      </h2>
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2">
+        <h2 class="text-lg font-semibold text-gray-800 flex items-center">
+          <span id="import-tab-name" class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-2"></span>
+          データの追加
+        </h2>
+        <button 
+          onclick="window.app.openAddModal()"
+          class="mt-2 md:mt-0 flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-md hover:bg-indigo-700 shadow-sm transition-all active:scale-95"
+        >
+          <i data-lucide="plus-circle" class="w-4 h-4 mr-2"></i>
+          手動で新規登録
+        </button>
+      </div>
       
       <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
         <div class="flex-1 w-full relative">
@@ -72,7 +81,7 @@
           </label>
 
           <button id="import-btn" class="flex items-center px-5 py-2.5 rounded-md font-medium text-white transition-all bg-gray-400 cursor-not-allowed" disabled>
-            <i data-lucide="upload" class="w-4 h-4 mr-2"></i>保存
+            <i data-lucide="upload" class="w-4 h-4 mr-2"></i>一括保存
           </button>
         </div>
       </div>
@@ -150,7 +159,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, onSnapshot, writeBatch, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, writeBatch, doc, deleteDoc, updateDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
@@ -190,6 +199,8 @@
       useShiftJis: true,
       message: { text: '', type: '' },
       editingItem: null,
+      isAdding: false,
+      newItem: {},
       deletingId: null,
       searchQuery: '',
       selectedIds: [],
@@ -256,7 +267,7 @@
         updateImportUI();
         
         const currentTabDef = TABS.find(t => t.id === state.activeTab);
-        document.getElementById('import-tab-name').textContent = currentTabDef.label + '用';
+        document.getElementById('import-tab-name').textContent = currentTabDef.label;
         document.getElementById('list-tab-name').textContent = currentTabDef.label;
         document.getElementById('sort-btn').style.display = currentTabDef.sortCol ? 'flex' : 'none';
         document.getElementById('sort-btn-text').textContent = '順位';
@@ -386,6 +397,35 @@
         }
       },
 
+      openAddModal: () => {
+        const cols = COLUMNS[state.activeTab];
+        state.newItem = {};
+        cols.forEach(c => state.newItem[c] = '');
+        state.isAdding = true;
+        renderModals();
+      },
+
+      closeAddModal: () => { state.isAdding = false; renderModals(); },
+
+      handleSaveAdd: async () => {
+        const currentTabDef = TABS.find(t => t.id === state.activeTab);
+        const cols = COLUMNS[state.activeTab];
+        const item = {};
+        cols.forEach(c => {
+          const el = document.getElementById(`add-input-${c}`);
+          if (el) item[c] = el.value;
+        });
+
+        try {
+          const dataRef = collection(db, 'artifacts', appId, 'public', 'data', currentTabDef.collection);
+          const timestamp = Date.now();
+          await addDoc(dataRef, { ...item, createdAt: timestamp, updatedAt: timestamp });
+          showMessage('新規登録しました。', 'success');
+          state.isAdding = false;
+          renderModals();
+        } catch (err) { showMessage(`エラー: ${err.message}`, 'error'); }
+      },
+
       openEditModal: (id) => {
         const item = state.dataList.find(d => d.id === id);
         if (item) { state.editingItem = { ...item }; renderModals(); }
@@ -475,7 +515,7 @@
     function updateImportUI() {
       document.getElementById('import-btn').disabled = !state.file || state.importing;
       document.getElementById('import-btn').className = `flex items-center px-5 py-2.5 rounded-md font-medium text-white ${!state.file || state.importing ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`;
-      document.getElementById('import-btn').innerHTML = state.importing ? '<i data-lucide="refresh-cw" class="w-4 h-4 mr-2 animate-spin"></i>保存中' : '<i data-lucide="upload" class="w-4 h-4 mr-2"></i>保存';
+      document.getElementById('import-btn').innerHTML = state.importing ? '<i data-lucide="refresh-cw" class="w-4 h-4 mr-2 animate-spin"></i>保存中' : '<i data-lucide="upload" class="w-4 h-4 mr-2"></i>一括保存';
       lucide.createIcons();
     }
 
@@ -497,8 +537,7 @@
       let filtered = state.dataList.filter(item => {
         if (state.selectedFieldFilter && item[filterCol] !== state.selectedFieldFilter) return false;
         if (!state.searchQuery) return true;
-        const lowerQuery = state.searchQuery.toLowerCase();
-        return activeColumns.some(col => String(item[col] || '').toLowerCase().includes(lowerQuery));
+        return activeColumns.some(col => String(item[col] || '').toLowerCase().includes(state.searchQuery.toLowerCase()));
       });
 
       const fieldOrder = {};
@@ -567,27 +606,52 @@
 
     function renderModals() {
       const container = document.getElementById('modals-container');
-      if (!state.editingItem && !state.deletingId && !state.showBulkDeleteConfirm) { container.innerHTML = ''; return; }
+      if (!state.editingItem && !state.isAdding && !state.deletingId && !state.showBulkDeleteConfirm) { container.innerHTML = ''; return; }
       
       let html = '';
-      if (state.editingItem) {
+      if (state.editingItem || state.isAdding) {
+        const item = state.isAdding ? state.newItem : state.editingItem;
+        const prefix = state.isAdding ? 'add' : 'edit';
         const cols = COLUMNS[state.activeTab];
+        
         html = `<div class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
-            <div class="p-4 border-b flex justify-between bg-gray-50 items-center"><h3 class="font-bold">編集</h3><button onclick="window.app.closeEditModal()"><i data-lucide="x"></i></button></div>
-            <div class="p-6 overflow-y-auto space-y-4">
-              ${cols.map(c => `<div><label class="block text-sm font-semibold mb-1">${escapeHTML(c)}</label>${['解説','備考','概要'].includes(c) ? `<textarea id="edit-input-${c}" rows="4" class="w-full border p-2 rounded text-sm">${escapeHTML(state.editingItem[c])}</textarea>` : `<input type="text" id="edit-input-${c}" value="${escapeHTML(state.editingItem[c])}" class="w-full border p-2 rounded text-sm">`}</div>`).join('')}
+            <div class="p-4 border-b flex justify-between bg-gray-50 items-center">
+              <h3 class="font-bold">${state.isAdding ? '新規登録' : '編集'}</h3>
+              <button onclick="${state.isAdding ? 'window.app.closeAddModal()' : 'window.app.closeEditModal()'}"><i data-lucide="x"></i></button>
             </div>
-            <div class="p-4 border-t flex justify-end gap-2"><button onclick="window.app.closeEditModal()" class="px-4 py-2">キャンセル</button><button onclick="window.app.handleSaveEdit()" class="px-6 py-2 bg-blue-600 text-white rounded font-bold">保存</button></div>
+            <div class="p-6 overflow-y-auto space-y-4">
+              ${cols.map(c => {
+                const uniqueValues = Array.from(new Set(state.dataList.map(m => m[c]).filter(Boolean)));
+                const needsDatalist = ['関連分野', '区分', '所管', '分野'].includes(c);
+                const isTextArea = ['解説','備考','概要'].includes(c);
+                
+                let inputHtml = isTextArea 
+                  ? `<textarea id="${prefix}-input-${c}" rows="4" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 outline-none">${escapeHTML(item[c])}</textarea>`
+                  : `<input list="${prefix}-datalist-${c}" type="text" id="${prefix}-input-${c}" value="${escapeHTML(item[c])}" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 outline-none">`;
+                
+                if (needsDatalist && !isTextArea) {
+                  inputHtml += `<datalist id="${prefix}-datalist-${c}">${uniqueValues.map(v => `<option value="${escapeHTML(v)}">`).join('')}</datalist>`;
+                }
+
+                return `<div><label class="block text-sm font-semibold mb-1 text-gray-700">${escapeHTML(c)}</label>${inputHtml}</div>`;
+              }).join('')}
+            </div>
+            <div class="p-4 border-t flex justify-end gap-2 bg-gray-50">
+              <button onclick="${state.isAdding ? 'window.app.closeAddModal()' : 'window.app.closeEditModal()'}" class="px-4 py-2 text-gray-600 font-medium">キャンセル</button>
+              <button onclick="${state.isAdding ? 'window.app.handleSaveAdd()' : 'window.app.handleSaveEdit()'}" class="px-6 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors shadow-sm">
+                <i data-lucide="save" class="w-4 h-4 mr-2 inline"></i>${state.isAdding ? '登録' : '保存'}
+              </button>
+            </div>
           </div>
         </div>`;
       } else if (state.deletingId || state.showBulkDeleteConfirm) {
         const isBulk = state.showBulkDeleteConfirm;
         html = `<div class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div class="bg-white p-6 rounded-lg max-w-sm w-full text-center">
+          <div class="bg-white p-6 rounded-lg max-w-sm w-full text-center shadow-2xl">
             <i data-lucide="alert-circle" class="w-12 h-12 text-red-500 mx-auto mb-4"></i>
             <h3 class="font-bold mb-4">${isBulk ? `${state.selectedIds.length}件を一括削除しますか？` : '削除しますか？'}</h3>
-            <div class="flex gap-2"><button onclick="${isBulk ? 'state.showBulkDeleteConfirm=false;renderModals()' : 'window.app.closeDeleteModal()'}" class="flex-1 p-2 border rounded">戻る</button><button onclick="${isBulk ? 'window.app.handleBulkDelete()' : 'window.app.handleDelete()'}" class="flex-1 p-2 bg-red-600 text-white rounded">削除</button></div>
+            <div class="flex gap-2"><button onclick="${isBulk ? 'state.showBulkDeleteConfirm=false;renderModals()' : 'window.app.closeDeleteModal()'}" class="flex-1 p-2 border rounded font-medium text-gray-600">戻る</button><button onclick="${isBulk ? 'window.app.handleBulkDelete()' : 'window.app.handleDelete()'}" class="flex-1 p-2 bg-red-600 text-white rounded font-bold">削除</button></div>
           </div>
         </div>`;
       }
@@ -601,7 +665,7 @@
       onAuthStateChanged(auth, (u) => {
         state.user = u;
         document.getElementById('auth-status-dot').className = `w-2 h-2 rounded-full mr-2 ${u ? 'bg-green-500' : 'bg-gray-400'}`;
-        document.getElementById('auth-status-text').textContent = u ? '接続済' : '中...';
+        document.getElementById('auth-status-text').textContent = u ? 'システム接続済' : '接続中...';
         if (u) window.app.switchTab('meetings');
       });
       signInAnonymously(auth);
