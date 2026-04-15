@@ -601,243 +601,19 @@
     </button>
 
     <script>
-        let relatedCouncilsData = {};
-        let currentSortMode = 'default'; // 'default', 'rank', 'date'
-        // Firestoreの分野別リストデータから取得した解説を格納（初期値は空）
-        let fieldComments = {};
-
-        // Firebaseの接続設定と初期化
+        // 1. 定数と状態変数の宣言（最上部に配置してReferenceErrorを防止）
+        const VIEW_PASSWORD = "strategy";
+        
         const firebaseConfig = {
             apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
             authDomain: "seisakuresearch00.firebaseapp.com",
             projectId: "seisakuresearch00"
         };
-
-        let dbInstance = null;
-
-        // Firebase SDKを動的にインポートして初期化する関数
-        async function initFirebase() {
-            if (dbInstance) return dbInstance;
-            try {
-                const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-                const { getFirestore } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                const app = initializeApp(firebaseConfig);
-                dbInstance = getFirestore(app);
-                return dbInstance;
-            } catch (error) {
-                console.error("Firebase初期化エラー:", error);
-                throw error;
-            }
-        }
-
-        // 「分野別リスト」やそれに類するコレクションから独立して解説データを取得する関数
-        async function fetchFieldCommentsData() {
-            try {
-                const db = await initFirebase();
-                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-
-                // コレクションを 'fields' に指定
-                const dataRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'fields');
-
-                // onSnapshotでリアルタイムに監視
-                onSnapshot(dataRef, (snapshot) => {
-                    fieldComments = {}; // 再取得のたびに初期化
-                    let foundCount = 0;
-
-                    if (!snapshot.empty) {
-                        snapshot.docs.forEach(doc => {
-                            const itemData = doc.data();
-                            
-                            // 「分野」と「解説」をより柔軟に取得（キー名の揺れにも対応）
-                            let fieldNameStr = itemData['分野'] || itemData['分野名'] || itemData.name;
-                            if (!fieldNameStr) {
-                                const fieldKey = Object.keys(itemData).find(key => key.includes('分野'));
-                                if (fieldKey) fieldNameStr = itemData[fieldKey];
-                            }
-                            fieldNameStr = String(fieldNameStr || "").trim();
-
-                            let commentStr = itemData['解説'] || itemData['解説のコメント'] || itemData['解説コメント'] || itemData.description;
-                            if (!commentStr) {
-                                const commentKey = Object.keys(itemData).find(key => key.includes('解説') || key.includes('コメント'));
-                                if (commentKey) commentStr = itemData[commentKey];
-                            }
-                            
-                            // doc.id が 17_1 などの形式なら、それを優先
-                            let fieldId = null;
-                            if (doc.id.match(/^(17|8)_\d+$/)) {
-                                fieldId = doc.id;
-                            }
-
-                            if (!fieldId && fieldNameStr && fieldNameStr !== "undefined") {
-                                const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
-                                
-                                // 空白などを取り除いて比較を緩くする
-                                const normalize = (str) => str.replace(/\s+/g, '').toLowerCase();
-                                const normClean = normalize(cleanFieldNameStr);
-                                
-                                // areas17との照合
-                                let match17 = areas17.find(item => normalize(item.name) === normClean || normClean.includes(normalize(item.name)) || normalize(item.name).includes(normClean));
-                                if (match17) {
-                                    fieldId = `17_${match17.no}`;
-                                } else {
-                                    // areas8との照合
-                                    let match8 = areas8.find(item => normalize(item.name) === normClean || normClean.includes(normalize(item.name)) || normalize(item.name).includes(normClean));
-                                    if (match8) {
-                                        fieldId = `8_${match8.no}`;
-                                    }
-                                }
-
-                                // 番号のみの指定の場合のフェイルセーフ
-                                if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) {
-                                    fieldId = fieldNameStr;
-                                }
-                            }
-
-                            if (fieldId && commentStr && String(commentStr).trim() !== "") {
-                                fieldComments[fieldId] = String(commentStr);
-                                foundCount++;
-                                
-                                // データベースに代表会議名・URLがあれば固定データを上書きする
-                                let match17 = areas17.find(item => fieldId === `17_${item.no}`);
-                                let match8 = areas8.find(item => fieldId === `8_${item.no}`);
-                                let targetArea = match17 || match8;
-                                
-                                if (targetArea) {
-                                    const councilName = itemData['会議体名'] || itemData['代表会議名'] || itemData.council || itemData['会議名'] || "";
-                                    if (councilName && String(councilName).trim() !== "") targetArea.council = councilName;
-                                    
-                                    const councilUrl = itemData['代表URL'] || itemData['会議体URL'] || itemData.url || itemData.URL || "";
-                                    if (councilUrl && String(councilUrl).trim() !== "") targetArea.url = councilUrl;
-                                }
-                            }
-                        });
-                        
-                        if (foundCount > 0) {
-                            console.log(`コレクション 'fields' から ${foundCount} 件の分野解説データを取得しました。`);
-                            displayFieldData(); // データ取得後に表示を更新
-                        } else {
-                            console.log(`コレクション 'fields' にドキュメントはありましたが、照合できる解説データが0件でした。`);
-                        }
-                    } else {
-                        console.log(`コレクション 'fields' は空です。`);
-                    }
-                }, (error) => {
-                    console.warn(`コレクション 'fields' のリアルタイム取得でエラーが発生しました。`, error);
-                });
-            } catch (error) {
-                console.error("分野解説データの取得処理中にエラーが発生しました:", error);
-            }
-        }
-
-        async function fetchMeetingsData() {
-            const targetCollection = "meetings";
-            const loadingEl = document.getElementById('related-councils-loading');
-            if (loadingEl) loadingEl.classList.remove('hidden');
-
-            try {
-                const db = await initFirebase();
-                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                const dataRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', targetCollection);
-                
-                // onSnapshotでリアルタイムに監視
-                onSnapshot(dataRef, (snapshot) => {
-                    const allDocuments = snapshot.docs.map(doc => doc.data());
-                    
-                    if (allDocuments.length > 0) {
-                        const parsedData = {};
-
-                        allDocuments.forEach(meeting => {
-                            const fieldNameStr = String(meeting.fieldId || meeting.field_id || meeting.relatedFieldId || meeting.related_field || meeting.関連分野 || meeting.分野 || "");
-                            let fieldId = null;
-
-                            if (fieldNameStr) {
-                                const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
-
-                                let match17 = areas17.find(item => item.name === cleanFieldNameStr);
-                                if (!match17) match17 = areas17.find(item => cleanFieldNameStr.includes(item.name) || item.name.includes(cleanFieldNameStr));
-                                
-                                if (match17) {
-                                    fieldId = `17_${match17.no}`;
-                                } else {
-                                    let match8 = areas8.find(item => item.name === cleanFieldNameStr);
-                                    if (!match8) match8 = areas8.find(item => cleanFieldNameStr.includes(item.name) || item.name.includes(cleanFieldNameStr));
-                                    
-                                    if (match8) {
-                                        fieldId = `8_${match8.no}`;
-                                    }
-                                }
-                                
-                                if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) {
-                                    fieldId = fieldNameStr;
-                                }
-                            }
-
-                            if (fieldId) {
-                                if (!parsedData[fieldId]) {
-                                    parsedData[fieldId] = [];
-                                }
-                                parsedData[fieldId].push({
-                                    category: meeting.category || meeting.区分 || "",
-                                    rank: meeting.rank || meeting.順位 || "",
-                                    name: meeting.name || meeting.会議名 || "",
-                                    url: meeting.url || meeting.URL || "",
-                                    jurisdiction: meeting.jurisdiction || meeting.所管 || "",
-                                    field: meeting.field || meeting.対象分野 || "",
-                                    date: meeting.date || meeting.直近開催日 || "",
-                                    note: meeting.note || meeting.備考 || ""
-                                });
-
-                                // 万が一meetings側にも解説データがあれば補完する
-                                let commentStr = meeting.解説のコメント || meeting.分野の解説 || meeting.解説コメント || meeting.解説 || meeting.コメント || meeting.comment || meeting.field_comment || "";
-                                if (!commentStr) {
-                                    for (const key of Object.keys(meeting)) {
-                                        if (key.includes('解説') || key.includes('コメント')) {
-                                            commentStr = meeting[key];
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if (commentStr && String(commentStr).trim() !== "" && !fieldComments[fieldId]) {
-                                    fieldComments[fieldId] = String(commentStr);
-                                }
-                            }
-                        });
-                        
-                        relatedCouncilsData = parsedData;
-                        console.log(`${allDocuments.length}件の関連会議データをFirestoreから取得・適用しました。`);
-
-                        // 画面のデータ更新日を反映（SDK経由のため現在日付をセット）
-                        const today = new Date();
-                        const year = today.getFullYear();
-                        const month = String(today.getMonth() + 1).padStart(2, '0');
-                        const day = String(today.getDate()).padStart(2, '0');
-                        document.getElementById('data-update-date').innerText = `${year}年${month}月${day}日取得`;
-
-                    } else {
-                        relatedCouncilsData = {}; // データがない場合は空にする
-                        console.log("Firestoreからの取得データが0件でした。");
-                        document.getElementById('data-update-date').innerText = "データなし";
-                    }
-
-                    if (loadingEl) loadingEl.classList.add('hidden');
-                    displayFieldData();
-                    
-                    const modal = document.getElementById('related-councils-modal');
-                    if (modal && !modal.classList.contains('hidden')) {
-                        populateRelatedCouncilsTable();
-                    }
-                }, (error) => {
-                    console.warn("関連会議データのリアルタイム取得エラー:", error);
-                    document.getElementById('data-update-date').innerText = "取得失敗";
-                    if (loadingEl) loadingEl.classList.add('hidden');
-                });
-            } catch (error) {
-                console.error("関連会議データの取得処理中にエラーが発生しました:", error);
-                document.getElementById('data-update-date').innerText = "取得失敗";
-                if (loadingEl) loadingEl.classList.add('hidden');
-            }
-        }
+        
+        const kenseiOrder = [
+            "官邸", "内閣官房", "内閣府", "国家公安委員会", "警察庁", "こども家庭庁", "金融庁", "消費者庁", "デジタル庁", "復興庁",
+            "総務省", "法務省", "外務省", "財務省", "文部科学省", "厚生労働省", "農林水産省", "経済産業省", "国土交通省", "環境省", "防衛省"
+        ];
 
         const areas17 = [
             { no: 1, name: "AI・半導体", council: "AI・半導体WG", url: "https://www8.cao.go.jp/cstp/ai/ai-semi_wg/ai-semi_wg.html" },
@@ -1040,42 +816,83 @@
             }
         };
 
-        const overviewUrls = {};
+        let dbInstancePromise = null;
+        let relatedCouncilsData = {};
+        let currentSortMode = 'default';
+        let fieldComments = {};
+        
+        let overviewUrls = {};
+        let roadmapUrls = {};
+        let memberUrls = {};
+        let pdfTabNames = { overview: {}, roadmap: {}, member: {} };
 
-        const roadmapUrls = {};
+        let currentPdfTab = 'overview';
+        let currentReportUrl = "";
+        let currentReportBtn = null;
 
-        const memberUrls = {};
+        let isAppInitialized = false;
+        let adminClickCount = 0;
 
-        // カスタムのタブ名を保存するオブジェクト
-        let pdfTabNames = {
-            overview: {},
-            roadmap: {},
-            member: {}
+        // Firebase SDKを動的にインポートして初期化する関数
+        function initFirebase() {
+            if (!dbInstancePromise) {
+                dbInstancePromise = (async () => {
+                    try {
+                        const { initializeApp, getApps, getApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+                        const { getFirestore } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                        const { getAuth, signInAnonymously } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                        
+                        let app;
+                        if (getApps().length === 0) {
+                            app = initializeApp(firebaseConfig);
+                        } else {
+                            app = getApp();
+                        }
+                        
+                        const auth = getAuth(app);
+                        try {
+                            await signInAnonymously(auth);
+                        } catch (authError) {
+                            console.warn("匿名ログインエラー:", authError);
+                        }
+
+                        return getFirestore(app);
+                    } catch (error) {
+                        console.error("Firebase初期化エラー:", error);
+                        dbInstancePromise = null;
+                        throw error;
+                    }
+                })();
+            }
+            return dbInstancePromise;
+        }
+
+        const normalizeStr = (str) => {
+            if (!str) return "";
+            return String(str)
+                .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                .replace(/[\s・]/g, '')
+                .toLowerCase();
         };
 
-        // リンクリストから各タブのPDF用URLとタブ名を取得する関数
-        async function fetchPdfLinksData() {
+        async function fetchFieldCommentsData() {
             try {
                 const db = await initFirebase();
-                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const fieldsRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'fields');
 
-                // コレクションを 'links' に指定
-                const dataRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'links');
+                try {
+                    const snapshot = await getDocs(fieldsRef);
+                    const allDocuments = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
 
-                // onSnapshotでリアルタイムに監視
-                onSnapshot(dataRef, (snapshot) => {
-                    // 再取得のたびにオブジェクトを初期化
-                    Object.keys(overviewUrls).forEach(k => delete overviewUrls[k]);
-                    Object.keys(roadmapUrls).forEach(k => delete roadmapUrls[k]);
-                    Object.keys(memberUrls).forEach(k => delete memberUrls[k]);
-                    pdfTabNames = { overview: {}, roadmap: {}, member: {} };
+                    fieldComments = {}; 
+                    let foundCount = 0;
 
-                    if (!snapshot.empty) {
-                        let foundCount = 0;
-                        snapshot.docs.forEach(doc => {
-                            const itemData = doc.data();
-                            
-                            // 分野列を探す（キー名の揺れにも対応）
+                    if (allDocuments.length > 0) {
+                        allDocuments.forEach(itemData => {
                             let fieldNameStr = itemData['分野'] || itemData['分野名'] || itemData.name;
                             if (!fieldNameStr) {
                                 const fieldKey = Object.keys(itemData).find(key => key.includes('分野'));
@@ -1083,7 +900,210 @@
                             }
                             fieldNameStr = String(fieldNameStr || "").trim();
 
-                            // 会議名列を探す（キー名の揺れにも対応）
+                            let commentStr = itemData['解説'] || itemData['解説のコメント'] || itemData['解説コメント'] || itemData.description;
+                            if (!commentStr) {
+                                const commentKey = Object.keys(itemData).find(key => key.includes('解説') || key.includes('コメント'));
+                                if (commentKey) commentStr = itemData[commentKey];
+                            }
+                            
+                            let fieldId = null;
+                            if (itemData.id.match(/^(17|8)_\d+$/)) {
+                                fieldId = itemData.id;
+                            }
+
+                            if (!fieldId && fieldNameStr && fieldNameStr !== "undefined") {
+                                const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
+                                const normClean = normalizeStr(cleanFieldNameStr);
+                                
+                                let match17 = areas17.find(item => {
+                                    const itemName = normalizeStr(item.name);
+                                    return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
+                                });
+                                if (match17) {
+                                    fieldId = `17_${match17.no}`;
+                                } else {
+                                    let match8 = areas8.find(item => {
+                                        const itemName = normalizeStr(item.name);
+                                        return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
+                                    });
+                                    if (match8) {
+                                        fieldId = `8_${match8.no}`;
+                                    }
+                                }
+
+                                if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) fieldId = fieldNameStr;
+                            }
+
+                            if (fieldId && commentStr && String(commentStr).trim() !== "") {
+                                fieldComments[fieldId] = String(commentStr);
+                                foundCount++;
+                                
+                                let match17 = areas17.find(item => fieldId === `17_${item.no}`);
+                                let match8 = areas8.find(item => fieldId === `8_${item.no}`);
+                                let targetArea = match17 || match8;
+                                
+                                if (targetArea) {
+                                    const councilName = itemData['会議体名'] || itemData['代表会議名'] || itemData.council || itemData['会議名'] || "";
+                                    if (councilName && String(councilName).trim() !== "") targetArea.council = councilName;
+                                    
+                                    const councilUrl = itemData['代表URL'] || itemData['会議体URL'] || itemData.url || itemData.URL || "";
+                                    if (councilUrl && String(councilUrl).trim() !== "") targetArea.url = councilUrl;
+                                }
+                            }
+                        });
+                        
+                        if (foundCount > 0) {
+                            displayFieldData();
+                        }
+                    }
+                } catch (error) {
+                    console.error("分野解説データの取得エラー:", error);
+                }
+            } catch (error) {
+                console.error("分野解説データの初期化エラー:", error);
+            }
+        }
+
+        async function fetchMeetingsData() {
+            const loadingEl = document.getElementById('related-councils-loading');
+            if (loadingEl) loadingEl.classList.remove('hidden');
+
+            try {
+                const db = await initFirebase();
+                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const meetingsRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'meetings');
+                
+                try {
+                    const snapshot = await getDocs(meetingsRef);
+                    const allDocuments = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    
+                    if (allDocuments.length > 0) {
+                        const parsedData = {};
+
+                        allDocuments.forEach(meeting => {
+                            const fieldNameStr = String(meeting['関連分野'] || meeting['分野'] || meeting.fieldId || meeting.relatedFieldId || "");
+                            let fieldId = null;
+
+                            if (fieldNameStr) {
+                                const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
+                                const normClean = normalizeStr(cleanFieldNameStr);
+
+                                let match17 = areas17.find(item => {
+                                    const itemName = normalizeStr(item.name);
+                                    return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
+                                });
+                                
+                                if (match17) {
+                                    fieldId = `17_${match17.no}`;
+                                } else {
+                                    let match8 = areas8.find(item => {
+                                        const itemName = normalizeStr(item.name);
+                                        return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
+                                    });
+                                    if (match8) {
+                                        fieldId = `8_${match8.no}`;
+                                    }
+                                }
+                                
+                                if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) {
+                                    fieldId = fieldNameStr;
+                                }
+                            }
+
+                            if (meeting.id && meeting.id.match(/^(17|8)_\d+$/)) {
+                                fieldId = meeting.id;
+                            }
+
+                            if (fieldId) {
+                                if (!parsedData[fieldId]) {
+                                    parsedData[fieldId] = [];
+                                }
+                                parsedData[fieldId].push({
+                                    category: meeting['区分'] || meeting.category || "",
+                                    rank: meeting['順位'] || meeting.rank || "",
+                                    name: meeting['会議名'] || meeting.name || "",
+                                    url: meeting['URL'] || meeting['会議体URL'] || meeting.url || "",
+                                    jurisdiction: meeting['所管'] || meeting.jurisdiction || "",
+                                    field: meeting['対象分野'] || meeting.field || "",
+                                    date: meeting['直近開催日'] || meeting.date || "",
+                                    note: meeting['備考'] || meeting.note || ""
+                                });
+
+                                let commentStr = meeting['解説'] || meeting['解説のコメント'] || meeting['分野の解説'] || meeting.comment || "";
+                                if (!commentStr) {
+                                    const commentKey = Object.keys(meeting).find(key => key.includes('解説') || key.includes('コメント'));
+                                    if (commentKey) commentStr = meeting[commentKey];
+                                }
+                                if (commentStr && String(commentStr).trim() !== "" && !fieldComments[fieldId]) {
+                                    fieldComments[fieldId] = String(commentStr);
+                                }
+                            }
+                        });
+                        
+                        relatedCouncilsData = parsedData;
+
+                        const today = new Date();
+                        const year = today.getFullYear();
+                        const month = String(today.getMonth() + 1).padStart(2, '0');
+                        const day = String(today.getDate()).padStart(2, '0');
+                        document.getElementById('data-update-date').innerText = `${year}年${month}月${day}日取得`;
+
+                    } else {
+                        relatedCouncilsData = {};
+                        document.getElementById('data-update-date').innerText = "データなし";
+                    }
+
+                    if (loadingEl) loadingEl.classList.add('hidden');
+                    displayFieldData();
+                    
+                    const modal = document.getElementById('related-councils-modal');
+                    if (modal && !modal.classList.contains('hidden')) {
+                        populateRelatedCouncilsTable();
+                    }
+                } catch (error) {
+                    console.error("関連会議データの取得エラー:", error);
+                    document.getElementById('data-update-date').innerText = "取得失敗";
+                    if (loadingEl) loadingEl.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error("関連会議データの初期化エラー:", error);
+                document.getElementById('data-update-date').innerText = "取得失敗";
+                if (loadingEl) loadingEl.classList.add('hidden');
+            }
+        }
+
+        async function fetchPdfLinksData() {
+            try {
+                const db = await initFirebase();
+                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const linksRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'links');
+
+                try {
+                    const snapshot = await getDocs(linksRef);
+                    const allDocuments = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+
+                    Object.keys(overviewUrls).forEach(k => delete overviewUrls[k]);
+                    Object.keys(roadmapUrls).forEach(k => delete roadmapUrls[k]);
+                    Object.keys(memberUrls).forEach(k => delete memberUrls[k]);
+                    pdfTabNames = { overview: {}, roadmap: {}, member: {} };
+
+                    let foundCount = 0;
+
+                    if (allDocuments.length > 0) {
+                        allDocuments.forEach(itemData => {
+                            let fieldNameStr = itemData['分野'] || itemData['分野名'] || itemData.name;
+                            if (!fieldNameStr) {
+                                const fieldKey = Object.keys(itemData).find(key => key.includes('分野'));
+                                if (fieldKey) fieldNameStr = itemData[fieldKey];
+                            }
+                            fieldNameStr = String(fieldNameStr || "").trim();
+
                             let councilNameStr = itemData['会議名'] || itemData['会議体名'] || itemData['代表会議名'] || itemData.council;
                             if (!councilNameStr) {
                                 const councilKey = Object.keys(itemData).find(key => key.includes('会議'));
@@ -1091,25 +1111,21 @@
                             }
                             councilNameStr = String(councilNameStr || "").trim();
 
-                            // doc.id が 17_1 などの形式なら、それを優先
                             let fieldId = null;
-                            if (doc.id.match(/^(17|8)_\d+$/)) {
-                                fieldId = doc.id;
+                            if (itemData.id && itemData.id.match(/^(17|8)_\d+$/)) {
+                                fieldId = itemData.id;
                             }
 
                             if (!fieldId && ((fieldNameStr && fieldNameStr !== "undefined") || (councilNameStr && councilNameStr !== "undefined"))) {
                                 const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
                                 const cleanCouncilNameStr = councilNameStr.trim();
                                 
-                                // 空白などを取り除いて比較を緩くする
-                                const normalize = (str) => str.replace(/\s+/g, '').toLowerCase();
-                                const normCleanField = normalize(cleanFieldNameStr);
-                                const normCleanCouncil = normalize(cleanCouncilNameStr);
+                                const normCleanField = normalizeStr(cleanFieldNameStr);
+                                const normCleanCouncil = normalizeStr(cleanCouncilNameStr);
                                 
-                                // areas17との照合（分野名 または 会議体名 で一致するか）
                                 let match17 = areas17.find(item => {
-                                    const itemName = normalize(item.name);
-                                    const itemCouncil = normalize(item.council || "");
+                                    const itemName = normalizeStr(item.name);
+                                    const itemCouncil = normalizeStr(item.council || "");
                                     const matchByName = normCleanField && (itemName === normCleanField || normCleanField.includes(itemName) || itemName.includes(normCleanField));
                                     const matchByCouncil = normCleanCouncil && itemCouncil && (itemCouncil === normCleanCouncil || normCleanCouncil.includes(itemCouncil) || itemCouncil.includes(normCleanCouncil));
                                     return matchByName || matchByCouncil;
@@ -1118,10 +1134,9 @@
                                 if (match17) {
                                     fieldId = `17_${match17.no}`;
                                 } else {
-                                    // areas8との照合（分野名 または 会議体名 で一致するか）
                                     let match8 = areas8.find(item => {
-                                        const itemName = normalize(item.name);
-                                        const itemCouncil = normalize(item.council || "");
+                                        const itemName = normalizeStr(item.name);
+                                        const itemCouncil = normalizeStr(item.council || "");
                                         const matchByName = normCleanField && (itemName === normCleanField || normCleanField.includes(itemName) || itemName.includes(normCleanField));
                                         const matchByCouncil = normCleanCouncil && itemCouncil && (itemCouncil === normCleanCouncil || normCleanCouncil.includes(itemCouncil) || itemCouncil.includes(normCleanCouncil));
                                         return matchByName || matchByCouncil;
@@ -1131,7 +1146,6 @@
                                     }
                                 }
 
-                                // 番号のみの指定の場合のフェイルセーフ
                                 if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) {
                                     fieldId = fieldNameStr;
                                 }
@@ -1149,35 +1163,33 @@
                                 }
 
                                 // ロードマップ等URLとタブ名
-                                const roadmapUrl = itemData['ロードマップ'] || itemData['ロードマップ等'] || itemData.roadmap || itemData.roadmap_url || itemData['ロードマップURL'] || "";
-                                const roadmapName = itemData['ロードマップ名'] || itemData['ロードマップタブ名'] || itemData.roadmap_name || "";
+                                const roadmapUrl = itemData['ロードマップ'] || itemData['ロードマップ等'] || itemData.roadmap || itemData.roadmap_url || "";
                                 if (roadmapUrl && String(roadmapUrl).trim() !== "") {
                                     roadmapUrls[fieldId] = roadmapUrl;
                                 }
+                                const roadmapName = itemData['ロードマップ名'] || itemData['ロードマップタブ名'] || itemData.roadmap_name || "";
                                 if (roadmapName && String(roadmapName).trim() !== "") {
                                     pdfTabNames.roadmap[fieldId] = roadmapName;
                                 }
 
                                 // 構成員等URLとタブ名
-                                const memberUrl = itemData['構成員'] || itemData['構成員等'] || itemData.member || itemData.member_url || itemData['構成員URL'] || "";
-                                const memberName = itemData['構成員名'] || itemData['構成員タブ名'] || itemData.member_name || "";
+                                const memberUrl = itemData['構成員'] || itemData['構成員等'] || itemData.member || itemData.member_url || "";
                                 if (memberUrl && String(memberUrl).trim() !== "") {
                                     memberUrls[fieldId] = memberUrl;
                                 }
+                                const memberName = itemData['構成員名'] || itemData['構成員タブ名'] || itemData.member_name || "";
                                 if (memberName && String(memberName).trim() !== "") {
                                     pdfTabNames.member[fieldId] = memberName;
                                 }
 
-                                // データベースに代表会議名・URLがあれば固定データを上書きする
                                 let match17 = areas17.find(item => fieldId === `17_${item.no}`);
                                 let match8 = areas8.find(item => fieldId === `8_${item.no}`);
                                 let targetArea = match17 || match8;
                                 
                                 if (targetArea) {
-                                    const councilName = itemData['会議体名'] || itemData['代表会議名'] || itemData.council || itemData['会議名'] || "";
-                                    if (councilName && String(councilName).trim() !== "") targetArea.council = councilName;
+                                    if (councilNameStr && String(councilNameStr).trim() !== "") targetArea.council = councilNameStr;
                                     
-                                    const councilUrl = itemData['代表URL'] || itemData['会議体URL'] || itemData.url || itemData.URL || "";
+                                    const councilUrl = itemData['会議体URL'] || itemData.url || itemData.URL || "";
                                     if (councilUrl && String(councilUrl).trim() !== "") targetArea.url = councilUrl;
                                 }
 
@@ -1185,28 +1197,17 @@
                             }
                         });
                         
-                        if (foundCount > 0) {
-                            console.log(`コレクション 'links' から ${foundCount} 件のPDFリンクデータを取得・更新しました。`);
-                            updatePdfDisplay(); // データ取得後にPDF表示を更新
-                        } else {
-                            console.log(`コレクション 'links' にドキュメントはありましたが、照合できるデータが0件でした。`);
-                            updatePdfDisplay();
-                        }
+                        updatePdfDisplay();
                     } else {
-                        console.log(`コレクション 'links' は空です。`);
                         updatePdfDisplay();
                     }
-                }, (error) => {
-                    console.warn(`コレクション 'links' のリアルタイム取得でエラーが発生しました。`, error);
-                });
+                } catch (error) {
+                    console.error("PDFリンクデータの取得エラー:", error);
+                }
             } catch (error) {
-                console.error("PDFリンクデータの取得処理中にエラーが発生しました:", error);
+                console.error("PDFリンクデータの初期化エラー:", error);
             }
         }
-
-        let currentPdfTab = 'overview';
-        let currentReportUrl = "";
-        let currentReportBtn = null;
 
         function updateFieldSelect(autoDisplay = true) {
             const category = document.getElementById('category-select').value;
@@ -1251,7 +1252,6 @@
                 councilLink.classList.add('hidden');
             }
 
-            // 関連会議ボタンの表示制御
             if (relatedCouncilsData[fieldId] && relatedCouncilsData[fieldId].length > 0) {
                 relatedBtn.classList.remove('hidden');
             } else {
@@ -1264,7 +1264,6 @@
                 cBtn.classList.add('hidden');
             }
 
-            // コンテナ全体の表示制御
             if (fieldData.url || (relatedCouncilsData[fieldId] && relatedCouncilsData[fieldId].length > 0) || fieldComments[fieldId]) {
                 councilLinkContainer.classList.remove('hidden');
             } else {
@@ -1324,7 +1323,6 @@
             const mobileFallback = document.getElementById('mobile-pdf-fallback');
             const mobileBtn = document.getElementById('mobile-pdf-btn');
 
-            // タブの名前を分野ごとに更新する（データがない場合はデフォルト名）
             document.getElementById('tab-overview').innerText = pdfTabNames.overview[fieldId] || "概要";
             document.getElementById('tab-roadmap').innerText = pdfTabNames.roadmap[fieldId] || "ロードマップ等";
             document.getElementById('tab-member').innerText = pdfTabNames.member[fieldId] || "構成員等";
@@ -1335,7 +1333,6 @@
                 noMessage.classList.add('hidden');
 
                 if (isMobileDevice()) {
-                    // モバイルの場合
                     iframe.src = "";
                     iframe.classList.add('hidden');
                     loading.classList.add('hidden');
@@ -1345,14 +1342,13 @@
                     mobileFallback.classList.remove('hidden');
                     mobileFallback.classList.add('flex');
                 } else {
-                    // PCの場合
                     mobileFallback.classList.add('hidden');
                     mobileFallback.classList.remove('flex');
                     warning.classList.remove('hidden');
                     
-                    loading.classList.remove('hidden'); // ローディング開始
+                    loading.classList.remove('hidden');
                     iframe.classList.remove('hidden');
-                    iframe.src = url; // onloadでローディングが消える
+                    iframe.src = url;
                 }
             } else {
                 iframe.src = "";
@@ -1399,7 +1395,6 @@
                 const mobileBtn = document.getElementById('mobile-report-btn');
 
                 if (isMobileDevice()) {
-                    // スマホ・タブレットの場合はiframeを使わずボタンを表示
                     reportFrame.src = "";
                     reportFrame.classList.add('hidden');
                     loading.classList.add('hidden');
@@ -1408,7 +1403,6 @@
                     mobileFallback.classList.remove('hidden');
                     mobileFallback.classList.add('flex');
                 } else {
-                    // PCの場合はiframeに読み込む
                     mobileFallback.classList.add('hidden');
                     mobileFallback.classList.remove('flex');
                     
@@ -1491,8 +1485,6 @@
             }
         }
 
-        const VIEW_PASSWORD = "strategy";
-
         function verifyViewPassword() {
             const pw = document.getElementById('view-password-input').value;
             if (pw === VIEW_PASSWORD) {
@@ -1517,12 +1509,10 @@
             const pw = urlParams.get('pw') || urlParams.get('p') || urlParams.get('pass');
             
             if (pw === VIEW_PASSWORD) {
-                // URLからクエリパラメータを消去
                 const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
                 window.history.replaceState({path: newUrl}, '', newUrl);
                 unlockView();
             } else {
-                // パスワードがない、または間違っている場合はそのままログイン画面を表示
                 setTimeout(() => {
                     const input = document.getElementById('view-password-input');
                     if(input) input.focus();
@@ -1530,7 +1520,6 @@
             }
         }
 
-        let isAppInitialized = false;
         function initAppData() {
             if (isAppInitialized) return;
             isAppInitialized = true;
@@ -1539,10 +1528,9 @@
             updateAccessDate();
             setInterval(updateAccessDate, 60000);
             
-            // 初回表示時にAPIからデータを取得
             fetchMeetingsData();
-            fetchFieldCommentsData(); // 分野別リストの解説データを取得する
-            fetchPdfLinksData(); // リンクリストのPDFデータを取得する
+            fetchFieldCommentsData();
+            fetchPdfLinksData();
         }
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -1563,12 +1551,6 @@
             }
         });
 
-        // 省庁の建制順（ソート用）
-        const kenseiOrder = [
-            "官邸", "内閣官房", "内閣府", "国家公安委員会", "警察庁", "こども家庭庁", "金融庁", "消費者庁", "デジタル庁", "復興庁",
-            "総務省", "法務省", "外務省", "財務省", "文部科学省", "厚生労働省", "農林水産省", "経済産業省", "国土交通省", "環境省", "防衛省"
-        ];
-
         function getJurisdictionRank(jurisdictionStr) {
             if (!jurisdictionStr) return 999;
             let minRank = 999;
@@ -1580,11 +1562,9 @@
             return minRank;
         }
 
-        // 日付文字列からDateオブジェクトを生成する関数（ソート用）
         function parseMeetingDate(dateStr) {
             if (!dateStr || typeof dateStr !== 'string') return new Date(0);
             
-            // 令和X年X月X日
             const reiwaRegex = /令和([0-9０-９]+|元)年([0-9０-９]{1,2})月([0-9０-９]{1,2})日/;
             let match = reiwaRegex.exec(dateStr);
             if (match) {
@@ -1595,33 +1575,28 @@
                 return new Date(year, month, day);
             }
 
-            // 西暦 (YYYY年MM月DD日)
             const seirekiRegex = /([0-9]{4})年([0-9]{1,2})月([0-9]{1,2})日/;
             match = seirekiRegex.exec(dateStr);
             if (match) {
                 return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
             }
 
-            // スラッシュ (YYYY/MM/DD)
             const slashRegex = /([0-9]{4})[/-]([0-9]{1,2})[/-]([0-9]{1,2})/;
             match = slashRegex.exec(dateStr);
             if (match) {
                 return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
             }
 
-            return new Date(0); // 解析不能な場合は過去の日付扱い
+            return new Date(0);
         }
 
-        // 日付文字列から直近1ヶ月の会議かどうかを判定する関数
         function isRecentMeeting(dateStr) {
             if (!dateStr || typeof dateStr !== 'string') return false;
             
             const today = new Date();
-            // 現在から前後1ヶ月を直近とする
             const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
             const oneMonthFuture = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
             
-            // 令和X年X月X日 の抽出
             const reiwaRegex = /令和([0-9０-９]+|元)年([0-9０-９]{1,2})月([0-9０-９]{1,2})日/g;
             let match;
             while ((match = reiwaRegex.exec(dateStr)) !== null) {
@@ -1633,14 +1608,12 @@
                 if (d >= oneMonthAgo && d <= oneMonthFuture) return true;
             }
 
-            // 西暦 (YYYY年MM月DD日) の抽出
             const seirekiRegex = /([0-9]{4})年([0-9]{1,2})月([0-9]{1,2})日/g;
             while ((match = seirekiRegex.exec(dateStr)) !== null) {
                 const d = new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
                 if (d >= oneMonthAgo && d <= oneMonthFuture) return true;
             }
 
-            // YYYY/MM/DD や YYYY-MM-DD の抽出
             const slashRegex = /([0-9]{4})[/-]([0-9]{1,2})[/-]([0-9]{1,2})/g;
             while ((match = slashRegex.exec(dateStr)) !== null) {
                 const d = new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
@@ -1650,10 +1623,8 @@
             return false;
         }
 
-        // テーブルの描画ロジックを分離
         function populateRelatedCouncilsTable() {
             const fieldId = document.getElementById('field-select').value;
-            // Firestoreから取得したデータ
             const data = relatedCouncilsData[fieldId] || [];
 
             const tbody = document.getElementById('related-modal-tbody');
@@ -1679,14 +1650,12 @@
             
             const getRankNum = (rankStr) => {
                 if (!rankStr || String(rankStr).trim() === '-' || String(rankStr).trim() === '') return 9999;
-                // 全角数字を半角に変換
                 const str = String(rankStr).replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
                 const num = parseInt(str.replace(/[^0-9]/g, ''), 10);
                 return isNaN(num) ? 9999 : num;
             };
 
             if (currentSortMode === 'rank') {
-                // 順位でソート
                 displayData.sort((a, b) => {
                     const rankA = getRankNum(a.rank);
                     const rankB = getRankNum(b.rank);
@@ -1697,7 +1666,6 @@
                     return a.originalIndex - b.originalIndex;
                 });
             } else if (currentSortMode === 'date') {
-                // 開催日でソート（新しい順・降順）
                 displayData.sort((a, b) => {
                     const dateA = parseMeetingDate(a.date).getTime();
                     const dateB = parseMeetingDate(b.date).getTime();
@@ -1708,9 +1676,7 @@
                     return a.originalIndex - b.originalIndex;
                 });
             } else {
-                // デフォルト：区分（官邸 -> 省庁 -> 関連施策） -> 所管 -> 会議名（50音順）
                 displayData.sort((a, b) => {
-                    // 1. 区分 ('官邸' -> '省庁' -> '関連施策' の順、その他は文字列順)
                     const getCategoryWeight = (cat) => {
                         const c = cat || "";
                         if (c.includes('官邸')) return 1;
@@ -1726,7 +1692,6 @@
                     const catB = b.category || "";
                     if (catA !== catB) return catA.localeCompare(catB, 'ja');
 
-                    // 2. 所管 (建制順、無ければ文字列順)
                     const jurRankA = getJurisdictionRank(a.jurisdiction);
                     const jurRankB = getJurisdictionRank(b.jurisdiction);
                     if (jurRankA !== jurRankB) return jurRankA - jurRankB;
@@ -1735,7 +1700,6 @@
                     const jurB = b.jurisdiction || "";
                     if (jurA !== jurB) return jurA.localeCompare(jurB, 'ja');
 
-                    // 3. 会議名
                     const nameA = a.name || "";
                     const nameB = b.name || "";
                     return nameA.localeCompare(nameB, 'ja');
@@ -1822,27 +1786,6 @@
             setTimeout(() => document.getElementById('detail-section').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
         }
 
-        document.addEventListener('keydown', (e) => { 
-            if (e.key === 'Escape') {
-                closeModal();
-                closeImageModal();
-                closeHowToModal();
-                closeRelatedCouncilsModal();
-                closeFieldCommentModal();
-                closePasswordModal();
-            } 
-        });
-
-        function scrollToSection(sectionId) {
-            const section = document.getElementById(sectionId);
-            if (section) {
-                if (sectionId === 'report-viewer-section' && section.classList.contains('hidden')) {
-                    section.classList.remove('hidden');
-                }
-                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        }
-        
         function applySort() {
             currentSortMode = document.getElementById('sort-select').value;
             populateRelatedCouncilsTable();
@@ -1896,7 +1839,6 @@
             };
 
             if (currentSortMode === 'rank') {
-                // 順位でソート
                 displayData.sort((a, b) => {
                     const rankA = getRankNum(a.rank);
                     const rankB = getRankNum(b.rank);
@@ -1907,7 +1849,6 @@
                     return a.originalIndex - b.originalIndex;
                 });
             } else if (currentSortMode === 'date') {
-                // 開催日でソート（新しい順・降順）
                 displayData.sort((a, b) => {
                     const dateA = parseMeetingDate(a.date).getTime();
                     const dateB = parseMeetingDate(b.date).getTime();
@@ -1918,9 +1859,7 @@
                     return a.originalIndex - b.originalIndex;
                 });
             } else {
-                // デフォルト：区分（官邸 -> 省庁 -> 関連施策） -> 所管 -> 会議名（50音順）
                 displayData.sort((a, b) => {
-                    // 1. 区分 ('官邸' -> '省庁' -> '関連施策' の順、その他は文字列順)
                     const getCategoryWeight = (cat) => {
                         const c = cat || "";
                         if (c.includes('官邸')) return 1;
@@ -1936,7 +1875,6 @@
                     const catB = b.category || "";
                     if (catA !== catB) return catA.localeCompare(catB, 'ja');
 
-                    // 2. 所管 (建制順、無ければ文字列順)
                     const jurRankA = getJurisdictionRank(a.jurisdiction);
                     const jurRankB = getJurisdictionRank(b.jurisdiction);
                     if (jurRankA !== jurRankB) return jurRankA - jurRankB;
@@ -1945,7 +1883,6 @@
                     const jurB = b.jurisdiction || "";
                     if (jurA !== jurB) return jurA.localeCompare(jurB, 'ja');
 
-                    // 3. 会議名
                     const nameA = a.name || "";
                     const nameB = b.name || "";
                     return nameA.localeCompare(nameB, 'ja');
@@ -1973,12 +1910,11 @@
             
             let rawComment = fieldComments[fid] || "この分野の解説データは現在登録されていません。";
             
-            // 改行、マークダウン風の太字(**太字**)、URLのリンク化などの指示をHTMLに変換して表示
             let htmlContent = rawComment
                 .replace(/\r\n/g, '\n')
                 .replace(/\n/g, '<br>')
-                .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') // **太字**
-                .replace(/__(.*?)__/g, '<b>$1</b>')     // __太字__
+                .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+                .replace(/__(.*?)__/g, '<b>$1</b>')
                 .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
                 
             document.getElementById('field-comment-content').innerHTML = htmlContent;
@@ -1986,17 +1922,6 @@
         }
 
         function closeFieldCommentModal() { document.getElementById('field-comment-modal').classList.add('hidden'); }
-
-        function notifyUpdateDate(date) {
-            if (localStorage.getItem('notifiedUpdateDate') === date) return;
-            fetch('https://report.rifj.jp/dashboard/', {
-                method: 'POST', mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event: 'data_updated', date: date })
-            }).then(() => localStorage.setItem('notifiedUpdateDate', date)).catch(() => {});
-        }
-
-        let adminClickCount = 0;
 
         function handleAdminClick() {
             if (adminClickCount === 0) {
@@ -2041,7 +1966,7 @@
             const iframe = document.getElementById('admin-edit-frame');
             iframe.src = "";
             container.classList.add('hidden');
-            adminClickCount = 0; // セキュリティを考慮し、画面を閉じたらリセットする
+            adminClickCount = 0; 
         }
     </script>
 </body>
