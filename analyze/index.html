@@ -155,7 +155,7 @@
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${aiModel}:generateContent?key=${apiKey}`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }],
-        systemInstruction: { parts: [{ text: "あなたはプロのデータアナリストです。提供されたデータから主要な示唆を日本語で提供してください。箇条書きと太字を活用してください。" }] }
+        systemInstruction: { parts: [{ text: "あなたはプロのデータアナリストです。提供された実際の集計データや統計量に基づいて、主要な傾向や示唆を日本語で提供してください。一般的な説明は避け、必ず具体的な「数値（平均や差分など）」を引用し、推測ではなくデータに基づいた実践的な洞察を、箇条書きと太字を活用して分かりやすく記述してください。" }] }
       };
       
       let delay = 1000;
@@ -451,7 +451,22 @@
             } catch(e) {}
         }
 
-        let aiPrompt = `分析手法: ${analysisType}\nX軸: ${xAxis}, Y軸: ${yAxis}, 対象: ${yAxisChk.join(",")}\nデータ件数: ${processedData.length}\n\n[集計データ]\n${dataStr}\n\n上記データと条件に基づいて、データから読み取れる主要な傾向や示唆を日本語で提供してください。`;
+        // 全体の基本統計量を裏側で計算してAIに渡す
+        let overallStats = yAxisChk.map(c => {
+          let vls = processedData.map(d => toNum(d[c])).filter(v => v !== null).sort((a,b)=>a-b);
+          if (!vls.length) return null;
+          return { 
+            "列名": c, 
+            "有効データ数": vls.length, 
+            "平均値": Number((vls.reduce((a,b)=>a+b,0)/vls.length).toFixed(2)), 
+            "最小値": vls[0], 
+            "中央値": vls[Math.floor(vls.length/2)], 
+            "最大値": vls[vls.length-1] 
+          };
+        }).filter(Boolean);
+        let statsStr = JSON.stringify(overallStats);
+
+        let aiPrompt = `【分析条件】\n分析手法: ${analysisType}\nX軸: ${xAxis}\nY軸: ${yAxis}\n分析対象の数値項目: ${yAxisChk.join(", ")}\n全体データ件数: ${processedData.length}\n\n【対象項目の基本統計量】\n${statsStr}\n\n【グラフ表示用の集計・サンプリングデータ】\n${dataStr}\n\n上記データと条件に基づいて、データから読み取れる主要な傾向や示唆を日本語で提供してください。必ず「基本統計量」や「集計データ」の実際の数値を引用して具体的に分析してください。`;
         
         try {
           const res = await callGemini(aiPrompt);
