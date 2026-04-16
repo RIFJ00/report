@@ -136,16 +136,35 @@
       return { numeric: num, categorical: cat, date: dt, all: keys };
     };
 
-    const apiKey = "";
     const callGemini = async (prompt) => {
+      const apiKey = localStorage.getItem('gemini_api_key');
+      if (!apiKey) {
+        throw new Error("APIキーが設定されていません。右上の「API設定」からGemini APIキーを登録してください。");
+      }
+
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }],
         systemInstruction: { parts: [{ text: "あなたはプロのデータアナリストです。分析結果から主要な示唆を日本語で提供してください。箇条書きと太字を活用してください。" }] }
       };
-      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const result = await response.json();
-      return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI分析に失敗しました。";
+      
+      let delay = 1000;
+      for (let attempt = 1; attempt <= 5; attempt++) {
+          try {
+              const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+              if (!response.ok) {
+                  throw new Error(`APIリクエストエラー: ${response.status}`);
+              }
+              const result = await response.json();
+              return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI分析から結果を取得できませんでした。";
+          } catch (error) {
+              if (attempt === 5) {
+                  throw new Error("AI分析に失敗しました。時間をおいて再度お試しいただくか、APIキーが正しいか確認してください。");
+              }
+              await new Promise(resolve => setTimeout(resolve, delay));
+              delay *= 2;
+          }
+      }
     };
 
     // ==========================================
@@ -172,7 +191,8 @@
       Send: (p) => <SvgIcon d="M22 2L11 13 M22 2l-7 20-4-9-9-4 20-7z" {...p}/>,
       Transpose: (p) => <SvgIcon d="M17 1l4 4-4 4 M3 5h18 M11 13l-4 4 4 4 M21 17H3" {...p}/>,
       Reload: (p) => <SvgIcon d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5" {...p}/>,
-      Download: (p) => <SvgIcon d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p}/>
+      Download: (p) => <SvgIcon d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p}/>,
+      Key: (p) => <SvgIcon d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" {...p}/>
     };
 
     const AxisOptions = ({ cols }) => (
@@ -191,6 +211,53 @@
         <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4 mb-5 shadow-sm animate-in text-slate-700">
           <h4 className="font-bold text-blue-800 flex items-center mb-1"><Icons.Info className="w-4 h-4 mr-1.5" />{info.name.split('. ')[1]}</h4>
           <p className="text-xs mb-2 leading-relaxed">{info.desc}</p>
+        </div>
+      );
+    };
+
+    // ==========================================
+    // モーダル: API設定
+    // ==========================================
+    const SettingsModal = ({ isOpen, onClose }) => {
+      const [apiKey, setApiKey] = useState('');
+      
+      useEffect(() => { 
+        if(isOpen) setApiKey(localStorage.getItem('gemini_api_key') || ''); 
+      }, [isOpen]);
+      
+      const handleSave = () => { 
+        localStorage.setItem('gemini_api_key', apiKey.trim()); 
+        onClose(); 
+      };
+
+      if(!isOpen) return null;
+      
+      return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 modal-overlay animate-in">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800 flex items-center"><Icons.Key className="w-5 h-5 mr-2 text-blue-600"/> APIキー設定</h3>
+              <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><Icons.X className="w-5 h-5"/></button>
+            </div>
+            <div className="p-6">
+              <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                AIアナリスト機能を利用するには、<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">Google AI Studio</a>で取得したGemini APIキーを設定してください。
+                <br/>※入力したキーはお使いのブラウザ(ローカル)にのみ保存され、外部に送信されることはありません。
+              </p>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Gemini API Key</label>
+              <input 
+                type="password" 
+                value={apiKey} 
+                onChange={e=>setApiKey(e.target.value)} 
+                placeholder="AIzaSy..." 
+                className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-600 outline-none mb-6 font-mono shadow-inner" 
+              />
+              <div className="flex justify-end space-x-3">
+                <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">キャンセル</button>
+                <button onClick={handleSave} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm">保存する</button>
+              </div>
+            </div>
+          </div>
         </div>
       );
     };
@@ -292,7 +359,6 @@
             case 'stat_test': {
               let grp = {}; processedData.forEach(r => { let c=String(r[xAxis]||''), v=toNum(r[yAxis]); if(c && v!==null){ if(!grp[c])grp[c]=[]; grp[c].push(v); }});
               let ks = Object.keys(grp).filter(k=>grp[k].length>1); if(ks.length<2) throw new Error('2つ以上のグループが必要です。');
-              setStatTestData({ groups: ks.map(k => ({key:k, n:grp[k].length, mean:grp[k].reduce((a,b)=>a+b,0)/grp[k].length})) });
               window.Plotly.newPlot('chart-area', ks.map(k=>({y:grp[k], type:'box', name:k})), {margin: {t:40}});
               break;
             }
@@ -318,7 +384,7 @@
           const res = await callGemini(aiPrompt);
           setChatHistory([{ role: "assistant", text: res }]);
         } catch (e) {
-          setChatHistory([{ role: "assistant", text: "AI分析中にエラーが発生しました。" }]);
+          setChatHistory([{ role: "assistant", text: e.message || "AI分析中にエラーが発生しました。" }]);
         } finally { setAiLoading(false); }
       };
 
@@ -331,7 +397,7 @@
           const res = await callGemini(`文脈を踏まえて質問に答えてください: ${msg}`);
           setChatHistory(p => [...p, { role: "assistant", text: res }]);
         } catch (e) {
-          setChatHistory(p => [...p, { role: "assistant", text: "エラーが発生しました。" }]);
+          setChatHistory(p => [...p, { role: "assistant", text: e.message || "エラーが発生しました。" }]);
         } finally { setAiLoading(false); }
       };
 
@@ -436,7 +502,7 @@
     // 5. ワークスペースラッパー
     // ==========================================
 
-    const AnalysisWorkspaceWrapper = ({ rawData, fileName, onReset }) => {
+    const AnalysisWorkspaceWrapper = ({ rawData, fileName, onReset, onOpenSettings }) => {
       const initialGrid = useMemo(() => rawData.map(r => {
         const nr = {...r}; Object.keys(nr).forEach(k => { const f = smartFormatDate(nr[k], k); if(/^\d{4}-\d{2}-\d{2}$/.test(f)) nr[k]=f; }); return nr;
       }), [rawData]);
@@ -476,14 +542,29 @@
       return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
           <header className="h-16 bg-slate-900 text-white flex items-center justify-between px-6 shrink-0 z-30">
-            <div className="flex items-center space-x-4"><button onClick={onReset} className="p-2 hover:bg-white/10 rounded-full transition-colors"><Icons.Left className="w-5 h-5"/></button>
-              <div><h1 className="font-black text-xl text-blue-400 leading-none">Universal Analyzer</h1><p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">{fileName}</p></div>
+            <div className="flex items-center space-x-4">
+              <button onClick={onReset} className="p-2 hover:bg-white/10 rounded-full transition-colors"><Icons.Left className="w-5 h-5"/></button>
+              <div>
+                <h1 className="font-black text-xl text-blue-400 leading-none truncate max-w-[150px] sm:max-w-xs">Universal Analyzer</h1>
+                <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest truncate max-w-[150px] sm:max-w-xs">{fileName}</p>
+              </div>
             </div>
-            <div className="flex bg-slate-800 rounded-xl p-1 border border-white/10">
-              <button onClick={() => setViewMode('analysis')} className={`flex items-center px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'analysis' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}><Icons.Chart className="w-4 h-4 mr-2" /> 分析</button>
-              <button onClick={() => setViewMode('editor')} className={`flex items-center px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'editor' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}><Icons.Table className="w-4 h-4 mr-2" /> 編集</button>
+            
+            <div className="flex bg-slate-800 rounded-xl p-1 border border-white/10 flex-shrink-0 mx-2">
+              <button onClick={() => setViewMode('analysis')} className={`flex items-center px-4 sm:px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'analysis' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>
+                <Icons.Chart className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">分析</span>
+              </button>
+              <button onClick={() => setViewMode('editor')} className={`flex items-center px-4 sm:px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'editor' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>
+                <Icons.Table className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">編集</span>
+              </button>
             </div>
-            <div className="w-40 flex justify-end font-black text-blue-500 text-xs animate-pulse tracking-tighter">AI READY</div>
+            
+            <div className="flex items-center space-x-3">
+              <div className="hidden md:block font-black text-blue-500 text-[10px] animate-pulse tracking-tighter border border-blue-500/30 px-2 py-1 rounded bg-blue-500/10">AI READY</div>
+              <button onClick={onOpenSettings} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors flex items-center text-slate-300 hover:text-white text-xs font-bold border border-white/10 shadow-sm whitespace-nowrap">
+                <Icons.Key className="w-4 h-4 md:mr-1.5"/> <span className="hidden md:inline">API設定</span>
+              </button>
+            </div>
           </header>
           <main className="flex-1 overflow-hidden">
             {viewMode === 'analysis' ? <AnalysisPanel processedData={processedData} cols={cols} gridData={gridData} /> : (
@@ -530,6 +611,8 @@
       const [data, setData] = useState([]);
       const [fileName, setFileName] = useState('');
       const [errorMsg, setErrorMsg] = useState('');
+      const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
       const handleFileUpload = (e) => {
         const file = e.target.files[0]; if (!file) return;
         setErrorMsg(''); setFileName(file.name);
@@ -542,9 +625,27 @@
           } catch(err) { setErrorMsg('読み込みに失敗しました。'); }
         }; reader.readAsBinaryString(file);
       };
-      if (data.length > 0) return <AnalysisWorkspaceWrapper rawData={data} fileName={fileName} onReset={() => setData([])} />;
+
+      if (data.length > 0) {
+        return (
+          <Fragment>
+            <AnalysisWorkspaceWrapper rawData={data} fileName={fileName} onReset={() => setData([])} onOpenSettings={() => setIsSettingsOpen(true)} />
+            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+          </Fragment>
+        );
+      }
+
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50 text-slate-800">
+        <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50 text-slate-800 relative">
+          <div className="absolute top-4 right-4">
+            <button 
+              onClick={() => setIsSettingsOpen(true)} 
+              className="flex items-center px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 transition-colors"
+            >
+              <Icons.Key className="w-4 h-4 mr-2 text-slate-500" /> API設定
+            </button>
+          </div>
+          
           <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 text-center animate-in">
             <div className="w-24 h-24 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner"><Icons.Upload className="w-12 h-12" /></div>
             <h1 className="text-3xl font-black text-slate-900 mb-3 tracking-tighter">Data Analyzer</h1>
@@ -557,6 +658,8 @@
               </div>
             </div>
           </div>
+
+          <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
         </div>
       );
     };
