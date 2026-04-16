@@ -1,563 +1,1189 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
-import { UploadCloud, Copy, CheckCircle, FileText, ArrowLeft, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Universal Data Analyzer (22 Tools)</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM (UMD) -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- SheetJS for Excel/CSV Import -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-// --- Firebase Initialization ---
-const firebaseConfig = {
-  apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04",
-  authDomain: "import-b6097.firebaseapp.com",
-  projectId: "import-b6097",
-  storageBucket: "import-b6097.firebasestorage.app",
-  messagingSenderId: "462510788117",
-  appId: "1:462510788117:web:44ff1fd1af583f67bc081c",
-  measurementId: "G-Z5ZNMKGTTK"
-};
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+  <!-- Plotly.js for Advanced Charting (Unifying all charts to Plotly) -->
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 
-// --- Utility Functions ---
+  <!-- jStat for Statistical Tests -->
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
 
-// ArrayBuffer to Base64 (Chunked to prevent stack overflow)
-const arrayBufferToBase64 = (buffer) => {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
-  const chunkSize = 8192; 
-  for (let i = 0; i < len; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode.apply(null, chunk);
-  }
-  return btoa(binary);
-};
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-// Base64 to Uint8Array
-const base64ToUint8Array = (base64) => {
-  const binary_string = atob(base64);
-  const len = binary_string.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-      bytes[i] = binary_string.charCodeAt(i);
-  }
-  return bytes;
-};
+  <style>
+    body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background-color: #f8fafc; }
+    .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+    .animate-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
 
-// Copy to Clipboard Fallback
-const copyToClipboard = async (text) => {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (err) {
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-      document.execCommand('copy');
-      textArea.remove();
-      return true;
-    } catch (e) {
-      textArea.remove();
-      return false;
-    }
-  }
-};
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef, Fragment } = React;
 
-// --- Main App Component ---
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [viewPdfId, setViewPdfId] = useState(null);
+    // --- アイコンコンポーネント ---
+    const SvgIcon = ({ d, ...props }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={props.className} {...props}>
+        <path d={d} />
+      </svg>
+    );
+    const UploadCloud = (p) => <SvgIcon d="M16 16l-4-4-4 4 M12 12v9 M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" {...p}/>;
+    const FileSpreadsheet = (p) => <SvgIcon d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z M14 2v6h6 M8 13h2 M8 17h2 M14 13h2 M14 17h2" {...p}/>;
+    const PlayIcon = (p) => <SvgIcon d="M5 3l14 9-14 9V3z" {...p}/>;
+    const InfoIcon = (p) => <SvgIcon d="M12 12m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0 M12 16v-4 M12 8h.01" {...p}/>;
+    const AlertCircle = (p) => <SvgIcon d="M12 12m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0 M12 8v4 M12 16h.01" {...p}/>;
+    const Settings = (p) => <SvgIcon d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" {...p}/>;
+    const RefreshCw = (p) => <SvgIcon d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5" {...p}/>;
+    const ArrowLeft = (p) => <SvgIcon d="M19 12H5 M12 19l-7-7 7-7" {...p}/>;
+    const ArrowUpDown = (p) => <SvgIcon d="M7 15l5 5 5-5 M7 9l5-5 5 5 M12 4v16" {...p}/>;
 
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          try {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } catch (tokenError) {
-            console.warn("カスタムトークンの認証に失敗しました。匿名認証に切り替えます。", tokenError);
-            await signInAnonymously(auth);
+    // --- 分析設定とUIコントロールの定義 ---
+    const ANALYSIS_TYPES = [
+      // 基礎
+      { id: 'summary', name: '1. 基本統計量 (表)', group: '基礎', desc: 'データ数、平均、標準偏差、最小、最大、中央値などを表形式で一覧表示します。', useCase: '選択した変数の全体的な規模感や分布の要約を数値で正確に確認したい場合。' },
+      // 推移・傾向
+      { id: 'timeseries', name: '2. 時系列推移 (折れ線グラフ)', group: '推移・傾向', desc: '時間の経過に伴う数値の変化を折れ線グラフで示します。', useCase: '売上などのトレンド（上昇・下降傾向）や季節性を確認したい場合。' },
+      { id: 'bumpchart', name: '3. バンプチャート (順位推移)', group: '推移・傾向', desc: '数値そのものではなく、グループ間の「順位」の変動を折れ線で追います。', useCase: '売上ランキングなど、時系列での「順位の入れ替わり」に焦点を当てて分析したい場合。' },
+      // 比較
+      { id: 'comparison', name: '4. カテゴリ別平均 (棒グラフ)', group: '比較', desc: 'カテゴリ（グループ）ごとに数値の平均値を算出し、棒グラフで比較します。', useCase: '店舗別、地域別、商品別など、グループ間の大小関係をシンプルに比較したい場合。' },
+      { id: 'radar', name: '5. レーダーチャート (多変量比較)', group: '比較', desc: '複数の項目を放射状の軸にとり、それぞれの値を線で結んで多角形を作ります。', useCase: '対象の「総合的なバランス」や「強み・弱み」を複数の指標で同時に評価したい場合。' },
+      // 分布
+      { id: 'boxplot', name: '6. 分布・ばらつき (箱ひげ図)', group: '分布', desc: 'データのばらつき（四分位範囲や中央値）や外れ値を「箱」と「ひげ」で表現します。', useCase: 'グループごとの結果のブレ幅や、極端な異常値（外れ値）が存在するかどうかを確認したい場合。' },
+      { id: 'histogram', name: '7. 全体分布 (ヒストグラム)', group: '分布', desc: 'データを一定の区間に区切り、各区間に含まれるデータの数を棒グラフで示します。', useCase: '全体の中でどの数値帯（ボリュームゾーン）が最も多いのか、データの偏りを見たい場合。' },
+      { id: 'violin', name: '8. バイオリンプロット (分布詳細)', group: '分布', desc: '箱ひげ図にデータの分布密度（ヒストグラムを滑らかにしたもの）を組み合わせたグラフです。', useCase: '箱ひげ図ではわからない、データがどこに集中しているかという具体的な分布の形（山の数など）を比較する場合。' },
+      { id: 'stripplot', name: '9. ストリッププロット (散布)', group: '分布', desc: '実際のデータ点を、グループごとに重ならないように散らして配置します。', useCase: '箱ひげ図のように統計値にまとめず、実際の生データがどこに偏っているか、個々の点を確認したい場合。' },
+      { id: 'ridgeline', name: '10. リッジラインプロット', group: '分布', desc: 'グループごとの分布（山の形）を、山の稜線のように少しずつ重ねながら縦に並べます。', useCase: '多数のグループの分布を省スペースで比較し、全体のトレンドの変化を美しく見せたい場合。' },
+      { id: 'contour', name: '11. 2D密度等高線', group: '分布', desc: '2変数の散布図において、データが密集している部分を等高線や色の濃淡（ヒートマップ状）で示します。', useCase: 'データ数が非常に多く、通常の散布図では点が重なりすぎて分布の濃淡（どこが一番多いか）が分からない場合。' },
+      // 関係性
+      { id: 'correlation', name: '12. 変数間相関 (ヒートマップ)', group: '関係性', desc: '複数の数値データの間にどの程度の関係性（相関）があるかを色の濃淡で示します。', useCase: '「気温が上がるとアイスが売れるか」のような、複数項目間の連動性を一網打尽に探る場合。' },
+      { id: 'scatter', name: '13. 散布図 (2変数比較)', group: '関係性', desc: '縦軸と横軸に異なる数値を設定し、データを点として打ち出します。', useCase: '2つの項目の間にどのような関係（比例、反比例など）があるか、直感的に傾向を捉えたい場合。' },
+      { id: 'bubble', name: '14. バブルチャート (3変数比較)', group: '関係性', desc: '散布図の機能に加え、点の大きさ（バブル）で3つ目の数値を表現します。', useCase: '縦横の位置関係に加え、「規模」や「売上」などの3つ目の要素を同時に見せたい場合。' },
+      { id: 'splom', name: '15. 散布図行列 (多変数)', group: '関係性', desc: '選択した複数の数値変数の組み合わせすべてについて、散布図をマトリックス（行列）状に配置します。', useCase: '3つ以上の変数間の相関やパターンの全体像を一度に見渡したい場合に強力です。' },
+      { id: 'scatter3d', name: '16. 3D散布図', group: '関係性', desc: '3つの数値変数をX, Y, Z軸に割り当て、3次元空間にデータをプロットします。マウスで回転させることができます。', useCase: '2次元の散布図では見えなかった、3変数間の立体的なクラスタ（まとまり）や関係性を発見したい場合。' },
+      // 構成比
+      { id: 'stackedbar', name: '17. 積み上げ棒グラフ (構成比)', group: '構成比', desc: '複数の項目の数値を積み上げて1本の棒にし、グループごとの内訳を表示します。', useCase: '全体量（合計）の比較と同時に、その内訳（構成比）の違いを確認したい場合。' },
+      { id: 'pie', name: '18. 円グラフ (構成比)', group: '構成比', desc: '選択したカテゴリごとの合計値（または件数）の割合を円グラフで表示します。', useCase: '全体における各カテゴリのシェアや割合を直感的に示したい場合。' },
+      { id: 'treemap', name: '19. ツリーマップ (階層構成比)', group: '構成比', desc: 'カテゴリごとの値の大きさを「四角形の面積」で表現します。親カテゴリを設定すると階層構造になります。', useCase: '円グラフでは見づらい多数のカテゴリの構成比や、「地域＞店舗」のような階層ごとの内訳を直感的に見たい場合。' },
+      // 高度な分析
+      { id: 'parcoords', name: '20. 平行座標プロット (多次元)', group: '高度な分析', desc: '複数の縦軸を平行に並べ、1件のデータを1本の折れ線としてすべての軸をまたいで描画します。', useCase: '多数の変数を横断して、「このパターンを持つデータは、別の指標でも高い」といった多次元の特徴を見つける場合。' },
+      { id: 'crosstab_heatmap', name: '21. クロス集計ヒートマップ', group: '高度な分析', desc: '縦軸と横軸にカテゴリを取り、交差するマスの色で数値の大小を表現します。', useCase: '「どの曜日の、どの時間帯が一番売れるか」など、2つのカテゴリの掛け合わせの傾向を俯瞰する場合。' },
+      { id: 'stat_test', name: '22. 統計的検定 (分散分析)', group: '高度な分析', desc: 'グループ間の平均値の差が、統計的に意味のある（有意な）差であるかを計算します。', useCase: '「AとBの差は本当に意味があるのか、それとも偶然（誤差）なのか」を客観的に判定したい場合。' }
+    ];
+
+    // --- データ列の型判定ロジック ---
+    const analyzeColumns = (data) => {
+      if(!data || data.length === 0) return { numeric: [], categorical: [], date: [], all: [] };
+      const keys = Object.keys(data[0]);
+      const num = [], cat = [], dt = [];
+      
+      keys.forEach(k => {
+        let numCount = 0;
+        let validCount = 0;
+        let dateCount = 0;
+        
+        for(let i = 0; i < Math.min(data.length, 50); i++) {
+          const val = data[i][k];
+          if(val !== undefined && val !== null && val !== '') {
+            validCount++;
+            if(typeof val === 'number' || !isNaN(Number(val))) {
+              numCount++;
+            } else if (typeof val === 'string' && val.length >= 6 && !isNaN(Date.parse(val))) {
+              dateCount++;
+            }
           }
-        } else {
-          await signInAnonymously(auth);
         }
-      } catch (e) {
-        console.error("Auth error", e);
-      }
-    };
-    initAuth();
-    
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setAuthLoading(false);
-    });
-    
-    // Check URL parameters for shared PDF
-    const urlParams = new URLSearchParams(window.location.search);
-    const id = urlParams.get('id');
-    if (id) {
-      setViewPdfId(id);
-    }
-    
-    return () => unsubscribe();
-  }, []);
-
-  // Update URL state without reloading page
-  const handleViewPdf = (id) => {
-    setViewPdfId(id);
-    try {
-      if (window.location.protocol !== 'blob:') {
-        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?id=' + id;
-        window.history.pushState({path:newUrl},'',newUrl);
-      }
-    } catch (e) {
-      console.warn("History API is restricted in this environment.", e);
-    }
-  };
-
-  const handleGoHome = () => {
-    setViewPdfId(null);
-    try {
-      if (window.location.protocol !== 'blob:') {
-        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-        window.history.pushState({path:newUrl},'',newUrl);
-      }
-    } catch (e) {
-      console.warn("History API is restricted in this environment.", e);
-    }
-  };
-
-  if (authLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <Loader2 className="animate-spin w-10 h-10 text-blue-600" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="text-red-500 bg-red-50 p-4 rounded-lg flex items-center gap-2">
-          <AlertCircle className="w-5 h-5" />
-          認証に失敗しました。再読み込みしてください。
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans selection:bg-blue-100">
-      {viewPdfId ? (
-        <PdfViewer pdfId={viewPdfId} user={user} onBack={handleGoHome} />
-      ) : (
-        <UploadView user={user} onViewPdf={handleViewPdf} />
-      )}
-    </div>
-  );
-}
-
-// --- Upload Component ---
-function UploadView({ user, onViewPdf }) {
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [resultUrl, setResultUrl] = useState("");
-  const [error, setError] = useState("");
-  const [dragActive, setDragActive] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
-
-  const handleFileSelect = (selectedFile) => {
-    setError("");
-    setResultUrl("");
-    setCopied(false);
-    
-    if (!selectedFile) return;
-    
-    if (selectedFile.type !== 'application/pdf') {
-      setError("PDFファイルのみアップロード可能です。");
-      return;
-    }
-    
-    if (selectedFile.size > MAX_FILE_SIZE) {
-      setError("ファイルサイズが大きすぎます。15MB以下のファイルを選択してください。");
-      return;
-    }
-    
-    setFile(selectedFile);
-  };
-
-  const onDrag = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  }, []);
-
-  const onDrop = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelect(e.dataTransfer.files[0]);
-    }
-  }, []);
-
-  const uploadFile = async () => {
-    if (!file || !user) return;
-    setUploading(true);
-    setUploadProgress(0);
-    setError("");
-    
-    try {
-      const buffer = await file.arrayBuffer();
-      const base64String = arrayBufferToBase64(buffer);
-      
-      // Split into chunks of ~800KB to stay well under Firestore 1MB limit
-      const CHUNK_SIZE = 800000;
-      const totalChunks = Math.ceil(base64String.length / CHUNK_SIZE);
-      const pdfId = crypto.randomUUID();
-      
-      // Upload chunks sequentially to avoid memory spikes and network issues
-      for (let i = 0; i < totalChunks; i++) {
-        const chunkData = base64String.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', `${pdfId}_chunk_${i}`), {
-          type: 'chunk',
-          pdfId: pdfId,
-          index: i,
-          data: chunkData
-        });
-        setUploadProgress(Math.round(((i + 1) / totalChunks) * 100));
-      }
-      
-      // Upload metadata document
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', pdfId), {
-        type: 'metadata',
-        filename: file.name,
-        chunkCount: totalChunks,
-        size: file.size,
-        uploadedAt: Date.now(),
-        uploaderId: user.uid
+        
+        if (validCount > 0) {
+          if (numCount / validCount > 0.6) num.push(k);
+          else if (dateCount / validCount > 0.6) dt.push(k);
+          else cat.push(k);
+        }
       });
+      return { numeric: num, categorical: cat, date: dt, all: keys };
+    };
+
+    // 分析の注釈(説明)コンポーネント
+    const AnalysisDescription = ({ typeId }) => {
+      const typeInfo = ANALYSIS_TYPES.find(t => t.id === typeId);
+      if (!typeInfo) return null;
+      return (
+        <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4 mb-5 shadow-sm animate-in fade-in">
+          <h4 className="font-bold text-blue-800 flex items-center mb-2">
+            <InfoIcon className="w-5 h-5 mr-1.5" />
+            {typeInfo.name.split('. ')[1]}
+          </h4>
+          <p className="text-sm text-slate-700 mb-3 leading-relaxed">{typeInfo.desc}</p>
+          <div className="text-sm text-slate-600 bg-white p-2.5 rounded-md border border-slate-200 leading-relaxed shadow-sm">
+            <span className="font-bold text-emerald-600 mr-2">💡 活用例:</span>
+            {typeInfo.useCase}
+          </div>
+        </div>
+      );
+    };
+
+    // -------------------------------------------------------------
+    // メインの分析ワークスペースコンポーネント
+    // -------------------------------------------------------------
+    const AnalysisWorkspace = ({ rawData, fileName, onReset }) => {
+      // データのクレンジング (数値と判定された列は Number にキャスト)
+      const { data, cols } = useMemo(() => {
+        const columns = analyzeColumns(rawData);
+        const cleaned = rawData.map(row => {
+          const newRow = { ...row };
+          columns.numeric.forEach(c => {
+            if(newRow[c] !== undefined && newRow[c] !== null && newRow[c] !== '') {
+              newRow[c] = Number(newRow[c]);
+            }
+          });
+          return newRow;
+        });
+        return { data: cleaned, cols: columns };
+      }, [rawData]);
+
+      // 分析コントロール用のステート
+      const [analysisType, setAnalysisType] = useState('summary');
+      const [xAxis, setXAxis] = useState('');
+      const [yAxis, setYAxis] = useState('');
+      const [yAxisChk, setYAxisChk] = useState([]);
+      const [colorGroup, setColorGroup] = useState('なし');
+      const [colorAxis, setColorAxis] = useState('なし');
+      const [sizeAxis, setSizeAxis] = useState('');
+      const [bins, setBins] = useState(20);
       
-      // Generate Shareable URL
-      let url = "";
-      if (window.location.protocol === 'blob:') {
-        url = `https://your-app-domain.example.com/?id=${pdfId}`; // プレビュー環境用のプレースホルダー
-      } else {
-        url = window.location.protocol + "//" + window.location.host + window.location.pathname + '?id=' + pdfId;
-      }
-      setResultUrl(url);
-      setFile(null); // Clear selected file after successful upload
-      
-    } catch (err) {
-      console.error(err);
-      setError("アップロード中にエラーが発生しました。ネットワーク接続を確認してください。");
-    } finally {
-      setUploading(false);
-    }
-  };
+      const [resultTitle, setResultTitle] = useState('分析結果');
+      const [summaryData, setSummaryData] = useState(null);
+      const [statTestData, setStatTestData] = useState(null);
+      const [noDataMsg, setNoDataMsg] = useState('');
+      const chartRef = useRef(null);
 
-  const handleCopy = async () => {
-    if (resultUrl) {
-      const success = await copyToClipboard(resultUrl);
-      if (success) {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
-    }
-  };
+      // 分析タイプの変更時にデフォルト値を設定する
+      useEffect(() => {
+        if (cols.all.length === 0) return;
+        const num1 = cols.numeric[0] || '';
+        const num2 = cols.numeric[1] || num1;
+        const num3 = cols.numeric[2] || num2;
+        const cat1 = cols.categorical[0] || cols.date[0] || '';
+        const cat2 = cols.categorical[1] || cols.date[0] || cat1;
+        const dt1 = cols.date[0] || cols.categorical[0] || '';
 
-  return (
-    <div className="max-w-3xl mx-auto pt-16 px-4 pb-10">
-      <div className="text-center mb-10">
-        <h1 className="text-3xl font-bold text-gray-900 mb-3">PDFアップローダー</h1>
-        <p className="text-gray-500">PDFファイルをアップロードして、共有可能なURLを発行します。</p>
-      </div>
+        setXAxis(cat1);
+        setYAxis(num1);
+        setYAxisChk(cols.numeric.slice(0, 3));
+        setColorGroup('なし');
+        setColorAxis('なし');
+        setSizeAxis(num2);
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-        
-        {/* Upload Area */}
-        {!uploading && !resultUrl && (
-          <div 
-            className={`border-2 border-dashed rounded-xl p-10 text-center transition-colors cursor-pointer
-              ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400 bg-gray-50'}`}
-            onDragEnter={onDrag}
-            onDragLeave={onDrag}
-            onDragOver={onDrag}
-            onDrop={onDrop}
-            onClick={() => document.getElementById('file-upload').click()}
-          >
-            <input 
-              id="file-upload" 
-              type="file" 
-              accept="application/pdf" 
-              className="hidden" 
-              onChange={(e) => handleFileSelect(e.target.files[0])}
-            />
-            
-            <UploadCloud className={`mx-auto w-12 h-12 mb-4 ${dragActive ? 'text-blue-500' : 'text-gray-400'}`} />
-            <p className="text-lg font-medium text-gray-700 mb-1">
-              クリックまたはドラッグ＆ドロップでファイルを選択
-            </p>
-            <p className="text-sm text-gray-500">
-              PDFファイルのみ (推奨サイズ: 3〜5MB, 最大: 15MB)
-            </p>
-          </div>
-        )}
+        if (analysisType === 'timeseries') {
+          setXAxis(dt1 || cat1);
+        } else if (analysisType === 'bumpchart') {
+          setXAxis(dt1 || cat1);
+          setColorGroup(cat1); // デフォルト値を空にしない
+          setColorAxis(num1);  // デフォルト値を空にしない
+        } else if (analysisType === 'crosstab_heatmap') {
+          setXAxis(cat1);
+          setColorGroup(cat2); // デフォルト値を空にしない
+          setColorAxis(num1);  // デフォルト値を空にしない
+        } else if (['histogram', 'scatter', 'bubble', 'contour'].includes(analysisType)) {
+          setXAxis(num1);
+        } else if (analysisType === 'scatter3d') { 
+          setXAxis(num1); setYAxis(num2); setSizeAxis(num3); 
+        }
+      }, [analysisType, cols]);
 
-        {/* Selected File Status */}
-        {file && !uploading && !resultUrl && (
-          <div className="mt-6 flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <FileText className="w-6 h-6 text-blue-600 flex-shrink-0" />
-              <div className="truncate">
-                <p className="font-medium text-gray-800 truncate">{file.name}</p>
-                <p className="text-xs text-gray-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-              </div>
-            </div>
-            <button 
-              onClick={uploadFile}
-              className="ml-4 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex-shrink-0 shadow-sm"
-            >
-              アップロード
-            </button>
-          </div>
-        )}
+      // 分析の実行
+      const executeAnalysis = () => {
+        setNoDataMsg('');
+        setSummaryData(null);
+        setStatTestData(null);
+        if (chartRef.current && window.Plotly) window.Plotly.purge(chartRef.current);
 
-        {/* Uploading Status */}
-        {uploading && (
-          <div className="py-10 text-center">
-            <Loader2 className="animate-spin w-10 h-10 text-blue-600 mx-auto mb-4" />
-            <p className="text-lg font-medium text-gray-800 mb-2">アップロード中...</p>
-            <div className="w-full max-w-md mx-auto bg-gray-200 rounded-full h-2.5 mb-2">
-              <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
-            </div>
-            <p className="text-sm text-gray-500">{uploadProgress}% 完了</p>
-          </div>
-        )}
-
-        {/* Success & URL Copy */}
-        {resultUrl && !uploading && (
-          <div className="py-6">
-            <div className="flex items-center justify-center mb-6">
-              <div className="bg-green-100 p-3 rounded-full">
-                <CheckCircle className="w-8 h-8 text-green-600" />
-              </div>
-            </div>
-            <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">アップロード完了！</h2>
-            <p className="text-center text-gray-500 mb-8">以下のURLを共有して、PDFを閲覧できます。</p>
-            
-            <div className="flex flex-col sm:flex-row gap-3 max-w-lg mx-auto">
-              <div className="relative flex-grow">
-                <input 
-                  type="text" 
-                  value={resultUrl} 
-                  readOnly 
-                  className="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <button 
-                onClick={handleCopy}
-                className={`flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-                  copied ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                {copied ? <><CheckCircle className="w-4 h-4"/> コピー済</> : <><Copy className="w-4 h-4"/> URLをコピー</>}
-              </button>
-            </div>
-
-            <div className="mt-8 flex justify-center gap-4">
-              <button 
-                onClick={() => onViewPdf(new URLSearchParams(resultUrl.split('?')[1]).get('id'))}
-                className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-              >
-                <ExternalLink className="w-4 h-4"/> 今すぐプレビューを見る
-              </button>
-              <span className="text-gray-300">|</span>
-              <button 
-                onClick={() => { setResultUrl(""); setFile(null); }}
-                className="text-gray-500 hover:text-gray-700 font-medium"
-              >
-                別のファイルをアップロード
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <p className="text-red-700">{error}</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// --- PDF Viewer Component ---
-function PdfViewer({ pdfId, user, onBack }) {
-  const [loading, setLoading] = useState(true);
-  const [pdfUrl, setPdfUrl] = useState(null);
-  const [metadata, setMetadata] = useState(null);
-  const [error, setError] = useState("");
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    if (!user || !pdfId) return;
-    
-    let objectUrl = null;
-
-    const fetchPdf = async () => {
-      setLoading(true);
-      setError("");
-      
-      try {
-        // 1. Get Metadata
-        setProgress(10);
-        const metaDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', pdfId));
-        
-        if (!metaDoc.exists()) {
-          setError("指定されたPDFが見つからないか、削除されています。");
-          setLoading(false);
+        if (data.length === 0) {
+          setNoDataMsg('データがありません。');
           return;
         }
-        
-        const meta = metaDoc.data();
-        setMetadata(meta);
-        setProgress(30);
-        
-        // 2. Fetch all chunks
-        const chunkPromises = [];
-        for (let i = 0; i < meta.chunkCount; i++) {
-          chunkPromises.push(getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pdf_storage', `${pdfId}_chunk_${i}`)));
+
+        const selectedTypeObj = ANALYSIS_TYPES.find(t => t.id === analysisType);
+        setResultTitle(selectedTypeObj ? selectedTypeObj.name.split('(')[0].trim() : '分析結果');
+
+        try {
+          switch (analysisType) {
+            case 'summary': renderSummary(); break;
+            case 'timeseries': renderTimeSeries(); break;
+            case 'comparison': renderComparison(); break;
+            case 'boxplot': renderBoxPlot(); break;
+            case 'correlation': renderCorrelation(); break;
+            case 'scatter': renderScatter(); break;
+            case 'histogram': renderHistogram(); break;
+            case 'stackedbar': renderStackedBar(); break;
+            case 'pie': renderPie(); break;
+            case 'radar': renderRadar(); break;
+            case 'bubble': renderBubble(); break;
+            case 'violin': renderViolin(); break;
+            case 'parcoords': renderParcoords(); break;
+            case 'crosstab_heatmap': renderCrosstabHeatmap(); break;
+            case 'stripplot': renderStripPlot(); break;
+            case 'ridgeline': renderRidgelinePlot(); break;
+            case 'bumpchart': renderBumpChart(); break;
+            case 'stat_test': renderStatTest(); break;
+            case 'splom': renderSplom(); break;
+            case 'scatter3d': renderScatter3D(); break;
+            case 'treemap': renderTreemap(); break;
+            case 'contour': renderContour(); break;
+          }
+        } catch (err) {
+          // 意図的なバリデーションエラーはコンソールに出力せずUIで通知
+          setNoDataMsg(err.message);
         }
-        
-        const chunkDocs = await Promise.all(chunkPromises);
-        setProgress(70);
-        
-        // 3. Combine chunks
-        let base64String = "";
-        
-        // Sort by index to ensure correct order
-        const sortedChunks = chunkDocs
-          .map(d => d.exists() ? d.data() : null)
-          .filter(d => d !== null)
-          .sort((a, b) => a.index - b.index);
-          
-        if (sortedChunks.length !== meta.chunkCount) {
-           throw new Error("一部のデータが破損しているか読み込めませんでした。");
-        }
-        
-        sortedChunks.forEach(chunk => {
-          base64String += chunk.data;
+      };
+
+      // -------------------------------------------------------------
+      // 各分析の描画ロジック (Plotly.js)
+      // -------------------------------------------------------------
+      const renderSummary = () => {
+        if (yAxisChk.length === 0) throw new Error('対象の数値列を選択してください。');
+        let summary = [];
+        yAxisChk.forEach(col => {
+          let values = data.map(d => d[col]).filter(v => v !== null && v !== undefined && !isNaN(v));
+          if (values.length > 0) {
+            values.sort((a, b) => a - b);
+            let sum = values.reduce((a, b) => a + b, 0);
+            let mean = sum / values.length;
+            let min = values[0];
+            let max = values[values.length - 1];
+            let mid = Math.floor(values.length / 2);
+            let median = values.length % 2 !== 0 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
+            let sqSum = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0);
+            let sd = Math.sqrt(sqSum / values.length);
+            summary.push({ col, count: values.length, mean, sd, min, median, max });
+          }
         });
-        setProgress(90);
-        
-        // 4. Convert to Blob and create Object URL
-        const uint8Array = base64ToUint8Array(base64String);
-        const blob = new Blob([uint8Array], { type: 'application/pdf' });
-        objectUrl = URL.createObjectURL(blob);
-        setPdfUrl(objectUrl);
-        
-      } catch (err) {
-        console.error(err);
-        setError("PDFの読み込み中にエラーが発生しました。");
-      } finally {
-        setProgress(100);
-        setLoading(false);
-      }
-    };
-    
-    fetchPdf();
-    
-    // Cleanup Object URL on unmount to prevent memory leaks
-    return () => {
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [pdfId, user]);
+        setSummaryData(summary);
+      };
 
-  return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm z-10 flex-shrink-0">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={onBack}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-600"
-            title="ホームに戻る"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-600" />
-            <span className="font-semibold text-gray-800 truncate max-w-[200px] sm:max-w-md">
-              {metadata ? metadata.filename : "読み込み中..."}
-            </span>
-          </div>
+      const renderTimeSeries = () => {
+        if (!xAxis) throw new Error('X軸(時間軸)を選択してください。');
+        if (yAxisChk.length === 0) throw new Error('Y軸の数値を選択してください。');
+        
+        let sorted = [...data].sort((a, b) => {
+          const vA = a[xAxis], vB = b[xAxis];
+          if (vA < vB) return -1; if (vA > vB) return 1; return 0;
+        });
+        let xData = sorted.map(d => d[xAxis]);
+
+        let traces = yAxisChk.map(col => ({
+          x: xData, y: sorted.map(d => d[col]),
+          type: 'scatter', mode: 'lines+markers', name: col,
+          line: { shape: 'spline', width: 2 }, marker: { size: 5 }
+        }));
+        let layout = { title: `${xAxis}に沿った推移`, xaxis: { title: xAxis }, hovermode: 'closest', margin: { t: 40, r: 20, l: 50, b: 60 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderComparison = () => {
+        if (!xAxis) throw new Error('グループ化(X軸)を選択してください。');
+        if (yAxisChk.length === 0) throw new Error('比較する数値(Y軸)を選択してください。');
+
+        let grouped = {};
+        data.forEach(row => {
+          let cat = row[xAxis] || '不明';
+          if (!grouped[cat]) { grouped[cat] = { count: 0, sums: {} }; yAxisChk.forEach(yc => grouped[cat].sums[yc] = 0); }
+          let validCount = 0;
+          yAxisChk.forEach(yc => {
+            let val = row[yc];
+            if (val !== null && val !== undefined && !isNaN(val)) { grouped[cat].sums[yc] += val; validCount++; }
+          });
+          if(validCount > 0) grouped[cat].count++;
+        });
+
+        let categories = Object.keys(grouped).sort();
+        let traces = yAxisChk.map(yc => ({
+          x: categories,
+          y: categories.map(cat => grouped[cat].count > 0 ? grouped[cat].sums[yc] / grouped[cat].count : 0),
+          type: 'bar', name: yc
+        }));
+        let layout = { title: `${xAxis}別の平均値比較`, barmode: 'group', xaxis: { title: xAxis, tickangle: -45 }, margin: { t: 40, r: 20, l: 50, b: 100 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderBoxPlot = () => {
+        if (!xAxis || !yAxis) throw new Error('X軸とY軸を選択してください。');
+        let grouped = {};
+        data.forEach(row => {
+          let cat = row[xAxis] || '不明';
+          let val = row[yAxis];
+          if (val !== null && val !== undefined && !isNaN(val)) {
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(val);
+          }
+        });
+        let traces = Object.keys(grouped).sort().map(cat => ({
+          y: grouped[cat], type: 'box', name: cat, boxpoints: 'outliers'
+        }));
+        let layout = { title: `${xAxis}ごとの ${yAxis} の分布`, xaxis: { title: xAxis, tickangle: -45 }, yaxis: { title: yAxis }, showlegend: false, margin: { t: 40, r: 20, l: 50, b: 100 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderCorrelation = () => {
+        if (yAxisChk.length < 2) throw new Error('相関を計算するには2つ以上の数値列が必要です。');
+        const calcPearson = (x, y) => {
+          let n = x.length, sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+          for (let i=0; i<n; i++) { sumX += x[i]; sumY += y[i]; sumXY += x[i]*y[i]; sumX2 += x[i]*x[i]; sumY2 += y[i]*y[i]; }
+          let num = (n*sumXY) - (sumX*sumY);
+          let den = Math.sqrt(((n*sumX2)-(sumX*sumX)) * ((n*sumY2)-(sumY*sumY)));
+          return den === 0 ? 0 : num / den;
+        };
+
+        let zData = [];
+        for (let i=0; i<yAxisChk.length; i++) {
+          let row = [];
+          for (let j=0; j<yAxisChk.length; j++) {
+            if (i === j) { row.push(1); } else {
+              let x = [], y = [];
+              data.forEach(d => {
+                let vx = d[yAxisChk[i]], vy = d[yAxisChk[j]];
+                if (vx !== null && !isNaN(vx) && vy !== null && !isNaN(vy)) { x.push(vx); y.push(vy); }
+              });
+              row.push(calcPearson(x, y));
+            }
+          }
+          zData.push(row);
+        }
+        let trace = { z: zData, x: yAxisChk, y: yAxisChk, type: 'heatmap', colorscale: 'RdBu', zmin: -1, zmax: 1 };
+        let layout = { title: '変数間 相関行列ヒートマップ', margin: { t: 40, r: 20, l: 120, b: 100 }, xaxis: { tickangle: -45 } };
+        window.Plotly.newPlot(chartRef.current, [trace], layout, {responsive: true});
+      };
+
+      const renderScatter = () => {
+        if (!xAxis || !yAxis) throw new Error('X軸とY軸を選択してください。');
+        let traces = [];
+        if (!colorGroup || colorGroup === 'なし') {
+          traces.push({
+            x: data.map(d => d[xAxis]), y: data.map(d => d[yAxis]),
+            mode: 'markers', type: 'scatter', marker: { size: 8, opacity: 0.7 }
+          });
+        } else {
+          let grouped = {};
+          data.forEach(row => {
+            let cat = row[colorGroup] || '不明';
+            if (!grouped[cat]) grouped[cat] = { x: [], y: [] };
+            grouped[cat].x.push(row[xAxis]); grouped[cat].y.push(row[yAxis]);
+          });
+          Object.keys(grouped).forEach(cat => {
+            traces.push({ x: grouped[cat].x, y: grouped[cat].y, mode: 'markers', type: 'scatter', name: cat, marker: { size: 8, opacity: 0.7 } });
+          });
+        }
+        let layout = { title: `${xAxis} vs ${yAxis}`, xaxis: { title: xAxis }, yaxis: { title: yAxis }, hovermode: 'closest', margin: { t: 40, r: 20, l: 50, b: 50 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderHistogram = () => {
+        if (!xAxis) throw new Error('対象データを選択してください。');
+        let vals = data.map(d => d[xAxis]).filter(v => v !== null && !isNaN(v));
+        let trace = { x: vals, type: 'histogram', nbinsx: bins, opacity: 0.75, marker: { line: { color: '#fff', width: 1 } } };
+        let layout = { title: `${xAxis} のヒストグラム`, xaxis: { title: xAxis }, yaxis: { title: '度数' }, bargap: 0.05, margin: { t: 40, r: 20, l: 50, b: 50 } };
+        window.Plotly.newPlot(chartRef.current, [trace], layout, {responsive: true});
+      };
+
+      const renderStackedBar = () => {
+        if (!xAxis || yAxisChk.length === 0) throw new Error('X軸と積み上げる数値を選択してください。');
+        let grouped = {};
+        data.forEach(row => {
+          let cat = row[xAxis] || '不明';
+          if (!grouped[cat]) { grouped[cat] = { count: 0, sums: {} }; yAxisChk.forEach(yc => grouped[cat].sums[yc] = 0); }
+          let validCount = 0;
+          yAxisChk.forEach(yc => {
+            let val = row[yc];
+            if (val !== null && !isNaN(val)) { grouped[cat].sums[yc] += val; validCount++; }
+          });
+          if(validCount > 0) grouped[cat].count++;
+        });
+        let categories = Object.keys(grouped).sort();
+        let traces = yAxisChk.map(yc => ({
+          x: categories, y: categories.map(cat => grouped[cat].count > 0 ? grouped[cat].sums[yc] / grouped[cat].count : 0),
+          type: 'bar', name: yc
+        }));
+        let layout = { title: `${xAxis}別 構成比 (積み上げ棒)`, barmode: 'stack', xaxis: { title: xAxis, tickangle: -45 }, margin: { t: 40, r: 20, l: 50, b: 100 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderPie = () => {
+        if (!xAxis) throw new Error('集計するカテゴリを選択してください。');
+        let counts = {};
+        data.forEach(d => {
+          let val = d[xAxis];
+          if(val !== null && val !== undefined && val !== '') {
+             let key = String(val);
+             counts[key] = (counts[key] || 0) + 1;
+          }
+        });
+        let labels = Object.keys(counts);
+        let values = Object.values(counts);
+        let trace = { values, labels, type: 'pie', textinfo: 'label+percent', hole: 0.3 };
+        let layout = { title: `${xAxis} の割合`, margin: { t: 40, r: 20, l: 20, b: 40 } };
+        window.Plotly.newPlot(chartRef.current, [trace], layout, {responsive: true});
+      };
+
+      const renderRadar = () => {
+        if (!xAxis || yAxisChk.length === 0) throw new Error('レーダーチャートを描画するには、グループ化(X軸)と1つ以上の指標を選択してください。');
+        let grouped = {};
+        data.forEach(row => {
+          let cat = row[xAxis] || '不明';
+          if (!grouped[cat]) { grouped[cat] = { count: 0, sums: {} }; yAxisChk.forEach(yc => grouped[cat].sums[yc] = 0); }
+          let validCount = 0;
+          yAxisChk.forEach(yc => {
+            let val = row[yc];
+            if (val !== null && !isNaN(val)) { grouped[cat].sums[yc] += val; validCount++; }
+          });
+          if(validCount > 0) grouped[cat].count++;
+        });
+        let maxVal = 0;
+        let traces = Object.keys(grouped).map(cat => {
+          let r = yAxisChk.map(yc => {
+            let val = grouped[cat].count > 0 ? grouped[cat].sums[yc] / grouped[cat].count : 0;
+            if (val > maxVal) maxVal = val;
+            return val;
+          });
+          r.push(r[0]); // 閉じるため
+          return { type: 'scatterpolar', r: r, theta: [...yAxisChk, yAxisChk[0]], fill: 'toself', name: cat };
+        });
+        let layout = { title: '多変量プロファイル比較', polar: { radialaxis: { visible: true, range: [0, maxVal * 1.1] } }, margin: { t: 60, r: 60, l: 60, b: 60 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderBubble = () => {
+        if (!xAxis || !yAxis || !sizeAxis) throw new Error('X軸, Y軸, バブルの大きさを選択してください。');
+        let allSizes = data.map(d => d[sizeAxis]).filter(v => v !== null && !isNaN(v));
+        let maxSize = Math.max(...allSizes);
+        let getSize = (val) => val ? Math.max((val / maxSize) * 40, 5) : 5;
+
+        let traces = [];
+        if (!colorGroup || colorGroup === 'なし') {
+          traces.push({
+            x: data.map(d => d[xAxis]), y: data.map(d => d[yAxis]), text: data.map(d => `${sizeAxis}: ${d[sizeAxis]}`),
+            mode: 'markers', type: 'scatter', marker: { size: data.map(d => getSize(d[sizeAxis])), opacity: 0.6, line: {width:1} }
+          });
+        } else {
+          let grouped = {};
+          data.forEach(row => {
+            let cat = row[colorGroup] || '不明';
+            if (!grouped[cat]) grouped[cat] = { x: [], y: [], size: [], text: [] };
+            grouped[cat].x.push(row[xAxis]); grouped[cat].y.push(row[yAxis]);
+            grouped[cat].size.push(getSize(row[sizeAxis])); grouped[cat].text.push(`${sizeAxis}: ${row[sizeAxis]}`);
+          });
+          Object.keys(grouped).forEach(cat => {
+            traces.push({ x: grouped[cat].x, y: grouped[cat].y, text: grouped[cat].text, mode: 'markers', type: 'scatter', name: cat, marker: { size: grouped[cat].size, opacity: 0.6, line:{width:1} } });
+          });
+        }
+        let layout = { title: `バブルチャート (サイズ: ${sizeAxis})`, xaxis: { title: xAxis }, yaxis: { title: yAxis }, hovermode: 'closest', margin: { t: 40, r: 20, l: 50, b: 50 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderViolin = () => {
+        if (!xAxis || !yAxis) throw new Error('X軸とY軸を選択してください。');
+        let grouped = {};
+        data.forEach(row => {
+          let cat = row[xAxis] || '不明';
+          let val = row[yAxis];
+          if (val !== null && !isNaN(val)) {
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(val);
+          }
+        });
+        let traces = Object.keys(grouped).sort().map(cat => ({
+          y: grouped[cat], type: 'violin', name: cat, box: { visible: true }, meanline: { visible: true }
+        }));
+        let layout = { title: `${xAxis}ごとの ${yAxis} のバイオリンプロット`, yaxis: { title: yAxis }, xaxis: { title: xAxis, tickangle: -45 }, showlegend: false, margin: { t: 40, r: 20, l: 50, b: 100 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderParcoords = () => {
+        if (yAxisChk.length < 2) throw new Error('比較する数値を2つ以上選択してください。');
+        let colorData = (colorAxis && colorAxis !== 'なし') ? data.map(d => d[colorAxis]).map(v => isNaN(v) || v===null ? 0 : v) : data.map((_,i) => i);
+        let dimensions = yAxisChk.map(col => {
+          let vals = data.map(d => d[col]).map(v => isNaN(v) || v===null ? 0 : v);
+          return { range: [Math.min(...vals), Math.max(...vals)], label: col, values: vals };
+        });
+        let trace = { type: 'parcoords', line: { color: colorData, colorscale: 'Jet', showscale: (colorAxis && colorAxis !== 'なし') }, dimensions: dimensions };
+        let layout = { title: '平行座標プロット', margin: { t: 60, r: 40, l: 60, b: 40 } };
+        window.Plotly.newPlot(chartRef.current, [trace], layout, {responsive: true});
+      };
+
+      const renderCrosstabHeatmap = () => {
+        if (!xAxis || !colorGroup || !colorAxis || colorGroup === 'なし' || colorAxis === 'なし') throw new Error('X軸, Y軸, 集計値を選択してください。');
+        let xLabels = [...new Set(data.map(d => d[xAxis]).filter(Boolean))].sort();
+        let yLabels = [...new Set(data.map(d => d[colorGroup]).filter(Boolean))].sort();
+        let zData = [];
+        for (let i=0; i<yLabels.length; i++) {
+          let row = [];
+          for (let j=0; j<xLabels.length; j++) {
+            let matching = data.filter(d => d[colorGroup] === yLabels[i] && d[xAxis] === xLabels[j]);
+            let vals = matching.map(d => d[colorAxis]).filter(v => v !== null && !isNaN(v));
+            row.push(vals.length > 0 ? vals.reduce((a,b)=>a+b,0)/vals.length : null);
+          }
+          zData.push(row);
+        }
+        let trace = { z: zData, x: xLabels, y: yLabels, type: 'heatmap', colorscale: 'Viridis', colorbar: { title: colorAxis } };
+        let layout = { title: `クロス集計: ${xAxis} × ${colorGroup} (平均 ${colorAxis})`, margin: { t: 40, r: 20, l: 100, b: 80 }, xaxis: { tickangle: -45 } };
+        window.Plotly.newPlot(chartRef.current, [trace], layout, {responsive: true});
+      };
+
+      const renderStripPlot = () => {
+        if (!xAxis || !yAxis) throw new Error('X軸とY軸を選択してください。');
+        let grouped = {};
+        data.forEach(row => {
+          let cat = row[xAxis] || '不明';
+          let val = row[yAxis];
+          if (val !== null && !isNaN(val)) {
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(val);
+          }
+        });
+        let traces = Object.keys(grouped).sort().map(cat => ({
+          y: grouped[cat], type: 'box', name: cat, boxpoints: 'all', pointpos: 0, jitter: 0.5,
+          fillcolor: 'rgba(0,0,0,0)', line: {color: 'rgba(0,0,0,0)'}, marker: {size: 6, opacity: 0.7, line: {width: 1}}
+        }));
+        let layout = { title: `${yAxis} のストリッププロット`, yaxis: { title: yAxis }, xaxis: { title: xAxis, tickangle: -45 }, showlegend: false, margin: { t: 40, r: 20, l: 50, b: 100 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderRidgelinePlot = () => {
+        if (!xAxis || !yAxis) throw new Error('X軸とY軸を選択してください。');
+        let grouped = {};
+        data.forEach(row => {
+          let cat = row[xAxis] || '不明';
+          let val = row[yAxis];
+          if (val !== null && !isNaN(val)) {
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(val);
+          }
+        });
+        let categories = Object.keys(grouped).sort().reverse(); 
+        let traces = categories.map(cat => ({
+          type: 'violin', x: grouped[cat], name: cat, side: 'positive', orientation: 'h',
+          meanline: { visible: true }, points: false, line: { width: 1 }, fillcolor: 'rgba(59, 130, 246, 0.5)', spanmode: 'hard'
+        }));
+        let layout = { title: `${yAxis} のリッジラインプロット`, xaxis: { title: yAxis }, yaxis: { showgrid: false }, showlegend: false, margin: { t: 40, r: 20, l: 100, b: 50 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderBumpChart = () => {
+        if (!xAxis || !colorGroup || !colorAxis || colorGroup === 'なし' || colorAxis === 'なし') throw new Error('時間軸(X), グループ, 指標を選択してください。');
+        let times = [...new Set(data.map(d => d[xAxis]).filter(Boolean))].sort();
+        let groups = [...new Set(data.map(d => d[colorGroup]).filter(Boolean))];
+
+        let timeData = {};
+        times.forEach(t => {
+          timeData[t] = {};
+          groups.forEach(g => {
+            let matching = data.filter(d => d[xAxis] === t && d[colorGroup] === g);
+            let vals = matching.map(d => d[colorAxis]).filter(v => v !== null && !isNaN(v));
+            if(vals.length > 0) timeData[t][g] = vals.reduce((a,b)=>a+b,0)/vals.length;
+          });
+        });
+
+        let tracesData = {};
+        groups.forEach(g => tracesData[g] = {x:[], y:[], text:[]});
+
+        times.forEach(t => {
+          let items = Object.keys(timeData[t]).map(g => ({ group: g, val: timeData[t][g] }));
+          items.sort((a,b) => b.val - a.val); // 降順で順位付け
+          items.forEach((item, index) => {
+            let rank = index + 1;
+            tracesData[item.group].x.push(t);
+            tracesData[item.group].y.push(rank);
+            tracesData[item.group].text.push(`${item.group}<br>${rank}位 (${item.val.toFixed(1)})`);
+          });
+        });
+
+        let traces = groups.filter(g => tracesData[g].x.length > 0).map(g => ({
+          x: tracesData[g].x, y: tracesData[g].y, text: tracesData[g].text, mode: 'lines+markers', name: g,
+          line: { shape: 'spline', width: 3 }, marker: { size: 8 }, hoverinfo: 'text'
+        }));
+        let layout = { title: `${colorAxis} の順位推移 (バンプチャート)`, xaxis: { title: xAxis }, yaxis: { title: '順位', autorange: 'reversed', tickdtick: 1 }, hovermode: 'closest', margin: { t: 40, r: 20, l: 50, b: 60 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderStatTest = () => {
+        if (!xAxis || !yAxis) throw new Error('グループ(X)と検定する数値(Y)を選択してください。');
+        let grouped = {}, allVals = [];
+        data.forEach(row => {
+          let cat = row[xAxis];
+          if (!cat) return;
+          let val = row[yAxis];
+          if (val !== null && !isNaN(val)) {
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(val);
+            allVals.push(val);
+          }
+        });
+        let groupKeys = Object.keys(grouped).filter(k => grouped[k].length > 0);
+        if (groupKeys.length < 2) throw new Error('比較できるグループが2つ以上ありません。');
+
+        const k = groupKeys.length, N = allVals.length;
+        const overallMean = allVals.reduce((a,b)=>a+b,0) / N;
+        let SSB = 0, SSW = 0;
+
+        let groupStats = groupKeys.map(key => {
+          let vals = grouped[key], n = vals.length;
+          let mean = vals.reduce((a,b)=>a+b,0) / n;
+          let variance = vals.reduce((a,b)=>a+Math.pow(b-mean,2),0) / (n>1 ? n-1 : 1);
+          SSB += n * Math.pow(mean - overallMean, 2);
+          SSW += vals.reduce((a,b)=>a+Math.pow(b-mean,2),0);
+          return { key, n, mean, variance };
+        });
+
+        const dfB = k - 1, dfW = N - k;
+        const MSB = dfB > 0 ? SSB / dfB : 0, MSW = dfW > 0 ? SSW / dfW : 0;
+        const F = MSW > 0 ? MSB / MSW : 0;
+        let pValue = null;
+        if (window.jStat) pValue = 1 - window.jStat.centralF.cdf(F, dfB, dfW);
+
+        setStatTestData({ groupCol: xAxis, valCol: yAxis, groups: groupStats, anova: { F, pValue, dfB, dfW } });
+
+        let traces = groupKeys.map(cat => ({ y: grouped[cat], type: 'box', name: cat, boxpoints: 'all', jitter: 0.3, pointpos: -1.8 }));
+        let layout = { title: `${yAxis} のグループ間分散分析`, yaxis: { title: yAxis }, xaxis: { title: xAxis, tickangle: -45 }, showlegend: false, margin: { t: 40, r: 20, l: 50, b: 100 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderSplom = () => {
+        if (yAxisChk.length < 2) throw new Error('散布図行列を描画するには、比較する数値を2つ以上選択してください。');
+        
+        let dimensions = yAxisChk.map(col => ({
+          label: col,
+          values: data.map(d => d[col])
+        }));
+
+        let trace = {
+          type: 'splom',
+          dimensions: dimensions,
+          marker: { size: 5, opacity: 0.7, line: { color: 'white', width: 0.5 } }
+        };
+
+        if (colorAxis && colorAxis !== 'なし') {
+          let cData = data.map(d => d[colorAxis]);
+          if (typeof cData[0] === 'string') {
+            let uniqueCats = [...new Set(cData)];
+            trace.marker.color = cData.map(v => uniqueCats.indexOf(v));
+            trace.marker.colorscale = 'Jet';
+          } else {
+            trace.marker.color = cData;
+            trace.marker.colorscale = 'Viridis';
+          }
+        }
+
+        let layout = { title: '散布図行列 (SPLOM)', hovermode: 'closest', margin: { t: 50, b: 50, l: 50, r: 50 } };
+        window.Plotly.newPlot(chartRef.current, [trace], layout, {responsive: true});
+      };
+
+      const renderScatter3D = () => {
+        if (!xAxis || !yAxis || !sizeAxis) throw new Error('X軸, Y軸, Z軸を選択してください。'); 
+        let traces = [];
+        if (!colorGroup || colorGroup === 'なし') {
+          traces.push({
+            x: data.map(d => d[xAxis]), y: data.map(d => d[yAxis]), z: data.map(d => d[sizeAxis]),
+            mode: 'markers', type: 'scatter3d', marker: { size: 4, opacity: 0.8 }
+          });
+        } else {
+          let grouped = {};
+          data.forEach(row => {
+            let cat = row[colorGroup] || '不明';
+            if(!grouped[cat]) grouped[cat] = {x:[], y:[], z:[]};
+            grouped[cat].x.push(row[xAxis]);
+            grouped[cat].y.push(row[yAxis]);
+            grouped[cat].z.push(row[sizeAxis]);
+          });
+          Object.keys(grouped).forEach(cat => {
+            traces.push({ x: grouped[cat].x, y: grouped[cat].y, z: grouped[cat].z, mode: 'markers', type: 'scatter3d', name: cat, marker: { size: 4, opacity: 0.8 } });
+          });
+        }
+        let layout = { title: `3D散布図`, scene: { xaxis: {title: xAxis}, yaxis: {title: yAxis}, zaxis: {title: sizeAxis} }, margin: { t: 40, b: 0, l: 0, r: 0 } };
+        window.Plotly.newPlot(chartRef.current, traces, layout, {responsive: true});
+      };
+
+      const renderTreemap = () => {
+        if (!xAxis || !yAxis) throw new Error('カテゴリとサイズ(数値)を選択してください。');
+        
+        let labels = [];
+        let parents = [];
+        let values = [];
+
+        let grouped = {};
+        
+        if (colorGroup && colorGroup !== 'なし') {
+          labels.push('全体'); parents.push(''); values.push(0);
+          
+          let parentTotals = {};
+          data.forEach(d => {
+            let p = String(d[colorGroup] || '不明');
+            let c = String(d[xAxis] || '不明');
+            let val = Number(d[yAxis]) || 0;
+            if(val <= 0) return; 
+            
+            if(!parentTotals[p]) parentTotals[p] = 0;
+            parentTotals[p] += val;
+            
+            let key = `${p} - ${c}`;
+            if(!grouped[key]) grouped[key] = { p, c, val: 0 };
+            grouped[key].val += val;
+          });
+
+          Object.keys(parentTotals).forEach(p => {
+            labels.push(p); parents.push('全体'); values.push(parentTotals[p]);
+          });
+          Object.values(grouped).forEach(g => {
+            labels.push(g.c + ' (' + g.p + ')'); parents.push(g.p); values.push(g.val);
+          });
+
+        } else {
+          data.forEach(d => {
+            let c = String(d[xAxis] || '不明');
+            let val = Number(d[yAxis]) || 0;
+            if(val <= 0) return;
+            if(!grouped[c]) grouped[c] = 0;
+            grouped[c] += val;
+          });
+          
+          Object.keys(grouped).forEach(c => {
+            labels.push(c); parents.push(''); values.push(grouped[c]);
+          });
+        }
+
+        let trace = { type: 'treemap', labels, parents, values, textinfo: 'label+value+percent parent', root: { color: 'lightgrey' } };
+        let layout = { title: `ツリーマップ: ${yAxis}の構成比`, margin: { t: 50, b: 20, l: 20, r: 20 } };
+        window.Plotly.newPlot(chartRef.current, [trace], layout, {responsive: true});
+      };
+
+      const renderContour = () => {
+        if (!xAxis || !yAxis) throw new Error('X軸とY軸を選択してください。');
+        let xVals = [], yVals = [];
+        data.forEach(d => {
+          let vx = d[xAxis], vy = d[yAxis];
+          if (vx !== null && !isNaN(vx) && vy !== null && !isNaN(vy)) {
+            xVals.push(vx); yVals.push(vy);
+          }
+        });
+
+        let trace = {
+          x: xVals, y: yVals,
+          type: 'histogram2dcontour',
+          colorscale: 'YlGnBu',
+          reversescale: true
+        };
+        let traceScatter = {
+          x: xVals, y: yVals,
+          mode: 'markers', type: 'scatter', marker: { size: 3, color: 'rgba(0,0,0,0.3)' }
+        };
+        
+        let layout = { title: `2D密度等高線: ${xAxis} vs ${yAxis}`, xaxis: { title: xAxis }, yaxis: { title: yAxis }, margin: { t: 50, b: 50, l: 50, r: 50 }, hovermode: 'closest' };
+        window.Plotly.newPlot(chartRef.current, [trace, traceScatter], layout, {responsive: true});
+      };
+
+      // --- UI Control Helpers ---
+      const toggleYAxisChk = (val) => {
+        setYAxisChk(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
+      };
+
+      const SelectField = ({ label, value, onChange, options, noMargin = false }) => (
+        <div className={noMargin ? "" : "mb-4"}>
+          <label className="block text-xs font-bold text-slate-600 mb-1.5">{label}</label>
+          <select value={value} onChange={e => onChange(e.target.value)} className="w-full text-sm border-slate-300 rounded-lg p-2.5 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow">
+            {options.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
         </div>
-        
-        {pdfUrl && (
-          <a 
-            href={pdfUrl} 
-            download={metadata?.filename || "document.pdf"}
-            className="text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 px-4 py-2 rounded-lg font-medium transition-colors"
-          >
-            ダウンロード
-          </a>
-        )}
-      </div>
+      );
 
-      {/* Main Content Area */}
-      <div className="flex-grow relative overflow-hidden flex flex-col">
-        {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 z-20">
-            <Loader2 className="animate-spin w-10 h-10 text-blue-600 mb-4" />
-            <p className="text-gray-600 font-medium mb-2">PDFデータを構築しています...</p>
-            <div className="w-48 bg-gray-200 rounded-full h-1.5">
-              <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+      const MultiCheckboxes = ({ label, options, selected, onChange, onSelectAll, onClearAll }) => (
+        <div className="mb-4">
+          <div className="flex justify-between items-end mb-1.5">
+            <label className="block text-xs font-bold text-slate-600">{label}</label>
+            <div className="flex space-x-2">
+              <button onClick={onSelectAll} className="text-[10px] text-blue-600 hover:underline bg-blue-50 px-1.5 py-0.5 rounded transition-colors">すべて選択</button>
+              <button onClick={onClearAll} className="text-[10px] text-slate-500 hover:underline bg-slate-100 px-1.5 py-0.5 rounded transition-colors">クリア</button>
             </div>
           </div>
-        )}
+          <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-white shadow-inner custom-scrollbar">
+            {options.map((opt) => (
+              <label key={opt} className="flex items-center space-x-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer transition-colors">
+                <input type="checkbox" value={opt} checked={selected.includes(opt)} onChange={() => onChange(opt)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
+                <span className="text-sm font-medium text-slate-700 truncate">{opt}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      );
 
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-20 p-4">
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center max-w-md">
-              <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-gray-800 mb-2">エラー</h3>
-              <p className="text-gray-600 mb-6">{error}</p>
-              <button 
-                onClick={onBack}
-                className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                トップへ戻る
+      // 動的コントロール描画
+      const renderDynamicControls = () => {
+        const type = analysisType;
+        const allCols = cols.all;
+        const numCols = cols.numeric;
+        const catCols = cols.categorical.concat(cols.date); // 簡易的に日付もカテゴリ扱い
+
+        if (numCols.length === 0) return <p className="text-sm text-red-500 mt-4">数値データが見つかりません</p>;
+
+        return (
+          <div className="mt-2 space-y-2 animate-in fade-in">
+            {/* 各分析手法の注釈表示 */}
+            <AnalysisDescription typeId={type} />
+
+            {/* 基本統計量 */}
+            {type === 'summary' && <MultiCheckboxes label="対象の数値列" options={numCols} selected={yAxisChk} onChange={toggleYAxisChk} onSelectAll={() => setYAxisChk(numCols)} onClearAll={() => setYAxisChk([])} />}
+            
+            {/* 時系列 */}
+            {type === 'timeseries' && (
+              <Fragment>
+                <SelectField label="時間軸 (X軸)" value={xAxis} onChange={setXAxis} options={cols.date.length > 0 ? cols.date : catCols} />
+                <MultiCheckboxes label="表示する数値 (Y軸)" options={numCols} selected={yAxisChk} onChange={toggleYAxisChk} onSelectAll={() => setYAxisChk(numCols)} onClearAll={() => setYAxisChk([])} />
+              </Fragment>
+            )}
+
+            {/* Xカテゴリ, Y複数数値 */}
+            {(type === 'comparison' || type === 'stackedbar' || type === 'radar') && (
+              <Fragment>
+                <SelectField label="グループ化 (X軸)" value={xAxis} onChange={setXAxis} options={catCols.length > 0 ? catCols : allCols} />
+                <MultiCheckboxes label="比較する数値 (複数可)" options={numCols} selected={yAxisChk} onChange={toggleYAxisChk} onSelectAll={() => setYAxisChk(numCols)} onClearAll={() => setYAxisChk([])} />
+              </Fragment>
+            )}
+
+            {/* Xカテゴリ, Y単一数値 */}
+            {(type === 'boxplot' || type === 'violin' || type === 'stripplot' || type === 'ridgeline' || type === 'stat_test') && (
+              <Fragment>
+                <SelectField label="グループ化 (X軸)" value={xAxis} onChange={setXAxis} options={catCols.length > 0 ? catCols : allCols} />
+                <SelectField label="分布を見る数値 (Y軸)" value={yAxis} onChange={setYAxis} options={numCols} />
+              </Fragment>
+            )}
+
+            {/* 相関・平行座標・散布図行列 */}
+            {(type === 'correlation' || type === 'parcoords' || type === 'splom') && (
+              <Fragment>
+                <MultiCheckboxes label="分析する数値列 (2つ以上)" options={numCols} selected={yAxisChk} onChange={toggleYAxisChk} onSelectAll={() => setYAxisChk(numCols)} onClearAll={() => setYAxisChk([])} />
+                {(type === 'parcoords' || type === 'splom') && <SelectField label="色の基準 (数値またはカテゴリ)" value={colorAxis} onChange={setColorAxis} options={['なし', ...numCols, ...catCols]} />}
+              </Fragment>
+            )}
+
+            {/* X数値, Y数値 */}
+            {(type === 'scatter' || type === 'bubble' || type === 'contour' || type === 'scatter3d') && (
+              <Fragment>
+                <div className="relative border border-slate-200 rounded-lg p-3 bg-slate-50/50 mb-4 flex flex-col space-y-3">
+                  <SelectField label="X軸 (数値)" value={xAxis} onChange={setXAxis} options={numCols} noMargin />
+                  <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+                    <button 
+                      onClick={() => { const t = xAxis; setXAxis(yAxis); setYAxis(t); }} 
+                      className="bg-white border border-slate-300 rounded-full p-1.5 shadow-md hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 text-slate-500 transition-all"
+                      title="X軸とY軸を入れ替える"
+                    >
+                      <ArrowUpDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <SelectField label="Y軸 (数値)" value={yAxis} onChange={setYAxis} options={numCols} noMargin />
+                </div>
+                {(type === 'bubble' || type === 'scatter3d') && <SelectField label={type === 'scatter3d' ? "Z軸 (数値)" : "バブルの大きさ (数値)"} value={sizeAxis} onChange={setSizeAxis} options={numCols} />}
+                {(type === 'scatter' || type === 'bubble' || type === 'scatter3d') && <SelectField label="色分け (カテゴリ) ※任意" value={colorGroup} onChange={setColorGroup} options={['なし', ...catCols]} />}
+              </Fragment>
+            )}
+
+            {/* 単一数値 */}
+            {type === 'histogram' && (
+              <Fragment>
+                <SelectField label="対象データ (数値)" value={xAxis} onChange={setXAxis} options={numCols} />
+                <div className="mb-4">
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5">ビンの数 (階級数)</label>
+                  <input type="number" value={bins} onChange={e=>setBins(e.target.value)} min="5" max="100" className="w-full text-sm border-slate-300 rounded-lg p-2.5 shadow-sm outline-none" />
+                </div>
+              </Fragment>
+            )}
+
+            {/* 単一カテゴリ */}
+            {type === 'pie' && <SelectField label="集計するカテゴリ" value={xAxis} onChange={setXAxis} options={catCols.length > 0 ? catCols : allCols} />}
+
+            {/* クロス集計 */}
+            {type === 'crosstab_heatmap' && (
+              <Fragment>
+                <div className="relative border border-slate-200 rounded-lg p-3 bg-slate-50/50 mb-4 flex flex-col space-y-3">
+                  <SelectField label="X軸 (カテゴリ)" value={xAxis} onChange={setXAxis} options={catCols} noMargin />
+                  <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+                    <button 
+                      onClick={() => { const t = xAxis; setXAxis(colorGroup); setColorGroup(t); }} 
+                      className="bg-white border border-slate-300 rounded-full p-1.5 shadow-md hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 text-slate-500 transition-all"
+                      title="X軸とY軸を入れ替える"
+                    >
+                      <ArrowUpDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <SelectField label="Y軸 (カテゴリ)" value={colorGroup} onChange={setColorGroup} options={catCols} noMargin />
+                </div>
+                <SelectField label="集計する数値 (平均値)" value={colorAxis} onChange={setColorAxis} options={numCols} />
+              </Fragment>
+            )}
+
+            {/* バンプチャート */}
+            {type === 'bumpchart' && (
+              <Fragment>
+                <SelectField label="時間軸・順序 (X軸)" value={xAxis} onChange={setXAxis} options={cols.date.length > 0 ? cols.date : catCols} />
+                <SelectField label="追跡するグループ" value={colorGroup} onChange={setColorGroup} options={catCols} />
+                <SelectField label="順位を決める数値" value={colorAxis} onChange={setColorAxis} options={numCols} />
+              </Fragment>
+            )}
+
+            {/* ツリーマップ */}
+            {type === 'treemap' && (
+              <Fragment>
+                <SelectField label="子カテゴリ" value={xAxis} onChange={setXAxis} options={catCols} />
+                <SelectField label="親カテゴリ ※任意" value={colorGroup} onChange={setColorGroup} options={['なし', ...catCols]} />
+                <SelectField label="サイズ (数値)" value={yAxis} onChange={setYAxis} options={numCols} />
+              </Fragment>
+            )}
+
+          </div>
+        );
+      };
+
+      return (
+        <div className="flex flex-col md:flex-row h-screen bg-slate-50 overflow-hidden text-slate-800">
+          {/* 左サイドバー: 設定パネル */}
+          <div className="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col shadow-sm z-10 shrink-0 h-[40vh] md:h-full">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+              <div>
+                <h1 className="font-black text-lg text-slate-800 tracking-tight leading-none">Data Analyzer</h1>
+                <p className="text-xs text-slate-500 mt-1 truncate max-w-[200px]">{fileName}</p>
+              </div>
+              <button onClick={onReset} className="p-2 hover:bg-slate-100 rounded-md text-slate-400 hover:text-slate-600 transition-colors" title="別のファイルを読み込む">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+              <label className="block text-sm font-bold text-slate-700 mb-2">分析手法の選択</label>
+              <select value={analysisType} onChange={e => setAnalysisType(e.target.value)} className="w-full text-sm border-slate-300 rounded-lg p-2.5 font-medium bg-slate-50 shadow-sm focus:bg-white outline-none mb-2">
+                {['基礎', '推移・傾向', '比較', '分布', '関係性', '構成比', '高度な分析'].map(group => (
+                  <optgroup key={group} label={`--- ${group} ---`}>
+                    {ANALYSIS_TYPES.filter(t => t.group === group).map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+
+              <div className="mt-2">{renderDynamicControls()}</div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 shrink-0">
+              <button onClick={executeAnalysis} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-transform active:scale-[0.98] flex items-center justify-center">
+                <PlayIcon className="w-5 h-5 mr-2" /> 分析を実行
               </button>
             </div>
           </div>
-        )}
 
-        {pdfUrl && !loading && (
-          <iframe 
-            src={pdfUrl} 
-            className="w-full h-full border-none"
-            title="PDF Viewer"
-          />
-        )}
-      </div>
-    </div>
-  );
-}
+          {/* 右メイン: 分析結果表示 */}
+          <div className="flex-1 p-4 md:p-8 overflow-y-auto custom-scrollbar flex flex-col h-[60vh] md:h-full bg-slate-100">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col min-h-full overflow-hidden relative">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+                <h2 className="text-xl font-bold text-slate-800">{resultTitle}</h2>
+                <div className="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-100">
+                  {data.length.toLocaleString()} 行のデータ
+                </div>
+              </div>
+              
+              <div className="flex-1 p-4 md:p-6 relative bg-white">
+                {noDataMsg && (
+                  <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100 flex items-center mb-4">
+                    <AlertCircle className="w-5 h-5 mr-2" />
+                    <p className="font-bold text-sm">{noDataMsg}</p>
+                  </div>
+                )}
+                
+                <div ref={chartRef} className={`w-full h-full min-h-[400px] ${summaryData ? 'hidden' : ''}`}></div>
+                
+                {/* 基本統計量テーブル */}
+                {summaryData && (
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm animate-in fade-in">
+                    <table className="min-w-full text-sm text-right whitespace-nowrap">
+                      <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="px-4 py-3 text-left">変数名</th>
+                          <th className="px-4 py-3">データ数</th>
+                          <th className="px-4 py-3">平均</th>
+                          <th className="px-4 py-3">標準偏差</th>
+                          <th className="px-4 py-3">最小値</th>
+                          <th className="px-4 py-3">中央値</th>
+                          <th className="px-4 py-3">最大値</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-slate-100">
+                        {summaryData.map(r => (
+                          <tr key={r.col} className="hover:bg-slate-50">
+                            <td className="px-4 py-3 font-bold text-slate-800 text-left">{r.col}</td>
+                            <td className="px-4 py-3">{r.count}</td>
+                            <td className="px-4 py-3 font-bold text-blue-600">{r.mean.toFixed(2)}</td>
+                            <td className="px-4 py-3">{r.sd.toFixed(2)}</td>
+                            <td className="px-4 py-3">{r.min}</td>
+                            <td className="px-4 py-3">{r.median.toFixed(2)}</td>
+                            <td className="px-4 py-3">{r.max}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* 統計的検定の詳細表示 */}
+                {statTestData && (
+                  <div className="mt-6 p-5 border border-indigo-100 bg-indigo-50 rounded-xl shadow-sm text-sm text-slate-800 animate-in fade-in">
+                    <h3 className="font-bold text-lg mb-3 flex items-center text-indigo-900"><InfoIcon className="w-5 h-5 mr-2 text-indigo-600" /> 一元配置分散分析 (ANOVA) 結果</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                      <div className="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm">
+                        <p className="text-xs text-slate-500 font-bold mb-1">F値 (グループ間の分散比)</p>
+                        <p className="text-2xl font-black text-slate-700">{statTestData.anova.F.toFixed(3)}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm">
+                        <p className="text-xs text-slate-500 font-bold mb-1">p値 (有意確率)</p>
+                        <p className="text-2xl font-black text-indigo-600">
+                          {statTestData.anova.pValue !== null ? (statTestData.anova.pValue < 0.001 ? '< 0.001' : statTestData.anova.pValue.toFixed(4)) : '計算不可'}
+                        </p>
+                      </div>
+                    </div>
+                    {statTestData.anova.pValue !== null && (
+                      <div className={`p-4 rounded-lg font-bold border ${statTestData.anova.pValue < 0.05 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-slate-200 text-slate-700 border-slate-300'}`}>
+                        【判定】 {statTestData.anova.pValue < 0.05 ? '統計的に有意な差があります (p < 0.05)。グループによって平均値に違いがあると言えます。' : '統計的に有意な差はありません (p >= 0.05)。グループ間の違いは誤差の範囲内である可能性があります。'}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!summaryData && !statTestData && !chartRef.current?.children.length && !noDataMsg && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                    <PlayIcon className="w-16 h-16 text-slate-200 mb-4" />
+                    <p className="text-lg font-bold text-slate-400">左側のパネルで条件を設定し、「分析を実行」を押してください</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // -------------------------------------------------------------
+    // アプリケーション全体のエントリポイント (アップロード画面)
+    // -------------------------------------------------------------
+    const App = () => {
+      const [data, setData] = useState([]);
+      const [fileName, setFileName] = useState('');
+      const [errorMsg, setErrorMsg] = useState('');
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setErrorMsg('');
+        setFileName(file.name);
+        
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const bstr = evt.target.result;
+            const wb = window.XLSX.read(bstr, {type:'binary'});
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const jsonData = window.XLSX.utils.sheet_to_json(ws);
+            if (jsonData && jsonData.length > 0) {
+              setData(jsonData);
+            } else {
+              setErrorMsg('ファイル内にデータが見つかりませんでした。空のシートでないか確認してください。');
+            }
+          } catch(err) {
+            setErrorMsg('ファイルの読み込みに失敗しました。対応している形式(CSV/XLS/XLSX)か確認してください。');
+          }
+        };
+        reader.readAsBinaryString(file);
+      };
+
+      const loadDemoData = () => {
+        const demo = [];
+        const regions = ['東京', '大阪', '愛知', '福岡', '北海道'];
+        const products = ['製品A', '製品B', '製品C'];
+        let date = new Date('2024-01-01');
+        
+        for (let i = 0; i < 100; i++) {
+          demo.push({
+            "日付": date.toISOString().split('T')[0],
+            "月": date.toISOString().substring(0, 7),
+            "地域": regions[Math.floor(Math.random() * regions.length)],
+            "商品": products[Math.floor(Math.random() * products.length)],
+            "売上額": Math.floor(Math.random() * 50000) + 10000,
+            "客数": Math.floor(Math.random() * 100) + 20,
+            "満足度": Number((Math.random() * 2 + 3).toFixed(1)),
+            "リピート率": Number((Math.random() * 40 + 20).toFixed(1))
+          });
+          if (i % 2 === 0) date.setDate(date.getDate() + 1);
+        }
+        setFileName('デモ売上データ.csv');
+        setData(demo);
+      };
+
+      if (data.length > 0) {
+        return <AnalysisWorkspace rawData={data} fileName={fileName} onReset={() => setData([])} />;
+      }
+
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50 font-sans text-slate-800">
+          <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 border border-slate-100 text-center animate-in fade-in">
+            <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <UploadCloud className="w-10 h-10" />
+            </div>
+            <h1 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Data Analyzer</h1>
+            <p className="text-slate-500 text-sm mb-8">CSV または Excel ファイルをインポートして<br/>22種類の高度なデータ分析をすぐに始めましょう。</p>
+            
+            {errorMsg && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold mb-6 border border-red-100">
+                {errorMsg}
+              </div>
+            )}
+
+            <div className="relative">
+              <input 
+                type="file" 
+                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" 
+                onChange={handleFileUpload} 
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              />
+              <div className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-md transition-colors flex items-center justify-center">
+                <FileSpreadsheet className="w-5 h-5 mr-2" />
+                ファイルを選択する
+              </div>
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-slate-100">
+              <p className="text-xs text-slate-400 mb-3">または、手元にデータがない場合は</p>
+              <button onClick={loadDemoData} className="text-sm font-bold text-blue-600 hover:text-blue-800 hover:underline transition-colors">
+                デモデータを使って試す
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
