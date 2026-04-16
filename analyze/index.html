@@ -329,6 +329,45 @@
       const [userInput, setUserInput] = useState("");
       const chatEndRef = useRef(null);
 
+      // --- 期間フィルター用State ---
+      const [dateFilterCol, setDateFilterCol] = useState('');
+      const [startDate, setStartDate] = useState('');
+      const [endDate, setEndDate] = useState('');
+
+      const handleDateColChange = (col) => {
+        setDateFilterCol(col);
+        if (!col) return;
+        let min = '9999-12-31', max = '0000-01-01';
+        processedData.forEach(d => {
+          let v = d[col];
+          if (v && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+            if (v < min) min = v;
+            if (v > max) max = v;
+          }
+        });
+        setStartDate(min !== '9999-12-31' ? min : '');
+        setEndDate(max !== '0000-01-01' ? max : '');
+      };
+
+      // 初期ロード時に最初の日付列でフィルター範囲を設定
+      useEffect(() => {
+        if (cols.date && cols.date.length > 0 && !dateFilterCol) {
+          handleDateColChange(cols.date[0]);
+        }
+      }, [cols.date]);
+
+      // フィルター適用後のデータ
+      const filteredData = useMemo(() => {
+        if (!dateFilterCol || (!startDate && !endDate)) return processedData;
+        return processedData.filter(d => {
+          const v = d[dateFilterCol];
+          if (!v || typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return true;
+          if (startDate && v < startDate) return false;
+          if (endDate && v > endDate) return false;
+          return true;
+        });
+      }, [processedData, dateFilterCol, startDate, endDate]);
+
       useEffect(() => {
         if (!cols.all.length) return;
         const c1 = cols.dateExtended[0] || cols.categorical[0] || cols.all[0];
@@ -346,13 +385,18 @@
         const chartArea = document.getElementById('chart-area');
         if (chartArea && window.Plotly) window.Plotly.purge(chartArea);
 
+        if (filteredData.length === 0) {
+           setNoDataMsg('指定された期間に該当するデータが存在しません。');
+           return;
+        }
+
         let extractedDataForAI = null;
 
         try {
           switch (analysisType) {
             case 'summary': {
               let res = yAxisChk.map(c => {
-                let vls = processedData.map(d => toNum(d[c])).filter(v => v !== null).sort((a,b)=>a-b);
+                let vls = filteredData.map(d => toNum(d[c])).filter(v => v !== null).sort((a,b)=>a-b);
                 if (!vls.length) return null;
                 return { col: c, count: vls.length, mean: vls.reduce((a,b)=>a+b,0)/vls.length, min: vls[0], median: vls[Math.floor(vls.length/2)], max: vls[vls.length-1] };
               }).filter(Boolean);
@@ -361,7 +405,7 @@
               break;
             }
             case 'timeseries': {
-              let sorted = [...processedData].sort((a,b) => a[xAxis] < b[xAxis] ? -1 : 1);
+              let sorted = [...filteredData].sort((a,b) => a[xAxis] < b[xAxis] ? -1 : 1);
               let traces = yAxisChk.map(c => ({ x: sorted.map(d=>d[xAxis]), y: sorted.map(d=>toNum(d[c])), type: 'scatter', mode: 'lines+markers', name: c }));
               window.Plotly.newPlot('chart-area', traces, { margin: {t:40}, autosize: true }, {responsive:true});
               extractedDataForAI = traces.map(t => ({ name: t.name, data_points: t.x.length, min_y: Math.min(...t.y.filter(v=>v!==null)), max_y: Math.max(...t.y.filter(v=>v!==null)) }));
@@ -369,7 +413,7 @@
             }
             case 'comparison':
             case 'stackedbar': {
-              let g = {}; processedData.forEach(r => {
+              let g = {}; filteredData.forEach(r => {
                 let k = String(r[xAxis] || '不明'); if(!g[k]) { g[k]={c:0, s:{}}; yAxisChk.forEach(y=>g[k].s[y]=0); }
                 yAxisChk.forEach(y => { let v=toNum(r[y]); if(v!==null) g[k].s[y]+=v; }); g[k].c++;
               });
@@ -382,18 +426,18 @@
             case 'boxplot':
             case 'violin':
             case 'stripplot': {
-              let g = {}; processedData.forEach(r => { let k=String(r[xAxis]||'不明'), v=toNum(r[yAxis]); if(v!==null){ if(!g[k])g[k]=[]; g[k].push(v); }});
+              let g = {}; filteredData.forEach(r => { let k=String(r[xAxis]||'不明'), v=toNum(r[yAxis]); if(v!==null){ if(!g[k])g[k]=[]; g[k].push(v); }});
               let traces = Object.keys(g).sort().map(k => ({ y: g[k], name: k, type: analysisType==='violin'?'violin':'box', boxpoints: analysisType==='stripplot'?'all':'outliers' }));
               window.Plotly.newPlot('chart-area', traces, { margin: {t:40} }, {responsive:true});
               break;
             }
             case 'histogram': {
-              window.Plotly.newPlot('chart-area', [{ x: processedData.map(d=>toNum(d[xAxis])), type: 'histogram', nbinsx: bins }], { margin: {t:40} }, {responsive:true});
+              window.Plotly.newPlot('chart-area', [{ x: filteredData.map(d=>toNum(d[xAxis])), type: 'histogram', nbinsx: bins }], { margin: {t:40} }, {responsive:true});
               break;
             }
             case 'correlation': {
               let z = yAxisChk.map(c1 => yAxisChk.map(c2 => {
-                let x=[], y=[]; processedData.forEach(d=>{ let v1=toNum(d[c1]), v2=toNum(d[c2]); if(v1!==null && v2!==null){ x.push(v1); y.push(v2); }});
+                let x=[], y=[]; filteredData.forEach(d=>{ let v1=toNum(d[c1]), v2=toNum(d[c2]); if(v1!==null && v2!==null){ x.push(v1); y.push(v2); }});
                 if(!x.length) return 0;
                 let n=x.length, sx=x.reduce((a,b)=>a+b,0), sy=y.reduce((a,b)=>a+b,0), sxy=x.reduce((a,v,i)=>a+v*y[i],0), sx2=x.reduce((a,v)=>a+v*v,0), sy2=y.reduce((a,v)=>a+v*v,0);
                 let nm = n*sxy-sx*sy, dn = Math.sqrt((n*sx2-sx*sx)*(n*sy2-sy*sy));
@@ -404,32 +448,32 @@
               break;
             }
             case 'radar': {
-              let g = {}; processedData.forEach(r => { let k=String(r[xAxis]||'不明'); if(!g[k]){ g[k]={c:0, s:{}}; yAxisChk.forEach(y=>g[k].s[y]=0); } yAxisChk.forEach(y=>{ let v=toNum(r[y]); if(v!==null) g[k].s[y]+=v; }); g[k].c++; });
+              let g = {}; filteredData.forEach(r => { let k=String(r[xAxis]||'不明'); if(!g[k]){ g[k]={c:0, s:{}}; yAxisChk.forEach(y=>g[k].s[y]=0); } yAxisChk.forEach(y=>{ let v=toNum(r[y]); if(v!==null) g[k].s[y]+=v; }); g[k].c++; });
               let traces = Object.keys(g).map(k => { let r = yAxisChk.map(y => g[k].c>0 ? g[k].s[y]/g[k].c : 0); r.push(r[0]); return { type: 'scatterpolar', r, theta: [...yAxisChk, yAxisChk[0]], fill: 'toself', name: k }; });
               window.Plotly.newPlot('chart-area', traces, { polar: { radialaxis: { visible: true } } }, {responsive:true});
               extractedDataForAI = traces.map(t => ({ category: t.name, axis: t.theta, values: t.r }));
               break;
             }
             case 'stat_test': {
-              let grp = {}; processedData.forEach(r => { let c=String(r[xAxis]||''), v=toNum(r[yAxis]); if(c && v!==null){ if(!grp[c])grp[c]=[]; grp[c].push(v); }});
+              let grp = {}; filteredData.forEach(r => { let c=String(r[xAxis]||''), v=toNum(r[yAxis]); if(c && v!==null){ if(!grp[c])grp[c]=[]; grp[c].push(v); }});
               let ks = Object.keys(grp).filter(k=>grp[k].length>1); if(ks.length<2) throw new Error('2つ以上のグループが必要です。');
               window.Plotly.newPlot('chart-area', ks.map(k=>({y:grp[k], type:'box', name:k})), {margin: {t:40}});
               break;
             }
             case 'treemap': {
-              let g = {}; processedData.forEach(d => { let k=String(d[xAxis]||'不明'), v=toNum(d[yAxis])||0; g[k]=(g[k]||0)+v; });
+              let g = {}; filteredData.forEach(d => { let k=String(d[xAxis]||'不明'), v=toNum(d[yAxis])||0; g[k]=(g[k]||0)+v; });
               window.Plotly.newPlot('chart-area', [{ type: 'treemap', labels: Object.keys(g), parents: Object.keys(g).map(()=>''), values: Object.values(g) }], {}, {responsive:true});
               extractedDataForAI = { labels: Object.keys(g), values: Object.values(g) };
               break;
             }
             default: {
-                let traces = [{ x: processedData.map(d=>toNum(d[xAxis])), y: processedData.map(d=>toNum(d[yAxis])), mode: 'markers', type: analysisType==='scatter3d' ? 'scatter3d' : 'scatter' }];
+                let traces = [{ x: filteredData.map(d=>toNum(d[xAxis])), y: filteredData.map(d=>toNum(d[yAxis])), mode: 'markers', type: analysisType==='scatter3d' ? 'scatter3d' : 'scatter' }];
                 window.Plotly.newPlot('chart-area', traces, { margin: {t:40} }, {responsive:true});
             }
           }
           
           if (!extractedDataForAI) {
-              extractedDataForAI = processedData.slice(0, 50).map(d => {
+              extractedDataForAI = filteredData.slice(0, 50).map(d => {
                   let obj = {}; obj[xAxis] = d[xAxis]; yAxisChk.forEach(y => obj[y] = d[y]); return obj;
               });
           }
@@ -451,9 +495,8 @@
             } catch(e) {}
         }
 
-        // 全体の基本統計量を裏側で計算してAIに渡す
         let overallStats = yAxisChk.map(c => {
-          let vls = processedData.map(d => toNum(d[c])).filter(v => v !== null).sort((a,b)=>a-b);
+          let vls = filteredData.map(d => toNum(d[c])).filter(v => v !== null).sort((a,b)=>a-b);
           if (!vls.length) return null;
           return { 
             "列名": c, 
@@ -466,7 +509,9 @@
         }).filter(Boolean);
         let statsStr = JSON.stringify(overallStats);
 
-        let aiPrompt = `【分析条件】\n分析手法: ${analysisType}\nX軸: ${xAxis}\nY軸: ${yAxis}\n分析対象の数値項目: ${yAxisChk.join(", ")}\n全体データ件数: ${processedData.length}\n\n【対象項目の基本統計量】\n${statsStr}\n\n【グラフ表示用の集計・サンプリングデータ】\n${dataStr}\n\n上記データと条件に基づいて、データから読み取れる主要な傾向や示唆を日本語で提供してください。必ず「基本統計量」や「集計データ」の実際の数値を引用して具体的に分析してください。`;
+        let dateFilterInfo = dateFilterCol ? `\n期間指定: ${dateFilterCol} (${startDate || '指定なし'} 〜 ${endDate || '指定なし'})` : '';
+
+        let aiPrompt = `【分析条件】\n分析手法: ${analysisType}\nX軸: ${xAxis}\nY軸: ${yAxis}\n分析対象の数値項目: ${yAxisChk.join(", ")}\n対象データ件数: ${filteredData.length}${dateFilterInfo}\n\n【対象項目の基本統計量】\n${statsStr}\n\n【グラフ表示用の集計・サンプリングデータ】\n${dataStr}\n\n上記データと条件に基づいて、データから読み取れる主要な傾向や示唆を日本語で提供してください。必ず「基本統計量」や「集計データ」の実際の数値を引用して具体的に分析してください。`;
         
         try {
           const res = await callGemini(aiPrompt);
@@ -501,6 +546,22 @@
               ))}
             </select>
             <AnalysisDescription typeId={analysisType} />
+
+            {/* --- 期間フィルター UI --- */}
+            {cols.date && cols.date.length > 0 && (
+              <div className="mb-4 bg-white p-3 rounded-lg border border-slate-200 shadow-sm animate-in">
+                <label className="block text-xs font-bold text-slate-500 mb-2 flex items-center"><Icons.Table className="w-3 h-3 mr-1" /> 期間フィルター</label>
+                <select value={dateFilterCol} onChange={e => handleDateColChange(e.target.value)} className="w-full text-xs border border-slate-300 rounded p-1.5 mb-2 bg-slate-50 outline-none text-slate-700 font-bold">
+                  {cols.date.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <div className="flex items-center space-x-1">
+                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full text-xs border border-slate-300 rounded p-1.5 outline-none text-slate-700 bg-white" />
+                  <span className="text-slate-400 text-xs font-bold">〜</span>
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full text-xs border border-slate-300 rounded p-1.5 outline-none text-slate-700 bg-white" />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
               <div><label className="block text-xs font-bold text-slate-500 mb-1">軸 / カテゴリ</label>
                 <select value={xAxis} onChange={e=>setXAxis(e.target.value)} className="w-full text-sm border border-slate-300 rounded-lg p-2 bg-white outline-none shadow-sm"><AxisOptions cols={cols}/></select>
