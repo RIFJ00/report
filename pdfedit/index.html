@@ -30,12 +30,26 @@
             display: block;
             max-width: 100%;
         }
+        
+        #thumbnailSidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        #thumbnailSidebar::-webkit-scrollbar-track {
+            background: #111827;
+        }
+        #thumbnailSidebar::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 3px;
+        }
+        #thumbnailSidebar::-webkit-scrollbar-thumb:hover {
+            background: #4b5563;
+        }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col h-screen text-gray-800 font-sans">
 
     <!-- ヘッダー -->
-    <header class="bg-blue-800 text-white p-4 shadow-md flex justify-between items-center z-20">
+    <header class="bg-blue-800 text-white p-4 shadow-md flex justify-between items-center z-20 relative">
         <div class="flex items-center gap-2">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
             <h1 class="text-xl font-bold">文書・画像 黒余白クリーンアップツール</h1>
@@ -51,7 +65,7 @@
         <aside class="w-80 bg-white shadow-lg flex flex-col z-10 border-r border-gray-200 overflow-y-auto">
             <div class="p-5 flex flex-col gap-6">
                 
-                <!-- 1. ファイル選択 (最小サイズ版) -->
+                <!-- 1. ファイル選択 -->
                 <div>
                     <h2 class="text-sm font-bold text-gray-700 mb-2 border-b pb-1">1. ファイルを開く</h2>
                     <input type="file" id="fileInput" accept="image/png, image/jpeg, application/pdf" class="block w-full text-sm text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-gray-200 rounded-md p-1 transition" title="ファイルを選択" />
@@ -80,11 +94,8 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
                         黒い余白を自動検出 (強力)
                     </button>
-                    <p class="text-xs text-gray-500 mb-4 leading-tight">スキャン時の黒枠などを検出し、切り抜き枠を自動で設定します。手動での微調整も可能です。</p>
 
                     <h2 class="text-sm font-bold text-gray-700 mb-2 border-b pb-1 mt-4">3. 切り抜き枠の回転</h2>
-                    
-                    <!-- Cropper(枠)の回転のみをここに残す -->
                     <div>
                         <p class="text-xs text-gray-500 mb-1 leading-tight">枠(画像表示)の回転</p>
                         <div class="grid grid-cols-2 gap-2">
@@ -100,7 +111,7 @@
                     </div>
                 </div>
 
-                <!-- PDF一括処理 -->
+                <!-- 4. PDF一括処理 -->
                 <div id="pdfBatchControls" class="hidden">
                     <h2 class="text-sm font-bold text-gray-700 mb-2 border-b pb-1">4. PDF全体処理 (縦横を揃える)</h2>
                     <p class="text-xs text-gray-500 mb-2 leading-tight">全ページを自動で判定し、横向きのページを一括で縦向きに揃えます。</p>
@@ -112,137 +123,114 @@
 
             </div>
 
-            <!-- 5. 適用・保存ボタン群 (下部に固定) -->
+            <!-- 5. 適用・保存ボタン群 -->
             <div class="mt-auto p-5 border-t border-gray-200 bg-gray-50 flex flex-col gap-3">
                 
-                <!-- 内部データへの適用 (まだダウンロードしない) -->
-                <button id="applyPdfBtn" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white font-bold rounded-md shadow-lg hover:bg-red-700 transition hidden disabled:opacity-50 disabled:cursor-not-allowed" disabled title="切り抜き設定をPDFデータに反映させます（ファイル出力はまだ行われません）">
+                <button id="applyPdfBtn" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white font-bold rounded-md shadow-lg hover:bg-red-700 transition hidden disabled:opacity-50 disabled:cursor-not-allowed" disabled title="切り抜き設定をPDFデータに反映させます">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                     調整済みのPDFを保存
                 </button>
 
-                <!-- 新機能: PDFページ自体の回転 (個別設定) をここに移動 -->
                 <div id="pageRotationControls" class="bg-white p-2 rounded-md border border-gray-200 shadow-sm hidden">
-                    <p class="text-xs text-gray-500 mb-1.5 leading-tight text-center font-medium">現在表示中のページを回転 <span class="text-blue-600">(PDFに反映)</span></p>
+                    <p class="text-xs text-gray-500 mb-1.5 leading-tight text-center font-medium">ページを回転 <span class="text-blue-600">(PDFに反映)</span></p>
+                    <div class="mb-2">
+                        <select id="rotateTargetSelect" class="w-full text-xs border border-gray-300 rounded p-1.5 bg-gray-50 text-gray-700 outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            <option value="current">現在表示中のページのみ</option>
+                            <option value="all">全ページを一括回転</option>
+                            <option value="landscape">横向きのページを全て回転</option>
+                            <option value="portrait">縦向きのページを全て回転</option>
+                        </select>
+                    </div>
                     <div class="grid grid-cols-2 gap-2">
-                        <button id="rotatePage90Btn" class="flex items-center justify-center gap-1 px-1 py-2 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100 text-xs font-bold text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition" disabled title="ページを90度回転させ、縦・横を切り替えます (押すたびに回転します)">
+                        <button id="rotatePage90Btn" class="flex items-center justify-center gap-1 px-1 py-2 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100 text-xs font-bold text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                            90度 (縦横切替)
+                            90度
                         </button>
-                        <button id="rotatePage180Btn" class="flex items-center justify-center gap-1 px-1 py-2 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100 text-xs font-bold text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition" disabled title="ページを180度回転させ、上下を反転させます">
+                        <button id="rotatePage180Btn" class="flex items-center justify-center gap-1 px-1 py-2 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100 text-xs font-bold text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
-                            180度 (上下反転)
+                            180度
                         </button>
                     </div>
                 </div>
 
-                <!-- 1つ前の状態に戻す (Undo) -->
-                <button id="undoBtn" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-md shadow-sm hover:bg-gray-100 transition hidden disabled:opacity-50 disabled:cursor-not-allowed" disabled title="直前の適用操作を取り消して元の状態に戻します">
+                <button id="undoBtn" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-md shadow-sm hover:bg-gray-100 transition hidden disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
-                    適用を取り消す (元に戻す)
+                    適用を取り消す
                 </button>
 
-                <!-- PDF全体の最終ダウンロード -->
                 <div class="mt-2">
-                    <button id="downloadFinalPdfBtn" class="w-full flex items-center justify-center gap-3 px-4 py-4 bg-gray-900 text-white font-extrabold text-lg rounded-xl shadow-xl hover:bg-black hover:scale-[1.02] transform transition-all duration-200 hidden disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100" disabled title="ページごとの向きや切り抜きを反映した、縦横混在の1つのPDFファイルとしてダウンロードします">
+                    <button id="downloadFinalPdfBtn" class="w-full flex items-center justify-center gap-3 px-4 py-4 bg-gray-900 text-white font-extrabold text-lg rounded-xl shadow-xl hover:bg-black hover:scale-[1.02] transform transition-all duration-200 hidden disabled:opacity-50 disabled:cursor-not-allowed">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                         PDFをダウンロード
                     </button>
-                    <p class="text-xs text-center text-gray-500 mt-2 font-medium" id="downloadDescText">※ページごとに設定した縦横の向きはそのまま保持されます</p>
+                    <p class="text-[10px] text-center text-gray-500 mt-2 hidden" id="downloadDescText">※切り抜き形状に合わせて縦横が自動調整されます</p>
                 </div>
 
-                <!-- 既存機能: 画像として保存 -->
-                <button id="downloadImageBtn" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-bold rounded-md shadow hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed mt-2" disabled title="現在の画面の切り抜いた部分だけをPNG画像として保存します">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                <button id="downloadImageBtn" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-bold rounded-md shadow hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed mt-2">
                     この画像をPNGで保存
                 </button>
             </div>
         </aside>
 
-        <!-- 右ペイン: プレビュー領域 (ドラッグ＆ドロップ対応) -->
-        <section id="previewSection" class="flex-1 bg-gray-800 flex items-center justify-center p-6 relative overflow-hidden transition-colors duration-200">
-            <div id="loading" class="hidden absolute inset-0 bg-gray-900/70 z-20 flex flex-col items-center justify-center backdrop-blur-sm">
-                <div class="animate-spin rounded-full h-14 w-14 border-t-4 border-b-4 border-white mb-4"></div>
-                <p class="text-white font-medium text-lg tracking-wider" id="loadingText">処理中...</p>
-            </div>
-            
-            <div class="w-full h-full flex items-center justify-center relative">
-                <!-- 画像表示用 -->
-                <img id="imagePreview" src="" alt="プレビュー" class="hidden max-w-full max-h-full" />
-                
-                <!-- 初期状態のプレースホルダー (巨大なドロップゾーン・プラスボタン) -->
-                <div id="placeholder" class="text-gray-400 flex flex-col items-center justify-center border-4 border-dashed border-gray-600 hover:border-blue-500 hover:bg-gray-700 hover:text-blue-200 transition-all rounded-3xl p-12 w-full max-w-2xl cursor-pointer bg-gray-800/50 shadow-2xl relative overflow-hidden group">
-                    <div class="bg-blue-600 text-white rounded-full p-5 mb-6 shadow-xl group-hover:scale-110 group-hover:bg-blue-500 transition-transform duration-300">
-                        <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                    </div>
-                    <p class="text-3xl font-bold text-gray-200 mb-4 text-center">ここにファイルをドロップ</p>
-                    <p class="text-lg text-gray-400 mb-8 text-center group-hover:text-gray-300 transition-colors">または クリックしてファイルを開く</p>
-                    <div class="flex gap-6 text-sm text-gray-500 font-medium">
-                        <span class="flex items-center gap-1 bg-gray-900/50 px-3 py-1.5 rounded-lg"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> PDF</span>
-                        <span class="flex items-center gap-1 bg-gray-900/50 px-3 py-1.5 rounded-lg"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> JPG / PNG</span>
-                    </div>
-                    <!-- プレビュー画面用の不可視ファイルインプット -->
-                    <input type="file" id="previewFileInput" accept="image/png, image/jpeg, application/pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" title="ファイルを選択" />
+        <!-- メインエリア -->
+        <div id="mainWorkspace" class="flex-1 flex overflow-hidden bg-gray-800 transition-colors duration-200 relative">
+            <aside id="thumbnailSidebar" class="w-48 bg-gray-900 border-r border-gray-700 overflow-y-auto hidden flex-col p-3 gap-3 shadow-inner z-10"></aside>
+            <section id="previewSection" class="flex-1 flex items-center justify-center p-6 relative overflow-hidden">
+                <div id="loading" class="hidden absolute inset-0 bg-gray-900/70 z-20 flex flex-col items-center justify-center backdrop-blur-sm">
+                    <div class="animate-spin rounded-full h-14 w-14 border-t-4 border-b-4 border-white mb-4"></div>
+                    <p class="text-white font-medium text-lg tracking-wider" id="loadingText">処理中...</p>
                 </div>
-            </div>
-        </section>
+                <div class="w-full h-full flex items-center justify-center relative">
+                    <img id="imagePreview" src="" alt="プレビュー" class="hidden max-w-full max-h-full" />
+                    <div id="placeholder" class="text-gray-400 flex flex-col items-center justify-center border-4 border-dashed border-gray-600 hover:border-blue-500 hover:bg-gray-700 transition-all rounded-3xl p-12 w-full max-w-2xl cursor-pointer bg-gray-800/50 shadow-2xl relative overflow-hidden group">
+                        <div class="bg-blue-600 text-white rounded-full p-5 mb-6 group-hover:scale-110 transition-transform"><svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg></div>
+                        <p class="text-3xl font-bold text-gray-200 mb-4 text-center">ここにファイルをドロップ</p>
+                        <input type="file" id="previewFileInput" accept="image/png, image/jpeg, application/pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                    </div>
+                </div>
+            </section>
+        </div>
     </main>
 
     <!-- 適用オプション モーダル -->
     <div id="batchConfirmModal" class="fixed inset-0 bg-gray-900/60 z-50 hidden flex items-center justify-center backdrop-blur-sm">
         <div class="bg-white rounded-xl p-6 max-w-lg w-full shadow-2xl mx-4">
             <h3 class="text-lg font-bold mb-2 text-gray-800">PDFデータへの適用</h3>
-            <p class="text-sm text-gray-600 mb-5">切り抜きの設定をどのように適用しますか？<br><span class="text-red-500 font-medium">※ここではまだ保存(ダウンロード)されません。適用後、他のページも続けて編集できます。</span></p>
-            
+            <p class="text-sm text-gray-600 mb-5">切り抜きの設定をどのように適用しますか？<br><span class="text-red-500 font-medium">※ここではまだ保存(ダウンロード)されません。</span></p>
             <div class="flex flex-col gap-3">
-                <button id="applyCurrentBtn" class="flex flex-col items-start px-4 py-3.5 bg-green-600 border border-green-700 text-white rounded-lg hover:bg-green-700 transition shadow-md">
-                    <span class="font-bold flex items-center gap-2 text-base">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                        【おすすめ】このページのみ適用する
-                    </span>
-                    <span class="text-sm mt-1 text-left opacity-90 font-medium">現在の画面で設定した枠で、この1ページだけを置き換えてPDFデータに反映します。</span>
+                <button id="applyCurrentBtn" class="flex flex-col items-start px-4 py-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg hover:bg-blue-100 transition shadow-sm">
+                    <span class="font-bold flex items-center gap-2 text-base"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>このページのみ適用する</span>
+                    <span class="text-xs mt-1 opacity-80">この1ページだけを切り抜き、形状に合わせて縦横を調整します。</span>
                 </button>
-                
-                <button id="applyFixedToAllBtn" class="flex flex-col items-start px-4 py-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg hover:bg-blue-100 transition shadow-sm">
-                    <span class="font-bold flex items-center gap-2 text-left">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
-                        現在の枠設定を同じ仕様のページに一括適用
-                    </span>
-                    <span class="text-xs mt-1 text-left opacity-80">現在のページと「同じサイズ・向きのページ」に対してのみ、一気に同じ枠で切り抜いて反映します。（違う仕様のページは安全のためスキップされます）</span>
+                <button id="applyFixedToAllBtn" class="flex flex-col items-start px-5 py-4 bg-green-600 border border-green-700 text-white rounded-xl hover:bg-green-700 transition shadow-lg transform hover:scale-[1.02] relative overflow-hidden">
+                    <div class="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-[10px] font-extrabold px-3 py-1 rounded-bl-lg">推奨</div>
+                    <span class="font-extrabold flex items-center gap-2 text-lg"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>現在の設定で全ページをまとめて処理</span>
+                    <span class="text-sm mt-1.5 text-left opacity-95 font-medium leading-tight">現在の枠の位置・形状で全ページを一気に処理します。（形状に合わせて各ページの縦横も自動調整されます）</span>
                 </button>
-
-                <button id="applyAutoToAllBtn" class="flex flex-col items-start px-4 py-3 bg-red-50 border border-red-200 text-red-800 rounded-lg hover:bg-red-100 transition shadow-sm">
-                    <span class="font-bold flex items-center gap-2 text-left">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-                        各ページを自動解析して全ページ適用する
-                    </span>
-                    <span class="text-xs mt-1 text-left opacity-80">現在の枠設定は無視し、全ページごとに自動で黒枠を探し出して処理・反映します。（ページにより切り抜きサイズが変わる場合があります）</span>
+                <button id="applyAutoToAllBtn" class="flex flex-col items-start px-4 py-3 bg-red-50 border border-red-200 text-red-800 rounded-lg hover:bg-blue-100 transition shadow-sm">
+                    <span class="font-bold flex items-center gap-2 text-left"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>各ページを自動解析して全ページ適用</span>
+                    <span class="text-xs mt-1 opacity-80">ページごとに黒枠を自動検出して処理します。</span>
                 </button>
-                
-                <button id="cancelModalBtn" class="px-4 py-2.5 mt-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition text-sm">
-                    キャンセル
-                </button>
+                <button id="cancelModalBtn" class="px-4 py-2.5 mt-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition text-sm">キャンセル</button>
             </div>
         </div>
     </div>
 
     <script>
-        // DOM要素の取得
         const fileInput = document.getElementById('fileInput');
         const previewFileInput = document.getElementById('previewFileInput');
-        const previewSection = document.getElementById('previewSection');
-        
+        const mainWorkspace = document.getElementById('mainWorkspace');
+        const thumbnailSidebar = document.getElementById('thumbnailSidebar');
         const pdfControls = document.getElementById('pdfControls');
         const prevPageBtn = document.getElementById('prevPage');
         const nextPageBtn = document.getElementById('nextPage');
         const pageInfo = document.getElementById('pageInfo');
-        
         const autoCropBtn = document.getElementById('autoCropBtn');
         const rotateLeftBtn = document.getElementById('rotateLeftBtn');
         const rotateRightBtn = document.getElementById('rotateRightBtn');
         const downloadImageBtn = document.getElementById('downloadImageBtn');
-        
         const applyPdfBtn = document.getElementById('applyPdfBtn');
+        const rotateTargetSelect = document.getElementById('rotateTargetSelect');
         const rotatePage90Btn = document.getElementById('rotatePage90Btn');
         const rotatePage180Btn = document.getElementById('rotatePage180Btn');
         const pageRotationControls = document.getElementById('pageRotationControls');
@@ -250,157 +238,65 @@
         const downloadFinalPdfBtn = document.getElementById('downloadFinalPdfBtn');
         const downloadDescText = document.getElementById('downloadDescText');
         const fixOrientationBtn = document.getElementById('fixOrientationBtn');
-
         const imagePreview = document.getElementById('imagePreview');
         const placeholder = document.getElementById('placeholder');
         const loading = document.getElementById('loading');
         const loadingText = document.getElementById('loadingText');
-        
-        // モーダル要素
         const batchConfirmModal = document.getElementById('batchConfirmModal');
         const applyCurrentBtn = document.getElementById('applyCurrentBtn');
         const applyFixedToAllBtn = document.getElementById('applyFixedToAllBtn');
         const applyAutoToAllBtn = document.getElementById('applyAutoToAllBtn');
         const cancelModalBtn = document.getElementById('cancelModalBtn');
 
-        // アプリケーションの状態
         let currentPdf = null;
         let currentPageNum = 1;
         let cropper = null;
         let originalFileName = 'document';
-        
-        // PDF編集用の変数
         let originalPdfBytes = null;
-        const pdfScale = 3.0; // 高画質化のためのスケール値
-        
-        // 履歴管理用の変数
+        const pdfScale = 3.0; 
         let pdfHistory = [];
-        const maxHistory = 5; // 戻れる回数の上限
+        const maxHistory = 5; 
+        let thumbnailGenerationId = 0;
 
-        function showLoading(text) {
-            loadingText.innerText = text;
-            loading.classList.remove('hidden');
-        }
-        function hideLoading() {
-            loading.classList.add('hidden');
-        }
+        function showLoading(text) { loadingText.innerText = text; loading.classList.remove('hidden'); }
+        function hideLoading() { loading.classList.add('hidden'); }
 
-        // 履歴の保存とUndoボタンの状態更新
-        function updateUndoButtonState() {
-            if (pdfHistory.length > 0) {
-                undoBtn.disabled = false;
-            } else {
-                undoBtn.disabled = true;
-            }
-        }
-
-        function saveHistory() {
-            if (!originalPdfBytes) return;
-            pdfHistory.push(originalPdfBytes);
-            if (pdfHistory.length > maxHistory) {
-                pdfHistory.shift();
-            }
-            updateUndoButtonState();
-        }
+        function updateUndoButtonState() { undoBtn.disabled = pdfHistory.length === 0; }
+        function saveHistory() { if (!originalPdfBytes) return; pdfHistory.push(originalPdfBytes); if (pdfHistory.length > maxHistory) pdfHistory.shift(); updateUndoButtonState(); }
 
         function enableControls() {
-            autoCropBtn.disabled = false;
-            rotateLeftBtn.disabled = false;
-            rotateRightBtn.disabled = false;
-            downloadImageBtn.disabled = false;
-            
-            // PDF読み込み時のみ有効にするボタン群
-            if (currentPdf) {
-                applyPdfBtn.disabled = false;
-                downloadFinalPdfBtn.disabled = false;
-                rotatePage90Btn.disabled = false;
-                rotatePage180Btn.disabled = false;
-                fixOrientationBtn.disabled = false;
-            }
+            autoCropBtn.disabled = false; rotateLeftBtn.disabled = false; rotateRightBtn.disabled = false; downloadImageBtn.disabled = false;
+            if (currentPdf) { applyPdfBtn.disabled = false; downloadFinalPdfBtn.disabled = false; rotateTargetSelect.disabled = false; rotatePage90Btn.disabled = false; rotatePage180Btn.disabled = false; fixOrientationBtn.disabled = false; }
             updateUndoButtonState();
         }
 
         function disableControls() {
-            autoCropBtn.disabled = true;
-            rotateLeftBtn.disabled = true;
-            rotateRightBtn.disabled = true;
-            downloadImageBtn.disabled = true;
-            applyPdfBtn.disabled = true;
-            undoBtn.disabled = true;
-            downloadFinalPdfBtn.disabled = true;
-            rotatePage90Btn.disabled = true;
-            rotatePage180Btn.disabled = true;
-            fixOrientationBtn.disabled = true;
+            autoCropBtn.disabled = true; rotateLeftBtn.disabled = true; rotateRightBtn.disabled = true; downloadImageBtn.disabled = true;
+            applyPdfBtn.disabled = true; undoBtn.disabled = true; downloadFinalPdfBtn.disabled = true; rotateTargetSelect.disabled = true; rotatePage90Btn.disabled = true; rotatePage180Btn.disabled = true; fixOrientationBtn.disabled = true;
         }
 
-        // 共通のファイル処理関数
         async function handleFileSelect(file) {
             if (!file) return;
-
             originalFileName = file.name.split('.').slice(0, -1).join('.') || 'document';
             disableControls();
-
-            if (file.type === 'application/pdf') {
-                await loadPdf(file);
-            } else if (file.type.startsWith('image/')) {
-                loadImage(file);
-            } else {
-                alert('対応していないファイル形式です。PDFか画像を選択してください。');
-                enableControls(); // 失敗したら戻す
-            }
+            if (file.type === 'application/pdf') await loadPdf(file);
+            else if (file.type.startsWith('image/')) loadImage(file);
+            else { alert('PDFか画像を選択してください。'); enableControls(); }
         }
 
-        // ==========================================
-        // イベントリスナー: ファイル選択とドラッグ＆ドロップ
-        // ==========================================
-        
-        // 左パネルのinput
-        fileInput.addEventListener('change', (e) => {
-            handleFileSelect(e.target.files[0]);
-            e.target.value = '';
-        });
-        
-        // 右パネル(プレビュー)のinput
-        previewFileInput.addEventListener('change', (e) => {
-            handleFileSelect(e.target.files[0]);
-            e.target.value = '';
-        });
+        fileInput.addEventListener('change', (e) => { handleFileSelect(e.target.files[0]); e.target.value = ''; });
+        previewFileInput.addEventListener('change', (e) => { handleFileSelect(e.target.files[0]); e.target.value = ''; });
+        mainWorkspace.addEventListener('dragover', (e) => { e.preventDefault(); mainWorkspace.classList.add('bg-gray-700'); });
+        mainWorkspace.addEventListener('dragleave', (e) => { e.preventDefault(); mainWorkspace.classList.remove('bg-gray-700'); });
+        mainWorkspace.addEventListener('drop', (e) => { e.preventDefault(); mainWorkspace.classList.remove('bg-gray-700'); if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files[0]); });
 
-        // 右パネル(プレビュー領域全体)へのドラッグ＆ドロップ
-        previewSection.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            previewSection.classList.remove('bg-gray-800');
-            previewSection.classList.add('bg-gray-700', 'ring-4', 'ring-blue-500', 'ring-inset');
-        });
-        previewSection.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            previewSection.classList.remove('bg-gray-700', 'ring-4', 'ring-blue-500', 'ring-inset');
-            previewSection.classList.add('bg-gray-800');
-        });
-        previewSection.addEventListener('drop', (e) => {
-            e.preventDefault();
-            previewSection.classList.remove('bg-gray-700', 'ring-4', 'ring-blue-500', 'ring-inset');
-            previewSection.classList.add('bg-gray-800');
-            if (e.dataTransfer.files.length > 0) {
-                handleFileSelect(e.dataTransfer.files[0]);
-            }
-        });
-
-        // ==========================================
-        // PDF読み込みと描画
-        // ==========================================
         async function loadPdf(file) {
             try {
                 showLoading('PDFを読み込み中...');
                 const arrayBuffer = await file.arrayBuffer();
                 originalPdfBytes = arrayBuffer;
-                
-                pdfHistory = [];
-                updateUndoButtonState();
-                
+                pdfHistory = []; updateUndoButtonState();
                 currentPdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                
-                // UI表示切替
                 pdfControls.classList.remove('hidden');
                 document.getElementById('pdfBatchControls').classList.remove('hidden');
                 applyPdfBtn.classList.remove('hidden');
@@ -408,644 +304,324 @@
                 undoBtn.classList.remove('hidden');
                 downloadFinalPdfBtn.classList.remove('hidden');
                 downloadDescText.classList.remove('hidden');
-                
                 currentPageNum = 1;
+                renderThumbnails();
                 await renderPage(currentPageNum);
-            } catch (error) {
-                console.error(error);
-                alert('PDFの読み込みに失敗しました。');
-                hideLoading();
-            }
+            } catch (error) { console.error(error); alert('読み込み失敗'); hideLoading(); }
         }
 
         async function renderPage(pageNum) {
             try {
                 showLoading(`ページ ${pageNum} を準備中...`);
                 const page = await currentPdf.getPage(pageNum);
-                
                 const viewport = page.getViewport({ scale: pdfScale });
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-
-                const renderContext = { canvasContext: ctx, viewport: viewport };
-                await page.render(renderContext).promise;
-                
+                canvas.height = viewport.height; canvas.width = viewport.width;
+                await page.render({ canvasContext: ctx, viewport: viewport }).promise;
                 pageInfo.innerText = `${pageNum} / ${currentPdf.numPages}`;
-                prevPageBtn.disabled = pageNum <= 1;
-                nextPageBtn.disabled = pageNum >= currentPdf.numPages;
-
+                prevPageBtn.disabled = pageNum <= 1; nextPageBtn.disabled = pageNum >= currentPdf.numPages;
                 initCropper(canvas.toDataURL('image/png'));
                 page.cleanup();
-                
-            } catch (error) {
-                console.error(error);
-                alert('ページのレンダリングに失敗しました。');
-                hideLoading();
-            }
+                updateThumbnailHighlight();
+            } catch (error) { hideLoading(); }
         }
 
-        prevPageBtn.addEventListener('click', () => {
-            if (currentPdf && currentPageNum > 1) {
-                currentPageNum--;
-                renderPage(currentPageNum);
-            }
-        });
+        prevPageBtn.addEventListener('click', () => { if (currentPdf && currentPageNum > 1) { currentPageNum--; renderPage(currentPageNum); } });
+        nextPageBtn.addEventListener('click', () => { if (currentPdf && currentPageNum < currentPdf.numPages) { currentPageNum++; renderPage(currentPageNum); } });
 
-        nextPageBtn.addEventListener('click', () => {
-            if (currentPdf && currentPageNum < currentPdf.numPages) {
-                currentPageNum++;
-                renderPage(currentPageNum);
-            }
-        });
-
-        // ==========================================
-        // 画像読み込みとCropper初期化
-        // ==========================================
         function loadImage(file) {
             showLoading('画像を読み込み中...');
-            
-            // PDF専用UIを隠す
-            pdfControls.classList.add('hidden');
-            document.getElementById('pdfBatchControls').classList.add('hidden');
-            applyPdfBtn.classList.add('hidden');
-            pageRotationControls.classList.add('hidden');
-            undoBtn.classList.add('hidden');
-            downloadFinalPdfBtn.classList.add('hidden');
-            downloadDescText.classList.add('hidden');
-            
-            currentPdf = null;
-            originalPdfBytes = null;
-            pdfHistory = [];
-            
+            pdfControls.classList.add('hidden'); document.getElementById('pdfBatchControls').classList.add('hidden');
+            applyPdfBtn.classList.add('hidden'); pageRotationControls.classList.add('hidden');
+            undoBtn.classList.add('hidden'); downloadFinalPdfBtn.classList.add('hidden');
+            thumbnailSidebar.classList.add('hidden');
+            currentPdf = null; originalPdfBytes = null; pdfHistory = [];
             const reader = new FileReader();
             reader.onload = (e) => initCropper(e.target.result);
             reader.readAsDataURL(file);
         }
 
         function initCropper(imageSrc) {
-            placeholder.classList.add('hidden');
-            imagePreview.classList.remove('hidden');
-            
+            placeholder.classList.add('hidden'); imagePreview.classList.remove('hidden');
             if (cropper) cropper.destroy();
             imagePreview.src = imageSrc;
-            
             imagePreview.onload = () => {
-                cropper = new Cropper(imagePreview, {
-                    viewMode: 2,
-                    dragMode: 'crop',
-                    autoCropArea: 0.95,
-                    restore: false,
-                    guides: true,
-                    center: true,
-                    highlight: true,
-                    cropBoxMovable: true,
-                    cropBoxResizable: true,
-                    toggleDragModeOnDblclick: false,
-                    background: false,
-                });
-                enableControls();
-                hideLoading();
+                cropper = new Cropper(imagePreview, { viewMode: 2, dragMode: 'crop', autoCropArea: 0.95, background: false });
+                enableControls(); hideLoading();
             };
         }
 
-        // ==========================================
-        // 機能: 自動検出
-        // ==========================================
         autoCropBtn.addEventListener('click', () => {
             if (!cropper) return;
-            showLoading('黒い余白を解析中...');
-            
+            showLoading('解析中...');
             setTimeout(() => {
-                try {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0);
-                        
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        const newBox = detectBlackBorders(imageData, canvas.width, canvas.height);
-                        
-                        if (newBox) cropper.setData(newBox);
-                        else alert('明確な黒い余白が検出されませんでした。手動で調整してください。');
-                        hideLoading();
-                    };
-                    img.src = document.getElementById('imagePreview').src;
-                } catch (e) {
-                    console.error(e);
-                    alert('自動解析中にエラーが発生しました。');
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
+                    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const newBox = detectBlackBorders(imageData, canvas.width, canvas.height);
+                    if (newBox) cropper.setData(newBox); else alert('検出不可');
                     hideLoading();
-                }
+                };
+                img.src = imagePreview.src;
             }, 100);
         });
 
         function detectBlackBorders(imageData, width, height) {
-            const luminanceThreshold = 180; 
-            const darkPixelRatio = 0.15; 
-            const contentTolerance = 20; 
-            
-            const isDark = (r, g, b) => (0.299 * r + 0.587 * g + 0.114 * b) < luminanceThreshold;
-
-            let top = 0, bottom = height - 1, left = 0, right = width - 1;
-
-            let contentLines = 0;
+            const threshold = 180; const darkRatio = 0.15; const tolerance = 20;
+            const isDark = (r, g, b) => (0.299 * r + 0.587 * g + 0.114 * b) < threshold;
+            let top = 0, bottom = height - 1, left = 0, right = width - 1, lines = 0;
             for (let y = 0; y < height; y++) {
-                let darkCount = 0;
-                for (let x = 0; x < width; x++) {
-                    const i = (y * width + x) * 4;
-                    if (isDark(imageData.data[i], imageData.data[i+1], imageData.data[i+2])) darkCount++;
-                }
-                if (darkCount / width >= darkPixelRatio) {
-                    contentLines = 0; 
-                } else {
-                    contentLines++; 
-                    if (contentLines > contentTolerance) {
-                        top = y - contentTolerance; 
-                        break;
-                    }
-                }
+                let dark = 0; for (let x = 0; x < width; x++) { const i = (y * width + x) * 4; if (isDark(imageData.data[i], imageData.data[i+1], imageData.data[i+2])) dark++; }
+                if (dark / width >= darkRatio) lines = 0; else { lines++; if (lines > tolerance) { top = y - tolerance; break; } }
             }
-            
-            contentLines = 0;
+            lines = 0;
             for (let y = height - 1; y >= top; y--) {
-                let darkCount = 0;
-                for (let x = 0; x < width; x++) {
-                    const i = (y * width + x) * 4;
-                    if (isDark(imageData.data[i], imageData.data[i+1], imageData.data[i+2])) darkCount++;
-                }
-                if (darkCount / width >= darkPixelRatio) {
-                    contentLines = 0;
-                } else {
-                    contentLines++;
-                    if (contentLines > contentTolerance) {
-                        bottom = y + contentTolerance;
-                        break;
-                    }
-                }
+                let dark = 0; for (let x = 0; x < width; x++) { const i = (y * width + x) * 4; if (isDark(imageData.data[i], imageData.data[i+1], imageData.data[i+2])) dark++; }
+                if (dark / width >= darkRatio) lines = 0; else { lines++; if (lines > tolerance) { bottom = y + tolerance; break; } }
             }
-            
-            contentLines = 0;
-            const currentHeight = bottom - top + 1;
+            lines = 0; const h = bottom - top + 1;
             for (let x = 0; x < width; x++) {
-                let darkCount = 0;
-                for (let y = top; y <= bottom; y++) {
-                    const i = (y * width + x) * 4;
-                    if (isDark(imageData.data[i], imageData.data[i+1], imageData.data[i+2])) darkCount++;
-                }
-                if (darkCount / currentHeight >= darkPixelRatio) {
-                    contentLines = 0;
-                } else {
-                    contentLines++;
-                    if (contentLines > contentTolerance) {
-                        left = x - contentTolerance;
-                        break;
-                    }
-                }
+                let dark = 0; for (let y = top; y <= bottom; y++) { const i = (y * width + x) * 4; if (isDark(imageData.data[i], imageData.data[i+1], imageData.data[i+2])) dark++; }
+                if (dark / h >= darkRatio) lines = 0; else { lines++; if (lines > tolerance) { left = x - tolerance; break; } }
             }
-            
-            contentLines = 0;
+            lines = 0;
             for (let x = width - 1; x >= left; x--) {
-                let darkCount = 0;
-                for (let y = top; y <= bottom; y++) {
-                    const i = (y * width + x) * 4;
-                    if (isDark(imageData.data[i], imageData.data[i+1], imageData.data[i+2])) darkCount++;
-                }
-                if (darkCount / currentHeight >= darkPixelRatio) {
-                    contentLines = 0;
-                } else {
-                    contentLines++;
-                    if (contentLines > contentTolerance) {
-                        right = x + contentTolerance;
-                        break;
-                    }
-                }
+                let dark = 0; for (let y = top; y <= bottom; y++) { const i = (y * width + x) * 4; if (isDark(imageData.data[i], imageData.data[i+1], imageData.data[i+2])) dark++; }
+                if (dark / h >= darkRatio) lines = 0; else { lines++; if (lines > tolerance) { right = x + tolerance; break; } }
             }
-
-            const padding = -10; 
-            top = Math.max(0, top - padding);
-            bottom = Math.min(height - 1, bottom + padding);
-            left = Math.max(0, left - padding);
-            right = Math.min(width - 1, right + padding);
-
-            if (right <= left || bottom <= top) return null; 
-
-            return { x: left, y: top, width: right - left, height: bottom - top };
+            const pad = -10; top = Math.max(0, top - pad); bottom = Math.min(height - 1, bottom + pad); left = Math.max(0, left - pad); right = Math.min(width - 1, right + pad);
+            return (right <= left || bottom <= top) ? null : { x: left, y: top, width: right - left, height: bottom - top };
         }
 
-        // ==========================================
-        // 機能: 回転
-        // ==========================================
-        
-        // 枠(画像表示)の回転
         rotateLeftBtn.addEventListener('click', () => cropper && cropper.rotate(-90));
         rotateRightBtn.addEventListener('click', () => cropper && cropper.rotate(90));
 
-        // 【機能】PDFページ自体の回転 (押すたびに指定角度回転)
-        async function rotateCurrentPage(angleDegrees) {
+        async function rotateSelectedPages(angle) {
             if (!originalPdfBytes) return;
-            showLoading(`ページを回転中...`);
-            
+            const target = rotateTargetSelect.value;
+            showLoading('回転中...');
             try {
-                await new Promise(resolve => setTimeout(resolve, 50));
-                
-                const { PDFDocument, degrees } = PDFLib;
-                const pdfDoc = await PDFDocument.load(originalPdfBytes);
-                const page = pdfDoc.getPages()[currentPageNum - 1];
-                const currentRotation = page.getRotation().angle;
-                
-                // 現在の角度に、指定された角度(90または180)を足して回転
-                page.setRotation(degrees(currentRotation + angleDegrees));
-                
-                const newPdfBytes = await pdfDoc.save();
-                saveHistory(); 
-                originalPdfBytes = newPdfBytes;
-                currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
-                await renderPage(currentPageNum);
-                
-                hideLoading();
-            } catch (error) {
-                console.error(error);
-                alert('ページの回転中にエラーが発生しました。');
-                hideLoading();
-            }
-        }
-
-        // 90度回転(縦横切替) と 180度回転(上下反転)
-        rotatePage90Btn.addEventListener('click', () => rotateCurrentPage(90));
-        rotatePage180Btn.addEventListener('click', () => rotateCurrentPage(180));
-
-        // ==========================================
-        // 保存・適用・エクスポート
-        // ==========================================
-
-        // 画像のみ保存
-        downloadImageBtn.addEventListener('click', () => {
-            if (!cropper) return;
-            showLoading('画像を生成中...');
-            setTimeout(() => {
-                const canvas = cropper.getCroppedCanvas({
-                    imageSmoothingEnabled: true,
-                    imageSmoothingQuality: 'high',
-                });
-                canvas.toBlob((blob) => {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    let downloadName = `${originalFileName}_cleaned.png`;
-                    if (currentPdf) downloadName = `${originalFileName}_page${currentPageNum}_cleaned.png`;
-                    a.download = downloadName;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    hideLoading();
-                }, 'image/png', 1.0);
-            }, 100);
-        });
-
-        // モーダル表示
-        applyPdfBtn.addEventListener('click', () => {
-            if (!cropper || !originalPdfBytes) return;
-            batchConfirmModal.classList.remove('hidden');
-        });
-
-        cancelModalBtn.addEventListener('click', () => {
-            batchConfirmModal.classList.add('hidden');
-        });
-
-        // 1. このページのみ適用
-        applyCurrentBtn.addEventListener('click', async () => {
-            batchConfirmModal.classList.add('hidden');
-            showLoading('PDFデータを更新中...');
-
-            try {
-                await new Promise(resolve => setTimeout(resolve, 50));
-
-                const { PDFDocument } = PDFLib;
-                const pdfDoc = await PDFDocument.load(originalPdfBytes);
-                const canvas = cropper.getCroppedCanvas({ imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
-                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
-                const imageBytes = await blob.arrayBuffer();
-                const pngImage = await pdfDoc.embedPng(imageBytes);
-                
-                const pageIndex = currentPageNum - 1;
-                const originalPage = pdfDoc.getPages()[pageIndex];
-                const { width: origWidth, height: origHeight } = originalPage.getSize();
-                const rotation = originalPage.getRotation().angle;
-                
-                let targetWidth = origWidth;
-                let targetHeight = origHeight;
-                if (rotation === 90 || rotation === 270) {
-                    targetWidth = origHeight;
-                    targetHeight = origWidth;
-                }
-                
-                pdfDoc.removePage(pageIndex);
-                const newPage = pdfDoc.insertPage(pageIndex, [targetWidth, targetHeight]);
-                
-                const imgDims = pngImage.scaleToFit(targetWidth, targetHeight);
-                newPage.drawImage(pngImage, {
-                    x: targetWidth / 2 - imgDims.width / 2,
-                    y: targetHeight / 2 - imgDims.height / 2,
-                    width: imgDims.width,
-                    height: imgDims.height,
-                });
-                
-                const newPdfBytes = await pdfDoc.save();
-                saveHistory();
-                originalPdfBytes = newPdfBytes;
-                currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
-                await renderPage(currentPageNum);
-                
-                hideLoading();
-                alert('このページに切り抜きを適用しました！\n（まだ保存されていません）\n\n続けて他のページを編集するか、下部の「PDFをダウンロード」ボタンを押して保存してください。');
-
-            } catch (e) {
-                console.error(e);
-                alert('PDFの更新中にエラーが発生しました。');
-                hideLoading();
-            }
-        });
-
-        // 2. 現在の枠設定を同じ仕様の全ページに適用
-        applyFixedToAllBtn.addEventListener('click', async () => {
-            batchConfirmModal.classList.add('hidden');
-            
-            try {
-                const cropData = cropper.getData();
-                const imageData = cropper.getImageData();
-                const ratioX = cropData.x / imageData.naturalWidth;
-                const ratioY = cropData.y / imageData.naturalHeight;
-                const ratioW = cropData.width / imageData.naturalWidth;
-                const ratioH = cropData.height / imageData.naturalHeight;
-
-                const { PDFDocument } = PDFLib;
-                const pdfDoc = await PDFDocument.load(originalPdfBytes);
-                const totalPages = pdfDoc.getPageCount();
-                
-                const basePageRef = pdfDoc.getPages()[currentPageNum - 1];
-                const baseSizeRef = basePageRef.getSize();
-                const baseRotRef = basePageRef.getRotation().angle;
-                const baseW = (baseRotRef === 90 || baseRotRef === 270) ? baseSizeRef.height : baseSizeRef.width;
-                const baseH = (baseRotRef === 90 || baseRotRef === 270) ? baseSizeRef.width : baseSizeRef.height;
-
-                let appliedCount = 0;
-                let skippedCount = 0;
-                
-                for (let i = 0; i < totalPages; i++) {
-                    showLoading(`全ページを固定枠で処理中... (${i + 1} / ${totalPages})`);
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    
-                    const originalPage = pdfDoc.getPages()[i];
-                    const { width: origWidth, height: origHeight } = originalPage.getSize();
-                    const rotation = originalPage.getRotation().angle;
-                    
-                    let targetWidth = origWidth;
-                    let targetHeight = origHeight;
-                    if (rotation === 90 || rotation === 270) {
-                        targetWidth = origHeight;
-                        targetHeight = origWidth;
-                    }
-                    
-                    const isSameSpec = Math.abs(targetWidth - baseW) < 2 && Math.abs(targetHeight - baseH) < 2;
-                    if (!isSameSpec) {
-                        skippedCount++;
-                        continue; 
-                    }
-                    appliedCount++;
-
-                    const page = await currentPdf.getPage(i + 1);
-                    const viewport = page.getViewport({ scale: pdfScale });
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    
-                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-                    
-                    const cropX = Math.max(0, canvas.width * ratioX);
-                    const cropY = Math.max(0, canvas.height * ratioY);
-                    const cropW = Math.min(canvas.width - cropX, canvas.width * ratioW);
-                    const cropH = Math.min(canvas.height - cropY, canvas.height * ratioH);
-                    
-                    const croppedCanvas = document.createElement('canvas');
-                    croppedCanvas.width = cropW;
-                    croppedCanvas.height = cropH;
-                    const croppedCtx = croppedCanvas.getContext('2d');
-                    croppedCtx.imageSmoothingEnabled = true;
-                    croppedCtx.imageSmoothingQuality = 'high';
-                    croppedCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-                    
-                    const blob = await new Promise(resolve => croppedCanvas.toBlob(resolve, 'image/png', 1.0));
-                    const imageBytes = await blob.arrayBuffer();
-                    const pngImage = await pdfDoc.embedPng(imageBytes);
-                    
-                    pdfDoc.removePage(i);
-                    const newPage = pdfDoc.insertPage(i, [targetWidth, targetHeight]);
-                    
-                    const imgDims = pngImage.scaleToFit(targetWidth, targetHeight);
-                    newPage.drawImage(pngImage, {
-                        x: targetWidth / 2 - imgDims.width / 2,
-                        y: targetHeight / 2 - imgDims.height / 2,
-                        width: imgDims.width,
-                        height: imgDims.height,
-                    });
-                    page.cleanup();
-                }
-                
-                showLoading('PDFデータを更新しています...');
-                await new Promise(resolve => setTimeout(resolve, 50));
-                
-                const newPdfBytes = await pdfDoc.save();
-                saveHistory();
-                originalPdfBytes = newPdfBytes;
-                currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
-                await renderPage(currentPageNum);
-                
-                hideLoading();
-                
-                let resultMsg = `${appliedCount}ページに切り抜きを適用しました！`;
-                if (skippedCount > 0) resultMsg += `\n（サイズや向きが異なる ${skippedCount} ページは安全のためスキップされました）`;
-                resultMsg += '\n（まだ保存されていません）\n\n下部の「PDFをダウンロード」ボタンを押して保存してください。';
-                alert(resultMsg);
-
-            } catch (e) {
-                console.error(e);
-                alert('一括処理中にエラーが発生しました。');
-                hideLoading();
-            }
-        });
-
-        // 3. 各ページを自動解析して全ページ適用
-        applyAutoToAllBtn.addEventListener('click', async () => {
-            batchConfirmModal.classList.add('hidden');
-            try {
-                const { PDFDocument } = PDFLib;
-                const pdfDoc = await PDFDocument.load(originalPdfBytes);
-                const totalPages = pdfDoc.getPageCount();
-                
-                for (let i = 0; i < totalPages; i++) {
-                    showLoading(`全ページを自動解析処理中... (${i + 1} / ${totalPages})`);
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    
-                    const page = await currentPdf.getPage(i + 1);
-                    const viewport = page.getViewport({ scale: pdfScale });
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    
-                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-                    
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const box = detectBlackBorders(imageData, canvas.width, canvas.height);
-                    
-                    if (box) {
-                        const croppedCanvas = document.createElement('canvas');
-                        croppedCanvas.width = box.width;
-                        croppedCanvas.height = box.height;
-                        const croppedCtx = croppedCanvas.getContext('2d');
-                        croppedCtx.imageSmoothingEnabled = true;
-                        croppedCtx.imageSmoothingQuality = 'high';
-                        croppedCtx.drawImage(canvas, box.x, box.y, box.width, box.height, 0, 0, box.width, box.height);
-                        
-                        const blob = await new Promise(resolve => croppedCanvas.toBlob(resolve, 'image/png', 1.0));
-                        const imageBytes = await blob.arrayBuffer();
-                        const pngImage = await pdfDoc.embedPng(imageBytes);
-                        
-                        const originalPage = pdfDoc.getPages()[i];
-                        const { width: origWidth, height: origHeight } = originalPage.getSize();
-                        const rotation = originalPage.getRotation().angle;
-                        
-                        let targetWidth = origWidth;
-                        let targetHeight = origHeight;
-                        if (rotation === 90 || rotation === 270) {
-                            targetWidth = origHeight;
-                            targetHeight = origWidth;
-                        }
-                        
-                        pdfDoc.removePage(i);
-                        const newPage = pdfDoc.insertPage(i, [targetWidth, targetHeight]);
-                        const imgDims = pngImage.scaleToFit(targetWidth, targetHeight);
-                        newPage.drawImage(pngImage, {
-                            x: targetWidth / 2 - imgDims.width / 2,
-                            y: targetHeight / 2 - imgDims.height / 2,
-                            width: imgDims.width,
-                            height: imgDims.height,
-                        });
-                    }
-                    page.cleanup();
-                }
-                
-                showLoading('PDFデータを更新しています...');
-                await new Promise(resolve => setTimeout(resolve, 50));
-                
-                const newPdfBytes = await pdfDoc.save();
-                saveHistory();
-                originalPdfBytes = newPdfBytes;
-                currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
-                await renderPage(currentPageNum);
-                
-                hideLoading();
-                alert('自動解析による全ページ適用が完了しました！\n（まだ保存されていません）\n\n下部の「PDFをダウンロード」ボタンを押して保存してください。');
-            } catch (e) {
-                console.error(e);
-                alert('一括処理中にエラーが発生しました。');
-                hideLoading();
-            }
-        });
-
-        // 4. 全ページを一括で縦向きに揃える
-        fixOrientationBtn.addEventListener('click', async () => {
-            if (!originalPdfBytes) return;
-            showLoading('全ページの向きを確認・修正中...');
-            try {
-                await new Promise(resolve => setTimeout(resolve, 50));
+                await new Promise(r => setTimeout(r, 50));
                 const { PDFDocument, degrees } = PDFLib;
                 const pdfDoc = await PDFDocument.load(originalPdfBytes);
                 const pages = pdfDoc.getPages();
-                
-                let changedCount = 0;
-                for (const page of pages) {
-                    const { width, height } = page.getSize();
-                    const rotation = page.getRotation().angle;
-                    const isLandscape = (rotation === 90 || rotation === 270);
-                    const actualWidth = isLandscape ? height : width;
-                    const actualHeight = isLandscape ? width : height;
-                    
-                    if (actualWidth > actualHeight) {
-                        page.setRotation(degrees(rotation + 90));
-                        changedCount++;
+                let count = 0;
+                for (let i = 0; i < pages.length; i++) {
+                    const p = pages[i]; const { width: w, height: h } = p.getSize(); const rot = p.getRotation().angle;
+                    const isLand = (rot === 90 || rot === 270); const aw = isLand ? h : w; const ah = isLand ? w : h;
+                    let should = false;
+                    if (target === 'current' && i === currentPageNum - 1) should = true;
+                    else if (target === 'all') should = true;
+                    else if (target === 'landscape' && aw > ah) should = true;
+                    else if (target === 'portrait' && ah >= aw) should = true;
+                    if (should) { p.setRotation(degrees(rot + angle)); count++; }
+                }
+                if (count > 0) {
+                    originalPdfBytes = await pdfDoc.save(); saveHistory();
+                    currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
+                    await renderPage(currentPageNum); renderThumbnails();
+                }
+                hideLoading();
+            } catch (e) { hideLoading(); }
+        }
+        rotatePage90Btn.addEventListener('click', () => rotateSelectedPages(90));
+        rotatePage180Btn.addEventListener('click', () => rotateSelectedPages(180));
+
+        downloadImageBtn.addEventListener('click', () => {
+            if (!cropper) return; showLoading('生成中...');
+            setTimeout(() => {
+                cropper.getCroppedCanvas({ smoothingQuality: 'high' }).toBlob((blob) => {
+                    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url;
+                    a.download = `${originalFileName}_${currentPageNum}.png`; a.click(); URL.revokeObjectURL(url); hideLoading();
+                }, 'image/png');
+            }, 100);
+        });
+
+        applyPdfBtn.addEventListener('click', () => { if (cropper && originalPdfBytes) batchConfirmModal.classList.remove('hidden'); });
+        cancelModalBtn.addEventListener('click', () => batchConfirmModal.classList.add('hidden'));
+
+        // 【改善】切り抜き形状に応じて縦横サイズを決定する共通関数
+        async function updatePdfPageWithCrop(pdfDoc, pageIdx, canvas, origWidth, origHeight) {
+            const blob = await new Promise(r => canvas.toBlob(r, 'image/png', 1.0));
+            const imgBytes = await blob.arrayBuffer();
+            const pngImage = await pdfDoc.embedPng(imgBytes);
+
+            // 切り抜きが「横長」か「縦長」かを判定
+            const isCropLandscape = canvas.width > canvas.height;
+            const longSide = Math.max(origWidth, origHeight);
+            const shortSide = Math.min(origWidth, origHeight);
+
+            // 形状に合わせてターゲットのページサイズを決定
+            let targetWidth, targetHeight;
+            if (isCropLandscape) {
+                targetWidth = longSide; targetHeight = shortSide;
+            } else {
+                targetWidth = shortSide; targetHeight = longSide;
+            }
+
+            pdfDoc.removePage(pageIdx);
+            const newPage = pdfDoc.insertPage(pageIdx, [targetWidth, targetHeight]);
+            const imgDims = pngImage.scaleToFit(targetWidth, targetHeight);
+            newPage.drawImage(pngImage, {
+                x: targetWidth / 2 - imgDims.width / 2,
+                y: targetHeight / 2 - imgDims.height / 2,
+                width: imgDims.width,
+                height: imgDims.height,
+            });
+        }
+
+        applyCurrentBtn.addEventListener('click', async () => {
+            batchConfirmModal.classList.add('hidden'); showLoading('更新中...');
+            try {
+                await new Promise(r => setTimeout(r, 50));
+                const { PDFDocument } = PDFLib;
+                const pdfDoc = await PDFDocument.load(originalPdfBytes);
+                const pageIdx = currentPageNum - 1;
+                const originalPage = pdfDoc.getPages()[pageIdx];
+                const { width: ow, height: oh } = originalPage.getSize();
+                const rot = originalPage.getRotation().angle;
+                const aw = (rot === 90 || rot === 270) ? oh : ow;
+                const ah = (rot === 90 || rot === 270) ? ow : oh;
+
+                const canvas = cropper.getCroppedCanvas({ smoothingQuality: 'high' });
+                await updatePdfPageWithCrop(pdfDoc, pageIdx, canvas, aw, ah);
+
+                originalPdfBytes = await pdfDoc.save(); saveHistory();
+                currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
+                await renderPage(currentPageNum); renderThumbnails();
+                hideLoading(); alert('適用しました。');
+            } catch (e) { hideLoading(); }
+        });
+
+        applyFixedToAllBtn.addEventListener('click', async () => {
+            batchConfirmModal.classList.add('hidden');
+            try {
+                const cropData = cropper.getData(); const imageData = cropper.getImageData();
+                const rx = cropData.x / imageData.naturalWidth; const ry = cropData.y / imageData.naturalHeight;
+                const rw = cropData.width / imageData.naturalWidth; const rh = cropData.height / imageData.naturalHeight;
+
+                const { PDFDocument } = PDFLib; const pdfDoc = await PDFDocument.load(originalPdfBytes);
+                const total = pdfDoc.getPageCount();
+                const baseP = pdfDoc.getPages()[currentPageNum-1]; const bs = baseP.getSize(); const br = baseP.getRotation().angle;
+                const bw = (br === 90 || br === 270) ? bs.height : bs.width;
+                const bh = (br === 90 || br === 270) ? bs.width : bs.height;
+
+                for (let i = 0; i < total; i++) {
+                    showLoading(`処理中 (${i+1}/${total})`); await new Promise(r => setTimeout(r, 30));
+                    const op = pdfDoc.getPages()[i]; const os = op.getSize(); const or = op.getRotation().angle;
+                    const tw = (or === 90 || or === 270) ? os.height : os.width;
+                    const th = (or === 90 || or === 270) ? os.width : os.height;
+                    if (Math.abs(tw - bw) < 5 && Math.abs(th - bh) < 5) {
+                        const page = await currentPdf.getPage(i + 1); const vp = page.getViewport({ scale: pdfScale });
+                        const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+                        await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+                        const cx = cv.width * rx; const cy = cv.height * ry; const cw = cv.width * rw; const ch = cv.height * rh;
+                        const cc = document.createElement('canvas'); cc.width = cw; cc.height = ch;
+                        cc.getContext('2d').drawImage(cv, cx, cy, cw, ch, 0, 0, cw, ch);
+                        await updatePdfPageWithCrop(pdfDoc, i, cc, tw, th);
+                        page.cleanup();
                     }
                 }
-                
-                if (changedCount > 0) {
-                    const newPdfBytes = await pdfDoc.save();
-                    saveHistory();
-                    originalPdfBytes = newPdfBytes;
-                    currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
-                    await renderPage(currentPageNum);
-                    alert(`${changedCount} ページを縦向きに修正しました！\n（まだ保存されていません）\n\n続けて切り抜き作業を行うか、「PDFをダウンロード」を押してください。`);
-                } else {
-                    alert('全てのページがすでに縦向きです。');
-                }
-                hideLoading();
-            } catch (error) {
-                console.error(error);
-                alert('向きの修正中にエラーが発生しました。');
-                hideLoading();
-            }
+                originalPdfBytes = await pdfDoc.save(); saveHistory();
+                currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
+                await renderPage(currentPageNum); renderThumbnails();
+                hideLoading(); alert('完了しました。');
+            } catch (e) { hideLoading(); }
         });
 
-        // ==========================================
-        // 最終ダウンロードとUndo機能
-        // ==========================================
+        applyAutoToAllBtn.addEventListener('click', async () => {
+            batchConfirmModal.classList.add('hidden');
+            try {
+                const { PDFDocument } = PDFLib; const pdfDoc = await PDFDocument.load(originalPdfBytes);
+                const total = pdfDoc.getPageCount();
+                for (let i = 0; i < total; i++) {
+                    showLoading(`自動解析中 (${i+1}/${total})`); await new Promise(r => setTimeout(r, 30));
+                    const op = pdfDoc.getPages()[i]; const os = op.getSize(); const or = op.getRotation().angle;
+                    const tw = (or === 90 || or === 270) ? os.height : os.width;
+                    const th = (or === 90 || or === 270) ? os.width : os.height;
+                    const page = await currentPdf.getPage(i + 1); const vp = page.getViewport({ scale: pdfScale });
+                    const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+                    const ctx = cv.getContext('2d'); await page.render({ canvasContext: ctx, viewport: vp }).promise;
+                    const box = detectBlackBorders(ctx.getImageData(0, 0, cv.width, cv.height), cv.width, cv.height);
+                    if (box) {
+                        const cc = document.createElement('canvas'); cc.width = box.width; cc.height = box.height;
+                        cc.getContext('2d').drawImage(cv, box.x, box.y, box.width, box.height, 0, 0, box.width, box.height);
+                        await updatePdfPageWithCrop(pdfDoc, i, cc, tw, th);
+                    }
+                    page.cleanup();
+                }
+                originalPdfBytes = await pdfDoc.save(); saveHistory();
+                currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
+                await renderPage(currentPageNum); renderThumbnails();
+                hideLoading();
+            } catch (e) { hideLoading(); }
+        });
 
-        // 最終的なPDFダウンロード (ページごとの向きが保持された混在ファイルとして保存)
+        fixOrientationBtn.addEventListener('click', async () => {
+            if (!originalPdfBytes) return; showLoading('向き修正中...');
+            try {
+                await new Promise(r => setTimeout(r, 50));
+                const { PDFDocument, degrees } = PDFLib; const pdfDoc = await PDFDocument.load(originalPdfBytes);
+                const pages = pdfDoc.getPages(); let c = 0;
+                for (const p of pages) { const s = p.getSize(); const r = p.getRotation().angle;
+                    if (((r===90||r===270)?s.height:s.width) > ((r===90||r===270)?s.width:s.height)) { p.setRotation(degrees(r + 90)); c++; }
+                }
+                if (c > 0) { originalPdfBytes = await pdfDoc.save(); saveHistory(); currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise; await renderPage(currentPageNum); renderThumbnails(); }
+                hideLoading();
+            } catch (e) { hideLoading(); }
+        });
+
         downloadFinalPdfBtn.addEventListener('click', () => {
             if (!originalPdfBytes) return;
-            const outBlob = new Blob([originalPdfBytes], { type: 'application/pdf' });
-            const url = URL.createObjectURL(outBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${originalFileName}_edited.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            const blob = new Blob([originalPdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url;
+            a.download = `${originalFileName}_edited.pdf`; a.click(); URL.revokeObjectURL(url);
         });
 
-        // 適用を取り消す (Undo)
         undoBtn.addEventListener('click', async () => {
-            if (pdfHistory.length === 0) return;
-            showLoading('元の状態に戻しています...');
+            if (pdfHistory.length === 0) return; showLoading('元に戻しています...');
             try {
-                await new Promise(resolve => setTimeout(resolve, 50));
-                
-                const previousBytes = pdfHistory.pop();
-                originalPdfBytes = previousBytes;
+                await new Promise(r => setTimeout(r, 50));
+                originalPdfBytes = pdfHistory.pop();
                 currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
-                
-                if (currentPageNum > currentPdf.numPages) {
-                    currentPageNum = currentPdf.numPages || 1;
-                }
-                
-                await renderPage(currentPageNum);
-                updateUndoButtonState();
-                
-                hideLoading();
-                setTimeout(() => alert('直前の適用操作を取り消し、元の状態に戻しました。'), 100);
-            } catch (e) {
-                console.error(e);
-                alert('元に戻す処理に失敗しました。');
-                hideLoading();
-            }
+                if (currentPageNum > currentPdf.numPages) currentPageNum = currentPdf.numPages;
+                await renderPage(currentPageNum); renderThumbnails(); updateUndoButtonState(); hideLoading();
+            } catch (e) { hideLoading(); }
         });
 
+        function updateThumbnailHighlight() {
+            document.querySelectorAll('.thumbnail-wrapper').forEach(el => el.classList.remove('border-blue-500', 'bg-blue-900/40'));
+            const cur = document.getElementById(`thumb-wrapper-${currentPageNum}`);
+            if (cur) { cur.classList.add('border-blue-500', 'bg-blue-900/40'); cur.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+
+        async function renderThumbnails() {
+            if (!currentPdf) return; thumbnailSidebar.innerHTML = ''; thumbnailSidebar.classList.remove('hidden'); thumbnailSidebar.classList.add('flex');
+            const genId = ++thumbnailGenerationId;
+            for (let i = 1; i <= currentPdf.numPages; i++) {
+                const div = document.createElement('div'); div.id = `thumb-wrapper-${i}`; div.onclick = () => { if (currentPageNum !== i) { currentPageNum = i; renderPage(i); } };
+                div.className = 'thumbnail-wrapper cursor-pointer border-2 border-transparent hover:border-blue-400 rounded bg-gray-800 relative p-1 transition-colors min-h-[100px] flex items-center justify-center';
+                const label = document.createElement('div'); label.className = 'absolute top-1 left-1 bg-black text-white text-[9px] px-1 rounded z-10'; label.innerText = i;
+                const img = document.createElement('img'); img.id = `thumb-img-${i}`; img.className = 'max-w-full h-auto opacity-0 transition-opacity rounded-sm shadow';
+                const loader = document.createElement('div'); loader.id = `thumb-loader-${i}`; loader.className = 'absolute inset-0 flex items-center justify-center'; loader.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-t-2 border-gray-500"></div>';
+                div.append(img, loader, label); thumbnailSidebar.append(div);
+            }
+            updateThumbnailHighlight();
+            for (let i = 1; i <= currentPdf.numPages; i++) {
+                if (thumbnailGenerationId !== genId) return;
+                try {
+                    const page = await currentPdf.getPage(i); const vp = page.getViewport({ scale: 0.2 });
+                    const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+                    await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+                    const targetImg = document.getElementById(`thumb-img-${i}`); const targetLdr = document.getElementById(`thumb-loader-${i}`);
+                    if (targetImg) { targetImg.src = cv.toDataURL(); targetImg.onload = () => targetImg.classList.remove('opacity-0'); if(targetLdr) targetLdr.remove(); }
+                    page.cleanup(); await new Promise(r => setTimeout(r, 10));
+                } catch (e) {}
+            }
+        }
     </script>
 </body>
 </html>
