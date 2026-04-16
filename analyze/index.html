@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Universal Data Analyzer with Transpose Function</title>
+  <title>Universal Data Analyzer - Master Edition (22 Tools)</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -25,7 +25,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
-    body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background-color: #f8fafc; }
+    body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background-color: #f8fafc; color: #1e293b; }
     .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
@@ -33,10 +33,14 @@
     .animate-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     
-    .cell-input { width: 100%; border: none; background: transparent; outline: none; padding: 4px 8px; transition: background 0.2s; font-size: 0.875rem; min-height: 32px; }
+    .cell-input { width: 100%; border: none; background: transparent; outline: none; padding: 6px 10px; transition: background 0.2s; font-size: 0.875rem; min-height: 36px; }
     .cell-input:focus { background: #eff6ff; box-shadow: inset 0 0 0 2px #3b82f6; border-radius: 2px; }
-    .header-input { font-weight: bold; text-align: left; color: #1e293b; }
+    .header-input { font-weight: bold; text-align: left; color: #0f172a; background: #f1f5f9; border-radius: 4px; }
     input[type="date"].cell-input { cursor: pointer; }
+    
+    .markdown-content p { margin-bottom: 0.75rem; line-height: 1.6; }
+    .markdown-content strong { color: #2563eb; font-weight: 800; }
+    .modal-overlay { background-color: rgba(15, 23, 42, 0.7); backdrop-filter: blur(8px); }
   </style>
 </head>
 <body>
@@ -45,481 +49,483 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo, useRef, Fragment } = React;
 
-    // --- 1. アイコンコンポーネント (定義漏れを防ぐため最上位に配置) ---
-    const SvgIcon = ({ d, ...props }) => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={props.className} {...props}>
-        <path d={d} />
-      </svg>
-    );
-    const UploadCloud = (p) => <SvgIcon d="M16 16l-4-4-4 4 M12 12v9 M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" {...p}/>;
-    const FileSpreadsheet = (p) => <SvgIcon d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z M14 2v6h6 M8 13h2 M8 17h2 M14 13h2 M14 17h2" {...p}/>;
-    const PlayIcon = (p) => <SvgIcon d="M5 3l14 9-14 9V3z" {...p}/>;
-    const InfoIcon = (p) => <SvgIcon d="M12 12m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0 M12 16v-4 M12 8h.01" {...p}/>;
-    const AlertCircle = (p) => <SvgIcon d="M12 12m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0 M12 8v4 M12 16h.01" {...p}/>;
-    const ArrowLeft = (p) => <SvgIcon d="M19 12H5 M12 19l-7-7 7-7" {...p}/>;
-    const ArrowUpDown = (p) => <SvgIcon d="M7 15l5 5 5-5 M7 9l5-5 5 5 M12 4v16" {...p}/>;
-    const Plus = (p) => <SvgIcon d="M12 5v14 M5 12h14" {...p}/>;
-    const Trash = (p) => <SvgIcon d="M3 6h18 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" {...p}/>;
-    const Download = (p) => <SvgIcon d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p}/>;
-    const TableIcon = (p) => <SvgIcon d="M3 3h18v18H3z M3 9h18 M3 15h18 M9 3v18 M15 3v18" {...p}/>;
-    const BarChartIcon = (p) => <SvgIcon d="M18 20V10 M12 20V4 M6 20v-6" {...p}/>;
-    const RefreshCw = (p) => <SvgIcon d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5" {...p}/>;
-    const RepeatIcon = (p) => <SvgIcon d="M17 1l4 4-4 4 M3 5h18 M11 13l-4 4 4 4 M21 17H3" {...p}/>;
+    // ==========================================
+    // 1. 定数定義
+    // ==========================================
 
-    // --- 2. 分析手法の設定データ ---
     const ANALYSIS_TYPES = [
-      { id: 'summary', name: '1. 基本統計量 (表)', group: '基礎', desc: 'データ数、平均、標準偏差、最小、最大、中央値などを一覧表示します。', useCase: 'データの概要を数値で正確に把握したい場合。' },
-      { id: 'timeseries', name: '2. 時系列推移 (折れ線グラフ)', group: '推移・傾向', desc: '時間の経過に伴う数値の変化を折れ線グラフで示します。', useCase: '売上などのトレンドや季節性を確認したい場合。' },
-      { id: 'bumpchart', name: '3. バンプチャート (順位推移)', group: '推移・傾向', desc: '数値ではなく「順位」の変動を折れ線で追います。', useCase: 'ランキングの入れ替わりに焦点を当てたい場合。' },
-      { id: 'comparison', name: '4. カテゴリ別平均 (棒グラフ)', group: '比較', desc: 'カテゴリごとに数値の平均を算出し、棒グラフで比較します。', useCase: 'グループ間の大小関係を比較したい場合。' },
-      { id: 'radar', name: '5. レーダーチャート (多変量比較)', group: '比較', desc: '複数の項目を放射状の軸にとり、多角形を作ります。', useCase: '対象の総合的なバランスや強みを評価したい場合。' },
-      { id: 'boxplot', name: '6. 分布・ばらつき (箱ひげ図)', group: '分布', desc: 'データのばらつきや外れ値を表現します。', useCase: 'グループごとの結果のブレ幅を確認したい場合。' },
-      { id: 'histogram', name: '7. 全体分布 (ヒストグラム)', group: '分布', desc: 'データを区切り、各区間に含まれるデータの数を棒グラフで示します。', useCase: 'データの偏りや分布の形を見たい場合。' },
-      { id: 'violin', name: '8. バイオリンプロット (分布詳細)', group: '分布', desc: '箱ひげ図にデータの分布密度を組み合わせたグラフです。', useCase: '具体的な分布の形（山の数など）を比較する場合。' },
-      { id: 'stripplot', name: '9. ストリッププロット (散布)', group: '分布', desc: '実際のデータ点を、グループごとに散らして配置します。', useCase: '生データがどこに偏っているか、個々の点を確認したい場合。' },
-      { id: 'ridgeline', name: '10. リッジラインプロット', group: '分布', desc: 'グループごとの分布を、山の稜線のように重ねて並べます。', useCase: '多数のグループの分布を省スペースで比較したい場合。' },
-      { id: 'contour', name: '11. 2D密度等高線', group: '分布', desc: 'データが密集している部分を等高線や色の濃淡で示します。', useCase: 'データ数が非常に多く、通常の散布図では重なりすぎる場合。' },
-      { id: 'correlation', name: '12. 変数間相関 (ヒートマップ)', group: '関係性', desc: '複数の数値データの間の相関を色の濃淡で示します。', useCase: '項目間の連動性を一網打尽に探る場合。' },
-      { id: 'scatter', name: '13. 散布図 (2変数比較)', group: '関係性', desc: '縦軸と横軸に数値を設定し、データを点として打ち出します。', useCase: '2つの項目の間の相関を直感的に捉えたい場合。' },
-      { id: 'bubble', name: '14. バブルチャート (3変数比較)', group: '関係性', desc: '散布図に加え、点の大きさで3つ目の数値を表現します。', useCase: '縦横の位置関係と規模を同時に見せたい場合。' },
-      { id: 'splom', name: '15. 散布図行列 (多変数)', group: '関係性', desc: '数値変数の全組み合わせの散布図をマトリックス状に配置します。', useCase: '多変数間の関係性の全体像を一度に見渡したい場合。' },
-      { id: 'scatter3d', name: '16. 3D散布図', group: '関係性', desc: '3つの数値をX, Y, Z軸に割り当て、3次元空間にプロットします。', useCase: '立体的なクラスタや関係性を発見したい場合。' },
-      { id: 'stackedbar', name: '17. 積み上げ棒グラフ (構成比)', group: '構成比', desc: '複数の項目の数値を積み上げて1本の棒にします。', useCase: '全体量と比較と同時に、内訳の違いを確認したい場合。' },
-      { id: 'pie', name: '18. 円グラフ (構成比)', group: '構成比', desc: '合計値や件数の割合を円グラフで表示します。', useCase: '全体におけるシェアを直感的に示したい場合。' },
-      { id: 'treemap', name: '19. ツリーマップ (階層構成比)', group: '構成比', desc: '値の大きさを面積で表現します。', useCase: '多数のカテゴリの内訳を直感的に見たい場合。' },
-      { id: 'parcoords', name: '20. 平行座標プロット (多次元)', group: '高度な分析', desc: '複数の縦軸を平行に並べ、データを折れ線で描画します。', useCase: '多数の変数を横断してパターンを見つける場合。' },
-      { id: 'crosstab_heatmap', name: '21. クロス集計ヒートマップ', group: '高度な分析', desc: '2つのカテゴリを掛け合わせ、マスの色で数値を示します。', useCase: '「曜日×時間帯」のようなカテゴリの傾向を俯瞰する場合。' },
-      { id: 'stat_test', name: '22. 統計的検定 (分散分析)', group: '高度な分析', desc: '平均値の差が統計的に有意であるかを計算します。', useCase: '「差が偶然か、意味があるものか」を判定したい場合。' }
+      { id: 'summary', name: '1. 基本統計量 (表)', group: '基礎', desc: '平均、標準偏差、最小、最大、中央値などを一覧表示します。' },
+      { id: 'timeseries', name: '2. 時系列推移 (折れ線)', group: '推移・傾向', desc: '時間の経過に伴う数値の変化を示します。' },
+      { id: 'bumpchart', name: '3. バンプチャート (順位推移)', group: '推移・傾向', desc: '数値ではなく「順位」の変動を折れ線で追います。' },
+      { id: 'comparison', name: '4. カテゴリ別平均 (棒グラフ)', group: '比較', desc: 'カテゴリごとの平均を算出し、棒グラフで比較します。' },
+      { id: 'radar', name: '5. レーダーチャート (多変量比較)', group: '比較', desc: '複数の項目を放射状の軸で多角形表示します。' },
+      { id: 'boxplot', name: '6. 分布・ばらつき (箱ひげ図)', group: '分布', desc: 'データの四分位数や外れ値を表現します。' },
+      { id: 'histogram', name: '7. 全体分布 (ヒストグラム)', group: '分布', desc: '階級ごとのデータ数を棒グラフで示します。' },
+      { id: 'violin', name: '8. バイオリンプロット (密度分布)', group: '分布', desc: '箱ひげ図に密度分布を組み合わせたグラフです。' },
+      { id: 'stripplot', name: '9. ストリッププロット (散布)', group: '分布', desc: '生のデータ点を散らして配置します。' },
+      { id: 'ridgeline', name: '10. リッジラインプロット', group: '分布', desc: 'グループごとの分布を、山の稜線のように重ねて並べます。' },
+      { id: 'contour', name: '11. 2D密度等高線', group: '分布', desc: 'データの密集度合いを等高線や色の濃淡で示します。' },
+      { id: 'correlation', name: '12. 変数間相関 (ヒートマップ)', group: '関係性', desc: '数値データ間の連動性を色の濃淡で示します。' },
+      { id: 'scatter', name: '13. 散布図 (2変数比較)', group: '関係性', desc: '縦軸と横軸に数値を設定し、点を表示します。' },
+      { id: 'bubble', name: '14. バブルチャート (3変数比較)', group: '関係性', desc: '散布図に加え、点の大きさで3つ目の数値を表現します。' },
+      { id: 'splom', name: '15. 散布図行列 (多変数相関)', group: '関係性', desc: '数値変数の全組み合わせの散布図をマトリックス表示します。' },
+      { id: 'scatter3d', name: '16. 3D散布図', group: '関係性', desc: '3つの数値をXYZ軸にプロットします。' },
+      { id: 'stackedbar', name: '17. 積み上げ棒グラフ (構成比)', group: '構成比', desc: '数値を積み上げて1本の棒にします。' },
+      { id: 'pie', name: '18. 円グラフ (構成比)', group: '構成比', desc: '合計値や件数の割合を円グラフで表示します。' },
+      { id: 'treemap', name: '19. ツリーマップ (階層構成比)', group: '構成比', desc: '値の大きさを面積で表現します。' },
+      { id: 'parcoords', name: '20. 平行座標プロット (多次元)', group: '高度な分析', desc: '複数の縦軸を平行に並べて描画します。' },
+      { id: 'crosstab_heatmap', name: '21. クロス集計ヒートマップ', group: '高度な分析', desc: '2つのカテゴリの掛け合わせを集計します。' },
+      { id: 'stat_test', name: '22. 統計的検定 (分散分析)', group: '高度な分析', desc: '平均値の差が統計的に有意であるかを計算します。' }
     ];
 
-    // --- 3. ユーティリティ関数 ---
-    const dateKeywords = ["日付", "日", "date", "day", "年", "year", "月", "month", "調査日"];
+    // ==========================================
+    // 2. ユーティリティ
+    // ==========================================
 
-    const excelSerialToJSDate = (serial) => {
-      const utc_days  = Math.floor(serial - 25569);
-      const utc_value = utc_days * 86400;
-      const date_info = new Date(utc_value * 1000);
-      const fractional_day = serial - Math.floor(serial) + 0.0000001;
-      let total_seconds = Math.floor(86400 * fractional_day);
-      const seconds = total_seconds % 60;
-      total_seconds -= seconds;
-      const hours = Math.floor(total_seconds / (60 * 60));
-      const minutes = Math.floor(total_seconds / 60) % 60;
-      return new Date(date_info.getFullYear(), date_info.getMonth(), date_info.getDate(), hours, minutes, seconds);
+    const excelSerialToDateString = (serial) => {
+      if (typeof serial !== 'number' || serial < 20000 || serial > 60000) return serial;
+      try {
+        const utc_days = Math.floor(serial - 25569);
+        const d = new Date(utc_days * 86400 * 1000);
+        if (isNaN(d.getTime())) return serial;
+        return d.toISOString().split('T')[0];
+      } catch(e) { return serial; }
     };
 
-    const formatDateForInput = (val) => {
+    const smartFormatDate = (val, header = "") => {
       if (val === undefined || val === null || val === "") return "";
-      let d;
-      if (typeof val === 'number' && val > 30000 && val < 60000) {
-        d = excelSerialToJSDate(val);
-      } else {
-        const cleanV = String(val).replace(/年|月/g, '-').replace(/日/g, '').replace(/-$/, '');
-        d = new Date(cleanV);
+      const s = String(val).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      if (typeof val === 'number') {
+        const dateKeywords = ["日付", "日", "date", "day", "年", "year", "月", "month"];
+        if (dateKeywords.some(kw => header.toLowerCase().includes(kw)) || (val > 40000 && val < 50000)) {
+          const res = excelSerialToDateString(val);
+          if (typeof res === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(res)) return res;
+        }
       }
-      if (isNaN(d.getTime())) return "";
-      const Y = d.getFullYear();
-      const M = String(d.getMonth() + 1).padStart(2, '0');
-      const D = String(d.getDate()).padStart(2, '0');
-      return `${Y}-${M}-${D}`;
+      if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(s) || /^\d{4}年\d{1,2}月\d{1,2}日$/.test(s)) {
+        const clean = s.replace(/年|月/g, '-').replace(/日/g, '').replace(/\//g, '-').replace(/\./g, '-');
+        const d = new Date(clean);
+        return isNaN(d.getTime()) ? s : d.toISOString().split('T')[0];
+      }
+      return s;
     };
 
     const analyzeColumns = (data) => {
       if(!data || data.length === 0) return { numeric: [], categorical: [], date: [], all: [] };
       const keys = Object.keys(data[0]);
       const num = [], cat = [], dt = [];
+      const dateKeywords = ["日付", "日", "date", "day", "年", "year", "月", "month", "調査日"];
       keys.forEach(k => {
         let nC = 0, vC = 0, dC = 0;
-        const hasDateKeyword = dateKeywords.some(kw => k.toLowerCase().includes(kw));
         for(let i = 0; i < Math.min(data.length, 50); i++) {
           const v = data[i][k];
           if(v !== undefined && v !== null && v !== '') {
             vC++;
-            if(typeof v === 'number') {
-              if (v > 30000 && v < 60000) dC++; else nC++;
-            } else if (typeof v === 'string') {
-                const cleanV = v.replace(/年|月/g, '/').replace(/日/g, '').replace(/\/$/, '');
-                if (!isNaN(Date.parse(cleanV))) dC++;
-                else if (!isNaN(Number(v))) nC++;
-            }
+            const fmt = smartFormatDate(v, k);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(fmt)) dC++;
+            else if (!isNaN(Number(v))) nC++;
           }
         }
         if (vC > 0) {
-          if ((dC / vC > 0.4) || (hasDateKeyword && dC > 0)) dt.push(k);
-          else if (nC / vC > 0.6) num.push(k);
+          if (dC / vC > 0.4 || (dateKeywords.some(kw => k.toLowerCase().includes(kw)) && dC > 0)) dt.push(k);
+          else if (nC / vC > 0.7) num.push(k);
           else cat.push(k);
         }
       });
       return { numeric: num, categorical: cat, date: dt, all: keys };
     };
 
-    // --- 4. サブコンポーネント (参照エラー防止のためWorkspaceの外に定義) ---
-    const AnalysisDescription = ({ typeId }) => {
-      const info = ANALYSIS_TYPES.find(t => t.id === typeId);
-      if (!info) return null;
-      return (
-        <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4 mb-5 shadow-sm animate-in fade-in">
-          <h4 className="font-bold text-blue-800 flex items-center mb-2"><InfoIcon className="w-5 h-5 mr-1.5" />{info.name.split('. ')[1]}</h4>
-          <p className="text-sm text-slate-700 mb-3 leading-relaxed">{info.desc}</p>
-          <div className="text-sm text-slate-600 bg-white p-2.5 rounded-md border border-slate-200 leading-relaxed shadow-sm">
-            <span className="font-bold text-emerald-600 mr-2">💡 活用例:</span>{info.useCase}
-          </div>
-        </div>
-      );
+    const apiKey = "";
+    const callGemini = async (prompt) => {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        systemInstruction: { parts: [{ text: "あなたはプロのデータアナリストです。分析結果から主要な示唆を日本語で提供してください。箇条書きと太字を活用してください。" }] }
+      };
+      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const result = await response.json();
+      return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI分析に失敗しました。";
+    };
+
+    // ==========================================
+    // 3. アイコン & UIサブコンポーネント
+    // ==========================================
+
+    const SvgIcon = ({ d, ...props }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d={d} /></svg>
+    );
+
+    const Icons = {
+      Upload: (p) => <SvgIcon d="M16 16l-4-4-4 4 M12 12v9 M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" {...p}/>,
+      Sheet: (p) => <SvgIcon d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z M14 2v6h6 M8 13h2 M8 17h2 M14 13h2 M14 17h2" {...p}/>,
+      Play: (p) => <SvgIcon d="M5 3l14 9-14 9V3z" {...p}/>,
+      Info: (p) => <SvgIcon d="M12 12m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0 M12 16v-4 M12 8h.01" {...p}/>,
+      Alert: (p) => <SvgIcon d="M12 12m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0 M12 8v4 M12 16h.01" {...p}/>,
+      Left: (p) => <SvgIcon d="M19 12H5 M12 19l-7-7 7-7" {...p}/>,
+      Plus: (p) => <SvgIcon d="M12 5v14 M5 12h14" {...p}/>,
+      Trash: (p) => <SvgIcon d="M3 6h18 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" {...p}/>,
+      Table: (p) => <SvgIcon d="M3 3h18v18H3z M3 9h18 M3 15h18 M9 3v18 M15 3v18" {...p}/>,
+      Chart: (p) => <SvgIcon d="M18 20V10 M12 20V4 M6 20v-6" {...p}/>,
+      X: (p) => <SvgIcon d="M18 6L6 18 M6 6l12 12" {...p}/>,
+      Sparkles: (p) => <SvgIcon d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z" {...p}/>,
+      Send: (p) => <SvgIcon d="M22 2L11 13 M22 2l-7 20-4-9-9-4 20-7z" {...p}/>,
+      Transpose: (p) => <SvgIcon d="M17 1l4 4-4 4 M3 5h18 M11 13l-4 4 4 4 M21 17H3" {...p}/>,
+      Reload: (p) => <SvgIcon d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5" {...p}/>,
+      Download: (p) => <SvgIcon d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p}/>
     };
 
     const AxisOptions = ({ cols }) => (
       <Fragment>
-        <optgroup label="拡張列 (年/年月)">{cols.dateExtended.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
-        <optgroup label="数値列 (判定済み)">{cols.numeric.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
-        <optgroup label="テキスト列 (判定済み)">{cols.categorical.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
-        <optgroup label="日付列 (生データ)">{cols.date.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
+        <optgroup label="日付ベース集計 (拡張)">{cols.dateExtended.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
+        <optgroup label="数値データ列">{cols.numeric.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
+        <optgroup label="カテゴリー列">{cols.categorical.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
+        <optgroup label="生の日付列">{cols.date.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
       </Fragment>
     );
 
-    // --- 5. メインワークスペースコンポーネント ---
-    const AnalysisWorkspace = ({ rawData, fileName, onReset }) => {
-      const [gridData, setGridData] = useState(rawData);
-      const [viewMode, setViewMode] = useState('analysis');
+    const AnalysisDescription = ({ typeId }) => {
+      const info = ANALYSIS_TYPES.find(t => t.id === typeId);
+      if (!info) return null;
+      return (
+        <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4 mb-5 shadow-sm animate-in text-slate-700">
+          <h4 className="font-bold text-blue-800 flex items-center mb-1"><Icons.Info className="w-4 h-4 mr-1.5" />{info.name.split('. ')[1]}</h4>
+          <p className="text-xs mb-2 leading-relaxed">{info.desc}</p>
+        </div>
+      );
+    };
 
-      // 列情報の計算
-      const cols = useMemo(() => {
-        const columns = analyzeColumns(gridData);
-        const dateExtended = [];
-        gridData.forEach(row => {
-          columns.date.forEach(dk => {
-            const v = row[dk];
-            if(v) {
-              const cleanV = typeof v === 'string' ? v.replace(/年|月/g, '/').replace(/日/g, '').replace(/\/$/, '') : v;
-              const d = (typeof v === 'number' && v > 30000) ? excelSerialToJSDate(v) : new Date(cleanV);
-              if(!isNaN(d.getTime())) {
-                const yk = `${dk} (年)`, ymk = `${dk} (年月)`;
-                if(!dateExtended.includes(yk)) dateExtended.push(yk);
-                if(!dateExtended.includes(ymk)) dateExtended.push(ymk);
-              }
+    // ==========================================
+    // 4. メイン分析パネル
+    // ==========================================
+
+    const AnalysisPanel = ({ processedData, cols, gridData }) => {
+      const [analysisType, setAnalysisType] = useState('summary');
+      const [xAxis, setXAxis] = useState('');
+      const [yAxis, setYAxis] = useState('');
+      const [yAxisChk, setYAxisChk] = useState([]);
+      const [sizeAxis, setSizeAxis] = useState('');
+      const [bins, setBins] = useState(20);
+      const [noDataMsg, setNoDataMsg] = useState('');
+      const [summaryData, setSummaryData] = useState(null);
+      
+      const [isModalOpen, setIsModalOpen] = useState(false);
+      const [aiLoading, setAiLoading] = useState(false);
+      const [chatHistory, setChatHistory] = useState([]);
+      const [userInput, setUserInput] = useState("");
+      const chatEndRef = useRef(null);
+
+      useEffect(() => {
+        if (!cols.all.length) return;
+        const c1 = cols.dateExtended[0] || cols.categorical[0] || cols.all[0];
+        const n1 = cols.numeric[0] || cols.all[0];
+        setXAxis(c1); setYAxis(n1); setYAxisChk(cols.numeric.length ? cols.numeric.slice(0, 3) : [cols.all[0]]);
+        setSizeAxis(cols.numeric[1] || n1);
+      }, [analysisType, cols.all]);
+
+      useEffect(() => { if (isModalOpen) chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, aiLoading]);
+
+      const toNum = (v) => { const n = Number(v); return isNaN(n) || v === null || v === '' ? null : n; };
+
+      const runAnalysis = () => {
+        setNoDataMsg(''); setSummaryData(null);
+        const chartArea = document.getElementById('chart-area');
+        if (chartArea && window.Plotly) window.Plotly.purge(chartArea);
+
+        try {
+          switch (analysisType) {
+            case 'summary': {
+              let res = yAxisChk.map(c => {
+                let vls = processedData.map(d => toNum(d[c])).filter(v => v !== null).sort((a,b)=>a-b);
+                if (!vls.length) return null;
+                return { col: c, count: vls.length, mean: vls.reduce((a,b)=>a+b,0)/vls.length, min: vls[0], median: vls[Math.floor(vls.length/2)], max: vls[vls.length-1] };
+              }).filter(Boolean);
+              setSummaryData(res);
+              break;
             }
-          });
-        });
-        return { ...columns, dateExtended, allExtended: [...columns.all, ...dateExtended] };
-      }, [gridData]);
-
-      // 分析用データ生成
-      const processedData = useMemo(() => {
-        return gridData.map(row => {
-          const newRow = { ...row };
-          cols.date.forEach(dk => {
-            const v = row[dk];
-            if(v) {
-              const cleanV = typeof v === 'string' ? v.replace(/年|月/g, '/').replace(/日/g, '').replace(/\/$/, '') : v;
-              const d = (typeof v === 'number' && v > 30000) ? excelSerialToJSDate(v) : new Date(cleanV);
-              if(!isNaN(d.getTime())) {
-                newRow[`${dk} (年)`] = d.getFullYear() + "年";
-                newRow[`${dk} (年月)`] = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-              }
+            case 'timeseries': {
+              let sorted = [...processedData].sort((a,b) => a[xAxis] < b[xAxis] ? -1 : 1);
+              let traces = yAxisChk.map(c => ({ x: sorted.map(d=>d[xAxis]), y: sorted.map(d=>toNum(d[c])), type: 'scatter', mode: 'lines+markers', name: c }));
+              window.Plotly.newPlot('chart-area', traces, { margin: {t:40}, autosize: true }, {responsive:true});
+              break;
             }
-          });
-          return newRow;
-        });
-      }, [gridData, cols]);
-
-      // 行列入れ替え(転置)
-      const transposeData = () => {
-        if (gridData.length === 0) return;
-        const oldHeaders = Object.keys(gridData[0]);
-        const newRows = oldHeaders.map(header => {
-          const newRow = { "項目": header };
-          gridData.forEach((oldRow, i) => {
-            newRow[`データ_${i + 1}`] = oldRow[header];
-          });
-          return newRow;
-        });
-        setGridData(newRows);
-      };
-
-      const updateCell = (rowIndex, key, value) => {
-        const newData = [...gridData];
-        newData[rowIndex][key] = value;
-        setGridData(newData);
-      };
-
-      const updateHeader = (oldKey, newKey) => {
-        if (!newKey || oldKey === newKey) return;
-        setGridData(prev => prev.map(row => {
-          const newRow = {};
-          Object.keys(row).forEach(k => { newRow[k === oldKey ? newKey : k] = row[k]; });
-          return newRow;
-        }));
-      };
-
-      const addRow = () => {
-        const newRow = {};
-        Object.keys(gridData[0] || {}).forEach(k => newRow[k] = "");
-        setGridData([...gridData, newRow]);
-      };
-
-      const deleteRow = (idx) => {
-        if (gridData.length <= 1) return;
-        setGridData(gridData.filter((_, i) => i !== idx));
-      };
-
-      const exportData = () => {
-        const ws = XLSX.utils.json_to_sheet(gridData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data");
-        XLSX.writeFile(wb, `analyzed_data.xlsx`);
-      };
-
-      // --- 内部コンポーネント: 分析パネル ---
-      const AnalysisPanel = () => {
-        const [analysisType, setAnalysisType] = useState('summary');
-        const [xAxis, setXAxis] = useState('');
-        const [yAxis, setYAxis] = useState('');
-        const [yAxisChk, setYAxisChk] = useState([]);
-        const [colorGroup, setColorGroup] = useState('なし');
-        const [colorAxis, setColorAxis] = useState('なし');
-        const [sizeAxis, setSizeAxis] = useState('');
-        const [bins, setBins] = useState(20);
-        const [noDataMsg, setNoDataMsg] = useState('');
-        const [summaryData, setSummaryData] = useState(null);
-        const [statTestData, setStatTestData] = useState(null);
-        const [resultTitle, setResultTitle] = useState('分析結果');
-        const chartRef = useRef(null);
-
-        useEffect(() => {
-          if (!cols.all.length) return;
-          const n1 = cols.numeric[0] || cols.all[0];
-          const n2 = cols.numeric[1] || n1;
-          const c1 = cols.categorical[0] || cols.dateExtended[0] || cols.all[0];
-          const c2 = cols.categorical[1] || c1;
-          const d1 = cols.dateExtended[0] || cols.date[0] || c1;
-          setXAxis(c1); setYAxis(n1); setYAxisChk(cols.numeric.length ? cols.numeric.slice(0, 3) : [cols.all[0]]);
-          setColorGroup('なし'); setColorAxis('なし'); setSizeAxis(n2);
-          if (analysisType === 'timeseries') setXAxis(d1);
-          else if (analysisType === 'bumpchart') { setXAxis(d1); setColorGroup(c1); setColorAxis(n1); }
-          else if (analysisType === 'crosstab_heatmap') { setXAxis(c1); setColorGroup(c2); setColorAxis(n1); }
-          else if (['histogram', 'scatter', 'bubble', 'contour'].includes(analysisType)) setXAxis(n1);
-        }, [analysisType, cols]);
-
-        const toNum = (v) => { const n = Number(v); return isNaN(n) || v === null || v === '' ? null : n; };
-
-        const runAnalysis = () => {
-          setNoDataMsg(''); setSummaryData(null); setStatTestData(null);
-          if (chartRef.current && window.Plotly) window.Plotly.purge(chartRef.current);
-          const sel = ANALYSIS_TYPES.find(t => t.id === analysisType);
-          setResultTitle(sel ? sel.name.split('. ')[1].split('(')[0].trim() : '分析結果');
-          try {
-            switch (analysisType) {
-              case 'summary': {
-                let res = yAxisChk.map(c => {
-                  let vls = processedData.map(d => toNum(d[c])).filter(v => v !== null).sort((a,b)=>a-b);
-                  if (!vls.length) return null;
-                  let m = vls.reduce((a,b)=>a+b,0)/vls.length;
-                  let sd = Math.sqrt(vls.reduce((a,v)=>a+Math.pow(v-m,2),0)/vls.length);
-                  return { col: c, count: vls.length, mean: m, sd, min: vls[0], median: vls[Math.floor(vls.length/2)], max: vls[vls.length-1] };
-                }).filter(Boolean);
-                setSummaryData(res);
-                break;
-              }
-              case 'timeseries': {
-                let sorted = [...processedData].sort((a,b) => a[xAxis] < b[xAxis] ? -1 : 1);
-                let traces = yAxisChk.map(c => ({ x: sorted.map(d=>d[xAxis]), y: sorted.map(d=>toNum(d[c])), type: 'scatter', mode: 'lines+markers', name: c }));
-                window.Plotly.newPlot(chartRef.current, traces, { margin: {t:40} });
-                break;
-              }
-              case 'comparison':
-              case 'stackedbar': {
-                let g = {}; processedData.forEach(r => {
-                  let k = String(r[xAxis] || '不明'); if(!g[k]) { g[k]={c:0, s:{}}; yAxisChk.forEach(y=>g[k].s[y]=0); }
-                  yAxisChk.forEach(y => { let v=toNum(r[y]); if(v!==null) g[k].s[y]+=v; }); g[k].c++;
-                });
-                let ks = Object.keys(g).sort();
-                let traces = yAxisChk.map(y => ({ x: ks, y: ks.map(k=>g[k].c>0 ? g[k].s[y]/g[k].c : 0), type: 'bar', name: y }));
-                window.Plotly.newPlot(chartRef.current, traces, { barmode: analysisType==='stackedbar'?'stack':'group', margin: {t:40} });
-                break;
-              }
-              case 'boxplot':
-              case 'violin':
-              case 'stripplot': {
-                let g = {}; processedData.forEach(r => { let k=String(r[xAxis]||'不明'), v=toNum(r[yAxis]); if(v!==null){ if(!g[k])g[k]=[ ]; g[k].push(v); }});
-                let traces = Object.keys(g).sort().map(k => ({ y: g[k], name: k, type: analysisType==='violin'?'violin':'box', boxpoints: analysisType==='stripplot'?'all':'outliers', jitter: 0.5 }));
-                window.Plotly.newPlot(chartRef.current, traces, { margin: {t:40} });
-                break;
-              }
-              case 'scatter':
-              case 'bubble': {
-                let traces = [];
-                if (colorGroup === 'なし') traces.push({ x: processedData.map(d=>toNum(d[xAxis])), y: processedData.map(d=>toNum(d[yAxis])), mode: 'markers', type: 'scatter', marker: { size: analysisType==='bubble'?processedData.map(d=>Math.sqrt(Math.abs(toNum(d[sizeAxis]))||0)*2+5):8 } });
-                else {
-                  let g = {}; processedData.forEach(r=>{ let k=String(r[colorGroup]||'不明'); if(!g[k])g[k]={x:[],y:[],s:[]}; g[k].x.push(toNum(r[xAxis])); g[k].y.push(toNum(r[yAxis])); g[k].s.push(Math.sqrt(Math.abs(toNum(r[sizeAxis]))||0)*2+5); });
-                  Object.keys(g).forEach(k=>traces.push({ x: g[k].x, y: g[k].y, name: k, mode: 'markers', type: 'scatter', marker: { size: analysisType==='bubble'?g[k].s:8 } }));
-                }
-                window.Plotly.newPlot(chartRef.current, traces, { margin: {t:40} });
-                break;
-              }
-              case 'histogram': {
-                let v = processedData.map(d=>toNum(d[xAxis])).filter(x=>x!==null);
-                window.Plotly.newPlot(chartRef.current, [{ x: v, type: 'histogram', nbinsx: bins }], { margin: {t:40} });
-                break;
-              }
-              case 'pie': {
-                let c = {}; processedData.forEach(d=>{ let k=String(d[xAxis]||'不明'); c[k]=(c[k]||0)+1; });
-                window.Plotly.newPlot(chartRef.current, [{ values: Object.values(c), labels: Object.keys(c), type: 'pie' }], { margin: {t:40} });
-                break;
-              }
-              case 'correlation': {
-                let z = yAxisChk.map(c1 => yAxisChk.map(c2 => {
-                  let x=[], y=[]; processedData.forEach(d=>{ let v1=toNum(d[c1]), v2=toNum(d[c2]); if(v1!==null && v2!==null){ x.push(v1); y.push(v2); }});
-                  if(!x.length) return 0;
-                  let n=x.length, sx=x.reduce((a,b)=>a+b,0), sy=y.reduce((a,b)=>a+b,0), sxy=x.reduce((a,v,i)=>a+v*y[i],0), sx2=x.reduce((a,v)=>a+v*v,0), sy2=y.reduce((a,v)=>a+v*v,0);
-                  let nm = n*sxy-sx*sy, dn = Math.sqrt((n*sx2-sx*sx)*(n*sy2-sy*sy));
-                  return dn===0?0:nm/dn;
-                }));
-                window.Plotly.newPlot(chartRef.current, [{ z, x: yAxisChk, y: yAxisChk, type: 'heatmap', colorscale: 'RdBu', zmin: -1, zmax: 1 }], { margin: {t:40} });
-                break;
-              }
-              case 'stat_test': {
-                let grp = {}, all = [];
-                processedData.forEach(r => { let c=String(r[xAxis]||''), v=toNum(r[yAxis]); if(c && v!==null){ if(!grp[c])grp[c]=[]; grp[c].push(v); all.push(v); }});
-                let ks = Object.keys(grp).filter(k=>grp[k].length>0); if(ks.length<2) throw new Error('2つ以上のグループが必要です。');
-                const N = all.length, k = ks.length, avgA = all.reduce((a,b)=>a+b,0)/N;
-                let ssb=0, ssw=0, stats = ks.map(key => {
-                  let vs = grp[key], n=vs.length, m=vs.reduce((a,b)=>a+b,0)/n;
-                  ssb += n*Math.pow(m-avgA,2); vs.forEach(v=>ssw+=Math.pow(v-m,2));
-                  return { key, n, mean:m, variance: vs.reduce((a,v)=>a+Math.pow(v-m,2),0)/(n>1?n-1:1)};
-                });
-                const dfB = k-1, dfW = N-k, msb=ssb/dfB, msw=ssw/dfW, F=msb/msw;
-                let p = window.jStat ? 1-window.jStat.centralF.cdf(F,dfB,dfW) : null;
-                setStatTestData({ groupCol: xAxis, valCol: yAxis, groups: stats, anova: {F, pValue:p, dfB, dfW} });
-                window.Plotly.newPlot(chartRef.current, ks.map(k=>({y:grp[k], type:'box', name:k})), {margin: {t:40}});
-                break;
-              }
-              default: setNoDataMsg('対象の手法は現在、表データや基本的なグラフからお試しください。');
+            case 'comparison':
+            case 'stackedbar': {
+              let g = {}; processedData.forEach(r => {
+                let k = String(r[xAxis] || '不明'); if(!g[k]) { g[k]={c:0, s:{}}; yAxisChk.forEach(y=>g[k].s[y]=0); }
+                yAxisChk.forEach(y => { let v=toNum(r[y]); if(v!==null) g[k].s[y]+=v; }); g[k].c++;
+              });
+              let ks = Object.keys(g).sort();
+              let traces = yAxisChk.map(y => ({ x: ks, y: ks.map(k=>g[k].c>0 ? g[k].s[y]/g[k].c : 0), type: 'bar', name: y }));
+              window.Plotly.newPlot('chart-area', traces, { margin: {t:40}, barmode: analysisType==='stackedbar'?'stack':'group' }, {responsive:true});
+              break;
             }
-          } catch (e) { setNoDataMsg(e.message); }
-        };
+            case 'boxplot':
+            case 'violin':
+            case 'stripplot': {
+              let g = {}; processedData.forEach(r => { let k=String(r[xAxis]||'不明'), v=toNum(r[yAxis]); if(v!==null){ if(!g[k])g[k]=[]; g[k].push(v); }});
+              let traces = Object.keys(g).sort().map(k => ({ y: g[k], name: k, type: analysisType==='violin'?'violin':'box', boxpoints: analysisType==='stripplot'?'all':'outliers' }));
+              window.Plotly.newPlot('chart-area', traces, { margin: {t:40} }, {responsive:true});
+              break;
+            }
+            case 'histogram': {
+              window.Plotly.newPlot('chart-area', [{ x: processedData.map(d=>toNum(d[xAxis])), type: 'histogram', nbinsx: bins }], { margin: {t:40} }, {responsive:true});
+              break;
+            }
+            case 'correlation': {
+              let z = yAxisChk.map(c1 => yAxisChk.map(c2 => {
+                let x=[], y=[]; processedData.forEach(d=>{ let v1=toNum(d[c1]), v2=toNum(d[c2]); if(v1!==null && v2!==null){ x.push(v1); y.push(v2); }});
+                if(!x.length) return 0;
+                let n=x.length, sx=x.reduce((a,b)=>a+b,0), sy=y.reduce((a,b)=>a+b,0), sxy=x.reduce((a,v,i)=>a+v*y[i],0), sx2=x.reduce((a,v)=>a+v*v,0), sy2=y.reduce((a,v)=>a+v*v,0);
+                let nm = n*sxy-sx*sy, dn = Math.sqrt((n*sx2-sx*sx)*(n*sy2-sy*sy));
+                return dn===0?0:nm/dn;
+              }));
+              window.Plotly.newPlot('chart-area', [{ z, x: yAxisChk, y: yAxisChk, type: 'heatmap', colorscale: 'RdBu' }], { margin: {t:40} }, {responsive:true});
+              break;
+            }
+            case 'radar': {
+              let g = {}; processedData.forEach(r => { let k=String(r[xAxis]||'不明'); if(!g[k]){ g[k]={c:0, s:{}}; yAxisChk.forEach(y=>g[k].s[y]=0); } yAxisChk.forEach(y=>{ let v=toNum(r[y]); if(v!==null) g[k].s[y]+=v; }); g[k].c++; });
+              let traces = Object.keys(g).map(k => { let r = yAxisChk.map(y => g[k].c>0 ? g[k].s[y]/g[k].c : 0); r.push(r[0]); return { type: 'scatterpolar', r, theta: [...yAxisChk, yAxisChk[0]], fill: 'toself', name: k }; });
+              window.Plotly.newPlot('chart-area', traces, { polar: { radialaxis: { visible: true } } }, {responsive:true});
+              break;
+            }
+            case 'stat_test': {
+              let grp = {}; processedData.forEach(r => { let c=String(r[xAxis]||''), v=toNum(r[yAxis]); if(c && v!==null){ if(!grp[c])grp[c]=[]; grp[c].push(v); }});
+              let ks = Object.keys(grp).filter(k=>grp[k].length>1); if(ks.length<2) throw new Error('2つ以上のグループが必要です。');
+              setStatTestData({ groups: ks.map(k => ({key:k, n:grp[k].length, mean:grp[k].reduce((a,b)=>a+b,0)/grp[k].length})) });
+              window.Plotly.newPlot('chart-area', ks.map(k=>({y:grp[k], type:'box', name:k})), {margin: {t:40}});
+              break;
+            }
+            case 'treemap': {
+              let g = {}; processedData.forEach(d => { let k=String(d[xAxis]||'不明'), v=toNum(d[yAxis])||0; g[k]=(g[k]||0)+v; });
+              window.Plotly.newPlot('chart-area', [{ type: 'treemap', labels: Object.keys(g), parents: Object.keys(g).map(()=>''), values: Object.values(g) }], {}, {responsive:true});
+              break;
+            }
+            default: {
+                let traces = [{ x: processedData.map(d=>toNum(d[xAxis])), y: processedData.map(d=>toNum(d[yAxis])), mode: 'markers', type: analysisType==='scatter3d' ? 'scatter3d' : 'scatter' }];
+                window.Plotly.newPlot('chart-area', traces, { margin: {t:40} }, {responsive:true});
+            }
+          }
+        } catch (e) { setNoDataMsg(e.message); }
+      };
 
-        return (
-          <div className="flex h-full overflow-hidden">
-            <div className="w-80 border-r p-5 overflow-y-auto custom-scrollbar bg-slate-50 shrink-0">
-              <label className="block text-sm font-bold text-slate-700 mb-2">分析手法</label>
-              <select value={analysisType} onChange={e => setAnalysisType(e.target.value)} className="w-full text-sm border-slate-300 rounded-lg p-2.5 bg-white shadow-sm mb-4 outline-none">
-                {['基礎', '推移・傾向', '比較', '分布', '関係性', '構成比', '高度な分析'].map(g => (
-                  <optgroup key={g} label={`--- ${g} ---`}>
-                    {ANALYSIS_TYPES.filter(t => t.group === g).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </optgroup>
-                ))}
-              </select>
-              <AnalysisDescription typeId={analysisType} />
-              <div className="space-y-4">
-                <div><label className="block text-xs font-bold text-slate-600 mb-1">軸 / グループ化</label><select value={xAxis} onChange={e=>setXAxis(e.target.value)} className="w-full text-sm border-slate-300 rounded-lg p-2 bg-white outline-none"><AxisOptions cols={cols}/></select></div>
-                <div>
-                  <div className="flex justify-between items-center mb-1"><label className="text-xs font-bold text-slate-600">分析対象</label><button onClick={()=>setYAxisChk(cols.allExtended)} className="text-[10px] text-blue-600 hover:underline">全選択</button></div>
-                  <div className="max-h-40 overflow-y-auto border rounded-lg p-2 bg-white shadow-inner custom-scrollbar">
-                    {cols.allExtended.map(c => (
-                      <label key={c} className="flex items-center space-x-2 p-1 hover:bg-slate-50 cursor-pointer">
-                        <input type="checkbox" checked={yAxisChk.includes(c)} onChange={()=>setYAxisChk(p=>p.includes(c)?p.filter(x=>x!==c):[...p,c])} className="rounded text-blue-600 w-4 h-4" />
-                        <span className="text-xs truncate">{c}</span>
-                      </label>
-                    ))}
+      const handleAIAnalysis = async () => {
+        setIsModalOpen(true);
+        setAiLoading(true);
+        setChatHistory([]);
+        let aiPrompt = `手法: ${analysisType}\nX軸: ${xAxis}, Y軸: ${yAxis}, 対象: ${yAxisChk.join(",")}\nデータ件数: ${processedData.length}\n上記条件での分析結果を解析し、示唆を提供してください。`;
+        try {
+          const res = await callGemini(aiPrompt);
+          setChatHistory([{ role: "assistant", text: res }]);
+        } catch (e) {
+          setChatHistory([{ role: "assistant", text: "AI分析中にエラーが発生しました。" }]);
+        } finally { setAiLoading(false); }
+      };
+
+      const askAI = async () => {
+        if (!userInput.trim()) return;
+        const msg = userInput; setUserInput("");
+        setChatHistory(p => [...p, { role: "user", text: msg }]);
+        setAiLoading(true);
+        try {
+          const res = await callGemini(`文脈を踏まえて質問に答えてください: ${msg}`);
+          setChatHistory(p => [...p, { role: "assistant", text: res }]);
+        } catch (e) {
+          setChatHistory(p => [...p, { role: "assistant", text: "エラーが発生しました。" }]);
+        } finally { setAiLoading(false); }
+      };
+
+      return (
+        <div className="flex h-full overflow-hidden relative">
+          <div className="w-80 border-r p-5 overflow-y-auto bg-slate-50 shrink-0 custom-scrollbar">
+            <label className="block text-sm font-bold text-slate-700 mb-2">分析手法の選択</label>
+            <select value={analysisType} onChange={e => setAnalysisType(e.target.value)} className="w-full text-sm border border-slate-300 rounded-lg p-2 bg-white mb-4 outline-none">
+              {['基礎', '推移・傾向', '比較', '分布', '関係性', '構成比', '高度な分析'].map(g => (
+                <optgroup key={g} label={`--- ${g} ---`}>
+                  {ANALYSIS_TYPES.filter(t => t.group === g).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </optgroup>
+              ))}
+            </select>
+            <AnalysisDescription typeId={analysisType} />
+            <div className="space-y-4">
+              <div><label className="block text-xs font-bold text-slate-500 mb-1">軸 / カテゴリ</label>
+                <select value={xAxis} onChange={e=>setXAxis(e.target.value)} className="w-full text-sm border border-slate-300 rounded-lg p-2 bg-white outline-none shadow-sm"><AxisOptions cols={cols}/></select>
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">分析対象 (数値)</label>
+                  <div className="flex space-x-1">
+                    <button onClick={()=>setYAxisChk(cols.allExtended)} className="text-[9px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded font-bold">全て選択</button>
+                    <button onClick={()=>setYAxisChk([])} className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold">クリア</button>
                   </div>
                 </div>
-                <div><label className="block text-xs font-bold text-slate-600 mb-1">数値 (Y軸)</label><select value={yAxis} onChange={e=>setYAxis(e.target.value)} className="w-full text-sm border-slate-300 rounded-lg p-2 bg-white outline-none"><AxisOptions cols={cols}/></select></div>
-              </div>
-              <button onClick={runAnalysis} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 mt-6 rounded-xl shadow-md transition-all active:scale-95"><PlayIcon className="w-5 h-5 mr-2" /> 分析を実行</button>
-            </div>
-            <div className="flex-1 flex flex-col min-w-0 bg-white">
-              <div className="p-4 border-b flex justify-between items-center bg-white shrink-0"><h2 className="text-lg font-bold text-slate-800">{resultTitle}</h2><div className="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1 rounded-full border">{gridData.length} 行</div></div>
-              <div className="flex-1 p-6 overflow-auto relative custom-scrollbar bg-white">
-                {noDataMsg && <div className="bg-red-50 text-red-600 p-4 rounded-lg border flex items-center mb-4 font-bold text-sm"><AlertCircle className="w-5 h-5 mr-2" />{noDataMsg}</div>}
-                <div ref={chartRef} className={`w-full h-full min-h-[400px] ${summaryData ? 'hidden' : ''}`}></div>
-                {summaryData && (
-                  <div className="overflow-x-auto rounded-xl border animate-in fade-in">
-                    <table className="min-w-full text-sm text-right whitespace-nowrap"><thead className="bg-slate-50 text-slate-600 font-bold border-b"><tr><th className="px-4 py-3 text-left">項目</th><th>数</th><th>平均</th><th>偏差</th><th>最小</th><th>中央</th><th>最大</th></tr></thead>
-                    <tbody className="bg-white divide-y">{summaryData.map(r => (<tr key={r.col} className="hover:bg-slate-50"><td className="px-4 py-3 font-bold text-slate-800 text-left">{r.col}</td><td>{r.count}</td><td className="font-bold text-blue-600">{r.mean.toFixed(2)}</td><td>{r.sd.toFixed(2)}</td><td>{r.min.toFixed(2)}</td><td>{r.median}</td><td>{r.max.toFixed(2)}</td></tr>))}</tbody></table>
-                  </div>
-                )}
-                {statTestData && (
-                  <div className="mt-6 p-5 border border-indigo-100 bg-indigo-50 rounded-xl shadow-sm text-sm text-slate-800 animate-in fade-in">
-                    <h3 className="font-bold text-lg mb-3 flex items-center text-indigo-900"><InfoIcon className="w-5 h-5 mr-2 text-indigo-600" /> ANOVA 結果</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div className="bg-white p-4 rounded-lg shadow-sm border text-slate-600">F値: <span className="text-xl font-black text-slate-800">{statTestData.anova.F.toFixed(3)}</span></div><div className="bg-white p-4 rounded-lg shadow-sm border text-slate-600">p値: <span className="text-xl font-black text-indigo-600">{statTestData.anova.pValue !== null ? (statTestData.anova.pValue < 0.001 ? '< 0.001' : statTestData.anova.pValue.toFixed(4)) : '計算不可'}</span></div></div>
-                    <div className={`p-4 rounded-lg font-bold border ${statTestData.anova.pValue < 0.05 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-slate-100 border-slate-300'}`}>判定: {statTestData.anova.pValue < 0.05 ? '統計的に有意な差があります。' : '有意な差はありません。'}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      };
-
-      const DataEditor = () => {
-        const headerKeys = gridData.length > 0 ? Object.keys(gridData[0]) : [];
-        return (
-          <div className="flex flex-col h-full bg-white animate-in fade-in">
-            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-              <div className="flex space-x-4 items-center"><h2 className="text-lg font-bold text-slate-800 flex items-center"><TableIcon className="w-5 h-5 mr-2 text-slate-500" />データ編集</h2><span className="text-xs text-slate-500">直接編集・転置が可能です</span></div>
-              <div className="flex space-x-2">
-                <button onClick={transposeData} className="bg-orange-50 text-orange-600 hover:bg-orange-100 px-3 py-2 rounded-lg text-sm font-bold flex items-center border border-orange-200 transition-colors"><RepeatIcon className="w-4 h-4 mr-1" />行列を入れ替える</button>
-                <button onClick={addRow} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-2 rounded-lg text-sm font-bold flex items-center border border-emerald-200"><Plus className="w-4 h-4 mr-1" />行追加</button>
-                <button onClick={exportData} className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center shadow-md transition-all active:scale-95"><Download className="w-4 h-4 mr-1" />Excel出力</button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-auto custom-scrollbar">
-              <table className="min-w-full text-sm border-collapse">
-                <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm">
-                  <tr>
-                    <th className="w-12 border-b"></th>
-                    {headerKeys.map(k => (
-                      <th key={k} className="border border-slate-200 px-2 py-3 bg-slate-50 min-w-[150px]">
-                        <input type="text" defaultValue={k} onBlur={(e) => updateHeader(k, e.target.value)} className="cell-input header-input" />
-                      </th>
-                    ))}
-                    <th className="w-12 border-b"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gridData.map((row, rIdx) => (
-                    <tr key={rIdx} className="hover:bg-slate-50 group border-b">
-                      <td className="text-center text-slate-400 font-mono text-[10px] bg-slate-50 border-r">{rIdx + 1}</td>
-                      {headerKeys.map(k => (
-                        <td key={k} className="border-r border-slate-200 p-0">
-                          {cols.date.includes(k) ? (
-                            <input type="date" value={formatDateForInput(row[k])} onChange={(e) => updateCell(rIdx, k, e.target.value)} className="cell-input" />
-                          ) : (
-                            <input type="text" value={row[k]} onChange={(e) => updateCell(rIdx, k, e.target.value)} className="cell-input" />
-                          )}
-                        </td>
-                      ))}
-                      <td className="text-center"><button onClick={() => deleteRow(rIdx)} className="text-red-300 hover:text-red-600 p-2 transition-colors"><Trash className="w-4 h-4" /></button></td>
-                    </tr>
+                <div className="max-h-40 overflow-y-auto border rounded-lg p-2 bg-white shadow-inner custom-scrollbar">
+                  {cols.allExtended.map(c => (
+                    <label key={c} className="flex items-center space-x-2 p-1 hover:bg-slate-50 cursor-pointer text-xs">
+                      <input type="checkbox" checked={yAxisChk.includes(c)} onChange={()=>setYAxisChk(p=>p.includes(c)?p.filter(x=>x!==c):[...p,c])} className="rounded text-blue-600" />
+                      <span className="truncate font-medium text-slate-700">{c}</span>
+                    </label>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              </div>
+              <div><label className="block text-xs font-bold text-slate-500 mb-1">数値軸 (Y)</label>
+                <select value={yAxis} onChange={e=>setYAxis(e.target.value)} className="w-full text-sm border border-slate-300 rounded-lg p-2 bg-white outline-none shadow-sm"><AxisOptions cols={cols}/></select>
+              </div>
+            </div>
+            <button onClick={runAnalysis} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 mt-6 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center">
+              <Icons.Play className="w-4 h-4 mr-2" /> 分析を実行
+            </button>
+          </div>
+
+          <div className="flex-1 flex flex-col min-w-0 bg-white p-6 overflow-auto">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 min-h-[500px] flex flex-col">
+              <div className="flex justify-between items-center mb-6 border-b pb-3">
+                <h2 className="font-bold text-slate-800 text-lg">可視化結果</h2>
+                <button 
+                  onClick={handleAIAnalysis}
+                  className="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm border border-indigo-100"
+                >
+                  <Icons.Sparkles className="w-4 h-4 mr-2" /> AI分析を開始
+                </button>
+              </div>
+              {noDataMsg && <div className="bg-red-50 text-red-600 p-4 rounded-lg border font-bold text-sm mb-4"><Icons.Alert className="w-4 h-4 mr-2 inline" />{noDataMsg}</div>}
+              <div id="chart-area" className={`flex-1 w-full min-h-[400px] ${summaryData ? 'hidden' : ''}`}></div>
+              {summaryData && (
+                <div className="overflow-x-auto rounded-xl border animate-in"><table className="min-w-full text-sm text-right whitespace-nowrap"><thead className="bg-slate-50 text-slate-600 font-bold border-b"><tr><th className="px-4 py-3 text-left">項目名</th><th>数</th><th>平均</th><th>最小</th><th>中央</th><th>最大</th></tr></thead>
+                  <tbody className="bg-white divide-y">{summaryData.map(r => (<tr key={r.col} className="hover:bg-slate-50"><td className="px-4 py-3 font-bold text-slate-800 text-left">{r.col}</td><td>{r.count}</td><td className="font-bold text-blue-600">{r.mean.toFixed(2)}</td><td>{r.min}</td><td>{r.median}</td><td>{r.max}</td></tr>))}</tbody></table></div>
+              )}
             </div>
           </div>
-        );
+
+          {isModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay animate-in">
+              <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col h-[80vh] overflow-hidden border border-white/20">
+                <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white">
+                  <div className="flex items-center space-x-2 font-bold"><Icons.Sparkles className="w-5 h-5 text-blue-400" /><span>AIデータアドバイザー</span></div>
+                  <button onClick={()=>setIsModalOpen(false)} className="hover:bg-white/20 p-1 rounded-full transition-all"><Icons.X className="w-6 h-6" /></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50 custom-scrollbar">
+                  {aiLoading && chatHistory.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4"><div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div><p className="font-bold text-slate-600">AIが結果を解析しています...</p></div>
+                  ) : (
+                    chatHistory.map((m, i) => (
+                      <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[90%] px-4 py-3 rounded-2xl text-sm shadow-sm ${m.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none markdown-content shadow-sm'}`}>
+                          {m.text.split('\n').map((t, idx) => <p key={idx}>{t}</p>)}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {aiLoading && chatHistory.length > 0 && <div className="flex justify-start"><div className="bg-white border px-4 py-2 rounded-2xl animate-pulse text-slate-400 text-xs">AIが入力中...</div></div>}
+                  <div ref={chatEndRef} />
+                </div>
+                <div className="p-4 border-t bg-white">
+                  <div className="relative flex items-center">
+                    <input type="text" value={userInput} onChange={(e)=>setUserInput(e.target.value)} onKeyDown={(e)=>e.key==='Enter' && askAI()} placeholder="AIにこのデータの傾向を聞く..." className="w-full pl-4 pr-12 py-3 bg-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-600 text-sm" />
+                    <button onClick={askAI} disabled={aiLoading} className="absolute right-2 p-2 text-blue-600 disabled:opacity-30 transition-all"><Icons.Send className="w-5 h-5" /></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // ==========================================
+    // 5. ワークスペースラッパー
+    // ==========================================
+
+    const AnalysisWorkspaceWrapper = ({ rawData, fileName, onReset }) => {
+      const initialGrid = useMemo(() => rawData.map(r => {
+        const nr = {...r}; Object.keys(nr).forEach(k => { const f = smartFormatDate(nr[k], k); if(/^\d{4}-\d{2}-\d{2}$/.test(f)) nr[k]=f; }); return nr;
+      }), [rawData]);
+      const [gridData, setGridData] = useState(initialGrid);
+      const [viewMode, setViewMode] = useState('analysis');
+
+      const cols = useMemo(() => {
+        const c = analyzeColumns(gridData);
+        const ext = [];
+        gridData.forEach(row => c.date.forEach(dk => {
+          const d = new Date(row[dk]); if(!isNaN(d.getTime())){
+            const yk = `${dk} (年)`, ymk = `${dk} (年月)`;
+            if(!ext.includes(yk)) ext.push(yk); if(!ext.includes(ymk)) ext.push(ymk);
+          }
+        }));
+        return { ...c, dateExtended: ext, allExtended: [...c.all, ...ext] };
+      }, [gridData]);
+
+      const processedData = useMemo(() => gridData.map(r => {
+        const nr = {...r}; cols.date.forEach(dk => {
+          const d = new Date(r[dk]); if(!isNaN(d.getTime())){
+            nr[`${dk} (年)`] = d.getFullYear() + "年";
+            nr[`${dk} (年月)`] = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+          }
+        }); return nr;
+      }), [gridData, cols]);
+
+      const transposeData = () => {
+        if (!gridData.length) return;
+        const h = Object.keys(gridData[0]), f = h[0];
+        const nh = ["項目", ...gridData.map((r, i) => String(r[f] || i + 1))];
+        setGridData(h.slice(1).map(k => {
+          const nr = { "項目": k }; gridData.forEach((or, i) => nr[nh[i+1]] = smartFormatDate(or[k], k)); return nr;
+        }));
       };
 
       return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
-          <header className="h-16 bg-slate-900 text-white flex items-center justify-between px-6 shrink-0 z-30 shadow-md">
-            <div className="flex items-center space-x-4">
-              <button onClick={onReset} className="p-2 hover:bg-white/10 rounded-full transition-colors"><ArrowLeft className="w-5 h-5"/></button>
-              <div><h1 className="font-black text-xl tracking-tight leading-none">Universal Analyzer</h1><p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">{fileName}</p></div>
+          <header className="h-16 bg-slate-900 text-white flex items-center justify-between px-6 shrink-0 z-30">
+            <div className="flex items-center space-x-4"><button onClick={onReset} className="p-2 hover:bg-white/10 rounded-full transition-colors"><Icons.Left className="w-5 h-5"/></button>
+              <div><h1 className="font-black text-xl text-blue-400 leading-none">Universal Analyzer</h1><p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">{fileName}</p></div>
             </div>
             <div className="flex bg-slate-800 rounded-xl p-1 border border-white/10">
-              <button onClick={() => setViewMode('analysis')} className={`flex items-center px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'analysis' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}><BarChartIcon className="w-4 h-4 mr-2" /> 分析</button>
-              <button onClick={() => setViewMode('editor')} className={`flex items-center px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'editor' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}><TableIcon className="w-4 h-4 mr-2" /> 編集</button>
+              <button onClick={() => setViewMode('analysis')} className={`flex items-center px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'analysis' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}><Icons.Chart className="w-4 h-4 mr-2" /> 分析</button>
+              <button onClick={() => setViewMode('editor')} className={`flex items-center px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'editor' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}><Icons.Table className="w-4 h-4 mr-2" /> 編集</button>
             </div>
-            <div className="w-40 flex justify-end"><RefreshCw onClick={() => window.location.reload()} className="w-5 h-5 text-slate-500 cursor-pointer hover:text-white transition-all" /></div>
+            <div className="w-40 flex justify-end font-black text-blue-500 text-xs animate-pulse tracking-tighter">AI READY</div>
           </header>
           <main className="flex-1 overflow-hidden">
-            {viewMode === 'analysis' ? <AnalysisPanel /> : <DataEditor gridData={gridData} cols={cols} updateCell={updateCell} updateHeader={updateHeader} addRow={addRow} deleteRow={deleteRow} exportData={exportData} transposeData={transposeData} />}
+            {viewMode === 'analysis' ? <AnalysisPanel processedData={processedData} cols={cols} gridData={gridData} /> : (
+              <div className="flex flex-col h-full bg-white animate-in">
+                <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                  <div className="flex items-center space-x-2 text-slate-600 font-bold"><Icons.Table className="w-5 h-5"/><span>データ編集 & 転置</span></div>
+                  <div className="flex space-x-2">
+                    <button onClick={transposeData} className="bg-orange-50 text-orange-600 hover:bg-orange-100 px-3 py-2 rounded-lg text-sm font-bold flex items-center border border-orange-200 transition-all"><Icons.Transpose className="w-4 h-4 mr-1" />行列を入替</button>
+                    <button onClick={() => { const nr = {}; Object.keys(gridData[0]||{}).forEach(k=>nr[k]=""); setGridData([...gridData, nr]); }} className="bg-emerald-50 text-emerald-600 px-3 py-2 rounded-lg text-sm font-bold flex border border-emerald-200"><Icons.Plus className="w-4 h-4 mr-1" />行追加</button>
+                    <button onClick={() => { const ws = XLSX.utils.json_to_sheet(gridData); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Data"); XLSX.writeFile(wb, "data.xlsx"); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md"><Icons.Download className="w-4 h-4 mr-1" />保存</button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-auto custom-scrollbar">
+                  <table className="min-w-full text-sm border-collapse">
+                    <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm">
+                      <tr><th className="w-12 border-b bg-slate-100"></th>
+                        {Object.keys(gridData[0] || {}).map(k => (<th key={k} className="border border-slate-200 px-2 py-3 bg-slate-50 min-w-[150px]"><input type="text" defaultValue={k} onBlur={(e) => { const nk = e.target.value; if(!nk || nk===k) return; setGridData(prev => prev.map(r => { const nr = {}; Object.keys(r).forEach(x=>nr[x===k?nk:x]=r[x]); return nr; })); }} className="cell-input header-input" /></th>))}
+                        <th className="w-12 border-b bg-slate-100"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gridData.map((row, rIdx) => (
+                        <tr key={rIdx} className="hover:bg-slate-50 border-b">
+                          <td className="text-center text-slate-400 font-mono text-[10px] bg-slate-50 border-r">{rIdx + 1}</td>
+                          {Object.keys(row).map(k => (
+                            <td key={k} className="border-r border-slate-200 p-0">
+                              {cols.date.includes(k) ? (<input type="date" value={smartFormatDate(row[k], k)} onChange={(e) => { const nd = [...gridData]; nd[rIdx][k] = e.target.value; setGridData(nd); }} className="cell-input" />) : (<input type="text" value={row[k]} onChange={(e) => { const nd = [...gridData]; nd[rIdx][k] = e.target.value; setGridData(nd); }} className="cell-input" />)}
+                            </td>
+                          ))}
+                          <td className="text-center"><button onClick={() => setGridData(gridData.filter((_,i)=>i!==rIdx))} className="text-red-300 hover:text-red-600 p-2"><Icons.Trash className="w-4 h-4"/></button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </main>
         </div>
       );
     };
 
-    // --- 6. アプリケーション本体 ---
     const App = () => {
       const [data, setData] = useState([]);
       const [fileName, setFileName] = useState('');
@@ -527,38 +533,29 @@
       const handleFileUpload = (e) => {
         const file = e.target.files[0]; if (!file) return;
         setErrorMsg(''); setFileName(file.name);
-        const reader = new FileReader(); reader.onload = (evt) => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
           try { 
             const wb = window.XLSX.read(evt.target.result, {type:'binary'}); 
-            const jsonData = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-            if(jsonData.length > 0) setData(jsonData);
-            else setErrorMsg('有効なデータが見つかりませんでした。');
+            const jsonData = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+            if(jsonData.length > 0) setData(jsonData); else setErrorMsg('データが見つかりませんでした。');
           } catch(err) { setErrorMsg('読み込みに失敗しました。'); }
         }; reader.readAsBinaryString(file);
       };
-      const loadDemo = () => {
-        const demo = []; let date = new Date('2026-04-16');
-        for (let i = 0; i < 10; i++) {
-          demo.push({ "調査日": date.toISOString().split('T')[0], "A店売上": Math.floor(Math.random()*50000)+10000, "B店売上": Math.floor(Math.random()*50000)+10000 });
-          date.setDate(date.getDate()+1);
-        }
-        setFileName('demo_sales.csv'); setData(demo);
-      };
-      if (data.length > 0) return <AnalysisWorkspace rawData={data} fileName={fileName} onReset={() => setData([])} />;
+      if (data.length > 0) return <AnalysisWorkspaceWrapper rawData={data} fileName={fileName} onReset={() => setData([])} />;
       return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50 text-slate-800">
-          <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 border border-slate-100 text-center animate-in fade-in">
-            <div className="w-24 h-24 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner"><UploadCloud className="w-12 h-12" /></div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight mb-3">Data Analyzer</h1>
-            <p className="text-slate-500 text-sm mb-10 leading-relaxed">ファイルをインポートしてください。</p>
+          <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 text-center animate-in">
+            <div className="w-24 h-24 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner"><Icons.Upload className="w-12 h-12" /></div>
+            <h1 className="text-3xl font-black text-slate-900 mb-3 tracking-tighter">Data Analyzer</h1>
+            <p className="text-slate-500 text-sm mb-10 leading-relaxed font-medium">CSV/Excelをインポートして分析を開始</p>
             {errorMsg && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-bold mb-8 border border-red-100">{errorMsg}</div>}
-            <div className="relative">
+            <div className="relative group">
               <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"/>
-              <div className="bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl shadow-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95">
-                <FileSpreadsheet className="w-6 h-6 mr-3" /> ファイルを選択する
+              <div className="bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl flex items-center justify-center transition-all group-hover:bg-blue-700 active:scale-95">
+                <Icons.Sheet className="w-6 h-6 mr-3" /> ファイルを選択する
               </div>
             </div>
-            <div className="mt-10 pt-8 border-t border-slate-100"><button onClick={loadDemo} className="text-sm font-bold text-blue-600 hover:underline">デモデータで試す</button></div>
           </div>
         </div>
       );
