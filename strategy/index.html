@@ -849,11 +849,12 @@
                             app = getApp();
                         }
                         
+                        // Firestoreの権限エラー（Missing or insufficient permissions）を防ぐため匿名ログインを実行
                         const auth = getAuth(app);
                         try {
                             await signInAnonymously(auth);
                         } catch (authError) {
-                            console.warn("匿名ログインエラー:", authError);
+                            console.warn("匿名ログインエラー (既にログイン済みか設定が無効な可能性があります):", authError);
                         }
 
                         return getFirestore(app);
@@ -1523,7 +1524,7 @@
             }
         }
 
-        function initAppData() {
+        async function initAppData() {
             if (isAppInitialized) return;
             isAppInitialized = true;
             
@@ -1531,9 +1532,26 @@
             updateAccessDate();
             setInterval(updateAccessDate, 60000);
             
-            fetchMeetingsData();
-            fetchFieldCommentsData();
-            fetchPdfLinksData();
+            try {
+                // Firebaseの初期化と匿名認証を先に実行して待機する
+                await initFirebase();
+                
+                const { getAuth, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                const auth = getAuth(); // initFirebase内で初期化済み
+                
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        fetchMeetingsData();
+                        fetchFieldCommentsData();
+                        fetchPdfLinksData();
+                    } else {
+                        console.warn("ユーザーが未認証です。データは取得されません。");
+                    }
+                });
+
+            } catch (error) {
+                console.error("データ取得の初期化エラー:", error);
+            }
         }
 
         window.addEventListener('DOMContentLoaded', () => {
