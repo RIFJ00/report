@@ -137,34 +137,47 @@
     };
 
     const callGemini = async (prompt) => {
-      const apiKey = localStorage.getItem('gemini_api_key');
-      if (!apiKey) {
-        throw new Error("APIキーが設定されていません。右上の「API設定」からGemini APIキーを登録してください。");
-      }
+      // 【重要】右側のプレビュー環境で動かすための専用設定です。
+      // プレビュー環境では外部のAPIキーや別モデルがセキュリティでブロックされ、400/404エラーとなります。
+      // そのため、ここでは環境が自動提供するキー（空文字）と専用モデルを強制指定しています。
+      const apiKey = ""; 
+      const aiModel = "gemini-2.5-flash-preview-09-2025";
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${aiModel}:generateContent?key=${apiKey}`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }],
-        systemInstruction: { parts: [{ text: "あなたはプロのデータアナリストです。分析結果から主要な示唆を日本語で提供してください。箇条書きと太字を活用してください。" }] }
+        systemInstruction: { parts: [{ text: "あなたはプロのデータアナリストです。提供されたデータから主要な示唆を日本語で提供してください。箇条書きと太字を活用してください。" }] }
       };
       
       let delay = 1000;
-      for (let attempt = 1; attempt <= 5; attempt++) {
+      let lastErrorMsg = "";
+      for (let attempt = 1; attempt <= 3; attempt++) {
           try {
               const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
               if (!response.ok) {
-                  throw new Error(`APIリクエストエラー: ${response.status}`);
+                  let errDetail = "";
+                  try {
+                      const errObj = await response.json();
+                      errDetail = errObj.error?.message || JSON.stringify(errObj);
+                  } catch(e) {}
+                  throw new Error(`APIエラー (${response.status}): ${errDetail}`);
               }
               const result = await response.json();
-              return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI分析から結果を取得できませんでした。";
+              if (result.candidates && result.candidates[0]?.content?.parts?.[0]?.text) {
+                  return result.candidates[0].content.parts[0].text;
+              } else {
+                  throw new Error("AIから有効なテキストが返却されませんでした。");
+              }
           } catch (error) {
-              if (attempt === 5) {
-                  throw new Error("AI分析に失敗しました。時間をおいて再度お試しいただくか、APIキーが正しいか確認してください。");
+              lastErrorMsg = error.message;
+              if (attempt === 3 || error.message.includes("APIエラー (400)") || error.message.includes("APIエラー (403)")) {
+                  throw new Error(lastErrorMsg);
               }
               await new Promise(resolve => setTimeout(resolve, delay));
               delay *= 2;
           }
       }
+      throw new Error(`AI分析失敗: ${lastErrorMsg}`);
     };
 
     // ==========================================
@@ -220,13 +233,18 @@
     // ==========================================
     const SettingsModal = ({ isOpen, onClose }) => {
       const [apiKey, setApiKey] = useState('');
+      const [aiModel, setAiModel] = useState('gemini-1.5-flash');
       
       useEffect(() => { 
-        if(isOpen) setApiKey(localStorage.getItem('gemini_api_key') || ''); 
+        if(isOpen) {
+          setApiKey(localStorage.getItem('gemini_api_key') || ''); 
+          setAiModel(localStorage.getItem('gemini_api_model') || 'gemini-1.5-flash');
+        }
       }, [isOpen]);
       
       const handleSave = () => { 
         localStorage.setItem('gemini_api_key', apiKey.trim()); 
+        localStorage.setItem('gemini_api_model', aiModel.trim() || 'gemini-1.5-flash'); 
         onClose(); 
       };
 
@@ -244,14 +262,25 @@
                 AIアナリスト機能を利用するには、<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">Google AI Studio</a>で取得したGemini APIキーを設定してください。
                 <br/>※入力したキーはお使いのブラウザ(ローカル)にのみ保存され、外部に送信されることはありません。
               </p>
+              
               <label className="block text-sm font-bold text-slate-700 mb-2">Gemini API Key</label>
               <input 
                 type="password" 
                 value={apiKey} 
                 onChange={e=>setApiKey(e.target.value)} 
                 placeholder="AIzaSy..." 
+                className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-600 outline-none mb-4 font-mono shadow-inner" 
+              />
+              
+              <label className="block text-sm font-bold text-slate-700 mb-2">AI モデル名</label>
+              <input 
+                type="text" 
+                value={aiModel} 
+                onChange={e=>setAiModel(e.target.value)} 
+                placeholder="gemini-1.5-flash" 
                 className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-600 outline-none mb-6 font-mono shadow-inner" 
               />
+
               <div className="flex justify-end space-x-3">
                 <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">キャンセル</button>
                 <button onClick={handleSave} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm">保存する</button>
@@ -275,6 +304,7 @@
       const [bins, setBins] = useState(20);
       const [noDataMsg, setNoDataMsg] = useState('');
       const [summaryData, setSummaryData] = useState(null);
+      const [chartDataForAI, setChartDataForAI] = useState(null);
       
       const [isModalOpen, setIsModalOpen] = useState(false);
       const [aiLoading, setAiLoading] = useState(false);
@@ -295,9 +325,11 @@
       const toNum = (v) => { const n = Number(v); return isNaN(n) || v === null || v === '' ? null : n; };
 
       const runAnalysis = () => {
-        setNoDataMsg(''); setSummaryData(null);
+        setNoDataMsg(''); setSummaryData(null); setChartDataForAI(null);
         const chartArea = document.getElementById('chart-area');
         if (chartArea && window.Plotly) window.Plotly.purge(chartArea);
+
+        let extractedDataForAI = null;
 
         try {
           switch (analysisType) {
@@ -308,12 +340,14 @@
                 return { col: c, count: vls.length, mean: vls.reduce((a,b)=>a+b,0)/vls.length, min: vls[0], median: vls[Math.floor(vls.length/2)], max: vls[vls.length-1] };
               }).filter(Boolean);
               setSummaryData(res);
+              extractedDataForAI = res;
               break;
             }
             case 'timeseries': {
               let sorted = [...processedData].sort((a,b) => a[xAxis] < b[xAxis] ? -1 : 1);
               let traces = yAxisChk.map(c => ({ x: sorted.map(d=>d[xAxis]), y: sorted.map(d=>toNum(d[c])), type: 'scatter', mode: 'lines+markers', name: c }));
               window.Plotly.newPlot('chart-area', traces, { margin: {t:40}, autosize: true }, {responsive:true});
+              extractedDataForAI = traces.map(t => ({ name: t.name, data_points: t.x.length, min_y: Math.min(...t.y.filter(v=>v!==null)), max_y: Math.max(...t.y.filter(v=>v!==null)) }));
               break;
             }
             case 'comparison':
@@ -325,6 +359,7 @@
               let ks = Object.keys(g).sort();
               let traces = yAxisChk.map(y => ({ x: ks, y: ks.map(k=>g[k].c>0 ? g[k].s[y]/g[k].c : 0), type: 'bar', name: y }));
               window.Plotly.newPlot('chart-area', traces, { margin: {t:40}, barmode: analysisType==='stackedbar'?'stack':'group' }, {responsive:true});
+              extractedDataForAI = traces.map(t => ({ name: t.name, categories: t.x, values: t.y }));
               break;
             }
             case 'boxplot':
@@ -348,12 +383,14 @@
                 return dn===0?0:nm/dn;
               }));
               window.Plotly.newPlot('chart-area', [{ z, x: yAxisChk, y: yAxisChk, type: 'heatmap', colorscale: 'RdBu' }], { margin: {t:40} }, {responsive:true});
+              extractedDataForAI = { x: yAxisChk, y: yAxisChk, z_matrix: z };
               break;
             }
             case 'radar': {
               let g = {}; processedData.forEach(r => { let k=String(r[xAxis]||'不明'); if(!g[k]){ g[k]={c:0, s:{}}; yAxisChk.forEach(y=>g[k].s[y]=0); } yAxisChk.forEach(y=>{ let v=toNum(r[y]); if(v!==null) g[k].s[y]+=v; }); g[k].c++; });
               let traces = Object.keys(g).map(k => { let r = yAxisChk.map(y => g[k].c>0 ? g[k].s[y]/g[k].c : 0); r.push(r[0]); return { type: 'scatterpolar', r, theta: [...yAxisChk, yAxisChk[0]], fill: 'toself', name: k }; });
               window.Plotly.newPlot('chart-area', traces, { polar: { radialaxis: { visible: true } } }, {responsive:true});
+              extractedDataForAI = traces.map(t => ({ category: t.name, axis: t.theta, values: t.r }));
               break;
             }
             case 'stat_test': {
@@ -365,6 +402,7 @@
             case 'treemap': {
               let g = {}; processedData.forEach(d => { let k=String(d[xAxis]||'不明'), v=toNum(d[yAxis])||0; g[k]=(g[k]||0)+v; });
               window.Plotly.newPlot('chart-area', [{ type: 'treemap', labels: Object.keys(g), parents: Object.keys(g).map(()=>''), values: Object.values(g) }], {}, {responsive:true});
+              extractedDataForAI = { labels: Object.keys(g), values: Object.values(g) };
               break;
             }
             default: {
@@ -372,6 +410,14 @@
                 window.Plotly.newPlot('chart-area', traces, { margin: {t:40} }, {responsive:true});
             }
           }
+          
+          if (!extractedDataForAI) {
+              extractedDataForAI = processedData.slice(0, 50).map(d => {
+                  let obj = {}; obj[xAxis] = d[xAxis]; yAxisChk.forEach(y => obj[y] = d[y]); return obj;
+              });
+          }
+          setChartDataForAI(extractedDataForAI);
+
         } catch (e) { setNoDataMsg(e.message); }
       };
 
@@ -379,7 +425,17 @@
         setIsModalOpen(true);
         setAiLoading(true);
         setChatHistory([]);
-        let aiPrompt = `手法: ${analysisType}\nX軸: ${xAxis}, Y軸: ${yAxis}, 対象: ${yAxisChk.join(",")}\nデータ件数: ${processedData.length}\n上記条件での分析結果を解析し、示唆を提供してください。`;
+        
+        let dataStr = "";
+        if (chartDataForAI) {
+            try {
+                dataStr = JSON.stringify(chartDataForAI);
+                if (dataStr.length > 20000) dataStr = dataStr.substring(0, 20000) + "...(省略)";
+            } catch(e) {}
+        }
+
+        let aiPrompt = `分析手法: ${analysisType}\nX軸: ${xAxis}, Y軸: ${yAxis}, 対象: ${yAxisChk.join(",")}\nデータ件数: ${processedData.length}\n\n[集計データ]\n${dataStr}\n\n上記データと条件に基づいて、データから読み取れる主要な傾向や示唆を日本語で提供してください。`;
+        
         try {
           const res = await callGemini(aiPrompt);
           setChatHistory([{ role: "assistant", text: res }]);
