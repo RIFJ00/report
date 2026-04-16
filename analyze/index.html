@@ -137,12 +137,19 @@
     };
 
     const callGemini = async (prompt) => {
-      // 画面右上の「API設定」で保存したキーとモデル名を読み込む
-      const apiKey = localStorage.getItem('gemini_api_key');
-      const aiModel = localStorage.getItem('gemini_api_model') || 'gemini-1.5-flash';
+      // 実行環境がプレビュー画面（iframe内）か、ローカル環境かを自動判定します
+      const isPreview = window !== window.parent;
       
-      if (!apiKey) {
-        throw new Error("APIキーが設定されていません。右上の「API設定」からGemini APIキーを登録してください。");
+      let apiKey = "";
+      let aiModel = "gemini-2.5-flash-preview-09-2025";
+
+      if (!isPreview) {
+        // ダウンロードしてローカル環境で動かす場合は、設定されたキーを使用
+        apiKey = localStorage.getItem('gemini_api_key');
+        aiModel = localStorage.getItem('gemini_api_model') || 'gemini-2.0-flash';
+        if (!apiKey) {
+          throw new Error("APIキーが設定されていません。右上の「API設定」からGemini APIキーを登録してください。");
+        }
       }
 
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${aiModel}:generateContent?key=${apiKey}`;
@@ -235,18 +242,18 @@
     // ==========================================
     const SettingsModal = ({ isOpen, onClose }) => {
       const [apiKey, setApiKey] = useState('');
-      const [aiModel, setAiModel] = useState('gemini-1.5-flash');
+      const [aiModel, setAiModel] = useState('gemini-2.0-flash');
       
       useEffect(() => { 
         if(isOpen) {
           setApiKey(localStorage.getItem('gemini_api_key') || ''); 
-          setAiModel(localStorage.getItem('gemini_api_model') || 'gemini-1.5-flash');
+          setAiModel(localStorage.getItem('gemini_api_model') || 'gemini-2.0-flash');
         }
       }, [isOpen]);
       
       const handleSave = () => { 
         localStorage.setItem('gemini_api_key', apiKey.trim()); 
-        localStorage.setItem('gemini_api_model', aiModel.trim() || 'gemini-1.5-flash'); 
+        localStorage.setItem('gemini_api_model', aiModel.trim() || 'gemini-2.0-flash'); 
         onClose(); 
       };
 
@@ -260,12 +267,16 @@
               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><Icons.X className="w-5 h-5"/></button>
             </div>
             <div className="p-6">
+              <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded-lg text-xs mb-4 leading-relaxed font-bold shadow-sm">
+                【AIの動作について】<br/>
+                ・現在のプレビュー画面ではシステム標準のAIが自動で有効です（設定不要）。<br/>
+                ・以下の設定は、ファイルをダウンロードしてご自身のパソコンで動かす際に適用されます。
+              </div>
               <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-                AIアナリスト機能を利用するには、<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">Google AI Studio</a>で取得したGemini APIキーを設定してください。
-                <br/>※入力したキーはお使いのブラウザ(ローカル)にのみ保存され、外部に送信されることはありません。
+                ローカル環境で機能を利用するには、<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">Google AI Studio</a>で取得したAPIキーを設定してください。
               </p>
               
-              <label className="block text-sm font-bold text-slate-700 mb-2">Gemini API Key</label>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Gemini API Key (ローカル用)</label>
               <input 
                 type="password" 
                 value={apiKey} 
@@ -274,17 +285,21 @@
                 className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-600 outline-none mb-4 font-mono shadow-inner" 
               />
               
-              <label className="block text-sm font-bold text-slate-700 mb-2">AI モデル名</label>
-              <input 
-                type="text" 
+              <label className="block text-sm font-bold text-slate-700 mb-2">AI モデル名 (ローカル用)</label>
+              <select 
                 value={aiModel} 
                 onChange={e=>setAiModel(e.target.value)} 
-                placeholder="gemini-1.5-flash" 
-                className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-600 outline-none mb-6 font-mono shadow-inner" 
-              />
+                className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-600 outline-none mb-6 font-mono shadow-inner bg-white cursor-pointer" 
+              >
+                <option value="gemini-2.0-flash">gemini-2.0-flash (最新・高速)</option>
+                <option value="gemini-1.5-flash-latest">gemini-1.5-flash-latest</option>
+                <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                <option value="gemini-1.5-pro">gemini-1.5-pro (高性能・高精度)</option>
+                <option value="gemini-pro">gemini-pro (旧バージョン)</option>
+              </select>
 
               <div className="flex justify-end space-x-3">
-                <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">キャンセル</button>
+                <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">閉じる</button>
                 <button onClick={handleSave} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm">保存する</button>
               </div>
             </div>
