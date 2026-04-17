@@ -125,7 +125,14 @@
                 
                 <!-- 1. ファイル -->
                 <section>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 italic">01. Import</label>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest italic">01. Import</label>
+                        <!-- PDF削除ボタン -->
+                        <button id="clearFileBtn" class="hidden text-[10px] font-bold text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors uppercase tracking-tighter">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            ファイルを閉じる
+                        </button>
+                    </div>
                     <input type="file" id="fileInput" accept="image/png, image/jpeg, application/pdf" class="block w-full text-[11px] text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-slate-100 file:text-slate-600 hover:file:bg-indigo-50 hover:file:text-indigo-700 cursor-pointer transition-all border border-slate-100 rounded-lg p-1 shadow-sm" />
                 </section>
 
@@ -235,6 +242,7 @@
         const els = {
             fileInput: getById('fileInput'),
             previewFileInput: getById('previewFileInput'),
+            clearFileBtn: getById('clearFileBtn'),
             mainWorkspace: getById('mainWorkspace'),
             thumbnailSidebar: getById('thumbnailSidebar'),
             pdfControls: getById('pdfControls'),
@@ -260,7 +268,7 @@
         };
 
         let currentPdf = null, currentPageNum = 1, cropper = null, originalPdfBytes = null;
-        let originalFileName = 'Cleaned_Document'; // デフォルト名
+        let originalFileName = 'Cleaned_Document';
         let pdfHistory = [], pdfRedoStack = [], thumbnailGenId = 0, isDetected = false;
         const pdfScale = 3.0, maxHistory = 5; 
 
@@ -292,6 +300,9 @@
             if (currentPdf) {
                 els.downloadFinalPdfBtn.disabled = false;
                 els.pageRotationControls.classList.remove('hidden');
+                els.clearFileBtn.classList.remove('hidden');
+            } else {
+                els.clearFileBtn.classList.add('hidden');
             }
             els.undoBtn.disabled = pdfHistory.length === 0;
             els.redoBtn.disabled = pdfRedoStack.length === 0;
@@ -308,10 +319,7 @@
 
         async function handleFile(file) {
             if (!file) return;
-            
-            // ファイル名を取得（拡張子を除く）
             originalFileName = file.name.replace(/\.[^/.]+$/, "");
-            
             showLoading('Analyzing');
             try {
                 if (file.type === 'application/pdf') {
@@ -329,9 +337,34 @@
                     reader.onload = (e) => initCropper(e.target.result);
                     reader.readAsDataURL(file);
                     currentPdf = null; els.pdfControls.classList.add('hidden'); els.thumbnailSidebar.classList.add('hidden');
+                    els.clearFileBtn.classList.remove('hidden');
                 }
             } catch (e) { showToast('LOAD ERROR', 'error'); hideLoading(); }
         }
+
+        // 全リセット機能
+        els.clearFileBtn.onclick = () => {
+            currentPdf = null;
+            originalPdfBytes = null;
+            pdfHistory = [];
+            pdfRedoStack = [];
+            if (cropper) cropper.destroy();
+            cropper = null;
+            els.imagePreview.src = "";
+            els.imagePreview.classList.add('hidden');
+            els.placeholder.classList.remove('hidden');
+            els.pdfControls.classList.add('hidden');
+            els.pageRotationControls.classList.add('hidden');
+            els.undoBtn.classList.add('hidden');
+            els.redoBtn.classList.add('hidden');
+            els.downloadFinalPdfBtn.classList.add('hidden');
+            els.thumbnailSidebar.innerHTML = '';
+            els.thumbnailSidebar.classList.add('hidden');
+            els.fileInput.value = "";
+            els.previewFileInput.value = "";
+            updateControls();
+            showToast('ファイルを閉じました');
+        };
 
         els.fileInput.onchange = (e) => handleFile(e.target.files[0]);
         els.previewFileInput.onchange = (e) => handleFile(e.target.files[0]);
@@ -381,23 +414,17 @@
             const img = new Image();
             img.onload = () => {
                 const cv = document.createElement('canvas'); 
-                cv.width = img.width; 
-                cv.height = img.height;
-                const ctx = cv.getContext('2d'); 
-                ctx.drawImage(img, 0, 0);
+                cv.width = img.width; cv.height = img.height;
+                const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0);
                 const box = detectInsideOutWhite(ctx.getImageData(0, 0, cv.width, cv.height), cv.width, cv.height);
-                if (box) {
-                    cropper.setData(box);
-                }
+                if (box) cropper.setData(box);
             };
             img.src = els.imagePreview.src;
         }
 
         els.autoCropBtn.onclick = async () => {
             if (!cropper) return;
-
             if (!isDetected) {
-                // 再検知
                 showLoading('PRECISION SCAN');
                 setTimeout(() => {
                     const img = new Image();
@@ -426,8 +453,7 @@
                     const { PDFDocument } = PDFLib;
                     const pdfDoc = await PDFDocument.load(originalPdfBytes);
                     await updateSinglePage(pdfDoc, currentPageNum - 1, cropper.getCroppedCanvas());
-                    originalPdfBytes = await pdfDoc.save(); 
-                    saveHistory();
+                    originalPdfBytes = await pdfDoc.save(); saveHistory();
                     currentPdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
                     await renderPage(currentPageNum); renderThumbnails();
                     showToast('保存完了');
@@ -443,25 +469,21 @@
             let top = 0, bottom = h - 1, left = 0, right = w - 1;
             const centerY = Math.floor(h / 2);
             for (let y = centerY; y >= 0; y--) {
-                let whiteCount = 0;
-                for (let x = 0; x < w; x += 6) { if (getL(x, y) > whiteThr) whiteCount++; }
+                let whiteCount = 0; for (let x = 0; x < w; x += 6) { if (getL(x, y) > whiteThr) whiteCount++; }
                 if (whiteCount / (w / 6) < minRatio) { top = y; break; }
             }
             for (let y = centerY; y < h; y++) {
-                let whiteCount = 0;
-                for (let x = 0; x < w; x += 6) { if (getL(x, y) > whiteThr) whiteCount++; }
+                let whiteCount = 0; for (let x = 0; x < w; x += 6) { if (getL(x, y) > whiteThr) whiteCount++; }
                 if (whiteCount / (w / 6) < minRatio) { bottom = y; break; }
             }
             const centerX = Math.floor(w / 2);
             const scanHeightRange = bottom - top;
             for (let x = centerX; x >= 0; x--) {
-                let whiteCount = 0;
-                for (let y = top; y < bottom; y += 6) { if (getL(x, y) > whiteThr) whiteCount++; }
+                let whiteCount = 0; for (let y = top; y < bottom; y += 6) { if (getL(x, y) > whiteThr) whiteCount++; }
                 if (whiteCount / (scanHeightRange / 6) < minRatio) { left = x; break; }
             }
             for (let x = centerX; x < w; x++) {
-                let whiteCount = 0;
-                for (let y = top; y < bottom; y += 6) { if (getL(x, y) > whiteThr) whiteCount++; }
+                let whiteCount = 0; for (let y = top; y < bottom; y += 6) { if (getL(x, y) > whiteThr) whiteCount++; }
                 if (whiteCount / (scanHeightRange / 6) < minRatio) { right = x; break; }
             }
             const marginInset = 32; 
@@ -512,11 +534,7 @@
             if (!originalPdfBytes) return;
             const blob = new Blob([originalPdfBytes], { type: 'application/pdf' });
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            
-            // 取得した元のファイル名を使用してダウンロード
-            a.download = `${originalFileName}.pdf`; 
-            
-            a.click();
+            a.download = `${originalFileName}.pdf`; a.click();
             URL.revokeObjectURL(a.href);
             showToast('ダウンロードを開始しました', 'success');
         };
