@@ -24,6 +24,9 @@
   <!-- Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+  <!-- html2pdf for PDF Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
   <style>
     body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background-color: #f8fafc; color: #1e293b; }
     .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
@@ -137,11 +140,9 @@
     };
 
     const callGemini = async (prompt) => {
-      // 設定されたAPIキーとAIモデルを常に使用します
       const apiKey = localStorage.getItem('gemini_api_key');
       let aiModel = localStorage.getItem('gemini_api_model') || 'gemini-2.5-flash';
       
-      // 古いモデル設定(1.5系など)がブラウザに残っている場合は、最新モデルに自動更新する
       if (aiModel.includes('1.5') || aiModel === 'gemini-pro') {
         aiModel = 'gemini-2.5-flash';
         localStorage.setItem('gemini_api_model', aiModel);
@@ -213,7 +214,8 @@
       Transpose: (p) => <SvgIcon d="M17 1l4 4-4 4 M3 5h18 M11 13l-4 4 4 4 M21 17H3" {...p}/>,
       Reload: (p) => <SvgIcon d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5" {...p}/>,
       Download: (p) => <SvgIcon d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p}/>,
-      Key: (p) => <SvgIcon d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" {...p}/>
+      Key: (p) => <SvgIcon d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" {...p}/>,
+      History: (p) => <SvgIcon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" {...p}/>
     };
 
     const AxisOptions = ({ cols }) => (
@@ -319,15 +321,53 @@
       const [chartDataForAI, setChartDataForAI] = useState(null);
       
       const [isModalOpen, setIsModalOpen] = useState(false);
+      const [showExportMenu, setShowExportMenu] = useState(false);
       const [aiLoading, setAiLoading] = useState(false);
       const [chatHistory, setChatHistory] = useState([]);
       const [userInput, setUserInput] = useState("");
+      
+      // --- AI履歴保存用のState ---
+      const [savedReports, setSavedReports] = useState([]);
+      const [currentSessionId, setCurrentSessionId] = useState(null);
+      const [currentReportTitle, setCurrentReportTitle] = useState("");
+      const [showHistoryModal, setShowHistoryModal] = useState(false);
+      
       const chatEndRef = useRef(null);
+      const modalScrollRef = useRef(null);
 
       // --- 期間フィルター用State ---
       const [dateFilterCol, setDateFilterCol] = useState('');
       const [startDate, setStartDate] = useState('');
       const [endDate, setEndDate] = useState('');
+
+      // ローカルストレージからAI分析の履歴を読み込む
+      useEffect(() => {
+        try {
+          const loaded = JSON.parse(localStorage.getItem('universal_analyzer_ai_reports') || '[]');
+          setSavedReports(loaded);
+        } catch (e) {}
+      }, []);
+
+      // チャット履歴が更新されるたびにローカルストレージへ自動保存
+      useEffect(() => {
+        if (currentSessionId && chatHistory.length > 0) {
+          setSavedReports(prev => {
+            const existing = [...prev];
+            const idx = existing.findIndex(r => r.id === currentSessionId);
+            const reportObj = {
+              id: currentSessionId,
+              title: currentReportTitle,
+              date: new Date().toLocaleString(),
+              history: chatHistory
+            };
+            if (idx >= 0) { existing[idx] = reportObj; } 
+            else { existing.unshift(reportObj); }
+            const limited = existing.slice(0, 30); // 最大30件まで保持
+            localStorage.setItem('universal_analyzer_ai_reports', JSON.stringify(limited));
+            return limited;
+          });
+        }
+      }, [chatHistory, currentSessionId, currentReportTitle]);
 
       const handleDateColChange = (col) => {
         setDateFilterCol(col);
@@ -344,14 +384,12 @@
         setEndDate(max !== '0000-01-01' ? max : '');
       };
 
-      // 初期ロード時に最初の日付列でフィルター範囲を設定
       useEffect(() => {
         if (cols.date && cols.date.length > 0 && !dateFilterCol) {
           handleDateColChange(cols.date[0]);
         }
       }, [cols.date]);
 
-      // フィルター適用後のデータ
       const filteredData = useMemo(() => {
         if (!dateFilterCol || (!startDate && !endDate)) return processedData;
         return processedData.filter(d => {
@@ -370,8 +408,6 @@
         setXAxis(c1); setYAxis(n1); setYAxisChk(cols.numeric.length ? cols.numeric.slice(0, 3) : [cols.all[0]]);
         setSizeAxis(cols.numeric[1] || n1);
       }, [analysisType, cols.all]);
-
-      useEffect(() => { if (isModalOpen) chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, aiLoading]);
 
       const toNum = (v) => { const n = Number(v); return isNaN(n) || v === null || v === '' ? null : n; };
 
@@ -481,6 +517,15 @@
         setIsModalOpen(true);
         setAiLoading(true);
         setChatHistory([]);
+        setShowExportMenu(false);
+        
+        // セッションIDとタイトルを新規作成
+        const newSessionId = Date.now();
+        setCurrentSessionId(newSessionId);
+        const typeInfo = ANALYSIS_TYPES.find(t => t.id === analysisType);
+        const titleSuffix = yAxisChk.length > 0 ? ` (${yAxisChk.slice(0,2).join(', ')}${yAxisChk.length > 2 ? '...' : ''})` : '';
+        const reportTitle = `${typeInfo ? typeInfo.name.split('. ')[1] : 'データ分析'}${titleSuffix}`;
+        setCurrentReportTitle(reportTitle);
         
         let dataStr = "";
         if (chartDataForAI) {
@@ -503,7 +548,6 @@
           };
         }).filter(Boolean);
         let statsStr = JSON.stringify(overallStats);
-
         let dateFilterInfo = dateFilterCol ? `\n期間指定: ${dateFilterCol} (${startDate || '指定なし'} 〜 ${endDate || '指定なし'})` : '';
 
         let aiPrompt = `【分析条件】\n分析手法: ${analysisType}\nX軸: ${xAxis}\nY軸: ${yAxis}\n分析対象の数値項目: ${yAxisChk.join(", ")}\n対象データ件数: ${filteredData.length}${dateFilterInfo}\n\n【対象項目の基本統計量】\n${statsStr}\n\n【グラフ表示用の集計・サンプリングデータ】\n${dataStr}\n\n上記データと条件に基づいて、データから読み取れる主要な傾向や示唆を日本語で提供してください。必ず「基本統計量」や「集計データ」の実際の数値を引用して具体的に分析してください。`;
@@ -513,7 +557,15 @@
           setChatHistory([{ role: "assistant", text: res }]);
         } catch (e) {
           setChatHistory([{ role: "assistant", text: e.message || "AI分析中にエラーが発生しました。" }]);
-        } finally { setAiLoading(false); }
+        } finally { 
+          setAiLoading(false); 
+          // 結果が返ってきたら強制的にモーダルの一番上にスクロール（回答の冒頭から読めるように）
+          setTimeout(() => {
+            if (modalScrollRef.current) {
+              modalScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }, 100);
+        }
       };
 
       const askAI = async () => {
@@ -521,16 +573,97 @@
         const msg = userInput; setUserInput("");
         setChatHistory(p => [...p, { role: "user", text: msg }]);
         setAiLoading(true);
+        // 質問を入力した時は下へスクロール
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+
         try {
           const res = await callGemini(`文脈を踏まえて質問に答えてください: ${msg}`);
           setChatHistory(p => [...p, { role: "assistant", text: res }]);
         } catch (e) {
           setChatHistory(p => [...p, { role: "assistant", text: e.message || "エラーが発生しました。" }]);
-        } finally { setAiLoading(false); }
+        } finally { 
+          setAiLoading(false); 
+          // 質問に対する追加回答が返ってきた時は下へスクロール
+          setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+        }
+      };
+
+      // --- エクスポート機能 (各種フォーマット) ---
+      const downloadBlob = (blob, filename) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      };
+
+      const exportResult = (format) => {
+        setShowExportMenu(false);
+        if (chatHistory.length === 0) return;
+        
+        const dateStr = new Date().toISOString().split('T')[0];
+        const filename = `AI_Analysis_Report_${dateStr}`;
+        
+        if (format === 'md') {
+          let content = `# データ分析レポート\n生成日時: ${new Date().toLocaleString()}\n\n`;
+          content += chatHistory.map(m => `### ${m.role === 'user' ? '👤 ユーザーの質問' : '✨ AIによる分析'}\n${m.text}\n`).join('\n---\n\n');
+          const blob = new Blob([content], { type: 'text/markdown;charset=utf-8;' });
+          downloadBlob(blob, `${filename}.md`);
+        } 
+        else if (format === 'txt') {
+          let content = `データ分析レポート\n生成日時: ${new Date().toLocaleString()}\n\n`;
+          content += chatHistory.map(m => `[${m.role === 'user' ? 'ユーザーの質問' : 'AIによる分析'}]\n${m.text.replace(/\*\*(.*?)\*\*/g, '$1')}\n`).join('\n------------------------\n\n');
+          const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+          downloadBlob(blob, `${filename}.txt`);
+        } 
+        else if (format === 'doc') {
+          const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Report</title></head><body>";
+          const footer = "</body></html>";
+          const htmlContent = `<h1>データ分析レポート</h1><p style="color:#666;">生成日時: ${new Date().toLocaleString()}</p><hr>` + 
+            chatHistory.map(m => `<h3>${m.role === 'user' ? 'ユーザーの質問' : 'AIによる分析'}</h3><div>${m.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')}</div>`).join('<hr>');
+          const blob = new Blob(['\ufeff', header + htmlContent + footer], { type: 'application/msword' });
+          downloadBlob(blob, `${filename}.doc`);
+        } 
+        else if (format === 'pdf') {
+          if (!window.html2pdf) {
+            alert('PDF生成ライブラリを読み込み中です。数秒待ってから再度お試しください。');
+            return;
+          }
+          const element = document.createElement('div');
+          element.innerHTML = `
+            <div style="font-family: sans-serif; padding: 20px;">
+              <h2 style="color: #1e293b;">データ分析レポート</h2>
+              <p style="color: #64748b; font-size: 12px;">生成日時: ${new Date().toLocaleString()}</p>
+              <hr style="border: none; border-top: 1px solid #cbd5e1; margin: 20px 0;" />
+              ${chatHistory.map(m => `
+                <div style="margin-bottom: 20px;">
+                  <h4 style="color: ${m.role === 'user' ? '#475569' : '#3b82f6'}; margin-bottom: 10px;">
+                    ${m.role === 'user' ? '👤 ユーザーの質問' : '✨ AIによる分析'}
+                  </h4>
+                  <div style="font-size: 14px; line-height: 1.6; color: #334155;">
+                    ${m.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')}
+                  </div>
+                </div>
+              `).join('<hr style="border: none; border-top: 1px dashed #e2e8f0; margin: 20px 0;" />')}
+            </div>
+          `;
+          const opt = {
+            margin:       15,
+            filename:     `${filename}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          };
+          window.html2pdf().set(opt).from(element).save();
+        }
       };
 
       return (
         <div className="flex h-full overflow-hidden relative">
+          {/* 左側: 設定パネル */}
           <div className="w-80 border-r p-5 overflow-y-auto bg-slate-50 shrink-0 custom-scrollbar">
             <label className="block text-sm font-bold text-slate-700 mb-2">分析手法の選択</label>
             <select value={analysisType} onChange={e => setAnalysisType(e.target.value)} className="w-full text-sm border border-slate-300 rounded-lg p-2 bg-white mb-4 outline-none">
@@ -587,17 +720,29 @@
             </button>
           </div>
 
+          {/* 右側: メインビュー */}
           <div className="flex-1 flex flex-col min-w-0 bg-white p-6 overflow-auto">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 min-h-[500px] flex flex-col">
+              
+              {/* --- ヘッダー：AI分析と履歴ボタン --- */}
               <div className="flex justify-between items-center mb-6 border-b pb-3">
                 <h2 className="font-bold text-slate-800 text-lg">可視化結果</h2>
-                <button 
-                  onClick={handleAIAnalysis}
-                  className="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm border border-indigo-100"
-                >
-                  <Icons.Sparkles className="w-4 h-4 mr-2" /> AI分析を開始
-                </button>
+                <div className="flex space-x-2">
+                  <button 
+                    onClick={() => setShowHistoryModal(true)}
+                    className="bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm"
+                  >
+                    <Icons.History className="w-4 h-4 mr-2" /> 履歴を見る ({savedReports.length})
+                  </button>
+                  <button 
+                    onClick={handleAIAnalysis}
+                    className="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm border border-indigo-100"
+                  >
+                    <Icons.Sparkles className="w-4 h-4 mr-2" /> 新規AI分析を実行
+                  </button>
+                </div>
               </div>
+
               {noDataMsg && <div className="bg-red-50 text-red-600 p-4 rounded-lg border font-bold text-sm mb-4"><Icons.Alert className="w-4 h-4 mr-2 inline" />{noDataMsg}</div>}
               <div id="chart-area" className={`flex-1 w-full min-h-[400px] ${summaryData ? 'hidden' : ''}`}></div>
               {summaryData && (
@@ -607,37 +752,122 @@
             </div>
           </div>
 
+          {/* --- AI分析結果 モーダル (ポップアップ) --- */}
           {isModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay animate-in">
-              <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col h-[80vh] overflow-hidden border border-white/20">
-                <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white">
-                  <div className="flex items-center space-x-2 font-bold"><Icons.Sparkles className="w-5 h-5 text-blue-400" /><span>AIデータアドバイザー</span></div>
-                  <button onClick={()=>setIsModalOpen(false)} className="hover:bg-white/20 p-1 rounded-full transition-all"><Icons.X className="w-6 h-6" /></button>
+            <div className="fixed inset-0 z-[50] flex items-center justify-center p-4 modal-overlay animate-in">
+              <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col h-[85vh] overflow-hidden border border-white/20 relative">
+                
+                {/* モーダルヘッダー */}
+                <div className="bg-indigo-900 px-6 py-4 flex items-center justify-between text-white relative z-20 shadow-sm">
+                  <div className="flex items-center space-x-2 font-bold"><Icons.Sparkles className="w-5 h-5 text-indigo-300" /><span>AI データアドバイザー</span></div>
+                  <div className="flex items-center space-x-3">
+                    
+                    {/* エクスポート・ドロップダウンメニュー */}
+                    <div className="relative">
+                      <button 
+                        onClick={() => setShowExportMenu(!showExportMenu)}
+                        disabled={chatHistory.length === 0 || aiLoading} 
+                        className="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center disabled:opacity-50"
+                      >
+                        <Icons.Download className="w-3.5 h-3.5 mr-1" /> 出力
+                      </button>
+                      {showExportMenu && (
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl overflow-hidden text-slate-800 border border-slate-100 py-1 z-50 animate-in">
+                          <button onClick={() => exportResult('md')} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 font-medium">Markdown (.md)</button>
+                          <button onClick={() => exportResult('txt')} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 font-medium">テキスト (.txt)</button>
+                          <button onClick={() => exportResult('doc')} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 font-medium">Word (.doc)</button>
+                          <button onClick={() => exportResult('pdf')} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 font-medium text-red-600">PDF (.pdf)</button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-1 rounded-full transition-all"><Icons.X className="w-6 h-6" /></button>
+                  </div>
                 </div>
-                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50 custom-scrollbar">
+                
+                {/* モーダルコンテンツ (スクロール領域) */}
+                <div ref={modalScrollRef} className="flex-1 overflow-y-auto p-6 space-y-5 bg-slate-50 custom-scrollbar relative z-10" onClick={() => setShowExportMenu(false)}>
                   {aiLoading && chatHistory.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4"><div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div><p className="font-bold text-slate-600">AIが結果を解析しています...</p></div>
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div><p className="font-bold text-slate-600">AIがデータを解析しています...</p></div>
                   ) : (
                     chatHistory.map((m, i) => (
                       <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[90%] px-4 py-3 rounded-2xl text-sm shadow-sm ${m.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none markdown-content shadow-sm'}`}>
-                          {m.text.split('\n').map((t, idx) => <p key={idx}>{t}</p>)}
+                        <div className={`max-w-[95%] px-5 py-4 rounded-2xl text-sm shadow-sm ${m.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none markdown-content'}`}>
+                          {m.text.split('\n').map((t, idx) => (
+                             <p key={idx} dangerouslySetInnerHTML={{ __html: t.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}></p>
+                          ))}
                         </div>
                       </div>
                     ))
                   )}
-                  {aiLoading && chatHistory.length > 0 && <div className="flex justify-start"><div className="bg-white border px-4 py-2 rounded-2xl animate-pulse text-slate-400 text-xs">AIが入力中...</div></div>}
+                  {aiLoading && chatHistory.length > 0 && <div className="flex justify-start"><div className="bg-white border px-4 py-2 rounded-2xl animate-pulse text-slate-400 text-xs shadow-sm">AIが入力中...</div></div>}
                   <div ref={chatEndRef} />
                 </div>
-                <div className="p-4 border-t bg-white">
-                  <div className="relative flex items-center">
-                    <input type="text" value={userInput} onChange={(e)=>setUserInput(e.target.value)} onKeyDown={(e)=>e.key==='Enter' && askAI()} placeholder="AIにこのデータの傾向を聞く..." className="w-full pl-4 pr-12 py-3 bg-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-600 text-sm" />
-                    <button onClick={askAI} disabled={aiLoading} className="absolute right-2 p-2 text-blue-600 disabled:opacity-30 transition-all"><Icons.Send className="w-5 h-5" /></button>
+                
+                {/* モーダル下部入力欄 */}
+                <div className="p-4 border-t bg-white relative z-20" onClick={() => setShowExportMenu(false)}>
+                  <div className="relative flex items-center max-w-4xl mx-auto">
+                    <input type="text" value={userInput} onChange={(e)=>setUserInput(e.target.value)} onKeyDown={(e)=>e.key==='Enter' && askAI()} placeholder="AIにこのデータの傾向をさらに質問する..." className="w-full pl-4 pr-12 py-3 bg-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 text-sm" />
+                    <button onClick={askAI} disabled={aiLoading || !userInput.trim()} className="absolute right-2 p-2 text-indigo-600 disabled:opacity-30 transition-all"><Icons.Send className="w-5 h-5" /></button>
                   </div>
                 </div>
               </div>
             </div>
           )}
+
+          {/* --- AI分析履歴 モーダル --- */}
+          {showHistoryModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 modal-overlay animate-in">
+              <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col h-[75vh] overflow-hidden border border-white/20">
+                <div className="bg-slate-100 px-6 py-4 border-b flex justify-between items-center">
+                  <div className="flex items-center space-x-2 font-bold text-slate-800">
+                    <Icons.History className="w-5 h-5 text-slate-500" />
+                    <span>AI分析レポートの履歴</span>
+                  </div>
+                  <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><Icons.X className="w-5 h-5" /></button>
+                </div>
+                <div className="p-6 overflow-y-auto flex-1 bg-slate-50 custom-scrollbar">
+                  {savedReports.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                      <Icons.History className="w-12 h-12 mb-3 opacity-20" />
+                      <p className="font-bold text-sm">保存された分析履歴はありません</p>
+                      <p className="text-xs mt-1">AI分析を実行すると自動的にここに保存されます</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {savedReports.map(r => (
+                        <div key={r.id} className="bg-white border border-slate-200 p-4 rounded-xl flex justify-between items-center shadow-sm hover:border-indigo-200 transition-colors group">
+                          <div className="min-w-0 pr-4">
+                            <h4 className="font-bold text-slate-800 text-sm mb-1 truncate">{r.title}</h4>
+                            <p className="text-xs text-slate-500">{r.date} · 💬 {r.history.length}ターンのやり取り</p>
+                          </div>
+                          <div className="flex space-x-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity md:opacity-100">
+                            <button onClick={() => {
+                               setCurrentSessionId(r.id);
+                               setCurrentReportTitle(r.title);
+                               setChatHistory(r.history);
+                               setShowHistoryModal(false);
+                               setIsModalOpen(true);
+                            }} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-colors border border-indigo-100">
+                              開く
+                            </button>
+                            <button onClick={() => {
+                                 const updated = savedReports.filter(x => x.id !== r.id);
+                                 setSavedReports(updated);
+                                 localStorage.setItem('universal_analyzer_ai_reports', JSON.stringify(updated));
+                            }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100" title="削除">
+                              <Icons.Trash className="w-4 h-4"/>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       );
     };
@@ -684,7 +914,7 @@
       };
 
       const deleteColumn = (colKey) => {
-        if (Object.keys(gridData[0] || {}).length <= 1) return; // 最後の1列は削除しない
+        if (Object.keys(gridData[0] || {}).length <= 1) return;
         setGridData(prev => prev.map(row => {
           const newRow = { ...row };
           delete newRow[colKey];
@@ -693,7 +923,7 @@
       };
 
       const deleteRow = (rIdx) => {
-        if (gridData.length <= 1) return; // 最後の1行は削除しない
+        if (gridData.length <= 1) return; 
         setGridData(prev => prev.filter((_, i) => i !== rIdx));
       };
 
@@ -789,7 +1019,7 @@
       // --- クリップボードからのペースト読み込み ---
       useEffect(() => {
         const handlePaste = (e) => {
-          if (data.length > 0) return; // すでにデータが読み込まれている場合は何もしない
+          if (data.length > 0) return; 
           
           const clipboardData = e.clipboardData || window.clipboardData;
           if (!clipboardData) return;
@@ -801,7 +1031,7 @@
 
           try {
             let wb;
-            // HTML形式のテーブルが含まれている場合（WebやExcelからのコピー）
+            // HTML形式のテーブルが含まれている場合
             if (htmlData && htmlData.includes('<table')) {
               const doc = new DOMParser().parseFromString(htmlData, 'text/html');
               const table = doc.querySelector('table');
@@ -813,7 +1043,7 @@
                 wb = window.XLSX.read(textData, {type: 'string'});
               }
             } 
-            // プレーンテキスト（TSV, CSV形式）の場合
+            // プレーンテキストの場合
             else if (textData) {
               wb = window.XLSX.read(textData, {type: 'string'});
             }
