@@ -111,7 +111,15 @@
         const COLLECTION_NAME = 'policy_data';
         const METADATA_DOC_ID = 'point_last_import_metadata';
         const ITEMS_PER_PAGE = 100;
-        const SYNONYMS = [["国土交通省","国交省"],["経済産業省","経産省"],["文部科学省","文科省"],["厚生労働省","厚労省"],["農林水産省","農水省"]];
+        // 同義語リストに資源エネルギー庁を追加
+        const SYNONYMS = [
+            ["国土交通省","国交省"],
+            ["経済産業省","経産省"],
+            ["文部科学省","文科省"],
+            ["厚生労働省","厚労省"],
+            ["農林水産省","農水省"],
+            ["資源エネルギー庁","エネ庁"]
+        ];
         const REQUIRED_PASSWORD = "point";
         
         let db;
@@ -219,7 +227,6 @@
         function getFilteredAndSortedData() {
             const localBookmarks = new Set(JSON.parse(localStorage.getItem(`bookmarks_${appId}`) || '[]'));
             
-            // 全体データから「タイトルなし」または「空のタイトル」を除外
             let data = currentData
                 .filter(item => {
                     const title = (item['タイトル名'] || '').trim();
@@ -316,11 +323,8 @@
                 titlePrefixHtml = url2.toLowerCase().includes('.pdf') ? '<span class="inline-block bg-red-100 text-red-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">PDF</span>' : '<span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold mr-3 px-2.5 py-1 rounded-full flex-shrink-0">WEB</span>';
             }
             
-            // 資料アイコン (URL3)
             const docIconHtml = item['URL3'] ? `<a href="${item['URL3']}" target="_blank" rel="noopener noreferrer" title="資料を開く" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-file-alt"></i></a>` : '';
-            // 動画アイコン (YouTube)
             const videoIconHtml = item['YouTube'] ? `<a href="${item['YouTube']}" target="_blank" rel="noopener noreferrer" title="動画を再生" class="text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-video"></i></a>` : '';
-            // 音声アイコン (URL1)
             const audioIconHtml = item['URL1'] ? `<span data-src="${item['URL1']}" title="音声を再生" class="audio-icon text-gray-600 hover:text-blue-600 text-lg"><i class="fas fa-volume-up"></i></span>` : '';
             
             row.innerHTML = `
@@ -334,7 +338,6 @@
             return row;
         }
 
-        // --- 検索ロジック ---
         function filterData(data, query) {
             if (!query || !query.trim()) return data;
             
