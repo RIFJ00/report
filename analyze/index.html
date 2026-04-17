@@ -791,6 +791,57 @@
       const [isSettingsOpen, setIsSettingsOpen] = useState(false);
       const [isDragging, setIsDragging] = useState(false);
 
+      // --- クリップボードからのペースト読み込み ---
+      useEffect(() => {
+        const handlePaste = (e) => {
+          if (data.length > 0) return; // すでにデータが読み込まれている場合は何もしない
+          
+          const clipboardData = e.clipboardData || window.clipboardData;
+          if (!clipboardData) return;
+
+          const htmlData = clipboardData.getData('text/html');
+          const textData = clipboardData.getData('text/plain');
+
+          if (!textData && !htmlData) return;
+
+          try {
+            let wb;
+            // HTML形式のテーブルが含まれている場合（WebやExcelからのコピー）
+            if (htmlData && htmlData.includes('<table')) {
+              const doc = new DOMParser().parseFromString(htmlData, 'text/html');
+              const table = doc.querySelector('table');
+              if (table) {
+                const ws = window.XLSX.utils.table_to_sheet(table);
+                wb = window.XLSX.utils.book_new();
+                window.XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+              } else {
+                wb = window.XLSX.read(textData, {type: 'string'});
+              }
+            } 
+            // プレーンテキスト（TSV, CSV形式）の場合
+            else if (textData) {
+              wb = window.XLSX.read(textData, {type: 'string'});
+            }
+
+            if (wb) {
+               const jsonData = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+               if (jsonData.length > 0) {
+                   setData(jsonData);
+                   setFileName('ペーストされたデータ');
+                   setErrorMsg('');
+               } else {
+                   setErrorMsg('ペーストされたテキストからデータを抽出できませんでした。');
+               }
+            }
+          } catch (err) {
+            setErrorMsg('ペーストされたデータの読み込みに失敗しました。');
+          }
+        };
+
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+      }, [data.length]);
+
       const processFile = (file) => {
         if (!file) return;
         const validExt = ['.csv', '.xlsx', '.xls'];
@@ -869,7 +920,7 @@
             <h1 className="text-3xl font-black text-slate-900 mb-3 tracking-tighter">Data Analyzer</h1>
             <p className="text-slate-500 text-sm mb-10 leading-relaxed font-medium">
               CSV/Excelをインポートして分析を開始<br/>
-              <span className="text-xs text-slate-400 mt-1 block">（ここにファイルをドラッグ＆ドロップ）</span>
+              <span className="text-xs text-slate-400 mt-1 block">（ドラッグ＆ドロップ、または <strong className="font-bold text-slate-500">Ctrl+V / Cmd+V</strong> で貼り付け）</span>
             </p>
             {errorMsg && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-bold mb-8 border border-red-100">{errorMsg}</div>}
             <div className="relative group">
