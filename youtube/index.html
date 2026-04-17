@@ -252,7 +252,7 @@
                 </div>
                 <div id="adminHelpSection" class="hidden">
                     <h3 class="font-bold text-base border-b border-gray-200 pb-1 mb-2 text-gray-800"><i class="fas fa-database text-green-500 mr-2"></i>高度な設定 (管理者用)</h3>
-                    <ul class="list-disc pl-5 space-y-1.5 text-gray-600">
+                    <ul class="list-disc pl-5 space-y-1.5 text-gray-600 mb-3">
                         <li>APIキーを設定すると取得の成功率と速度が向上します。</li>
                     </ul>
                 </div>
@@ -284,7 +284,7 @@
         const db = getFirestore(app);
         const envAppId = typeof __app_id !== 'undefined' ? __app_id : 'youtube-playlist-app';
         
-        // --- 変数宣言 (ホイスティング問題を避けるためトップレベルで定義) ---
+        // --- 変数宣言 ---
         let user = null;
         let videoList = [];
         let currentIndex = 0;
@@ -382,8 +382,21 @@
             const container = document.getElementById('playlistContainer');
             if (!container) return;
             container.innerHTML = '';
-            const query = document.getElementById('searchInput')?.value.toLowerCase().trim();
-            const queries = query ? query.split(/[\s　]+/) : [];
+            
+            const normalizeText = (text) => {
+                if (!text) return "";
+                return text.toLowerCase()
+                    .replace(/経産省/g, "経済産業省")
+                    .replace(/国交省/g, "国土交通省")
+                    .replace(/文科省/g, "文部科学省")
+                    .replace(/厚労省/g, "厚生労働省")
+                    .replace(/農水省/g, "農林水産省")
+                    .replace(/エネ庁/g, "資源エネルギー庁");
+            };
+
+            const searchInputVal = document.getElementById('searchInput')?.value || '';
+            const queryStr = normalizeText(searchInputVal).trim();
+            const queries = queryStr ? queryStr.split(/[\s　]+/) : [];
             let displayedCount = 0;
 
             if (videoList.length === 0) {
@@ -393,7 +406,7 @@
 
             videoList.forEach((video, index) => {
                 if (queries.length > 0) {
-                    const text = (video.title + video.description).toLowerCase();
+                    const text = normalizeText(video.title + video.description);
                     if (!queries.every(q => text.includes(q))) return;
                 }
                 displayedCount++;
@@ -558,7 +571,6 @@
             videoList = await loadFromFirebase(initialPid) || [];
             if (videoList.length > 0) { 
                 sortVideoList(); updateCurrentVideoInfo(); 
-                // IFrame APIの準備ができているか確認
                 const checkYT = setInterval(() => { 
                     if(window.YT && YT.Player) { initPlayer(); clearInterval(checkYT); } 
                 }, 500);
@@ -570,9 +582,7 @@
             for (const pid of playlists) { const v = await loadFromFirebase(pid); updateDateUI(pid, v); }
         };
 
-        // ==========================================
-        // イベントリスナー設定
-        // ==========================================
+        // --- イベントリスナー設定 ---
         document.addEventListener('DOMContentLoaded', () => {
             const siteModal = document.getElementById('siteAuthModal');
             const urlPw = new URLSearchParams(window.location.search).get('pw');
@@ -581,16 +591,12 @@
                 const input = document.getElementById('sitePasswordInput');
                 if (input.value === 'youtube') {
                     siteModal.classList.add('opacity-0');
-                    setTimeout(() => { 
-                        siteModal.style.display = 'none'; 
-                        initApp(); 
-                    }, 500);
+                    setTimeout(() => { siteModal.style.display = 'none'; initApp(); }, 500);
                 } else {
                     document.getElementById('sitePasswordError').classList.remove('hidden');
                 }
             };
 
-            // URLパラメータでの自動認証
             if (urlPw === 'youtube') {
                 const url = new URL(window.location); url.searchParams.delete('pw'); window.history.replaceState({}, '', url);
                 siteModal.style.display = 'none'; 
@@ -598,10 +604,9 @@
             } else {
                 document.getElementById('siteAuthBtn').addEventListener('click', handleSiteAuth);
                 document.getElementById('sitePasswordInput').addEventListener('keydown', e => { if(e.key==='Enter') handleSiteAuth(); });
-                initAuth(); // バックグラウンドで認証開始
+                initAuth(); 
             }
 
-            // プレイリスト選択
             document.querySelectorAll('input[name="playlistSelect"]').forEach(r => {
                 r.addEventListener('change', async (e) => {
                     const pid = e.target.value; localStorage.setItem('yt_auto_playlist_select', pid);
@@ -611,7 +616,6 @@
                 });
             });
 
-            // 更新ボタン (管理者認証)
             let updateClick = 0;
             document.getElementById('startBtn').addEventListener('click', async () => {
                 if (isAuthenticated) { 
@@ -660,7 +664,6 @@
                 } else { document.getElementById('passwordError').classList.remove('hidden'); }
             });
 
-            // UI操作
             document.getElementById('sortSelect').addEventListener('change', e => { currentSort = e.target.value; sortVideoList(); renderPlaylist(); });
             document.getElementById('refreshBtn').addEventListener('click', () => { currentSort = 'date-desc'; document.getElementById('sortSelect').value = 'date-desc'; sortVideoList(); renderPlaylist(); });
             document.getElementById('scrollTopBtnHeader').addEventListener('click', () => document.getElementById('playlistContainer').scrollTo({top:0, behavior:'smooth'}));
