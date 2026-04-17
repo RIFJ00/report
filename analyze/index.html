@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Universal Data Analyzer - Master Edition (22 Tools)</title>
+  <title>Universal Data Analyzer - Master Edition (26 Tools)</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -53,7 +53,7 @@
     const { useState, useEffect, useMemo, useRef, Fragment } = React;
 
     // ==========================================
-    // 1. 定数定義
+    // 1. 定数定義 & 設定
     // ==========================================
 
     const ANALYSIS_TYPES = [
@@ -75,14 +75,18 @@
       { id: 'scatter3d', name: '16. 3D散布図', group: '関係性', desc: '3つの数値をXYZ軸にプロットします。' },
       { id: 'stackedbar', name: '17. 積み上げ棒グラフ (構成比)', group: '構成比', desc: '数値を積み上げて1本の棒にします。' },
       { id: 'pie', name: '18. 円グラフ (構成比)', group: '構成比', desc: '合計値や件数の割合を円グラフで表示します。' },
-      { id: 'treemap', name: '19. ツリーマップ (階層構成比)', group: '構成比', desc: '値の大きさを面積で表現します。' },
-      { id: 'parcoords', name: '20. 平行座標プロット (多次元)', group: '高度な分析', desc: '複数の縦軸を平行に並べて描画します。' },
-      { id: 'crosstab_heatmap', name: '21. クロス集計ヒートマップ', group: '高度な分析', desc: '2つのカテゴリの掛け合わせを集計します。' },
-      { id: 'stat_test', name: '22. 統計的検定 (分散分析)', group: '高度な分析', desc: '平均値の差が統計的に有意であるかを計算します。' }
+      { id: 'treemap', name: '19. ツリーマップ (階層構成比)', group: '構成比', desc: '複数カテゴリの階層を面積で表現します。', needsMultiX: true },
+      { id: 'sunburst', name: '20. サンバースト (多階層構成比)', group: '構成比', desc: '複数のカテゴリ階層を円状に表現します。', needsMultiX: true },
+      { id: 'parcoords', name: '21. 平行座標プロット (多次元)', group: '高度な分析', desc: '複数の縦軸を平行に並べて描画します。' },
+      { id: 'crosstab_heatmap', name: '22. クロス集計ヒートマップ', group: '高度な分析', desc: '2つのカテゴリの掛け合わせを集計します。' },
+      { id: 'stat_test', name: '23. 統計的検定 (分散分析)', group: '高度な分析', desc: '平均値の差が統計的に有意であるかを計算します。' },
+      { id: 'candlestick', name: '24. ローソク足チャート', group: '株式・金融', desc: 'X軸に日付、Y軸(数値)に「始値・高値・安値・終値」の4項目を選択してください。' },
+      { id: 'normalized_line', name: '25. 基準化推移 (リターン比較)', group: '株式・金融', desc: '最初の値を100として、複数項目の成長率・変動率を比較します。' },
+      { id: 'waterfall', name: '26. ウォーターフォール (増減)', group: '株式・金融', desc: '損益などの数値の増減を滝のように表現します。' }
     ];
 
     // ==========================================
-    // 2. ユーティリティ
+    // 2. ユーティリティ関数
     // ==========================================
 
     const excelSerialToDateString = (serial) => {
@@ -155,7 +159,7 @@
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${aiModel}:generateContent?key=${apiKey}`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }],
-        systemInstruction: { parts: [{ text: "あなたはプロのデータアナリストです。提供された実際の集計データや統計量に基づいて、主要な傾向や示唆を日本語で提供してください。一般的な説明は避け、必ず具体的な「数値（平均や差分など）」を引用し、推測ではなくデータに基づいた実践的な洞察を、箇条書きと太字を活用して分かりやすく記述してください。" }] }
+        systemInstruction: { parts: [{ text: "あなたはプロの金融・データアナリストです。提供された実際の集計データや統計量に基づいて、主要な傾向や示唆を日本語で提供してください。一般的な説明は避け、必ず具体的な「数値（平均、変動率、差分など）」を引用し、推測ではなくデータに基づいた実践的な洞察を、箇条書きと太字を活用して分かりやすく記述してください。" }] }
       };
       
       let delay = 1000;
@@ -190,7 +194,7 @@
     };
 
     // ==========================================
-    // 3. アイコン & UIサブコンポーネント
+    // 3. UIコンポーネント & アイコン
     // ==========================================
 
     const SvgIcon = ({ d, ...props }) => (
@@ -212,7 +216,6 @@
       Sparkles: (p) => <SvgIcon d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z" {...p}/>,
       Send: (p) => <SvgIcon d="M22 2L11 13 M22 2l-7 20-4-9-9-4 20-7z" {...p}/>,
       Transpose: (p) => <SvgIcon d="M17 1l4 4-4 4 M3 5h18 M11 13l-4 4 4 4 M21 17H3" {...p}/>,
-      Reload: (p) => <SvgIcon d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5" {...p}/>,
       Download: (p) => <SvgIcon d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p}/>,
       Key: (p) => <SvgIcon d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" {...p}/>,
       History: (p) => <SvgIcon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" {...p}/>
@@ -221,8 +224,8 @@
     const AxisOptions = ({ cols }) => (
       <Fragment>
         <optgroup label="日付ベース集計 (拡張)">{cols.dateExtended.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
-        <optgroup label="数値データ列">{cols.numeric.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
         <optgroup label="カテゴリー列">{cols.categorical.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
+        <optgroup label="数値データ列">{cols.numeric.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
         <optgroup label="生の日付列">{cols.date.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
       </Fragment>
     );
@@ -239,7 +242,7 @@
     };
 
     // ==========================================
-    // モーダル: API設定
+    // 4. モーダル: API設定
     // ==========================================
     const SettingsModal = ({ isOpen, onClose }) => {
       const [apiKey, setApiKey] = useState('');
@@ -306,15 +309,18 @@
     };
 
     // ==========================================
-    // 4. メイン分析パネル
+    // 5. メイン分析パネル コンポーネント
     // ==========================================
 
     const AnalysisPanel = ({ processedData, cols, gridData }) => {
       const [analysisType, setAnalysisType] = useState('summary');
+      
       const [xAxis, setXAxis] = useState('');
+      const [xAxisChk, setXAxisChk] = useState([]); // カテゴリ複数選択用
+      
       const [yAxis, setYAxis] = useState('');
-      const [yAxisChk, setYAxisChk] = useState([]);
-      const [sizeAxis, setSizeAxis] = useState('');
+      const [yAxisChk, setYAxisChk] = useState([]); // 数値複数選択用
+      
       const [bins, setBins] = useState(20);
       const [noDataMsg, setNoDataMsg] = useState('');
       const [summaryData, setSummaryData] = useState(null);
@@ -340,7 +346,9 @@
       const [startDate, setStartDate] = useState('');
       const [endDate, setEndDate] = useState('');
 
-      // ローカルストレージからAI分析の履歴を読み込む
+      const typeInfo = useMemo(() => ANALYSIS_TYPES.find(t => t.id === analysisType), [analysisType]);
+
+      // 履歴のロード
       useEffect(() => {
         try {
           const loaded = JSON.parse(localStorage.getItem('universal_analyzer_ai_reports') || '[]');
@@ -348,7 +356,7 @@
         } catch (e) {}
       }, []);
 
-      // チャット履歴が更新されるたびにローカルストレージへ自動保存
+      // 履歴のセーブ
       useEffect(() => {
         if (currentSessionId && chatHistory.length > 0) {
           setSavedReports(prev => {
@@ -362,7 +370,7 @@
             };
             if (idx >= 0) { existing[idx] = reportObj; } 
             else { existing.unshift(reportObj); }
-            const limited = existing.slice(0, 30); // 最大30件まで保持
+            const limited = existing.slice(0, 30);
             localStorage.setItem('universal_analyzer_ai_reports', JSON.stringify(limited));
             return limited;
           });
@@ -401,15 +409,39 @@
         });
       }, [processedData, dateFilterCol, startDate, endDate]);
 
+      // 項目初期化
       useEffect(() => {
         if (!cols.all.length) return;
         const c1 = cols.dateExtended[0] || cols.categorical[0] || cols.all[0];
         const n1 = cols.numeric[0] || cols.all[0];
-        setXAxis(c1); setYAxis(n1); setYAxisChk(cols.numeric.length ? cols.numeric.slice(0, 3) : [cols.all[0]]);
-        setSizeAxis(cols.numeric[1] || n1);
-      }, [analysisType, cols.all]);
+        setXAxis(c1); 
+        setXAxisChk([c1]);
+        setYAxis(n1); 
+        setYAxisChk(cols.numeric.length ? cols.numeric.slice(0, 3) : [cols.all[0]]);
+      }, [cols.all]);
 
       const toNum = (v) => { const n = Number(v); return isNaN(n) || v === null || v === '' ? null : n; };
+
+      // 複数カテゴリによる階層データ生成用 (Treemap, Sunburst)
+      const buildHierarchy = (data, catKeys, valKey) => {
+        let labels = [], parents = [], values = [], ids = [];
+        let agg = {};
+        data.forEach(d => {
+            let path = catKeys.map(k => String(d[k] || '不明'));
+            let v = valKey ? (toNum(d[valKey]) || 0) : 1;
+            let currentPath = "";
+            path.forEach((p, i) => {
+                let parentPath = currentPath;
+                currentPath = currentPath ? currentPath + " - " + p : p;
+                if (!agg[currentPath]) agg[currentPath] = { label: p, parent: parentPath, value: 0 };
+                agg[currentPath].value += v;
+            });
+        });
+        Object.keys(agg).forEach(id => {
+            ids.push(id); labels.push(agg[id].label); parents.push(agg[id].parent); values.push(agg[id].value);
+        });
+        return { ids, labels, parents, values };
+      };
 
       const runAnalysis = () => {
         setNoDataMsg(''); setSummaryData(null); setChartDataForAI(null);
@@ -442,6 +474,57 @@
               extractedDataForAI = traces.map(t => ({ name: t.name, data_points: t.x.length, min_y: Math.min(...t.y.filter(v=>v!==null)), max_y: Math.max(...t.y.filter(v=>v!==null)) }));
               break;
             }
+            case 'candlestick': {
+              if (yAxisChk.length < 4) throw new Error('ローソク足を描画するには、分析対象(数値)で「始値」「高値」「安値」「終値」の順に4つの項目を選択してください。');
+              let sorted = [...filteredData].sort((a,b) => a[xAxis] < b[xAxis] ? -1 : 1);
+              let trace = {
+                x: sorted.map(d => d[xAxis]),
+                open: sorted.map(d => toNum(d[yAxisChk[0]])),
+                high: sorted.map(d => toNum(d[yAxisChk[1]])),
+                low: sorted.map(d => toNum(d[yAxisChk[2]])),
+                close: sorted.map(d => toNum(d[yAxisChk[3]])),
+                type: 'candlestick',
+                xaxis: 'x', yaxis: 'y'
+              };
+              window.Plotly.newPlot('chart-area', [trace], { margin: {t:40}, xaxis: {rangeslider: {visible: false}} }, {responsive:true});
+              extractedDataForAI = { type: 'candlestick', data_points: sorted.length, metrics: yAxisChk.slice(0,4) };
+              break;
+            }
+            case 'normalized_line': {
+              let sorted = [...filteredData].sort((a,b) => a[xAxis] < b[xAxis] ? -1 : 1);
+              let traces = yAxisChk.map(c => {
+                let yVals = sorted.map(d => toNum(d[c]));
+                let firstVal = yVals.find(v => v !== null && v !== 0);
+                let normY = yVals.map(v => (v !== null && firstVal) ? (v / firstVal) * 100 : null);
+                return { x: sorted.map(d=>d[xAxis]), y: normY, type: 'scatter', mode: 'lines', name: c };
+              });
+              window.Plotly.newPlot('chart-area', traces, { margin: {t:40} }, {responsive:true});
+              extractedDataForAI = { type: 'normalized', count: sorted.length };
+              break;
+            }
+            case 'waterfall': {
+              if(yAxisChk.length === 0) throw new Error("数値を1つ以上選択してください");
+              let trace = {
+                type: "waterfall",
+                x: filteredData.map(d => d[xAxis]),
+                y: filteredData.map(d => toNum(d[yAxisChk[0]])),
+                connector: { line: { color: "rgb(63, 63, 63)" } },
+              };
+              window.Plotly.newPlot('chart-area', [trace], { margin: {t:40} }, {responsive:true});
+              break;
+            }
+            case 'sunburst':
+            case 'treemap': {
+              if (xAxisChk.length === 0) throw new Error('階層/カテゴリを1つ以上選択してください。');
+              let { ids, labels, parents, values } = buildHierarchy(filteredData, xAxisChk, yAxisChk[0]);
+              window.Plotly.newPlot('chart-area', [{ 
+                  type: analysisType, 
+                  ids, labels, parents, values, 
+                  branchvalues: "total"
+              }], {margin:{t:40, l:0, r:0, b:0}}, {responsive:true});
+              extractedDataForAI = { type: analysisType, categories_count: labels.length };
+              break;
+            }
             case 'comparison':
             case 'stackedbar': {
               let g = {}; filteredData.forEach(r => {
@@ -462,10 +545,6 @@
               window.Plotly.newPlot('chart-area', traces, { margin: {t:40} }, {responsive:true});
               break;
             }
-            case 'histogram': {
-              window.Plotly.newPlot('chart-area', [{ x: filteredData.map(d=>toNum(d[xAxis])), type: 'histogram', nbinsx: bins }], { margin: {t:40} }, {responsive:true});
-              break;
-            }
             case 'correlation': {
               let z = yAxisChk.map(c1 => yAxisChk.map(c2 => {
                 let x=[], y=[]; filteredData.forEach(d=>{ let v1=toNum(d[c1]), v2=toNum(d[c2]); if(v1!==null && v2!==null){ x.push(v1); y.push(v2); }});
@@ -478,25 +557,6 @@
               extractedDataForAI = { x: yAxisChk, y: yAxisChk, z_matrix: z };
               break;
             }
-            case 'radar': {
-              let g = {}; filteredData.forEach(r => { let k=String(r[xAxis]||'不明'); if(!g[k]){ g[k]={c:0, s:{}}; yAxisChk.forEach(y=>g[k].s[y]=0); } yAxisChk.forEach(y=>{ let v=toNum(r[y]); if(v!==null) g[k].s[y]+=v; }); g[k].c++; });
-              let traces = Object.keys(g).map(k => { let r = yAxisChk.map(y => g[k].c>0 ? g[k].s[y]/g[k].c : 0); r.push(r[0]); return { type: 'scatterpolar', r, theta: [...yAxisChk, yAxisChk[0]], fill: 'toself', name: k }; });
-              window.Plotly.newPlot('chart-area', traces, { polar: { radialaxis: { visible: true } } }, {responsive:true});
-              extractedDataForAI = traces.map(t => ({ category: t.name, axis: t.theta, values: t.r }));
-              break;
-            }
-            case 'stat_test': {
-              let grp = {}; filteredData.forEach(r => { let c=String(r[xAxis]||''), v=toNum(r[yAxis]); if(c && v!==null){ if(!grp[c])grp[c]=[]; grp[c].push(v); }});
-              let ks = Object.keys(grp).filter(k=>grp[k].length>1); if(ks.length<2) throw new Error('2つ以上のグループが必要です。');
-              window.Plotly.newPlot('chart-area', ks.map(k=>({y:grp[k], type:'box', name:k})), {margin: {t:40}});
-              break;
-            }
-            case 'treemap': {
-              let g = {}; filteredData.forEach(d => { let k=String(d[xAxis]||'不明'), v=toNum(d[yAxis])||0; g[k]=(g[k]||0)+v; });
-              window.Plotly.newPlot('chart-area', [{ type: 'treemap', labels: Object.keys(g), parents: Object.keys(g).map(()=>''), values: Object.values(g) }], {}, {responsive:true});
-              extractedDataForAI = { labels: Object.keys(g), values: Object.values(g) };
-              break;
-            }
             default: {
                 let traces = [{ x: filteredData.map(d=>toNum(d[xAxis])), y: filteredData.map(d=>toNum(d[yAxis])), mode: 'markers', type: analysisType==='scatter3d' ? 'scatter3d' : 'scatter' }];
                 window.Plotly.newPlot('chart-area', traces, { margin: {t:40} }, {responsive:true});
@@ -505,7 +565,10 @@
           
           if (!extractedDataForAI) {
               extractedDataForAI = filteredData.slice(0, 50).map(d => {
-                  let obj = {}; obj[xAxis] = d[xAxis]; yAxisChk.forEach(y => obj[y] = d[y]); return obj;
+                  let obj = {}; 
+                  if (typeInfo?.needsMultiX) { xAxisChk.forEach(x => obj[x] = d[x]); } else { obj[xAxis] = d[xAxis]; }
+                  yAxisChk.forEach(y => obj[y] = d[y]); 
+                  return obj;
               });
           }
           setChartDataForAI(extractedDataForAI);
@@ -519,10 +582,8 @@
         setChatHistory([]);
         setShowExportMenu(false);
         
-        // セッションIDとタイトルを新規作成
         const newSessionId = Date.now();
         setCurrentSessionId(newSessionId);
-        const typeInfo = ANALYSIS_TYPES.find(t => t.id === analysisType);
         const titleSuffix = yAxisChk.length > 0 ? ` (${yAxisChk.slice(0,2).join(', ')}${yAxisChk.length > 2 ? '...' : ''})` : '';
         const reportTitle = `${typeInfo ? typeInfo.name.split('. ')[1] : 'データ分析'}${titleSuffix}`;
         setCurrentReportTitle(reportTitle);
@@ -547,10 +608,12 @@
             "最大値": vls[vls.length-1] 
           };
         }).filter(Boolean);
+        
         let statsStr = JSON.stringify(overallStats);
         let dateFilterInfo = dateFilterCol ? `\n期間指定: ${dateFilterCol} (${startDate || '指定なし'} 〜 ${endDate || '指定なし'})` : '';
+        let currentXAxisInfo = typeInfo?.needsMultiX ? xAxisChk.join(", ") : xAxis;
 
-        let aiPrompt = `【分析条件】\n分析手法: ${analysisType}\nX軸: ${xAxis}\nY軸: ${yAxis}\n分析対象の数値項目: ${yAxisChk.join(", ")}\n対象データ件数: ${filteredData.length}${dateFilterInfo}\n\n【対象項目の基本統計量】\n${statsStr}\n\n【グラフ表示用の集計・サンプリングデータ】\n${dataStr}\n\n上記データと条件に基づいて、データから読み取れる主要な傾向や示唆を日本語で提供してください。必ず「基本統計量」や「集計データ」の実際の数値を引用して具体的に分析してください。`;
+        let aiPrompt = `【分析条件】\n分析手法: ${analysisType}\nX軸(カテゴリ): ${currentXAxisInfo}\nY軸(数値): ${yAxisChk.join(", ")}\n対象データ件数: ${filteredData.length}${dateFilterInfo}\n\n【対象項目の基本統計量】\n${statsStr}\n\n【グラフ表示用の集計・サンプリングデータ】\n${dataStr}\n\n上記データと条件に基づいて、データから読み取れる主要な傾向や示唆を日本語で提供してください。必ず「基本統計量」や「集計データ」の実際の数値を引用して具体的に分析してください。`;
         
         try {
           const res = await callGemini(aiPrompt);
@@ -559,11 +622,8 @@
           setChatHistory([{ role: "assistant", text: e.message || "AI分析中にエラーが発生しました。" }]);
         } finally { 
           setAiLoading(false); 
-          // 結果が返ってきたら強制的にモーダルの一番上にスクロール（回答の冒頭から読めるように）
           setTimeout(() => {
-            if (modalScrollRef.current) {
-              modalScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-            }
+            if (modalScrollRef.current) modalScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
           }, 100);
         }
       };
@@ -573,7 +633,6 @@
         const msg = userInput; setUserInput("");
         setChatHistory(p => [...p, { role: "user", text: msg }]);
         setAiLoading(true);
-        // 質問を入力した時は下へスクロール
         setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
 
         try {
@@ -583,12 +642,10 @@
           setChatHistory(p => [...p, { role: "assistant", text: e.message || "エラーが発生しました。" }]);
         } finally { 
           setAiLoading(false); 
-          // 質問に対する追加回答が返ってきた時は下へスクロール
           setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         }
       };
 
-      // --- エクスポート機能 (各種フォーマット) ---
       const downloadBlob = (blob, filename) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -663,11 +720,10 @@
 
       return (
         <div className="flex h-full overflow-hidden relative">
-          {/* 左側: 設定パネル */}
           <div className="w-80 border-r p-5 overflow-y-auto bg-slate-50 shrink-0 custom-scrollbar">
             <label className="block text-sm font-bold text-slate-700 mb-2">分析手法の選択</label>
             <select value={analysisType} onChange={e => setAnalysisType(e.target.value)} className="w-full text-sm border border-slate-300 rounded-lg p-2 bg-white mb-4 outline-none">
-              {['基礎', '推移・傾向', '比較', '分布', '関係性', '構成比', '高度な分析'].map(g => (
+              {['基礎', '推移・傾向', '比較', '分布', '関係性', '構成比', '高度な分析', '株式・金融'].map(g => (
                 <optgroup key={g} label={`--- ${g} ---`}>
                   {ANALYSIS_TYPES.filter(t => t.group === g).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </optgroup>
@@ -675,7 +731,6 @@
             </select>
             <AnalysisDescription typeId={analysisType} />
 
-            {/* --- 期間フィルター UI --- */}
             {cols.date && cols.date.length > 0 && (
               <div className="mb-4 bg-white p-3 rounded-lg border border-slate-200 shadow-sm animate-in">
                 <label className="block text-xs font-bold text-slate-500 mb-2 flex items-center"><Icons.Table className="w-3 h-3 mr-1" /> 期間フィルター</label>
@@ -691,9 +746,30 @@
             )}
 
             <div className="space-y-4">
-              <div><label className="block text-xs font-bold text-slate-500 mb-1">軸 / カテゴリ</label>
-                <select value={xAxis} onChange={e=>setXAxis(e.target.value)} className="w-full text-sm border border-slate-300 rounded-lg p-2 bg-white outline-none shadow-sm"><AxisOptions cols={cols}/></select>
-              </div>
+              
+              {/* --- X軸 (単一 または 複数選択) の切り替え表示 --- */}
+              {typeInfo?.needsMultiX ? (
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">階層/カテゴリ (複数選択)</label>
+                    <button onClick={()=>setXAxisChk([])} className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold">クリア</button>
+                  </div>
+                  <div className="max-h-32 overflow-y-auto border rounded-lg p-2 bg-white shadow-inner custom-scrollbar">
+                    {cols.allExtended.map(c => (
+                      <label key={c} className="flex items-center space-x-2 p-1 hover:bg-slate-50 cursor-pointer text-xs">
+                        <input type="checkbox" checked={xAxisChk.includes(c)} onChange={()=>setXAxisChk(p=>p.includes(c)?p.filter(x=>x!==c):[...p,c])} className="rounded text-blue-600" />
+                        <span className="truncate font-medium text-slate-700">{c}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">軸 / カテゴリ</label>
+                  <select value={xAxis} onChange={e=>setXAxis(e.target.value)} className="w-full text-sm border border-slate-300 rounded-lg p-2 bg-white outline-none shadow-sm"><AxisOptions cols={cols}/></select>
+                </div>
+              )}
+
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-tight">分析対象 (数値)</label>
@@ -711,33 +787,21 @@
                   ))}
                 </div>
               </div>
-              <div><label className="block text-xs font-bold text-slate-500 mb-1">数値軸 (Y)</label>
-                <select value={yAxis} onChange={e=>setYAxis(e.target.value)} className="w-full text-sm border border-slate-300 rounded-lg p-2 bg-white outline-none shadow-sm"><AxisOptions cols={cols}/></select>
-              </div>
             </div>
             <button onClick={runAnalysis} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 mt-6 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center">
               <Icons.Play className="w-4 h-4 mr-2" /> 分析を実行
             </button>
           </div>
 
-          {/* 右側: メインビュー */}
           <div className="flex-1 flex flex-col min-w-0 bg-white p-6 overflow-auto">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 min-h-[500px] flex flex-col">
-              
-              {/* --- ヘッダー：AI分析と履歴ボタン --- */}
               <div className="flex justify-between items-center mb-6 border-b pb-3">
                 <h2 className="font-bold text-slate-800 text-lg">可視化結果</h2>
                 <div className="flex space-x-2">
-                  <button 
-                    onClick={() => setShowHistoryModal(true)}
-                    className="bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm"
-                  >
+                  <button onClick={() => setShowHistoryModal(true)} className="bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm">
                     <Icons.History className="w-4 h-4 mr-2" /> 履歴を見る ({savedReports.length})
                   </button>
-                  <button 
-                    onClick={handleAIAnalysis}
-                    className="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm border border-indigo-100"
-                  >
+                  <button onClick={handleAIAnalysis} className="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm border border-indigo-100">
                     <Icons.Sparkles className="w-4 h-4 mr-2" /> 新規AI分析を実行
                   </button>
                 </div>
@@ -745,6 +809,7 @@
 
               {noDataMsg && <div className="bg-red-50 text-red-600 p-4 rounded-lg border font-bold text-sm mb-4"><Icons.Alert className="w-4 h-4 mr-2 inline" />{noDataMsg}</div>}
               <div id="chart-area" className={`flex-1 w-full min-h-[400px] ${summaryData ? 'hidden' : ''}`}></div>
+              
               {summaryData && (
                 <div className="overflow-x-auto rounded-xl border animate-in"><table className="min-w-full text-sm text-right whitespace-nowrap"><thead className="bg-slate-50 text-slate-600 font-bold border-b"><tr><th className="px-4 py-3 text-left">項目名</th><th>数</th><th>平均</th><th>最小</th><th>中央</th><th>最大</th></tr></thead>
                   <tbody className="bg-white divide-y">{summaryData.map(r => (<tr key={r.col} className="hover:bg-slate-50"><td className="px-4 py-3 font-bold text-slate-800 text-left">{r.col}</td><td>{r.count}</td><td className="font-bold text-blue-600">{r.mean.toFixed(2)}</td><td>{r.min}</td><td>{r.median}</td><td>{r.max}</td></tr>))}</tbody></table></div>
@@ -752,23 +817,15 @@
             </div>
           </div>
 
-          {/* --- AI分析結果 モーダル (ポップアップ) --- */}
+          {/* AI分析結果 モーダル */}
           {isModalOpen && (
             <div className="fixed inset-0 z-[50] flex items-center justify-center p-4 modal-overlay animate-in">
               <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col h-[85vh] overflow-hidden border border-white/20 relative">
-                
-                {/* モーダルヘッダー */}
                 <div className="bg-indigo-900 px-6 py-4 flex items-center justify-between text-white relative z-20 shadow-sm">
                   <div className="flex items-center space-x-2 font-bold"><Icons.Sparkles className="w-5 h-5 text-indigo-300" /><span>AI データアドバイザー</span></div>
                   <div className="flex items-center space-x-3">
-                    
-                    {/* エクスポート・ドロップダウンメニュー */}
                     <div className="relative">
-                      <button 
-                        onClick={() => setShowExportMenu(!showExportMenu)}
-                        disabled={chatHistory.length === 0 || aiLoading} 
-                        className="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center disabled:opacity-50"
-                      >
+                      <button onClick={() => setShowExportMenu(!showExportMenu)} disabled={chatHistory.length === 0 || aiLoading} className="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center disabled:opacity-50">
                         <Icons.Download className="w-3.5 h-3.5 mr-1" /> 出力
                       </button>
                       {showExportMenu && (
@@ -780,12 +837,10 @@
                         </div>
                       )}
                     </div>
-                    
                     <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-1 rounded-full transition-all"><Icons.X className="w-6 h-6" /></button>
                   </div>
                 </div>
                 
-                {/* モーダルコンテンツ (スクロール領域) */}
                 <div ref={modalScrollRef} className="flex-1 overflow-y-auto p-6 space-y-5 bg-slate-50 custom-scrollbar relative z-10" onClick={() => setShowExportMenu(false)}>
                   {aiLoading && chatHistory.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4"><div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div><p className="font-bold text-slate-600">AIがデータを解析しています...</p></div>
@@ -804,7 +859,6 @@
                   <div ref={chatEndRef} />
                 </div>
                 
-                {/* モーダル下部入力欄 */}
                 <div className="p-4 border-t bg-white relative z-20" onClick={() => setShowExportMenu(false)}>
                   <div className="relative flex items-center max-w-4xl mx-auto">
                     <input type="text" value={userInput} onChange={(e)=>setUserInput(e.target.value)} onKeyDown={(e)=>e.key==='Enter' && askAI()} placeholder="AIにこのデータの傾向をさらに質問する..." className="w-full pl-4 pr-12 py-3 bg-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 text-sm" />
@@ -815,49 +869,27 @@
             </div>
           )}
 
-          {/* --- AI分析履歴 モーダル --- */}
+          {/* 履歴モーダル */}
           {showHistoryModal && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 modal-overlay animate-in">
               <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col h-[75vh] overflow-hidden border border-white/20">
                 <div className="bg-slate-100 px-6 py-4 border-b flex justify-between items-center">
-                  <div className="flex items-center space-x-2 font-bold text-slate-800">
-                    <Icons.History className="w-5 h-5 text-slate-500" />
-                    <span>AI分析レポートの履歴</span>
-                  </div>
+                  <div className="flex items-center space-x-2 font-bold text-slate-800"><Icons.History className="w-5 h-5 text-slate-500" /><span>AI分析レポートの履歴</span></div>
                   <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><Icons.X className="w-5 h-5" /></button>
                 </div>
                 <div className="p-6 overflow-y-auto flex-1 bg-slate-50 custom-scrollbar">
                   {savedReports.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                      <Icons.History className="w-12 h-12 mb-3 opacity-20" />
-                      <p className="font-bold text-sm">保存された分析履歴はありません</p>
-                      <p className="text-xs mt-1">AI分析を実行すると自動的にここに保存されます</p>
+                      <Icons.History className="w-12 h-12 mb-3 opacity-20" /><p className="font-bold text-sm">保存された分析履歴はありません</p><p className="text-xs mt-1">AI分析を実行すると自動的にここに保存されます</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {savedReports.map(r => (
                         <div key={r.id} className="bg-white border border-slate-200 p-4 rounded-xl flex justify-between items-center shadow-sm hover:border-indigo-200 transition-colors group">
-                          <div className="min-w-0 pr-4">
-                            <h4 className="font-bold text-slate-800 text-sm mb-1 truncate">{r.title}</h4>
-                            <p className="text-xs text-slate-500">{r.date} · 💬 {r.history.length}ターンのやり取り</p>
-                          </div>
+                          <div className="min-w-0 pr-4"><h4 className="font-bold text-slate-800 text-sm mb-1 truncate">{r.title}</h4><p className="text-xs text-slate-500">{r.date} · 💬 {r.history.length}ターンのやり取り</p></div>
                           <div className="flex space-x-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity md:opacity-100">
-                            <button onClick={() => {
-                               setCurrentSessionId(r.id);
-                               setCurrentReportTitle(r.title);
-                               setChatHistory(r.history);
-                               setShowHistoryModal(false);
-                               setIsModalOpen(true);
-                            }} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-colors border border-indigo-100">
-                              開く
-                            </button>
-                            <button onClick={() => {
-                                 const updated = savedReports.filter(x => x.id !== r.id);
-                                 setSavedReports(updated);
-                                 localStorage.setItem('universal_analyzer_ai_reports', JSON.stringify(updated));
-                            }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100" title="削除">
-                              <Icons.Trash className="w-4 h-4"/>
-                            </button>
+                            <button onClick={() => { setCurrentSessionId(r.id); setCurrentReportTitle(r.title); setChatHistory(r.history); setShowHistoryModal(false); setIsModalOpen(true); }} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-colors border border-indigo-100">開く</button>
+                            <button onClick={() => { const updated = savedReports.filter(x => x.id !== r.id); setSavedReports(updated); localStorage.setItem('universal_analyzer_ai_reports', JSON.stringify(updated)); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100" title="削除"><Icons.Trash className="w-4 h-4"/></button>
                           </div>
                         </div>
                       ))}
@@ -867,15 +899,13 @@
               </div>
             </div>
           )}
-
         </div>
       );
     };
 
     // ==========================================
-    // 5. ワークスペースラッパー
+    // 6. ワークスペースラッパー コンポーネント
     // ==========================================
-
     const AnalysisWorkspaceWrapper = ({ rawData, fileName, onReset, onOpenSettings }) => {
       const initialGrid = useMemo(() => rawData.map(r => {
         const nr = {...r}; Object.keys(nr).forEach(k => { const f = smartFormatDate(nr[k], k); if(/^\d{4}-\d{2}-\d{2}$/.test(f)) nr[k]=f; }); return nr;
@@ -915,11 +945,7 @@
 
       const deleteColumn = (colKey) => {
         if (Object.keys(gridData[0] || {}).length <= 1) return;
-        setGridData(prev => prev.map(row => {
-          const newRow = { ...row };
-          delete newRow[colKey];
-          return newRow;
-        }));
+        setGridData(prev => prev.map(row => { const newRow = { ...row }; delete newRow[colKey]; return newRow; }));
       };
 
       const deleteRow = (rIdx) => {
@@ -1009,6 +1035,9 @@
       );
     };
 
+    // ==========================================
+    // 7. メイン App コンポーネント
+    // ==========================================
     const App = () => {
       const [data, setData] = useState([]);
       const [fileName, setFileName] = useState('');
@@ -1016,22 +1045,16 @@
       const [isSettingsOpen, setIsSettingsOpen] = useState(false);
       const [isDragging, setIsDragging] = useState(false);
 
-      // --- クリップボードからのペースト読み込み ---
       useEffect(() => {
         const handlePaste = (e) => {
           if (data.length > 0) return; 
-          
           const clipboardData = e.clipboardData || window.clipboardData;
           if (!clipboardData) return;
-
           const htmlData = clipboardData.getData('text/html');
           const textData = clipboardData.getData('text/plain');
-
           if (!textData && !htmlData) return;
-
           try {
             let wb;
-            // HTML形式のテーブルが含まれている場合
             if (htmlData && htmlData.includes('<table')) {
               const doc = new DOMParser().parseFromString(htmlData, 'text/html');
               const table = doc.querySelector('table');
@@ -1039,30 +1062,16 @@
                 const ws = window.XLSX.utils.table_to_sheet(table);
                 wb = window.XLSX.utils.book_new();
                 window.XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-              } else {
-                wb = window.XLSX.read(textData, {type: 'string'});
-              }
-            } 
-            // プレーンテキストの場合
-            else if (textData) {
-              wb = window.XLSX.read(textData, {type: 'string'});
-            }
+              } else { wb = window.XLSX.read(textData, {type: 'string'}); }
+            } else if (textData) { wb = window.XLSX.read(textData, {type: 'string'}); }
 
             if (wb) {
                const jsonData = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
-               if (jsonData.length > 0) {
-                   setData(jsonData);
-                   setFileName('ペーストされたデータ');
-                   setErrorMsg('');
-               } else {
-                   setErrorMsg('ペーストされたテキストからデータを抽出できませんでした。');
-               }
+               if (jsonData.length > 0) { setData(jsonData); setFileName('ペーストされたデータ'); setErrorMsg(''); } 
+               else { setErrorMsg('ペーストされたテキストからデータを抽出できませんでした。'); }
             }
-          } catch (err) {
-            setErrorMsg('ペーストされたデータの読み込みに失敗しました。');
-          }
+          } catch (err) { setErrorMsg('ペーストされたデータの読み込みに失敗しました。'); }
         };
-
         window.addEventListener('paste', handlePaste);
         return () => window.removeEventListener('paste', handlePaste);
       }, [data.length]);
@@ -1070,12 +1079,7 @@
       const processFile = (file) => {
         if (!file) return;
         const validExt = ['.csv', '.xlsx', '.xls'];
-        const isValid = validExt.some(ext => file.name.toLowerCase().endsWith(ext));
-        if (!isValid) {
-            setErrorMsg('CSVまたはExcelファイル(.csv, .xlsx, .xls)を選択してください。');
-            return;
-        }
-
+        if (!validExt.some(ext => file.name.toLowerCase().endsWith(ext))) { setErrorMsg('CSVまたはExcelファイル(.csv, .xlsx, .xls)を選択してください。'); return; }
         setErrorMsg(''); setFileName(file.name);
         const reader = new FileReader();
         reader.onload = (evt) => {
@@ -1085,31 +1089,6 @@
             if(jsonData.length > 0) setData(jsonData); else setErrorMsg('データが見つかりませんでした。');
           } catch(err) { setErrorMsg('読み込みに失敗しました。'); }
         }; reader.readAsBinaryString(file);
-      };
-
-      const handleFileUpload = (e) => {
-        processFile(e.target.files[0]);
-      };
-
-      const handleDragOver = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
-      };
-
-      const handleDragLeave = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-      };
-
-      const handleDrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-          processFile(e.dataTransfer.files[0]);
-        }
       };
 
       if (data.length > 0) {
@@ -1124,20 +1103,17 @@
       return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50 text-slate-800 relative">
           <div className="absolute top-4 right-4">
-            <button 
-              onClick={() => setIsSettingsOpen(true)} 
-              className="flex items-center px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 transition-colors"
-            >
+            <button onClick={() => setIsSettingsOpen(true)} className="flex items-center px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 transition-colors">
               <Icons.Key className="w-4 h-4 mr-2 text-slate-500" /> API設定
             </button>
           </div>
           
           <div 
             className={`max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 text-center animate-in border-4 transition-colors duration-200 ${isDragging ? 'border-blue-400 bg-blue-50' : 'border-transparent'}`}
-            onDragOver={handleDragOver}
-            onDragEnter={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+            onDragOver={(e)=>{e.preventDefault(); e.stopPropagation(); setIsDragging(true);}}
+            onDragEnter={(e)=>{e.preventDefault(); e.stopPropagation(); setIsDragging(true);}}
+            onDragLeave={(e)=>{e.preventDefault(); e.stopPropagation(); setIsDragging(false);}}
+            onDrop={(e)=>{e.preventDefault(); e.stopPropagation(); setIsDragging(false); if (e.dataTransfer.files && e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]);}}
           >
             <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner transition-colors duration-200 ${isDragging ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'}`}>
               <Icons.Upload className="w-12 h-12" />
@@ -1149,13 +1125,12 @@
             </p>
             {errorMsg && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-bold mb-8 border border-red-100">{errorMsg}</div>}
             <div className="relative group">
-              <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"/>
+              <input type="file" accept=".csv,.xlsx,.xls" onChange={e=>processFile(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"/>
               <div className={`text-white font-black py-5 rounded-2xl shadow-xl flex items-center justify-center transition-all active:scale-95 pointer-events-none ${isDragging ? 'bg-blue-700' : 'bg-blue-600 group-hover:bg-blue-700'}`}>
                 <Icons.Sheet className="w-6 h-6 mr-3" /> ファイルを選択する
               </div>
             </div>
           </div>
-
           <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
         </div>
       );
