@@ -5,26 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>報道機関別政党・内閣支持率 アナライザー</title>
   
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- React & ReactDOM (UMD) -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   
-  <!-- PropTypes -->
   <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js" crossorigin></script>
   
-  <!-- Recharts -->
   <script src="https://unpkg.com/recharts@2.13.0/umd/Recharts.js" crossorigin></script>
   
-  <!-- Plotly.js for Advanced Charting -->
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 
-  <!-- jStat for Statistical Tests -->
   <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
 
-  <!-- Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
@@ -1202,6 +1195,9 @@
           setYAxisChk(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
         };
 
+        const handleSelectAllYAxis = () => setYAxisChk([...activeNums]);
+        const handleClearAllYAxis = () => setYAxisChk([]);
+
         const renderDynamicControls = () => {
             if(activeNums.length === 0) return <p className="text-sm text-red-500 font-bold p-2 bg-red-50 rounded">※調べる項目を選択してください。</p>;
 
@@ -1214,9 +1210,17 @@
                 </div>
             );
 
-            const CheckboxesControl = ({ label, options, selected, onChange }) => (
+            const CheckboxesControl = ({ label, options, selected, onChange, onSelectAll, onClearAll }) => (
                 <div className="mb-3">
-                    <label className="block text-xs font-bold text-slate-700 mb-1">{label}</label>
+                    <div className="flex justify-between items-end mb-1">
+                        <label className="block text-xs font-bold text-slate-700">{label}</label>
+                        {(onSelectAll || onClearAll) && (
+                            <div className="flex space-x-2">
+                                {onSelectAll && <button type="button" onClick={onSelectAll} className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline">すべて選択</button>}
+                                {onClearAll && <button type="button" onClick={onClearAll} className="text-[10px] text-slate-500 hover:text-slate-700 hover:underline">クリア</button>}
+                            </div>
+                        )}
+                    </div>
                     <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-lg p-1 bg-white shadow-inner">
                         {options.map((opt, i) => (
                             <label key={opt} className="flex items-center space-x-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer transition">
@@ -1296,7 +1300,7 @@
                                 useCase="支持率などが月ごとや調査日ごとにどのように変化しているか、上昇・下降トレンドを確認するのに適しています。" 
                             />
                             {processed.columns.date.length > 0 ? <SelectControl label="X軸 (日付)" value={xAxis} onChange={setXAxis} options={processed.columns.date} /> : <p className="text-xs text-red-500 mb-2">日付と判定される列がありません。</p>}
-                            <CheckboxesControl label="Y軸 (表示する数値)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />
+                            <CheckboxesControl label="Y軸 (表示する数値)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} onSelectAll={handleSelectAllYAxis} onClearAll={handleClearAllYAxis} />
                         </React.Fragment>
                     );
                 case 'comparison':
@@ -1312,8 +1316,8 @@
                         <React.Fragment>
                             <AnalysisDescription {...descObj} />
                             <SelectControl label="グループ化 (X軸)" value={xAxis} onChange={setXAxis} options={['全体', ...catOpts]} />
-                            {analysisType === 'comparison' && <CheckboxesControl label="比較する数値 (Y軸)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />}
-                            {analysisType === 'stackedbar' && <CheckboxesControl label="積み上げる数値 (Y軸)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />}
+                            {analysisType === 'comparison' && <CheckboxesControl label="比較する数値 (Y軸)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} onSelectAll={handleSelectAllYAxis} onClearAll={handleClearAllYAxis} />}
+                            {analysisType === 'stackedbar' && <CheckboxesControl label="積み上げる数値 (Y軸)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} onSelectAll={handleSelectAllYAxis} onClearAll={handleClearAllYAxis} />}
                             {analysisType === 'boxplot' && <SelectControl label="分布を見る数値 (Y軸)" value={yAxis} onChange={setYAxis} options={activeNums} />}
                         </React.Fragment>
                     );
@@ -1363,7 +1367,7 @@
                                 desc="選択した項目の全体平均値を算出し、円グラフで割合として表示します。" 
                                 useCase="内閣支持・不支持の割合や、政党支持率のシェアなど、全体に対する各項目の比率を直感的に示すのに適しています。" 
                             />
-                            <CheckboxesControl label="割合を見る数値" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />
+                            <CheckboxesControl label="割合を見る数値" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} onSelectAll={handleSelectAllYAxis} onClearAll={handleClearAllYAxis} />
                         </React.Fragment>
                     );
                 case 'radar':
@@ -1376,7 +1380,7 @@
                                 useCase="機関ごと、あるいは月ごとの「政党支持率のバランス」など、複数の要素を総合的に比較・評価するのに適しています。" 
                             />
                             <SelectControl label="比較するグループ" value={xAxis} onChange={setXAxis} options={['全体', ...radarGroupOpts]} />
-                            <CheckboxesControl label="比較する指標 (3つ以上推奨)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />
+                            <CheckboxesControl label="比較する指標 (3つ以上推奨)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} onSelectAll={handleSelectAllYAxis} onClearAll={handleClearAllYAxis} />
                         </React.Fragment>
                     );
                 case 'bubble':
@@ -1414,7 +1418,7 @@
                                 desc="複数の縦軸を平行に並べ、1件のデータを1本の折れ線としてすべての軸をまたいで描画します。" 
                                 useCase="「この機関はA党は高く出すが、B党は低く出す」といった、複数の項目を横断した特徴的なパターンを発見するのに適しています。" 
                             />
-                            <CheckboxesControl label="比較する数値 (複数)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} />
+                            <CheckboxesControl label="比較する数値 (複数)" options={activeNums} selected={yAxisChk} onChange={toggleYAxisChk} onSelectAll={handleSelectAllYAxis} onClearAll={handleClearAllYAxis} />
                             <SelectControl label="線の色分け基準 (数値)" value={colorAxis} onChange={setColorAxis} options={activeNums} />
                         </React.Fragment>
                     );
