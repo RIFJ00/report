@@ -95,9 +95,10 @@
     // ==========================================
 
     const excelSerialToDateString = (serial) => {
-      if (typeof serial !== 'number' || serial < 20000 || serial > 60000) return serial;
+      let num = Number(serial);
+      if (isNaN(num) || num < 10000 || num > 90000) return serial;
       try {
-        const utc_days = Math.floor(serial - 25569);
+        const utc_days = Math.floor(num - 25569);
         const d = new Date(utc_days * 86400 * 1000);
         if (isNaN(d.getTime())) return serial;
         return d.toISOString().split('T')[0];
@@ -232,7 +233,9 @@
       ArrowDownUp: (p) => <SvgIcon d="m3 16 4 4 4-4 M7 20V4 m14-12-4-4-4 4 M17 4v16" {...p}/>,
       ArrowRightLeft: (p) => <SvgIcon d="m16 3 4 4-4 4 M20 7H4 m4 14-4-4 4-4 M4 17h16" {...p}/>,
       Star: (p) => <SvgIcon d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" {...p}/>,
-      Filter: (p) => <SvgIcon d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" {...p}/>
+      Filter: (p) => <SvgIcon d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" {...p}/>,
+      Hash: (p) => <SvgIcon d="M4 9h16 M4 15h16 M10 3L8 21 M16 3l-2 18" {...p}/>,
+      Calendar: (p) => <SvgIcon d="M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18" {...p}/>
     };
 
     const AxisOptions = ({ cols }) => (
@@ -356,6 +359,7 @@
                     <li><strong>行列を入替 / 順序反転:</strong> 「行列を入替」ボタンで縦横のデータを転置できます。特定の列を項目（キー）として行列を入れ替える場合は、列名のメニューから星(★)アイコンをクリックして項目指定を行ってから実行してください。「行反転」「列反転」ボタンで全体の並び順を一括で逆にすることもできます。</li>
                     <li><strong>行・列の追加とコピー・ペースト:</strong> 各列名・各行番号にカーソルを合わせると表示されるメニューから、「＋」アイコンで空の列や行を挿入できます。「コピー」アイコンでデータを記憶し、好きな場所の「ペースト」アイコンをクリックすると、その位置にデータを複製できます。また、行をコピーした状態で表の左上の空白セル（ヘッダー行の左端）のペーストアイコンをクリックすると、その行のデータを列名（ヘッダー）として一括適用できます。</li>
                     <li><strong>行・列の削除:</strong> 行番号や列名にカーソルを合わせると表示されるゴミ箱アイコンをクリックすると、不要なデータを削除できます。</li>
+                    <li><strong>データ型の一括変換:</strong> 列名や行番号にカーソルを合わせると表示される「#」アイコンで数値に、「📅」アイコンで日付形式（YYYY-MM-DD）に一括変換できます。表記ゆれや不要な文字（カンマや円記号など）を取り除いてデータをクレンジングしたい場合に便利です。</li>
                     <li><strong>列名の変更:</strong> ヘッダー（列名）をクリックして直接文字を打ち換えることができます。</li>
                     <li><strong>保存 (エクスポート):</strong> 編集したデータを「保存」ボタンから Excel形式(<code>.xlsx</code>) でダウンロードできます。</li>
                   </ul>
@@ -1681,6 +1685,75 @@
         showToast('列の順序を左右反転しました。');
       };
 
+      const convertToNumber = (val) => {
+        if (val === undefined || val === null || val === '') return val;
+        let cleanVal = String(val).replace(/[,¥\\ ]/g, '');
+        let num = Number(cleanVal);
+        if (!isNaN(num) && cleanVal !== '') return num;
+        
+        if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(String(val)) || /^\d{4}年\d{1,2}月\d{1,2}日$/.test(String(val))) {
+           const cleanDate = String(val).replace(/年|月/g, '-').replace(/日/g, '').replace(/\//g, '-').replace(/\./g, '-');
+           const d = new Date(cleanDate);
+           if (!isNaN(d.getTime())) {
+               const utcDate = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+               return Math.floor(utcDate.getTime() / 86400000) + 25569;
+           }
+        }
+        return val;
+      };
+
+      const convertToDate = (val, colKey = "") => {
+        if (val === undefined || val === null || val === '') return val;
+        let s = String(val).trim();
+        let num = Number(s);
+        if (!isNaN(num) && s !== '') {
+            // Excelシリアル値の変換 (例: 45000)
+            if (num >= 10000 && num <= 90000) {
+                const res = excelSerialToDateString(num);
+                if (typeof res === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(res)) return res;
+            } 
+            // YYYYMMDD形式の8桁の数字の変換 (例: 20230515)
+            else if (s.length === 8 && num > 19000000 && num < 21000000) {
+                const y = s.substring(0,4), m = s.substring(4,6), d = s.substring(6,8);
+                const dateObj = new Date(`${y}-${m}-${d}`);
+                if (!isNaN(dateObj.getTime())) return `${y}-${m}-${d}`;
+            }
+        }
+        
+        let formatted = smartFormatDate(val, colKey);
+        if (formatted !== val) return formatted;
+        
+        return val;
+      };
+
+      const convertColumnType = (colKey, type) => {
+        if (!gridData.length) return;
+        pushHistory(gridData, gridColumns);
+        setGridData(prev => prev.map(row => {
+          const newRow = { ...row };
+          if (type === 'number') newRow[colKey] = convertToNumber(newRow[colKey]);
+          else if (type === 'date') newRow[colKey] = convertToDate(newRow[colKey], colKey);
+          return newRow;
+        }));
+        showToast(`列「${colKey}」を${type === 'number' ? '数値' : '日付'}形式に一括変換しました。`);
+      };
+
+      const convertRowType = (rIdx, type) => {
+        if (!gridData.length) return;
+        pushHistory(gridData, gridColumns);
+        setGridData(prev => {
+          const newData = [...prev];
+          const newRow = { ...newData[rIdx] };
+          gridColumns.forEach(k => {
+             if (type === 'number') newRow[k] = convertToNumber(newRow[k]);
+             else if (type === 'date') newRow[k] = convertToDate(newRow[k], k);
+          });
+          newData[rIdx] = newRow;
+          return newData;
+        });
+        showToast(`${rIdx + 1}行目を${type === 'number' ? '数値' : '日付'}形式に一括変換しました。`);
+      };
+
       return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
           <header className="h-16 bg-slate-900 text-white flex items-center justify-between px-6 shrink-0 z-30">
@@ -1757,6 +1830,8 @@
                               <input type="text" defaultValue={k} onFocus={() => { focusedGridSnapshot.current = { grid: gridData, cols: gridColumns, keyCol: keyColumn }; }} onBlur={(e) => { const nk = e.target.value; if(!nk || nk===k) return; pushHistory(focusedGridSnapshot.current.grid, focusedGridSnapshot.current.cols, focusedGridSnapshot.current.keyCol); setGridColumns(prev => prev.map(c => c === k ? nk : c)); setGridData(prev => prev.map(r => { const nr = {}; Object.keys(r).forEach(x=>nr[x===k?nk:x]=r[x]); return nr; })); if(keyColumn === k) setKeyColumn(nk); }} className="cell-input header-input flex-1 min-w-0 mr-1 text-left px-1 bg-transparent" />
                               <div className="flex shrink-0 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50 shadow-sm rounded">
                                 <button onClick={() => setKeyColumn(keyColumn === k ? null : k)} className={`${keyColumn === k ? 'text-amber-500 hover:text-amber-600' : 'text-slate-400 hover:text-amber-500'} p-1`} title="この列を項目(キー)に指定"><Icons.Star className="w-4 h-4"/></button>
+                                <button onClick={() => convertColumnType(k, 'number')} className="text-indigo-400 hover:text-indigo-600 p-1" title="数値に一括変換"><Icons.Hash className="w-4 h-4"/></button>
+                                <button onClick={() => convertColumnType(k, 'date')} className="text-pink-400 hover:text-pink-600 p-1" title="日付に一括変換"><Icons.Calendar className="w-4 h-4"/></button>
                                 <button onClick={() => copyColumn(k)} className="text-blue-400 hover:text-blue-600 p-1" title="列をコピー"><Icons.Copy className="w-4 h-4"/></button>
                                 {clipboard.type === 'col' && (
                                   <button onClick={() => pasteColumnAfter(k)} className="text-orange-400 hover:text-orange-600 p-1" title="右にペースト"><Icons.Clipboard className="w-4 h-4"/></button>
@@ -1776,6 +1851,8 @@
                           <td className="bg-slate-50 border-r w-36 p-0 min-w-[9rem]">
                             <div className="flex justify-between items-center px-1">
                               <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => convertRowType(rIdx, 'number')} className="text-indigo-400 hover:text-indigo-600 p-1" title="数値に一括変換"><Icons.Hash className="w-4 h-4"/></button>
+                                <button onClick={() => convertRowType(rIdx, 'date')} className="text-pink-400 hover:text-pink-600 p-1" title="日付に一括変換"><Icons.Calendar className="w-4 h-4"/></button>
                                 <button onClick={() => copyRow(rIdx)} className="text-blue-400 hover:text-blue-600 p-1" title="行をコピー"><Icons.Copy className="w-4 h-4"/></button>
                                 {clipboard.type === 'row' && (
                                   <button onClick={() => pasteRowAfter(rIdx)} className="text-orange-400 hover:text-orange-600 p-1" title="下にペースト"><Icons.Clipboard className="w-4 h-4"/></button>
