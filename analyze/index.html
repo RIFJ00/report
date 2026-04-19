@@ -579,7 +579,12 @@
         if (chartArea && window.Plotly) window.Plotly.purge(chartArea);
 
         if (filteredData.length === 0) {
-           setNoDataMsg('指定された期間に該当するデータが存在しません。');
+           setNoDataMsg('指定された期間や条件に該当するデータが存在しません。');
+           return;
+        }
+
+        if (yAxisChk.length === 0) {
+           setNoDataMsg('分析対象(縦軸・数値)を1つ以上選択してください。');
            return;
         }
 
@@ -598,7 +603,6 @@
               break;
             }
             case 'gauge': {
-              if (yAxisChk.length === 0) throw new Error("数値を1つ以上選択してください");
               let val = toNum(filteredData[0][yAxisChk[0]]);
               window.Plotly.newPlot('chart-area', [{ type: "indicator", mode: "gauge+number", value: val, title: { text: yAxisChk[0] } }], { margin: { t: 40, b: 40 } }, {responsive:true});
               extractedDataForAI = { type: 'gauge', metric: yAxisChk[0], value: val };
@@ -616,23 +620,53 @@
               break;
             }
             case 'candlestick': {
-              if (yAxisChk.length < 4) throw new Error('ローソク足を描画するには、分析対象(数値)で「始値」「高値」「安値」「終値」の順に4つの項目を選択してください。');
+              if (yAxisChk.length < 4) throw new Error('ローソク足を描画するには、分析対象(数値)を4つ（始値、高値、安値、終値）選択してください。');
+              
+              // 1. 列名から「始値」「高値」「安値」「終値」を自動判定（見つからなければ選択順）
+              let openCol = yAxisChk.find(c => /始値|open|初値/i.test(c)) || yAxisChk[0];
+              let highCol = yAxisChk.find(c => /高値|high|最高/i.test(c)) || yAxisChk[1];
+              let lowCol = yAxisChk.find(c => /安値|low|最低/i.test(c)) || yAxisChk[2];
+              let closeCol = yAxisChk.find(c => /終値|close/i.test(c)) || yAxisChk[3];
+
               let sorted = [...filteredData].sort((a,b) => {
                   let vA = a[xAxis];
                   let vB = b[xAxis];
                   return vA < vB ? -1 : 1;
               });
+
+              let xVals = [], oVals = [], hVals = [], lVals = [], cVals = [];
+              
+              sorted.forEach(d => {
+                  let o = toNum(d[openCol]);
+                  let h = toNum(d[highCol]);
+                  let l = toNum(d[lowCol]);
+                  let c = toNum(d[closeCol]);
+                  
+                  if (o !== null && h !== null && l !== null && c !== null) {
+                      xVals.push(d[xAxis]);
+                      oVals.push(o);
+                      cVals.push(c);
+                      // 2. 自動補正: 4つの値のうち最大値を確実に「上ヒゲ(High)」、最小値を「下ヒゲ(Low)」にする
+                      hVals.push(Math.max(o, h, l, c));
+                      lVals.push(Math.min(o, h, l, c));
+                  }
+              });
+
               let trace = {
-                x: sorted.map(d => d[xAxis]),
-                open: sorted.map(d => toNum(d[yAxisChk[0]])),
-                high: sorted.map(d => toNum(d[yAxisChk[1]])),
-                low: sorted.map(d => toNum(d[yAxisChk[2]])),
-                close: sorted.map(d => toNum(d[yAxisChk[3]])),
+                x: xVals,
+                open: oVals,
+                high: hVals,
+                low: lVals,
+                close: cVals,
                 type: 'candlestick',
-                xaxis: 'x', yaxis: 'y'
+                xaxis: 'x', yaxis: 'y',
+                name: '価格',
+                increasing: { line: { color: '#ef4444' } }, // 陽線を赤色に（日本式）
+                decreasing: { line: { color: '#3b82f6' } }  // 陰線を青色に（日本式）
               };
+              
               window.Plotly.newPlot('chart-area', [trace], { margin: {t:40}, xaxis: {rangeslider: {visible: false}} }, {responsive:true});
-              extractedDataForAI = { type: 'candlestick', data_points: sorted.length, metrics: yAxisChk.slice(0,4) };
+              extractedDataForAI = { type: 'candlestick', data_points: xVals.length, metrics: [openCol, highCol, lowCol, closeCol] };
               break;
             }
             case 'normalized_line': {
@@ -652,7 +686,6 @@
               break;
             }
             case 'waterfall': {
-              if(yAxisChk.length === 0) throw new Error("数値を1つ以上選択してください");
               let trace = {
                 type: "waterfall",
                 x: filteredData.map(d => d[xAxis]),
@@ -664,7 +697,6 @@
             }
             case 'sunburst':
             case 'treemap': {
-              if (!xAxis) throw new Error('階層/カテゴリを選択してください。');
               let { ids, labels, parents, values } = buildHierarchy(filteredData, [xAxis], yAxisChk[0]);
               window.Plotly.newPlot('chart-area', [{ 
                   type: analysisType, 
@@ -688,7 +720,6 @@
               break;
             }
             case 'pie': {
-              if (yAxisChk.length === 0) throw new Error("数値を1つ以上選択してください");
               let g = {}; 
               filteredData.forEach(r => {
                 let k = r[xAxis] !== undefined ? String(r[xAxis]) : '未選択';
@@ -705,7 +736,6 @@
               break;
             }
             case 'pareto': {
-              if (yAxisChk.length === 0) throw new Error("数値を1つ以上選択してください");
               let key = xAxis === 'デフォルト（行/データ順）' ? yAxisChk[0] : xAxis;
               let agg = {}; 
               filteredData.forEach(d => { let k = String(d[key] || '不明'); agg[k] = (agg[k] || 0) + (toNum(d[yAxisChk[0]]) || 0); });
@@ -723,7 +753,6 @@
               break;
             }
             case 'funnel': {
-              if (yAxisChk.length === 0) throw new Error("数値を1つ以上選択してください");
               let xLabels = xAxis === 'デフォルト（行/データ順）' ? yAxisChk : [xAxis];
               let values = yAxisChk.map(c => filteredData.reduce((acc, d) => acc + (toNum(d[c]) || 0), 0));
               window.Plotly.newPlot('chart-area', [{ type: 'funnel', y: yAxisChk, x: values, textinfo: "value+percent initial" }], { margin: { l: 150 } }, {responsive:true});
@@ -784,6 +813,42 @@
                  { x: [xMin, xMax], y: [yMin, yMax], mode: 'lines', name: '回帰直線', type: 'scatter' }
               ], { margin: {t:40}, xaxis: { title: xKey }, yaxis: { title: yKey } }, {responsive:true});
               extractedDataForAI = { type: 'trendline', slope: slope, intercept: intercept, data_points: n };
+              break;
+            }
+            case 'bubble': {
+              if (yAxisChk.length < 2 && xAxis === 'デフォルト（行/データ順）') {
+                  throw new Error('バブルチャートを描画するには、分析対象(数値)を2つ以上選択してください。');
+              }
+              let xKey = xAxis !== 'デフォルト（行/データ順）' ? xAxis : yAxisChk[0];
+              let yKey = xAxis !== 'デフォルト（行/データ順）' ? yAxisChk[0] : yAxisChk[1];
+              let sizeKey = xAxis !== 'デフォルト（行/データ順）' ? (yAxisChk[1] || yAxisChk[0]) : (yAxisChk[2] || yAxisChk[1]);
+              
+              let xVals = filteredData.map(d => cols.numeric.includes(xKey) ? toNum(d[xKey]) : d[xKey]);
+              let yVals = filteredData.map(d => toNum(d[yKey]));
+              let sizeVals = filteredData.map(d => toNum(d[sizeKey]));
+              
+              let maxSize = Math.max(...sizeVals.filter(v=>v!==null));
+              let markerSizes = sizeVals.map(v => v !== null && maxSize > 0 ? (v / maxSize) * 40 + 5 : 5);
+              
+              let trace = { x: xVals, y: yVals, mode: 'markers', marker: { size: markerSizes, sizemode: 'diameter', opacity: 0.6, color: sizeVals, colorscale: 'Viridis' }, type: 'scatter' };
+              window.Plotly.newPlot('chart-area', [trace], { margin: {t:40}, xaxis: { title: xKey }, yaxis: { title: yKey } }, {responsive:true});
+              extractedDataForAI = { type: 'bubble' };
+              break;
+            }
+            case 'splom': {
+              if (yAxisChk.length < 2) throw new Error('散布図行列を描画するには、分析対象(数値)を2つ以上選択してください。');
+              let dimensions = yAxisChk.map(c => ({ label: c, values: filteredData.map(d=>toNum(d[c])) }));
+              let trace = { type: 'splom', dimensions: dimensions, marker: { size: 5, opacity: 0.6 } };
+              window.Plotly.newPlot('chart-area', [trace], { margin: {t:40} }, {responsive:true});
+              extractedDataForAI = { type: 'splom' };
+              break;
+            }
+            case 'parcoords': {
+              if (yAxisChk.length < 2) throw new Error('平行座標プロットを描画するには、分析対象(数値)を2つ以上選択してください。');
+              let dimensions = yAxisChk.map(c => ({ label: c, values: filteredData.map(d=>toNum(d[c])) }));
+              let trace = { type: 'parcoords', line: {color: 'blue'}, dimensions: dimensions };
+              window.Plotly.newPlot('chart-area', [trace], { margin: {t:40} }, {responsive:true});
+              extractedDataForAI = { type: 'parcoords' };
               break;
             }
             case 'bumpchart': {
@@ -848,7 +913,6 @@
             }
             case 'sankey': {
               if(cols.categorical.length < 2) throw new Error("サンキーダイアグラムを描画するには最低2つのカテゴリー列が必要です。");
-              if (yAxisChk.length === 0) throw new Error("フロー量を表す数値を1つ以上選択してください。");
               let catCols = cols.categorical.slice(0,2);
               if (xAxis !== 'デフォルト（行/データ順）' && cols.categorical.includes(xAxis)) {
                  catCols[0] = xAxis;
@@ -878,7 +942,6 @@
               break;
             }
             case 'crosstab_heatmap': {
-              if(yAxisChk.length === 0) throw new Error('クロス集計するには、縦軸(カテゴリまたは数値)を1つ以上選択してください。');
               let cat1 = xAxis, cat2 = yAxisChk[0];
               let g = {}; let xLabels = new Set(), yLabels = new Set();
               filteredData.forEach(r => {
@@ -894,7 +957,6 @@
               break;
             }
             case 'stat_test': {
-                if(!xAxis || yAxisChk.length === 0) throw new Error('検定を行うには、横軸にカテゴリ、縦軸に数値を1つ以上選択してください。');
                 let groups = {};
                 filteredData.forEach(r => {
                     let k = String(r[xAxis]);
@@ -920,17 +982,28 @@
                 break;
             }
             default: {
-                let xKey = xAxis;
-                let yKey = yAxisChk[0];
-                let traces = [{ 
-                  x: filteredData.map(d => xKey ? (cols.numeric.includes(xKey) ? toNum(d[xKey]) : d[xKey]) : null), 
-                  y: filteredData.map(d => yKey ? toNum(d[yKey]) : null), 
-                  mode: 'markers', 
-                  type: analysisType==='scatter3d' ? 'scatter3d' : 'scatter' 
-                }];
+                let traces = [];
                 if (analysisType === 'scatter3d') {
-                  let zKey = yAxisChk[1] || yAxisChk[0];
-                  traces[0].z = filteredData.map(d => zKey ? toNum(d[zKey]) : null);
+                  let xKey = xAxis !== 'デフォルト（行/データ順）' ? xAxis : yAxisChk[0];
+                  let yKey = xAxis !== 'デフォルト（行/データ順）' ? yAxisChk[0] : (yAxisChk[1] || yAxisChk[0]);
+                  let zKey = xAxis !== 'デフォルト（行/データ順）' ? (yAxisChk[1] || yAxisChk[0]) : (yAxisChk[2] || yAxisChk[1] || yAxisChk[0]);
+                  traces = [{ 
+                    x: filteredData.map(d => cols.numeric.includes(xKey) ? toNum(d[xKey]) : d[xKey]), 
+                    y: filteredData.map(d => toNum(d[yKey])), 
+                    z: filteredData.map(d => toNum(d[zKey])),
+                    mode: 'markers', 
+                    type: 'scatter3d',
+                    marker: { size: 5, color: filteredData.map(d => toNum(d[zKey])), colorscale: 'Viridis' }
+                  }];
+                } else {
+                  let xKey = xAxis;
+                  let yKey = yAxisChk[0];
+                  traces = [{ 
+                    x: filteredData.map(d => xKey ? (cols.numeric.includes(xKey) ? toNum(d[xKey]) : d[xKey]) : null), 
+                    y: filteredData.map(d => yKey ? toNum(d[yKey]) : null), 
+                    mode: 'markers', 
+                    type: 'scatter' 
+                  }];
                 }
                 window.Plotly.newPlot('chart-area', traces, { margin: {t:40} }, {responsive:true});
             }
