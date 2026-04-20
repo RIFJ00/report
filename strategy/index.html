@@ -100,7 +100,7 @@
                         
                         <!-- データ更新日 -->
                         <div class="mt-4 text-xs md:text-sm font-bold text-blue-200 whitespace-nowrap bg-blue-900/50 px-4 py-2 rounded-xl border border-blue-800/50 shadow-inner w-fit">
-                            データ更新日: <span id="data-update-date" class="text-white">...</span>
+                            データ更新日: <span id="data-update-date" class="text-white">取得中...</span>
                         </div>
                     </div>
                 </div>
@@ -202,6 +202,12 @@
                                                 <span>政策レポート（2026/4/6）</span>
                                             </div>
                                         </button>
+                                        <button onclick="toggleReport('https://report.rifj.jp/pdfupload/?id=e81e8866-923f-4543-b14c-2ebf046267f1', this)" class="w-full text-left text-[11px] font-bold bg-yellow-100 border border-yellow-400 hover:bg-yellow-200 text-yellow-900 px-2.5 py-2 rounded transition-colors flex justify-between items-center shadow-sm">
+                                            <div class="flex items-center gap-1.5">
+                                                <svg class="w-3.5 h-3.5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                                <span>政策レポート（2026/4/20）</span>
+                                            </div>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -277,10 +283,14 @@
                                         <span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span> <b>対象領域</b>（関連する事業分野）
                                     </div>
                                 </div>
-                                <div class="mt-auto text-center">
-                                    <button class="bg-blue-800 text-white font-bold py-2 px-4 rounded-lg w-full shadow hover:bg-blue-700 transition">
+                                <div class="mt-auto text-center relative">
+                                    <button onclick="showActionPopup(this)" class="bg-blue-800 text-white font-bold py-2 px-4 rounded-lg w-full shadow hover:bg-blue-700 transition">
                                         事業計画への反映・実行
                                     </button>
+                                    <div class="action-popup absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-800 text-white text-xs font-bold rounded shadow-xl opacity-0 transition-opacity duration-300 pointer-events-none whitespace-nowrap z-50">
+                                        各社の判断により実行
+                                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1220,8 +1230,12 @@
         }
 
         function updateFieldSelect(autoDisplay = true) {
-            const category = document.getElementById('category-select').value;
+            const categorySelect = document.getElementById('category-select');
+            if (!categorySelect) return;
+            const category = categorySelect.value;
             const fieldSelect = document.getElementById('field-select');
+            if (!fieldSelect) return;
+            
             fieldSelect.innerHTML = '';
             
             const data = category === '17' ? areas17 : areas8;
@@ -1238,7 +1252,9 @@
         }
 
         function displayFieldData() {
-            const fieldId = document.getElementById('field-select').value;
+            const fieldSelect = document.getElementById('field-select');
+            if (!fieldSelect || !fieldSelect.value) return;
+            const fieldId = fieldSelect.value;
             const info = detailedInfo[fieldId] || {};
             const [category, no] = fieldId.split('_');
             const dataList = category === '17' ? areas17 : areas8;
@@ -1323,7 +1339,9 @@
         const isMobileDevice = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
         function updatePdfDisplay() {
-            const fieldId = document.getElementById('field-select').value;
+            const fieldSelect = document.getElementById('field-select');
+            if (!fieldSelect || !fieldSelect.value) return;
+            const fieldId = fieldSelect.value;
             const url = getPdfUrl(fieldId);
             const iframe = document.getElementById('pdf-frame');
             const noMessage = document.getElementById('no-pdf-message');
@@ -1654,7 +1672,9 @@
         }
 
         function populateRelatedCouncilsTable() {
-            const fieldId = document.getElementById('field-select').value;
+            const fieldSelect = document.getElementById('field-select');
+            if (!fieldSelect || !fieldSelect.value) return;
+            const fieldId = fieldSelect.value;
             const data = relatedCouncilsData[fieldId] || [];
 
             const tbody = document.getElementById('related-modal-tbody');
@@ -1846,7 +1866,9 @@
         }
 
         function downloadCSV() {
-            const fid = document.getElementById('field-select').value;
+            const fieldSelect = document.getElementById('field-select');
+            if (!fieldSelect || !fieldSelect.value) return;
+            const fid = fieldSelect.value;
             const data = relatedCouncilsData[fid] || [];
             if (data.length === 0) return;
             
@@ -1934,8 +1956,10 @@
         }
 
         function openFieldCommentModal() {
-            const fid = document.getElementById('field-select').value;
-            const sel = document.getElementById('field-select');
+            const fieldSelect = document.getElementById('field-select');
+            if (!fieldSelect || !fieldSelect.value) return;
+            const fid = fieldSelect.value;
+            const sel = fieldSelect;
             document.getElementById('field-comment-title').innerText = sel.options[sel.selectedIndex].text;
             
             let rawComment = fieldComments[fid] || "この分野の解説データは現在登録されていません。";
@@ -1952,6 +1976,26 @@
         }
 
         function closeFieldCommentModal() { document.getElementById('field-comment-modal').classList.add('hidden'); }
+
+        function showActionPopup(btn) {
+            const container = btn.parentElement;
+            const popup = container.querySelector('.action-popup');
+            
+            // ポップアップを表示
+            popup.classList.remove('opacity-0');
+            popup.classList.add('opacity-100');
+            
+            // 既存のタイマーがあればクリア
+            if (btn.popupTimeout) {
+                clearTimeout(btn.popupTimeout);
+            }
+            
+            // 1.5秒後にフェードアウト
+            btn.popupTimeout = setTimeout(() => {
+                popup.classList.remove('opacity-100');
+                popup.classList.add('opacity-0');
+            }, 1500);
+        }
 
         function handleAdminClick() {
             if (adminClickCount === 0) {
