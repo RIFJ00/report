@@ -65,6 +65,13 @@
       monochrome: { name: '⬛ モノクローム (白黒)', colorway: ['#171717', '#404040', '#737373', '#a3a3a3', '#d4d4d4', '#262626', '#525252', '#e5e5e5', '#0a0a0a', '#000000'], colorscale: 'Greys' }
     };
 
+    const BACKGROUND_COLORS = {
+      white: { name: '⚪ ホワイト (標準)', plot: '#ffffff', paper: '#ffffff', font: '#1e293b', grid: '#e2e8f0', panelClass: 'bg-white text-slate-800' },
+      light: { name: '🌫️ ライトグレー', plot: '#f8fafc', paper: '#f8fafc', font: '#1e293b', grid: '#e2e8f0', panelClass: 'bg-slate-50 text-slate-800' },
+      dark: { name: '🌙 ダーク', plot: '#1e293b', paper: '#1e293b', font: '#f8fafc', grid: '#334155', panelClass: 'bg-slate-800 text-slate-100 border-slate-700' },
+      black: { name: '⬛ ブラック', plot: '#000000', paper: '#000000', font: '#f8fafc', grid: '#333333', panelClass: 'bg-black text-slate-100 border-gray-800' }
+    };
+
     const ANALYSIS_TYPES = [
       { id: 'summary', name: '1. 基本統計量 (表)', group: '基礎', desc: '平均、標準偏差、最小、最大、中央値などを一覧表示します。' },
       { id: 'gauge', name: '2. ゲージチャート (KPI)', group: '基礎', desc: '単一の数値指標をメーター形式で表示し、目標達成率などを直感的に可視化します。' },
@@ -383,7 +390,7 @@
                     <li><strong>軸 / カテゴリ (X軸):</strong> グラフの横軸となる項目を選びます。</li>
                     <li><strong>分析対象 / 数値 (Y軸):</strong> グラフの縦軸（値）となる数値項目を選びます。比較などで複数選択が可能です。</li>
                     <li><strong>グラフタイトル:</strong> サイドバー下部で任意のタイトルを入力すると、出力結果の見出しに反映されます。</li>
-                    <li><strong>カラーテーマ (色合い):</strong> サイドバー下部でグラフのカラーバリエーションを変更できます。デフォルトのカラフルな配色から、ブルー系、パステル、モノクロなど、用途や好みに合わせて切り替えが可能です。</li>
+                    <li><strong>カラーテーマと背景色:</strong> グラフの色合いや背景色を自由に変更できます。ダークモードなど、用途や好みに合わせて切り替えが可能です。</li>
                     <li><strong>データ元と日付の表示:</strong> サイドバー下部のチェックボックスにより、グラフ右下にデータ元（ファイル名）と本日の日付を表示・非表示に切り替えることができます。結果を画像として保存・共有する際に便利です。</li>
                     <li><strong>初期化:</strong> 分析設定をリセットしたい場合はサイドバーの「条件を初期化」、データ全体を元に戻したい場合は右上の「データを初期化」を使用してください。</li>
                   </ul>
@@ -438,6 +445,7 @@
       const [showTooltip, setShowTooltip] = useState(false); // ツールチップ用
       const [showDataSource, setShowDataSource] = useState(true); // データ元と日付の表示トグル
       const [colorPalette, setColorPalette] = useState('default'); // カラーパレット
+      const [bgColor, setBgColor] = useState('white'); // 背景色
 
       // --- AI履歴保存用のState ---
       const [savedReports, setSavedReports] = useState([]);
@@ -600,9 +608,15 @@
         }
 
         let extractedDataForAI = null;
+        let currentBg = BACKGROUND_COLORS[bgColor];
         let baseLayout = {
             margin: { t: 40 },
-            colorway: COLOR_PALETTES[colorPalette].colorway
+            colorway: COLOR_PALETTES[colorPalette].colorway,
+            plot_bgcolor: currentBg.plot,
+            paper_bgcolor: currentBg.paper,
+            font: { color: currentBg.font },
+            xaxis: { gridcolor: currentBg.grid, zerolinecolor: currentBg.grid },
+            yaxis: { gridcolor: currentBg.grid, zerolinecolor: currentBg.grid }
         };
         let currentColorscale = COLOR_PALETTES[colorPalette].colorscale;
 
@@ -682,7 +696,8 @@
                 decreasing: { line: { color: '#3b82f6' } }  // 陰線を青色に（日本式）
               };
               
-              window.Plotly.newPlot('chart-area', [trace], { ...baseLayout, xaxis: {rangeslider: {visible: false}} }, {responsive:true});
+              let layout = { ...baseLayout, xaxis: { rangeslider: {visible: false}, gridcolor: currentBg.grid, zerolinecolor: currentBg.grid } };
+              window.Plotly.newPlot('chart-area', [trace], layout, {responsive:true});
               extractedDataForAI = { type: 'candlestick', data_points: xVals.length, metrics: [openCol, highCol, lowCol, closeCol] };
               break;
             }
@@ -831,7 +846,7 @@
               window.Plotly.newPlot('chart-area', [
                  { x: x, y: y, mode: 'markers', name: 'データ', type: 'scatter', marker: { color: COLOR_PALETTES[colorPalette].colorway[0] } },
                  { x: [xMin, xMax], y: [yMin, yMax], mode: 'lines', name: '回帰直線', type: 'scatter', line: { color: COLOR_PALETTES[colorPalette].colorway[1] } }
-              ], { ...baseLayout, xaxis: { title: xKey }, yaxis: { title: yKey } }, {responsive:true});
+              ], { ...baseLayout, xaxis: { title: xKey, gridcolor: currentBg.grid, zerolinecolor: currentBg.grid }, yaxis: { title: yKey, gridcolor: currentBg.grid, zerolinecolor: currentBg.grid } }, {responsive:true});
               extractedDataForAI = { type: 'trendline', slope: slope, intercept: intercept, data_points: n };
               break;
             }
@@ -851,7 +866,7 @@
               let markerSizes = sizeVals.map(v => v !== null && maxSize > 0 ? (v / maxSize) * 40 + 5 : 5);
               
               let trace = { x: xVals, y: yVals, mode: 'markers', marker: { size: markerSizes, sizemode: 'diameter', opacity: 0.6, color: sizeVals, colorscale: currentColorscale }, type: 'scatter' };
-              window.Plotly.newPlot('chart-area', [trace], { ...baseLayout, xaxis: { title: xKey }, yaxis: { title: yKey } }, {responsive:true});
+              window.Plotly.newPlot('chart-area', [trace], { ...baseLayout, xaxis: { title: xKey, gridcolor: currentBg.grid, zerolinecolor: currentBg.grid }, yaxis: { title: yKey, gridcolor: currentBg.grid, zerolinecolor: currentBg.grid } }, {responsive:true});
               extractedDataForAI = { type: 'bubble' };
               break;
             }
@@ -890,7 +905,7 @@
                   });
               });
               let traces = rankData.map(r => ({ x: r.x, y: r.y, type: 'scatter', mode: 'lines+markers', name: r.name }));
-              window.Plotly.newPlot('chart-area', traces, { ...baseLayout, yaxis: { autorange: 'reversed', tickdtick: 1 } }, {responsive:true});
+              window.Plotly.newPlot('chart-area', traces, { ...baseLayout, yaxis: { autorange: 'reversed', tickdtick: 1, gridcolor: currentBg.grid, zerolinecolor: currentBg.grid } }, {responsive:true});
               break;
             }
             case 'radar': {
@@ -1235,6 +1250,7 @@
         setAnalysisType('summary');
         setChartTitle('');
         setColorPalette('default');
+        setBgColor('white');
         setXAxis('デフォルト（行/データ順）');
         setYAxisChk(cols.numeric.length ? cols.numeric.slice(0, 3) : [cols.all[0]]);
         setActiveFilters({});
@@ -1464,17 +1480,28 @@
             <div className="mt-auto pt-6 border-t border-slate-200">
               <div className="mb-4">
                 <label className="block text-sm font-bold text-slate-700 mb-2">グラフタイトル (任意)</label>
-                <input type="text" value={chartTitle} onChange={e => setChartTitle(e.target.value)} placeholder="タイトルを入力..." className="w-full text-sm border border-slate-300 rounded-lg p-2 bg-white outline-none focus:ring-2 focus:ring-blue-600 shadow-sm" />
+                <input type="text" value={chartTitle} onChange={e => setChartTitle(e.target.value)} placeholder="タイトルを入力..." className="w-full text-sm border border-slate-300 rounded-lg p-2 bg-white outline-none focus:ring-2 focus:ring-blue-600 shadow-sm text-slate-800" />
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-bold text-slate-700 mb-2">カラーテーマ (色合い)</label>
-                <div className="relative">
-                  <select value={colorPalette} onChange={e => setColorPalette(e.target.value)} className="w-full text-sm border border-slate-300 rounded-lg p-2.5 pr-8 bg-white outline-none shadow-sm font-medium appearance-none cursor-pointer">
+              <div className="flex space-x-2 mb-4">
+                <div className="flex-1 relative">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">カラーテーマ</label>
+                  <select value={colorPalette} onChange={e => setColorPalette(e.target.value)} className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white outline-none shadow-sm font-medium appearance-none cursor-pointer text-slate-800">
                     {Object.entries(COLOR_PALETTES).map(([k, v]) => (
                       <option key={k} value={k}>{v.name}</option>
                     ))}
                   </select>
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-slate-400">
+                  <div className="absolute right-2 bottom-2 pointer-events-none text-slate-400">
+                    <Icons.ArrowDownUp className="w-3 h-3" />
+                  </div>
+                </div>
+                <div className="flex-1 relative">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">背景色</label>
+                  <select value={bgColor} onChange={e => setBgColor(e.target.value)} className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white outline-none shadow-sm font-medium appearance-none cursor-pointer text-slate-800">
+                    {Object.entries(BACKGROUND_COLORS).map(([k, v]) => (
+                      <option key={k} value={k}>{v.name}</option>
+                    ))}
+                  </select>
+                  <div className="absolute right-2 bottom-2 pointer-events-none text-slate-400">
                     <Icons.ArrowDownUp className="w-3 h-3" />
                   </div>
                 </div>
@@ -1494,15 +1521,15 @@
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col min-w-0 bg-white p-6 overflow-auto">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 min-h-[500px] flex flex-col relative pb-8">
-              <div className="flex justify-between items-center mb-6 border-b pb-3 flex-wrap gap-2">
-                <h2 className="font-bold text-slate-800 text-lg">{chartTitle ? `${chartTitle} ` : ''}可視化グラフ</h2>
+          <div className="flex-1 flex flex-col min-w-0 bg-slate-100 p-6 overflow-auto">
+            <div className={`rounded-2xl shadow-sm border p-5 min-h-[500px] flex flex-col relative pb-8 transition-colors duration-300 ${BACKGROUND_COLORS[bgColor].panelClass}`}>
+              <div className={`flex justify-between items-center mb-6 border-b pb-3 flex-wrap gap-2 ${bgColor === 'dark' || bgColor === 'black' ? 'border-slate-700' : 'border-slate-200'}`}>
+                <h2 className="font-bold text-lg">{chartTitle ? `${chartTitle} ` : ''}可視化グラフ</h2>
                 <div className="flex space-x-2">
-                  <button onClick={onResetGrid} className="bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 px-3 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm">
+                  <button onClick={onResetGrid} className={`px-3 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm border ${bgColor === 'dark' || bgColor === 'black' ? 'bg-slate-700 hover:bg-slate-600 text-slate-200 border-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-200'}`}>
                     <Icons.RefreshCcw className="w-4 h-4 md:mr-1.5" /> <span className="hidden xl:inline">データを初期化</span>
                   </button>
-                  <button onClick={() => setShowHistoryModal(true)} className="bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm">
+                  <button onClick={() => setShowHistoryModal(true)} className={`px-3 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm border ${bgColor === 'dark' || bgColor === 'black' ? 'bg-slate-700 hover:bg-slate-600 text-slate-200 border-slate-600' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200'}`}>
                     <Icons.History className="w-4 h-4 md:mr-1.5" /> <span className="hidden xl:inline">履歴を見る ({savedReports.length})</span>
                   </button>
                   <button onClick={handleAIAnalysis} className="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm border border-indigo-100">
@@ -1515,13 +1542,30 @@
               <div id="chart-area" className={`flex-1 w-full min-h-[400px] ${summaryData ? 'hidden' : ''}`}></div>
               
               {summaryData && (
-                <div className="overflow-x-auto rounded-xl border animate-in"><table className="min-w-full text-sm text-right whitespace-nowrap"><thead className="bg-slate-50 text-slate-600 font-bold border-b"><tr><th className="px-4 py-3 text-left">項目名</th><th>数</th><th>平均</th><th>最小</th><th>中央</th><th>最大</th></tr></thead>
-                  <tbody className="bg-white divide-y">{summaryData.map(r => (<tr key={r.col} className="hover:bg-slate-50"><td className="px-4 py-3 font-bold text-slate-800 text-left">{r.col}</td><td>{r.count}</td><td className="font-bold text-blue-600">{r.mean.toFixed(2)}</td><td>{r.min}</td><td>{r.median}</td><td>{r.max}</td></tr>))}</tbody></table></div>
+                <div className={`overflow-x-auto rounded-xl border animate-in ${bgColor === 'dark' || bgColor === 'black' ? 'border-slate-700' : 'border-slate-200'}`}>
+                  <table className="min-w-full text-sm text-right whitespace-nowrap">
+                    <thead className={bgColor === 'dark' || bgColor === 'black' ? 'bg-slate-700 text-slate-200 border-b border-slate-600' : 'bg-slate-50 text-slate-600 font-bold border-b border-slate-200'}>
+                      <tr><th className="px-4 py-3 text-left">項目名</th><th>数</th><th>平均</th><th>最小</th><th>中央</th><th>最大</th></tr>
+                    </thead>
+                    <tbody className={`divide-y ${bgColor === 'dark' || bgColor === 'black' ? 'divide-slate-700 bg-slate-800 text-slate-200' : 'bg-white divide-slate-200'}`}>
+                      {summaryData.map(r => (
+                        <tr key={r.col} className={bgColor === 'dark' || bgColor === 'black' ? 'hover:bg-slate-700' : 'hover:bg-slate-50'}>
+                          <td className={`px-4 py-3 font-bold text-left ${bgColor === 'dark' || bgColor === 'black' ? 'text-slate-100' : 'text-slate-800'}`}>{r.col}</td>
+                          <td>{r.count}</td>
+                          <td className={`font-bold ${bgColor === 'dark' || bgColor === 'black' ? 'text-blue-400' : 'text-blue-600'}`}>{r.mean.toFixed(2)}</td>
+                          <td>{r.min}</td>
+                          <td>{r.median}</td>
+                          <td>{r.max}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
 
               {/* データ元と日付の表示 */}
               {showDataSource && !noDataMsg && (
-                <div className="absolute bottom-2 right-4 text-[10px] text-slate-400 font-medium">
+                <div className={`absolute bottom-2 right-4 text-[10px] font-medium ${bgColor === 'dark' || bgColor === 'black' ? 'text-slate-500' : 'text-slate-400'}`}>
                   データ元: {fileName} ({new Date().toLocaleDateString('ja-JP')})
                 </div>
               )}
