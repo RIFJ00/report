@@ -863,29 +863,22 @@
                     try {
                         const { initializeApp, getApps } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
                         const { getFirestore } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                        const { getAuth, signInAnonymously, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                        const { getAuth, signInAnonymously } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
                         
                         const appName = "seisakuApp";
                         let app = getApps().find(a => a.name === appName);
                         if (!app) {
-                            const config = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
-                            app = initializeApp(config, appName);
+                            // Canvas環境等の設定を無視し、強制的にお客様のFirebaseプロジェクトを使用する
+                            app = initializeApp(firebaseConfig, appName);
                         }
                         
-                        // Firestoreアクセス前に認証を行う
+                        // 匿名認証を行う
                         const auth = getAuth(app);
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
+                        await signInAnonymously(auth);
                         
                         return getFirestore(app);
                     } catch (error) {
                         console.error("Firebase初期化エラー:", error);
-                        if (error.code === 'auth/unauthorized-domain') {
-                            alert("Firebaseの認証エラーです。\nFirebaseコンソールの「Authentication」→「設定（Settings）」→「承認済みドメイン（Authorized domains）」に、現在アクセスしているドメインを追加してください。");
-                        }
                         dbInstancePromise = null;
                         throw error;
                     }
@@ -902,342 +895,371 @@
                 .toLowerCase();
         };
 
-        // getDocsを使ったフェッチ関数を定義
-        async function fetchFieldCommentsData(isInitial = false) {
+        // onSnapshotを使ったリアルタイムフェッチ関数を定義
+        async function fetchFieldCommentsData() {
             try {
                 const db = await initFirebase();
-                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'seisakuresearch';
-                const fieldsRef = collection(db, 'artifacts', appId, 'public', 'data', 'fields');
+                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                // パスを確実に固定（Canvas環境の変数に影響されないようにする）
+                const fieldsRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'fields');
 
-                const snapshot = await getDocs(fieldsRef);
-                const allDocuments = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
+                let isInitial = true;
 
-                let newFieldComments = {}; 
-                let foundCount = 0;
+                onSnapshot(fieldsRef, (snapshot) => {
+                    const allDocuments = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
 
-                if (allDocuments.length > 0) {
-                    allDocuments.forEach(itemData => {
-                        let fieldNameStr = itemData['分野'] || itemData['分野名'] || itemData.name;
-                        if (!fieldNameStr) {
-                            const fieldKey = Object.keys(itemData).find(key => key.includes('分野'));
-                            if (fieldKey) fieldNameStr = itemData[fieldKey];
+                    let newFieldComments = {}; 
+                    let foundCount = 0;
+
+                    if (allDocuments.length > 0) {
+                        allDocuments.forEach(itemData => {
+                            let fieldNameStr = itemData['分野'] || itemData['分野名'] || itemData.name;
+                            if (!fieldNameStr) {
+                                const fieldKey = Object.keys(itemData).find(key => key.includes('分野'));
+                                if (fieldKey) fieldNameStr = itemData[fieldKey];
+                            }
+                            fieldNameStr = String(fieldNameStr || "").trim();
+
+                            let commentStr = itemData['解説'] || itemData['解説のコメント'] || itemData['解説コメント'] || itemData.description;
+                            if (!commentStr) {
+                                const commentKey = Object.keys(itemData).find(key => key.includes('解説') || key.includes('コメント'));
+                                if (commentKey) commentStr = itemData[commentKey];
+                            }
+                            
+                            let fieldId = null;
+                            if (itemData.id.match(/^(17|8)_\d+$/)) {
+                                fieldId = itemData.id;
+                            }
+
+                            if (!fieldId && fieldNameStr && fieldNameStr !== "undefined") {
+                                const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
+                                const normClean = normalizeStr(cleanFieldNameStr);
+                                
+                                let match17 = areas17.find(item => {
+                                    const itemName = normalizeStr(item.name);
+                                    return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
+                                });
+                                if (match17) {
+                                    fieldId = `17_${match17.no}`;
+                                } else {
+                                    let match8 = areas8.find(item => {
+                                        const itemName = normalizeStr(item.name);
+                                        return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
+                                    });
+                                    if (match8) {
+                                        fieldId = `8_${match8.no}`;
+                                    }
+                                }
+
+                                if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) fieldId = fieldNameStr;
+                            }
+
+                            if (fieldId && commentStr && String(commentStr).trim() !== "") {
+                                newFieldComments[fieldId] = String(commentStr);
+                                foundCount++;
+                                
+                                let match17 = areas17.find(item => fieldId === `17_${item.no}`);
+                                let match8 = areas8.find(item => fieldId === `8_${item.no}`);
+                                let targetArea = match17 || match8;
+                                
+                                if (targetArea) {
+                                    const councilName = itemData['会議体名'] || itemData['代表会議名'] || itemData.council || itemData['会議名'] || "";
+                                    if (councilName && String(councilName).trim() !== "") targetArea.council = councilName;
+                                    
+                                    const councilUrl = itemData['代表URL'] || itemData['会議体URL'] || itemData.url || itemData.URL || "";
+                                    if (councilUrl && String(councilUrl).trim() !== "") targetArea.url = councilUrl;
+                                }
+                            }
+                        });
+                        
+                        fieldComments = newFieldComments;
+                        if (foundCount > 0 && isInitial) {
+                            console.log(`コレクション 'fields' から ${foundCount} 件の分野解説データを取得しました。`);
                         }
-                        fieldNameStr = String(fieldNameStr || "").trim();
+                    } else {
+                        fieldComments = {};
+                    }
 
-                        let commentStr = itemData['解説'] || itemData['解説のコメント'] || itemData['解説コメント'] || itemData.description;
-                        if (!commentStr) {
-                            const commentKey = Object.keys(itemData).find(key => key.includes('解説') || key.includes('コメント'));
-                            if (commentKey) commentStr = itemData[commentKey];
+                    isInitial = false;
+                    displayFieldData(); // UI即時反映
+
+                }, (error) => {
+                    console.error("分野解説データの監視エラー:", error);
+                });
+
+            } catch (error) {
+                console.error("分野解説データの初期化エラー:", error);
+            }
+        }
+
+        async function fetchMeetingsData() {
+            const loadingEl = document.getElementById('related-councils-loading');
+            if (loadingEl) loadingEl.classList.remove('hidden');
+
+            try {
+                const db = await initFirebase();
+                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                // パスを確実に固定（Canvas環境の変数に影響されないようにする）
+                const meetingsRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'meetings');
+                
+                let isInitial = true;
+
+                onSnapshot(meetingsRef, (snapshot) => {
+                    const allDocuments = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    
+                    if (allDocuments.length > 0) {
+                        const parsedData = {};
+
+                        allDocuments.forEach(meeting => {
+                            const fieldNameStr = String(meeting['関連分野'] || meeting['分野'] || meeting.fieldId || meeting.relatedFieldId || "");
+                            let fieldId = null;
+
+                            if (fieldNameStr) {
+                                const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
+                                const normClean = normalizeStr(cleanFieldNameStr);
+
+                                let match17 = areas17.find(item => {
+                                    const itemName = normalizeStr(item.name);
+                                    return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
+                                });
+                                
+                                if (match17) {
+                                    fieldId = `17_${match17.no}`;
+                                } else {
+                                    let match8 = areas8.find(item => {
+                                        const itemName = normalizeStr(item.name);
+                                        return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
+                                    });
+                                    if (match8) {
+                                        fieldId = `8_${match8.no}`;
+                                    }
+                                }
+                                
+                                if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) {
+                                    fieldId = fieldNameStr;
+                                }
+                            }
+
+                            if (meeting.id && meeting.id.match(/^(17|8)_\d+$/)) {
+                                fieldId = meeting.id;
+                            }
+
+                            if (fieldId) {
+                                if (!parsedData[fieldId]) {
+                                    parsedData[fieldId] = [];
+                                }
+                                parsedData[fieldId].push({
+                                    category: meeting['区分'] || meeting.category || "",
+                                    rank: meeting['順位'] || meeting.rank || "",
+                                    name: meeting['会議名'] || meeting.name || "",
+                                    url: meeting['URL'] || meeting['会議体URL'] || meeting.url || "",
+                                    jurisdiction: meeting['所管'] || meeting.jurisdiction || "",
+                                    field: meeting['対象分野'] || meeting.field || "",
+                                    date: meeting['直近開催日'] || meeting.date || "",
+                                    note: meeting['備考'] || meeting.note || ""
+                                });
+
+                                let commentStr = meeting['解説'] || meeting['解説のコメント'] || meeting['分野の解説'] || meeting.comment || "";
+                                if (!commentStr) {
+                                    const commentKey = Object.keys(meeting).find(key => key.includes('解説') || key.includes('コメント'));
+                                    if (commentKey) commentStr = meeting[commentKey];
+                                }
+                                if (commentStr && String(commentStr).trim() !== "" && !fieldComments[fieldId]) {
+                                    fieldComments[fieldId] = String(commentStr);
+                                }
+                            }
+                        });
+                        
+                        relatedCouncilsData = parsedData;
+
+                        if (isInitial) {
+                            console.log(`${allDocuments.length}件の関連会議データを取得しました。`);
                         }
                         
-                        let fieldId = null;
-                        if (itemData.id.match(/^(17|8)_\d+$/)) {
-                            fieldId = itemData.id;
-                        }
+                        updateAccessDate(); // 変更時に更新日を現在時刻に
 
-                        if (!fieldId && fieldNameStr && fieldNameStr !== "undefined") {
-                            const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
-                            const normClean = normalizeStr(cleanFieldNameStr);
-                            
-                            let match17 = areas17.find(item => {
-                                const itemName = normalizeStr(item.name);
-                                return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
-                            });
-                            if (match17) {
-                                fieldId = `17_${match17.no}`;
-                            } else {
-                                let match8 = areas8.find(item => {
-                                    const itemName = normalizeStr(item.name);
-                                    return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
-                                });
-                                if (match8) {
-                                    fieldId = `8_${match8.no}`;
-                                }
+                    } else {
+                        relatedCouncilsData = {};
+                        document.getElementById('data-update-date').innerText = "データなし";
+                    }
+
+                    isInitial = false;
+                    if (loadingEl) loadingEl.classList.add('hidden');
+                    
+                    displayFieldData(); // UI即時反映
+                    
+                    const modal = document.getElementById('related-councils-modal');
+                    if (modal && !modal.classList.contains('hidden')) {
+                        populateRelatedCouncilsTable(); // モーダルが開いていればリスト即時反映
+                    }
+
+                }, (error) => {
+                    console.error("関連会議データの監視エラー:", error);
+                    document.getElementById('data-update-date').innerText = "監視エラー";
+                    if (loadingEl) loadingEl.classList.add('hidden');
+                });
+
+            } catch (error) {
+                console.error("関連会議データの初期化エラー:", error);
+                document.getElementById('data-update-date').innerText = "初期化失敗";
+                if (loadingEl) loadingEl.classList.add('hidden');
+            }
+        }
+
+        async function fetchPdfLinksData() {
+            try {
+                const db = await initFirebase();
+                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                // パスを確実に固定（Canvas環境の変数に影響されないようにする）
+                const linksRef = collection(db, 'artifacts', 'seisakuresearch', 'public', 'data', 'links');
+
+                let isInitial = true;
+
+                onSnapshot(linksRef, (snapshot) => {
+                    const allDocuments = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+
+                    let newOverviewUrls = {};
+                    let newRoadmapUrls = {};
+                    let newMemberUrls = {};
+                    let newPdfTabNames = { overview: {}, roadmap: {}, member: {} };
+
+                    let foundCount = 0;
+
+                    if (allDocuments.length > 0) {
+                        allDocuments.forEach(itemData => {
+                            let fieldNameStr = itemData['分野'] || itemData['分野名'] || itemData.name;
+                            if (!fieldNameStr) {
+                                const fieldKey = Object.keys(itemData).find(key => key.includes('分野'));
+                                if (fieldKey) fieldNameStr = itemData[fieldKey];
+                            }
+                            fieldNameStr = String(fieldNameStr || "").trim();
+
+                            let councilNameStr = itemData['会議名'] || itemData['会議体名'] || itemData['代表会議名'] || itemData.council;
+                            if (!councilNameStr) {
+                                const councilKey = Object.keys(itemData).find(key => key.includes('会議'));
+                                if (councilKey) councilNameStr = itemData[councilKey];
+                            }
+                            councilNameStr = String(councilNameStr || "").trim();
+
+                            let fieldId = null;
+                            if (itemData.id && itemData.id.match(/^(17|8)_\d+$/)) {
+                                fieldId = itemData.id;
                             }
 
-                            if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) fieldId = fieldNameStr;
-                        }
-
-                        if (fieldId && commentStr && String(commentStr).trim() !== "") {
-                            newFieldComments[fieldId] = String(commentStr);
-                            foundCount++;
-                            
-                            let match17 = areas17.find(item => fieldId === `17_${item.no}`);
-                            let match8 = areas8.find(item => fieldId === `8_${item.no}`);
-                            let targetArea = match17 || match8;
-                            
-                            if (targetArea) {
-                                const councilName = itemData['会議体名'] || itemData['代表会議名'] || itemData.council || itemData['会議名'] || "";
-                                if (councilName && String(councilName).trim() !== "") targetArea.council = councilName;
+                            if (!fieldId && ((fieldNameStr && fieldNameStr !== "undefined") || (councilNameStr && councilNameStr !== "undefined"))) {
+                                const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
+                                const cleanCouncilNameStr = councilNameStr.trim();
                                 
-                                const councilUrl = itemData['代表URL'] || itemData['会議体URL'] || itemData.url || itemData.URL || "";
-                                if (councilUrl && String(councilUrl).trim() !== "") targetArea.url = councilUrl;
-                            }
-                        }
-                    });
-                    
-                    fieldComments = newFieldComments;
-                    if (foundCount > 0 && isInitial) {
-                        console.log(`コレクション 'fields' から ${foundCount} 件の分野解説データを取得しました。`);
-                    }
-                }
-            } catch (error) {
-                console.error("分野解説データの取得エラー:", error);
-            }
-        }
-
-        async function fetchMeetingsData(isInitial = false) {
-            const loadingEl = document.getElementById('related-councils-loading');
-            if (isInitial && loadingEl) loadingEl.classList.remove('hidden');
-
-            try {
-                const db = await initFirebase();
-                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'seisakuresearch';
-                const meetingsRef = collection(db, 'artifacts', appId, 'public', 'data', 'meetings');
-                
-                const snapshot = await getDocs(meetingsRef);
-                const allDocuments = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                
-                if (allDocuments.length > 0) {
-                    const parsedData = {};
-
-                    allDocuments.forEach(meeting => {
-                        const fieldNameStr = String(meeting['関連分野'] || meeting['分野'] || meeting.fieldId || meeting.relatedFieldId || "");
-                        let fieldId = null;
-
-                        if (fieldNameStr) {
-                            const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
-                            const normClean = normalizeStr(cleanFieldNameStr);
-
-                            let match17 = areas17.find(item => {
-                                const itemName = normalizeStr(item.name);
-                                return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
-                            });
-                            
-                            if (match17) {
-                                fieldId = `17_${match17.no}`;
-                            } else {
-                                let match8 = areas8.find(item => {
-                                    const itemName = normalizeStr(item.name);
-                                    return itemName === normClean || normClean.includes(itemName) || itemName.includes(normClean);
-                                });
-                                if (match8) {
-                                    fieldId = `8_${match8.no}`;
-                                }
-                            }
-                            
-                            if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) {
-                                fieldId = fieldNameStr;
-                            }
-                        }
-
-                        if (meeting.id && meeting.id.match(/^(17|8)_\d+$/)) {
-                            fieldId = meeting.id;
-                        }
-
-                        if (fieldId) {
-                            if (!parsedData[fieldId]) {
-                                parsedData[fieldId] = [];
-                            }
-                            parsedData[fieldId].push({
-                                category: meeting['区分'] || meeting.category || "",
-                                rank: meeting['順位'] || meeting.rank || "",
-                                name: meeting['会議名'] || meeting.name || "",
-                                url: meeting['URL'] || meeting['会議体URL'] || meeting.url || "",
-                                jurisdiction: meeting['所管'] || meeting.jurisdiction || "",
-                                field: meeting['対象分野'] || meeting.field || "",
-                                date: meeting['直近開催日'] || meeting.date || "",
-                                note: meeting['備考'] || meeting.note || ""
-                            });
-
-                            let commentStr = meeting['解説'] || meeting['解説のコメント'] || meeting['分野の解説'] || meeting.comment || "";
-                            if (!commentStr) {
-                                const commentKey = Object.keys(meeting).find(key => key.includes('解説') || key.includes('コメント'));
-                                if (commentKey) commentStr = meeting[commentKey];
-                            }
-                            if (commentStr && String(commentStr).trim() !== "" && !fieldComments[fieldId]) {
-                                fieldComments[fieldId] = String(commentStr);
-                            }
-                        }
-                    });
-                    
-                    relatedCouncilsData = parsedData;
-
-                    if (isInitial) {
-                        console.log(`${allDocuments.length}件の関連会議データを取得しました。`);
-                    }
-                    
-                    const today = new Date();
-                    const year = today.getFullYear();
-                    const month = String(today.getMonth() + 1).padStart(2, '0');
-                    const day = String(today.getDate()).padStart(2, '0');
-                    document.getElementById('data-update-date').innerText = `${year}年${month}月${day}日`;
-
-                } else {
-                    relatedCouncilsData = {};
-                    document.getElementById('data-update-date').innerText = "データなし";
-                }
-
-                if (loadingEl) loadingEl.classList.add('hidden');
-                displayFieldData();
-                
-                const modal = document.getElementById('related-councils-modal');
-                if (modal && !modal.classList.contains('hidden')) {
-                    populateRelatedCouncilsTable();
-                }
-
-            } catch (error) {
-                console.error("関連会議データの取得エラー:", error);
-                document.getElementById('data-update-date').innerText = "取得失敗";
-                if (loadingEl) loadingEl.classList.add('hidden');
-            }
-        }
-
-        async function fetchPdfLinksData(isInitial = false) {
-            try {
-                const db = await initFirebase();
-                const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'seisakuresearch';
-                const linksRef = collection(db, 'artifacts', appId, 'public', 'data', 'links');
-
-                const snapshot = await getDocs(linksRef);
-                const allDocuments = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-
-                let newOverviewUrls = {};
-                let newRoadmapUrls = {};
-                let newMemberUrls = {};
-                let newPdfTabNames = { overview: {}, roadmap: {}, member: {} };
-
-                let foundCount = 0;
-
-                if (allDocuments.length > 0) {
-                    allDocuments.forEach(itemData => {
-                        let fieldNameStr = itemData['分野'] || itemData['分野名'] || itemData.name;
-                        if (!fieldNameStr) {
-                            const fieldKey = Object.keys(itemData).find(key => key.includes('分野'));
-                            if (fieldKey) fieldNameStr = itemData[fieldKey];
-                        }
-                        fieldNameStr = String(fieldNameStr || "").trim();
-
-                        let councilNameStr = itemData['会議名'] || itemData['会議体名'] || itemData['代表会議名'] || itemData.council;
-                        if (!councilNameStr) {
-                            const councilKey = Object.keys(itemData).find(key => key.includes('会議'));
-                            if (councilKey) councilNameStr = itemData[councilKey];
-                        }
-                        councilNameStr = String(councilNameStr || "").trim();
-
-                        let fieldId = null;
-                        if (itemData.id && itemData.id.match(/^(17|8)_\d+$/)) {
-                            fieldId = itemData.id;
-                        }
-
-                        if (!fieldId && ((fieldNameStr && fieldNameStr !== "undefined") || (councilNameStr && councilNameStr !== "undefined"))) {
-                            const cleanFieldNameStr = fieldNameStr.replace(/^[0-9①-⑳]+[\.\s]*/, '').trim();
-                            const cleanCouncilNameStr = councilNameStr.trim();
-                            
-                            const normCleanField = normalizeStr(cleanFieldNameStr);
-                            const normCleanCouncil = normalizeStr(cleanCouncilNameStr);
-                            
-                            let match17 = areas17.find(item => {
-                                const itemName = normalizeStr(item.name);
-                                const itemCouncil = normalizeStr(item.council || "");
-                                const matchByName = normCleanField && (itemName === normCleanField || normCleanField.includes(itemName) || itemName.includes(normCleanField));
-                                const matchByCouncil = normCleanCouncil && itemCouncil && (itemCouncil === normCleanCouncil || normCleanCouncil.includes(itemCouncil) || itemCouncil.includes(normCleanCouncil));
-                                return matchByName || matchByCouncil;
-                            });
-
-                            if (match17) {
-                                fieldId = `17_${match17.no}`;
-                            } else {
-                                let match8 = areas8.find(item => {
+                                const normCleanField = normalizeStr(cleanFieldNameStr);
+                                const normCleanCouncil = normalizeStr(cleanCouncilNameStr);
+                                
+                                let match17 = areas17.find(item => {
                                     const itemName = normalizeStr(item.name);
                                     const itemCouncil = normalizeStr(item.council || "");
                                     const matchByName = normCleanField && (itemName === normCleanField || normCleanField.includes(itemName) || itemName.includes(normCleanField));
                                     const matchByCouncil = normCleanCouncil && itemCouncil && (itemCouncil === normCleanCouncil || normCleanCouncil.includes(itemCouncil) || itemCouncil.includes(normCleanCouncil));
                                     return matchByName || matchByCouncil;
                                 });
-                                if (match8) {
-                                    fieldId = `8_${match8.no}`;
+
+                                if (match17) {
+                                    fieldId = `17_${match17.no}`;
+                                } else {
+                                    let match8 = areas8.find(item => {
+                                        const itemName = normalizeStr(item.name);
+                                        const itemCouncil = normalizeStr(item.council || "");
+                                        const matchByName = normCleanField && (itemName === normCleanField || normCleanField.includes(itemName) || itemName.includes(normCleanField));
+                                        const matchByCouncil = normCleanCouncil && itemCouncil && (itemCouncil === normCleanCouncil || normCleanCouncil.includes(itemCouncil) || itemCouncil.includes(normCleanCouncil));
+                                        return matchByName || matchByCouncil;
+                                    });
+                                    if (match8) {
+                                        fieldId = `8_${match8.no}`;
+                                    }
+                                }
+
+                                if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) {
+                                    fieldId = fieldNameStr;
                                 }
                             }
 
-                            if (!fieldId && fieldNameStr.match(/^(17|8)_\d+$/)) {
-                                fieldId = fieldNameStr;
-                            }
-                        }
+                            if (fieldId) {
+                                // 概要URLとタブ名（概要列から直接取得）
+                                const overviewUrl = itemData['概要'] || itemData.overview || itemData['概要URL'] || itemData.overview_url || "";
+                                if (overviewUrl && String(overviewUrl).trim() !== "") {
+                                    newOverviewUrls[fieldId] = overviewUrl;
+                                }
+                                const overviewName = itemData['概要名'] || itemData['概要タブ名'] || itemData.overview_name || "";
+                                if (overviewName && String(overviewName).trim() !== "") {
+                                    newPdfTabNames.overview[fieldId] = overviewName;
+                                }
 
-                        if (fieldId) {
-                            // 概要URLとタブ名（概要列から直接取得）
-                            const overviewUrl = itemData['概要'] || itemData.overview || itemData['概要URL'] || itemData.overview_url || "";
-                            if (overviewUrl && String(overviewUrl).trim() !== "") {
-                                newOverviewUrls[fieldId] = overviewUrl;
-                            }
-                            const overviewName = itemData['概要名'] || itemData['概要タブ名'] || itemData.overview_name || "";
-                            if (overviewName && String(overviewName).trim() !== "") {
-                                newPdfTabNames.overview[fieldId] = overviewName;
-                            }
+                                // ロードマップ等URLとタブ名
+                                const roadmapUrl = itemData['ロードマップ'] || itemData['ロードマップ等'] || itemData.roadmap || itemData.roadmap_url || "";
+                                if (roadmapUrl && String(roadmapUrl).trim() !== "") {
+                                    newRoadmapUrls[fieldId] = roadmapUrl;
+                                }
+                                const roadmapName = itemData['ロードマップ名'] || itemData['ロードマップタブ名'] || itemData.roadmap_name || "";
+                                if (roadmapName && String(roadmapName).trim() !== "") {
+                                    newPdfTabNames.roadmap[fieldId] = roadmapName;
+                                }
 
-                            // ロードマップ等URLとタブ名
-                            const roadmapUrl = itemData['ロードマップ'] || itemData['ロードマップ等'] || itemData.roadmap || itemData.roadmap_url || "";
-                            if (roadmapUrl && String(roadmapUrl).trim() !== "") {
-                                newRoadmapUrls[fieldId] = roadmapUrl;
-                            }
-                            const roadmapName = itemData['ロードマップ名'] || itemData['ロードマップタブ名'] || itemData.roadmap_name || "";
-                            if (roadmapName && String(roadmapName).trim() !== "") {
-                                newPdfTabNames.roadmap[fieldId] = roadmapName;
-                            }
+                                // 構成員等URLとタブ名
+                                const memberUrl = itemData['構成員'] || itemData['構成員等'] || itemData.member || itemData.member_url || "";
+                                if (memberUrl && String(memberUrl).trim() !== "") {
+                                    newMemberUrls[fieldId] = memberUrl;
+                                }
+                                const memberName = itemData['構成員名'] || itemData['構成員タブ名'] || itemData.member_name || "";
+                                if (memberName && String(memberName).trim() !== "") {
+                                    newPdfTabNames.member[fieldId] = memberName;
+                                }
 
-                            // 構成員等URLとタブ名
-                            const memberUrl = itemData['構成員'] || itemData['構成員等'] || itemData.member || itemData.member_url || "";
-                            if (memberUrl && String(memberUrl).trim() !== "") {
-                                newMemberUrls[fieldId] = memberUrl;
-                            }
-                            const memberName = itemData['構成員名'] || itemData['構成員タブ名'] || itemData.member_name || "";
-                            if (memberName && String(memberName).trim() !== "") {
-                                newPdfTabNames.member[fieldId] = memberName;
-                            }
-
-                            let match17 = areas17.find(item => fieldId === `17_${item.no}`);
-                            let match8 = areas8.find(item => fieldId === `8_${item.no}`);
-                            let targetArea = match17 || match8;
-                            
-                            if (targetArea) {
-                                if (councilNameStr && String(councilNameStr).trim() !== "") targetArea.council = councilNameStr;
+                                let match17 = areas17.find(item => fieldId === `17_${item.no}`);
+                                let match8 = areas8.find(item => fieldId === `8_${item.no}`);
+                                let targetArea = match17 || match8;
                                 
-                                const councilUrl = itemData['会議体URL'] || itemData.url || itemData.URL || "";
-                                if (councilUrl && String(councilUrl).trim() !== "") targetArea.url = councilUrl;
-                            }
+                                if (targetArea) {
+                                    if (councilNameStr && String(councilNameStr).trim() !== "") targetArea.council = councilNameStr;
+                                    
+                                    const councilUrl = itemData['会議体URL'] || itemData.url || itemData.URL || "";
+                                    if (councilUrl && String(councilUrl).trim() !== "") targetArea.url = councilUrl;
+                                }
 
-                            foundCount++;
+                                foundCount++;
+                            }
+                        });
+                        
+                        overviewUrls = newOverviewUrls;
+                        roadmapUrls = newRoadmapUrls;
+                        memberUrls = newMemberUrls;
+                        pdfTabNames = newPdfTabNames;
+                        
+                        if (isInitial && foundCount > 0) {
+                            console.log(`コレクション 'links' から ${foundCount} 件のPDFリンクデータを取得しました。`);
                         }
-                    });
-                    
-                    overviewUrls = newOverviewUrls;
-                    roadmapUrls = newRoadmapUrls;
-                    memberUrls = newMemberUrls;
-                    pdfTabNames = newPdfTabNames;
-                    
-                    if (isInitial && foundCount > 0) {
-                        console.log(`コレクション 'links' から ${foundCount} 件のPDFリンクデータを取得しました。`);
+                    } else {
+                        overviewUrls = {};
+                        roadmapUrls = {};
+                        memberUrls = {};
+                        pdfTabNames = { overview: {}, roadmap: {}, member: {} };
                     }
 
-                    updatePdfDisplay();
-                } else {
-                    updatePdfDisplay();
-                }
+                    isInitial = false;
+                    updatePdfDisplay(); // UI即時反映
+
+                }, (error) => {
+                    console.error("PDFリンクデータの監視エラー:", error);
+                });
+
             } catch (error) {
-                console.error("PDFリンクデータの取得エラー:", error);
+                console.error("PDFリンクデータの初期化エラー:", error);
             }
         }
 
@@ -1526,9 +1548,17 @@
             const day = String(now.getDate()).padStart(2, '0');
             
             const datetimeStr = `${year}年${month}月${day}日`;
+            
+            // フッターのデータアクセス日を更新
             const elem = document.getElementById('current-datetime');
             if (elem) {
                 elem.innerText = datetimeStr;
+            }
+            
+            // 右上のデータ更新日を更新
+            const updateElem = document.getElementById('data-update-date');
+            if (updateElem) {
+                updateElem.innerText = datetimeStr;
             }
         }
 
@@ -1590,22 +1620,10 @@
                 // Firebaseの初期化と認証を先に実行して待機する
                 await initFirebase();
                 
-                // 初回ロード
-                const loadAllData = async (isInitial) => {
-                    await Promise.all([
-                        fetchMeetingsData(isInitial),
-                        fetchFieldCommentsData(isInitial),
-                        fetchPdfLinksData(isInitial)
-                    ]);
-                };
-
-                await loadAllData(true);
-
-                // 30秒ごとにバックグラウンドで最新データを再取得（リアルタイム監視の代替）
-                setInterval(() => {
-                    loadAllData(false);
-                    updateAccessDate();
-                }, 30000);
+                // リアルタイムリスナーを登録（非同期で各コレクションを常時監視）
+                fetchMeetingsData();
+                fetchFieldCommentsData();
+                fetchPdfLinksData();
 
             } catch (error) {
                 console.error("データ取得の初期化エラー:", error);
