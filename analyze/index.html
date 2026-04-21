@@ -47,6 +47,650 @@
   </style>
 </head>
 <body>
+  <!-- 統計データソースDB の HTMLテンプレート (表示時には使用せず、iframe の中身として渡す) -->
+  <textarea id="data-source-template" style="display:none;">
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>統計データソースDB</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- SheetJS (Excel/CSV読み込み用) -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+  <!-- ES Modules Import Map (React, Lucide Icons, Firebaseの読み込み設定) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "lucide-react": "https://esm.sh/lucide-react@0.292.0",
+      "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
+      "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
+      "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
+    }
+  }
+  </script>
+  
+  <!-- Babel (ブラウザ上でReact JSXを処理するためのコンパイラ) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <!-- Reactアプリが描画されるマウントポイント -->
+  <div id="root"></div>
+
+  <!-- ここからReactのコード -->
+  <script type="text/babel" data-type="module">
+    import React, { useState, useEffect, useMemo } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { 
+      Plus, Trash2, ExternalLink, AlertCircle, Search, X, Edit2, 
+      Upload, Database, ChevronUp, ChevronDown, ArrowUpDown, 
+      RotateCcw, Layers, CopyPlus, Link as LinkIcon, CheckCircle2, ListFilter
+    } from 'lucide-react';
+    import { initializeApp } from 'firebase/app';
+    import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+    import { 
+      getFirestore, collection, doc, getDocs, onSnapshot, 
+      addDoc, updateDoc, deleteDoc, writeBatch
+    } from 'firebase/firestore';
+
+    // --- Firebase Configuration ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
+      authDomain: "seisakuresearch00.firebaseapp.com",
+      projectId: "seisakuresearch00",
+      storageBucket: "seisakuresearch00.firebasestorage.app",
+      messagingSenderId: "356788263577",
+      appId: "1:356788263577:web:ecc3782d0c82cb7da43608",
+      measurementId: "G-Y1C3GPNC9Z"
+    };
+
+    // セキュリティルールで許可されているパスに合わせて固定
+    const appId = 'seisakuresearch';
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    function App() {
+      const [view, setView] = useState('home');
+      const [user, setUser] = useState(null);
+      const [sites, setSites] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+      const [editSite, setEditSite] = useState(null);
+      const [searchQuery, setSearchQuery] = useState('');
+      
+      // 管理者権限関連
+      const [isAdmin, setIsAdmin] = useState(false);
+      const [adminClickCount, setAdminClickCount] = useState(0);
+      const [showPasswordModal, setShowPasswordModal] = useState(false);
+      const [passwordInput, setPasswordInput] = useState('');
+      
+      // ソート設定
+      const [sortConfig, setSortConfig] = useState({ key: 'no', direction: 'asc' });
+      
+      const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null });
+      const [importModal, setImportModal] = useState({ open: false, pendingRows: [] });
+      const [toast, setToast] = useState(null);
+
+      // 通知
+      const notify = (msg, type = 'success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3000);
+      };
+
+      // 認証
+      useEffect(() => {
+        const initAuth = async () => {
+          try {
+            await signInAnonymously(auth);
+          } catch (error) {
+            console.error("Auth error:", error);
+            notify("認証に失敗しました。Firebaseの匿名認証が有効か確認してください。", "error");
+          }
+        };
+        initAuth();
+        const unsubscribe = onAuthStateChanged(auth, setUser);
+        return () => unsubscribe();
+      }, []);
+
+      // Firestore購読
+      useEffect(() => {
+        if (!user) return;
+        const statsCol = collection(db, 'artifacts', appId, 'public', 'data', 'statistics');
+        const unsubscribe = onSnapshot(statsCol, (snapshot) => {
+          const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          setSites(data);
+          setLoading(false);
+        }, (error) => {
+          console.error("Firestore Error:", error);
+          notify("データベースのアクセス権限がありません。Firestoreのルールを確認してください。", "error");
+          setLoading(false);
+        });
+        return () => unsubscribe();
+      }, [user]);
+
+      // ソート切り替え
+      const handleSort = (key) => {
+        setSortConfig(prev => ({
+          key,
+          direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+        }));
+      };
+
+      // リセット
+      const resetAll = () => {
+        setSearchQuery('');
+        setSortConfig({ key: 'no', direction: 'asc' });
+      };
+
+      // データ加工 (検索 -> マルチソート)
+      const processedSites = useMemo(() => {
+        let result = [...sites];
+
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          result = result.filter(site => 
+            Object.values(site).some(val => String(val).toLowerCase().includes(q))
+          );
+        }
+
+        // 安定ソート + 2次ソート (No順)
+        result.sort((a, b) => {
+          let aVal = a[sortConfig.key] || '';
+          let bVal = b[sortConfig.key] || '';
+          let comparison = 0;
+
+          if (sortConfig.key === 'no') {
+            comparison = (parseInt(aVal) || 0) - (parseInt(bVal) || 0);
+          } else {
+            comparison = String(aVal).localeCompare(String(bVal), 'ja');
+          }
+
+          if (sortConfig.direction === 'desc') comparison *= -1;
+
+          // 指定項目が同じ場合は、常にNo昇順でソート
+          if (comparison === 0 && sortConfig.key !== 'no') {
+            const aNo = parseInt(a.no) || 0;
+            const bNo = parseInt(b.no) || 0;
+            return aNo - bNo;
+          }
+
+          return comparison;
+        });
+
+        return result;
+      }, [sites, searchQuery, sortConfig]);
+
+      // インポート実行 (重複排除 + モード選択)
+      const executeImport = async (rows, mode) => {
+        if (!user) return;
+        setLoading(true);
+        const statsCol = collection(db, 'artifacts', appId, 'public', 'data', 'statistics');
+
+        try {
+          const existingKeys = new Set(sites.map(s => `${String(s.name).trim().toLowerCase()}|${String(s.url).trim()}`));
+
+          if (mode === 'overwrite') {
+            const snapshot = await getDocs(statsCol);
+            const batch = writeBatch(db);
+            snapshot.docs.forEach(d => batch.delete(d.ref));
+            await batch.commit();
+            existingKeys.clear();
+          }
+
+          let batch = writeBatch(db);
+          let count = 0;
+          let skipped = 0;
+
+          for (let row of rows) {
+            const siteData = {
+              no: String(row[0] || '').trim(),
+              name: String(row[1] || '').trim(),
+              agency: String(row[2] || '').trim(),
+              format: String(row[3] || '').trim(),
+              priority: String(row[4] || '').trim(),
+              category: String(row[5] || '').trim(),
+              field: String(row[6] || '').trim(),
+              frequency: String(row[7] || '').trim(),
+              url: String(row[8] || '').trim(),
+              updatedAt: new Date().toISOString()
+            };
+
+            if (siteData.name && siteData.name !== "統計名") {
+              const key = `${siteData.name.toLowerCase()}|${siteData.url}`;
+              if (mode === 'append' && existingKeys.has(key)) {
+                skipped++;
+                continue;
+              }
+
+              const newDocRef = doc(statsCol);
+              batch.set(newDocRef, siteData);
+              count++;
+              
+              if (count % 400 === 0) {
+                await batch.commit();
+                batch = writeBatch(db);
+              }
+            }
+          }
+          await batch.commit();
+          setImportModal({ open: false, pendingRows: [] });
+          notify(`${count}件のデータを保存しました${skipped > 0 ? ` (${skipped}件の重複をスキップ)` : ''}`);
+        } catch (e) {
+          console.error(e);
+          notify("エラーが発生しました", "error");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const handleFileLoad = async (e) => {
+        const file = e.target.files[0];
+        if (!file || !user) return;
+        
+        try {
+          let rows = [];
+          if (file.name.endsWith('.csv')) {
+            const text = await file.text();
+            rows = text.split('\n').filter(r => r.trim()).map(r => r.split(','));
+          } else if (file.name.endsWith('.xlsx')) {
+            const data = await file.arrayBuffer();
+            const workbook = window.XLSX.read(data, { type: 'array' });
+            const targetSheet = workbook.SheetNames.find(n => n.includes('統計')) || workbook.SheetNames[0];
+            rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[targetSheet], { header: 1 });
+          }
+          
+          const dataRows = rows.filter(r => r[0] && !isNaN(parseInt(r[0])));
+          if (dataRows.length > 0) {
+            setImportModal({ open: true, pendingRows: dataRows });
+          } else {
+            notify("取り込める有効なデータが見つかりませんでした", "error");
+          }
+        } catch (err) {
+          notify("ファイルの解析に失敗しました", "error");
+        }
+        e.target.value = '';
+      };
+
+      // 管理ボタンのクリック処理
+      const handleAdminClick = () => {
+        if (isAdmin) {
+          setView('settings');
+          return;
+        }
+        
+        if (adminClickCount === 0) {
+          notify("管理者のみしかアクセスできません", "error");
+          setAdminClickCount(1);
+        } else {
+          setShowPasswordModal(true);
+          setAdminClickCount(0); // カウントをリセット
+        }
+      };
+
+      // パスワード照合処理
+      const handlePasswordSubmit = () => {
+        if (passwordInput === 'data') {
+          setIsAdmin(true);
+          setShowPasswordModal(false);
+          setPasswordInput('');
+          setView('settings');
+          notify("管理者としてログインしました");
+        } else {
+          notify("パスワードが間違っています", "error");
+          setPasswordInput('');
+        }
+      };
+
+      const SortIcon = ({ column }) => {
+        if (sortConfig.key !== column) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-20" />;
+        return sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 ml-1 text-indigo-600" /> : <ChevronDown className="w-3 h-3 ml-1 text-indigo-600" />;
+      };
+
+      return (
+        <div className="min-h-screen bg-slate-50 font-sans text-slate-800 text-[11px] sm:text-[12px]">
+          {/* Toast通知 */}
+          {toast && (
+            <div className={`fixed top-14 left-1/2 -translate-x-1/2 z-[100] px-4 py-1.5 rounded-full shadow-lg text-white font-bold flex items-center gap-2 animate-in slide-in-from-top duration-300 ${toast.type === 'error' ? 'bg-rose-600' : 'bg-indigo-600'}`}>
+              {toast.type === 'error' ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+              {toast.msg}
+            </div>
+          )}
+
+          {/* ヘッダー */}
+          <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+            <div className="max-w-[1600px] mx-auto h-12 flex items-center px-4 justify-between gap-4">
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="bg-indigo-600 p-1.5 rounded-lg shadow-lg text-white">
+                  <Database className="w-4 h-4" />
+                </div>
+                <span className="font-bold text-[15px] tracking-tight hidden lg:block">統計データソースDB</span>
+              </div>
+              
+              {/* 検索・リセット */}
+              <div className="flex items-center gap-2 flex-1 max-w-2xl">
+                <div className="relative w-full group">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 group-focus-within:text-indigo-500 transition-colors" />
+                  <input 
+                    type="text" 
+                    placeholder="名称、所管、分野などで横断検索..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-10 py-2 bg-slate-100 border-none rounded-full text-[12px] focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none shadow-inner"
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors"><X className="w-4 h-4" /></button>
+                  )}
+                </div>
+                <button onClick={resetAll} title="ソート・検索を初期化" className="p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-90"><RotateCcw className="w-4 h-4" /></button>
+              </div>
+
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="flex flex-col items-end">
+                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Record Count</span>
+                  <span className="text-[14px] font-black text-indigo-600 leading-none">{processedSites.length}</span>
+                </div>
+                <div className="h-8 w-px bg-slate-200 mx-1"></div>
+                <nav className="flex gap-2">
+                  <button onClick={() => setView('home')} className={`px-4 py-1.5 rounded-full font-bold transition-all ${view === 'home' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}>ホーム</button>
+                  <button onClick={handleAdminClick} className={`px-4 py-1.5 rounded-full font-bold transition-all ${view === 'settings' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}>管理</button>
+                </nav>
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-[1600px] mx-auto p-4 animate-in fade-in duration-500 pb-20">
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse table-auto">
+                  <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+                    <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      <th onClick={() => handleSort('no')} className="px-3 py-3 w-[60px] cursor-pointer hover:bg-slate-100 border-r transition-colors">
+                        <div className="flex items-center">No <SortIcon column="no" /></div>
+                      </th>
+                      <th onClick={() => handleSort('name')} className="px-4 py-3 min-w-[280px] cursor-pointer hover:bg-slate-100 transition-colors">
+                        <div className="flex items-center">統計名 <SortIcon column="name" /></div>
+                      </th>
+                      <th onClick={() => handleSort('agency')} className="px-4 py-3 min-w-[140px] cursor-pointer hover:bg-slate-100 transition-colors">
+                        <div className="flex items-center">所管 <SortIcon column="agency" /></div>
+                      </th>
+                      <th onClick={() => handleSort('format')} className="px-4 py-3 w-[100px] cursor-pointer hover:bg-slate-100 transition-colors">
+                        <div className="flex items-center">形式 <SortIcon column="format" /></div>
+                      </th>
+                      <th onClick={() => handleSort('priority')} className="px-4 py-3 w-[80px] cursor-pointer hover:bg-slate-100 transition-colors text-center border-x">
+                        <div className="flex items-center justify-center">優先度 <SortIcon column="priority" /></div>
+                      </th>
+                      <th onClick={() => handleSort('category')} className="px-4 py-3 w-[120px] cursor-pointer hover:bg-slate-100 transition-colors">
+                        <div className="flex items-center">区分 <SortIcon column="category" /></div>
+                      </th>
+                      <th onClick={() => handleSort('field')} className="px-4 py-3 min-w-[120px] cursor-pointer hover:bg-slate-100 transition-colors">
+                        <div className="flex items-center">分野 <SortIcon column="field" /></div>
+                      </th>
+                      <th onClick={() => handleSort('frequency')} className="px-4 py-3 w-[120px] cursor-pointer hover:bg-slate-100 transition-colors">
+                        <div className="flex items-center">更新頻度 <SortIcon column="frequency" /></div>
+                      </th>
+                      {view === 'settings' && <th className="px-4 py-3 w-[100px] text-right bg-slate-100/50">管理</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-[12px]">
+                    {loading ? (
+                      <tr><td colSpan="9" className="py-20 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div></td></tr>
+                    ) : processedSites.length === 0 ? (
+                      <tr><td colSpan="9" className="py-20 text-center text-slate-400 italic">データが見つかりません</td></tr>
+                    ) : processedSites.map(site => (
+                      <tr key={site.id} className="hover:bg-indigo-50/20 transition-all group">
+                        <td className="px-3 py-2.5 font-mono text-slate-400 border-r">{site.no}</td>
+                        <td className="px-4 py-2.5">
+                          <a 
+                            href={site.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline inline-flex items-center gap-1.5 whitespace-normal leading-relaxed break-words max-w-[450px]"
+                            onClick={(e) => {
+                              if (!site.url || site.url === 'undefined') {
+                                e.preventDefault();
+                                notify("URLが設定されていません", "error");
+                              }
+                            }}
+                          >
+                            {site.name}
+                            <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </a>
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-700 whitespace-normal leading-tight">{site.agency}</td>
+                        <td className="px-4 py-2.5 text-slate-500 uppercase font-medium text-[10px] whitespace-normal">{site.format}</td>
+                        <td className="px-4 py-2.5 text-amber-500 font-bold whitespace-nowrap text-center border-x">{site.priority}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold inline-block leading-none border ${site.category?.includes('国内') ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
+                            {site.category}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-600 whitespace-normal leading-tight">{site.field}</td>
+                        <td className="px-4 py-2.5 font-medium text-slate-500 whitespace-normal leading-tight">{site.frequency}</td>
+                        {view === 'settings' && (
+                          <td className="px-4 py-2.5 text-right whitespace-nowrap bg-slate-50/30">
+                            <div className="flex justify-end gap-1">
+                              <button onClick={() => { setEditSite(site); setIsEditModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="編集"><Edit2 className="w-4 h-4" /></button>
+                              <button onClick={() => { setConfirmModal({ open: true, title: "削除の確認", message: `「${site.name}」を削除しますか？`, onConfirm: () => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'statistics', site.id)) }); }} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" title="削除"><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 設定画面フローティングアクション */}
+            {view === 'settings' && (
+              <div className="fixed bottom-8 right-8 flex flex-col gap-3 items-end">
+                <div className="flex flex-col gap-2 p-3 bg-white border border-slate-200 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+                  <div className="px-2 pb-1 border-b border-slate-100 mb-1 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Admin Actions</span>
+                    <ListFilter className="w-3 h-3 text-slate-300" />
+                  </div>
+                  <label className="cursor-pointer group flex items-center justify-between gap-4 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-all border border-indigo-100">
+                    <div className="flex items-center gap-2">
+                      <Upload className="w-4 h-4" />
+                      <span className="font-bold text-[12px]">Excel / CSV 読込</span>
+                    </div>
+                    <input type="file" accept=".csv, .xlsx" className="hidden" onChange={handleFileLoad} />
+                  </label>
+                  <button 
+                    onClick={() => { setEditSite({ no: '', name: '', agency: '', category: '国内統計', priority: '', frequency: '', url: '', format: '', field: '' }); setIsEditModalOpen(true); }}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-lg font-bold text-[12px]"
+                  >
+                    <Plus className="w-4 h-4" /> 新規データ追加
+                  </button>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* インポート種別選択モーダル */}
+          {importModal.open && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+              <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 border border-slate-200 animate-in zoom-in duration-300">
+                <div className="text-center mb-6">
+                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Layers className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-[18px] font-extrabold text-slate-900 mb-2">データの取込</h3>
+                  <p className="text-[12px] text-slate-500 leading-relaxed px-4 text-center">
+                    {importModal.pendingRows.length} 件のデータが解析されました。<br />取り込み方法を選択してください。
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <button 
+                    onClick={() => executeImport(importModal.pendingRows, 'append')}
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-white border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50 rounded-xl font-bold transition-all"
+                  >
+                    <CopyPlus className="w-4 h-4" /> 既存データに追加
+                  </button>
+                  <button 
+                    onClick={() => executeImport(importModal.pendingRows, 'overwrite')}
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-bold transition-all shadow-lg shadow-indigo-100"
+                  >
+                    <RotateCcw className="w-4 h-4" /> 全て上書き (既存消去)
+                  </button>
+                  <button 
+                    onClick={() => setImportModal({ open: false, pendingRows: [] })}
+                    className="w-full py-3 text-slate-400 hover:text-slate-600 font-bold"
+                  >キャンセル</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 削除確認モーダル */}
+          {confirmModal.open && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-white rounded-3xl w-full max-w-xs shadow-2xl p-6 border border-slate-200 animate-in zoom-in duration-200">
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-4"><AlertCircle className="w-6 h-6" /></div>
+                  <h3 className="text-[16px] font-extrabold text-slate-900 mb-2">{confirmModal.title}</h3>
+                  <p className="text-[12px] text-slate-500 mb-6 px-2">{confirmModal.message}</p>
+                  <div className="flex gap-2 w-full">
+                    <button onClick={() => setConfirmModal({ ...confirmModal, open: false })} className="flex-1 px-3 py-2.5 bg-slate-100 rounded-xl font-bold text-slate-700 transition-all">いいえ</button>
+                    <button onClick={() => { confirmModal.onConfirm(); setConfirmModal({ ...confirmModal, open: false }); }} className="flex-1 px-3 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-lg shadow-rose-100">はい、実行する</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 編集・登録モーダル */}
+          {isEditModalOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+              <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-8 border border-slate-100 overflow-y-auto max-h-[90vh]">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-[18px] font-extrabold text-slate-900 flex items-center gap-2">
+                    {editSite?.id ? '統計情報の編集' : '新規データ登録'}
+                  </h3>
+                  <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="w-6 h-6" /></button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-1">
+                    <label className="block text-[10px] font-bold text-indigo-600 mb-1 uppercase tracking-widest">No (管理番号)</label>
+                    <input type="text" value={editSite.no} onChange={e => setEditSite({...editSite, no: e.target.value})} className="w-full border-slate-200 border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 font-mono transition-all" />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="block text-[10px] font-bold text-indigo-600 mb-1 uppercase tracking-widest">優先度</label>
+                    <input type="text" placeholder="★★★" value={editSite.priority} onChange={e => setEditSite({...editSite, priority: e.target.value})} className="w-full border-slate-200 border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-amber-500 font-bold transition-all" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-indigo-600 mb-1 uppercase tracking-widest">統計名称</label>
+                    <input type="text" value={editSite.name} onChange={e => setEditSite({...editSite, name: e.target.value})} className="w-full border-slate-200 border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 transition-all" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-indigo-600 mb-1 uppercase tracking-widest">URL (公式データソースへのリンク)</label>
+                    <div className="relative group">
+                      <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+                      <input type="text" placeholder="https://..." value={editSite.url} onChange={e => setEditSite({...editSite, url: e.target.value})} className="w-full border-slate-200 border rounded-lg pl-9 p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-indigo-600 text-[11px] transition-all" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">所管</label>
+                    <input type="text" value={editSite.agency} onChange={e => setEditSite({...editSite, agency: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">形式</label>
+                    <input type="text" value={editSite.format} onChange={e => setEditSite({...editSite, format: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">区分</label>
+                    <input type="text" value={editSite.category} onChange={e => setEditSite({...editSite, category: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-indigo-600 mb-1">更新頻度</label>
+                    <input type="text" value={editSite.frequency} onChange={e => setEditSite({...editSite, frequency: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500 font-bold transition-all" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">分野</label>
+                    <input type="text" value={editSite.field} onChange={e => setEditSite({...editSite, field: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+                  </div>
+                </div>
+                
+                <div className="flex gap-3 mt-8">
+                  <button onClick={() => setIsEditModalOpen(false)} className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold transition-all text-slate-600">キャンセル</button>
+                  <button onClick={() => {
+                    const finalData = { ...editSite, updatedAt: new Date().toISOString() };
+                    if (editSite.id) {
+                      updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'statistics', editSite.id), finalData);
+                    } else {
+                      addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'statistics'), finalData);
+                    }
+                    setIsEditModalOpen(false);
+                    notify("データを保存しました");
+                  }} className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 transition-all">変更を適用</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* パスワード入力モーダル */}
+          {showPasswordModal && (
+            <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+              <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-8 border border-slate-100 animate-in zoom-in duration-300">
+                <div className="text-center mb-6">
+                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-[18px] font-extrabold text-slate-900 mb-2">管理者ログイン</h3>
+                  <p className="text-[12px] text-slate-500">パスワードを入力してください</p>
+                </div>
+                
+                <input 
+                  type="password" 
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handlePasswordSubmit(); }}
+                  placeholder="パスワード"
+                  className="w-full border-slate-200 border rounded-xl p-3 mb-6 outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-center tracking-widest font-mono"
+                  autoFocus
+                />
+                
+                <div className="flex gap-2 w-full">
+                  <button onClick={() => { setShowPasswordModal(false); setPasswordInput(''); setAdminClickCount(0); }} className="flex-1 px-3 py-3 bg-slate-100 rounded-xl font-bold text-slate-700 hover:bg-slate-200 transition-all">キャンセル</button>
+                  <button onClick={handlePasswordSubmit} className="flex-1 px-3 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 transition-all">ログイン</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* フッターステータス */}
+          <footer className="fixed bottom-0 left-0 right-0 h-6 bg-white/90 border-t border-slate-200 flex items-center px-4 justify-between text-[10px] text-slate-400 z-10 backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+              <span className="font-mono">Sync Status: Online ({appId})</span>
+            </div>
+            <div className="flex gap-4 font-bold uppercase tracking-widest text-[8px]">
+              <span>Double Check (Name+URL): Enabled</span>
+              <span>Secondary Sort (No): ON</span>
+              <span>Records: {sites.length}</span>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    // Reactアプリのレンダリング
+    const root = createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
+  </textarea>
+
   <div id="root"></div>
 
   <script type="text/babel">
@@ -261,7 +905,8 @@
       Star: (p) => <SvgIcon d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" {...p}/>,
       Filter: (p) => <SvgIcon d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" {...p}/>,
       Hash: (p) => <SvgIcon d="M4 9h16 M4 15h16 M10 3L8 21 M16 3l-2 18" {...p}/>,
-      Calendar: (p) => <SvgIcon d="M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18" {...p}/>
+      Calendar: (p) => <SvgIcon d="M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18" {...p}/>,
+      Database: (p) => <SvgIcon d="M3 9c0 1.657 4.03 3 9 3s9-1.343 9-3M3 15c0 1.657 4.03 3 9 3s9-1.343 9-3M3 9v10c0 1.657 4.03 3 9 3s9-1.343 9-3V9m-9 0C3 7.343 7.03 6 12 6s9 1.343 9 3" {...p}/>
     };
 
     const AxisOptions = ({ cols }) => (
@@ -363,6 +1008,7 @@
                   <h4 className="text-lg font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-3">1. データの読み込み</h4>
                   <ul className="list-disc pl-5 space-y-2">
                     <li><strong>ファイル選択:</strong> トップ画面やヘッダーの「ファイル読込」ボタンから <code>.csv</code>, <code>.xlsx</code>, <code>.xls</code> ファイルを読み込めます。</li>
+                    <li><strong>データソースDB:</strong> ヘッダーの「データソース」ボタンから、国や機関が提供する統計データを検索して、参照元URLにアクセスできます。</li>
                     <li><strong>ドラッグ＆ドロップ:</strong> トップ画面の中央エリアにファイルを直接ドラッグ＆ドロップして読み込むことも可能です。</li>
                     <li><strong>コピー＆ペースト:</strong> Excelやスプレッドシートからデータをコピーし、トップ画面で <code>Ctrl+V</code> (Macは <code>Cmd+V</code>) を押すだけで直接データを貼り付けて分析を開始できます。</li>
                   </ul>
@@ -424,6 +1070,28 @@
               <button onClick={onClose} className="px-8 py-2.5 font-bold text-white bg-slate-800 hover:bg-slate-900 rounded-xl transition-all shadow-md active:scale-95">
                 マニュアルを閉じる
               </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // ==========================================
+    // 4.6. モーダル: 統計データソースDB
+    // ==========================================
+    const DataSourceModal = ({ isOpen, onClose }) => {
+      if(!isOpen) return null;
+      const htmlContent = document.getElementById('data-source-template')?.value || '';
+      
+      return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 modal-overlay animate-in">
+          <div className="bg-white w-full max-w-[95vw] lg:max-w-6xl rounded-3xl shadow-2xl flex flex-col h-[90vh] overflow-hidden border border-white/20 relative">
+            <div className="bg-indigo-900 px-6 py-4 flex items-center justify-between text-white relative z-20 shadow-sm shrink-0">
+              <div className="flex items-center space-x-2 font-bold"><Icons.Database className="w-5 h-5 text-indigo-300" /><span>統計データソースDB</span></div>
+              <button onClick={onClose} className="hover:bg-white/20 p-1 rounded-full transition-all"><Icons.X className="w-6 h-6" /></button>
+            </div>
+            <div className="flex-1 w-full bg-slate-50 relative">
+              <iframe srcDoc={htmlContent} className="absolute inset-0 w-full h-full border-none" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />
             </div>
           </div>
         </div>
@@ -1731,6 +2399,7 @@
       
       const [viewMode, setViewMode] = useState('analysis');
       const [isManualOpen, setIsManualOpen] = useState(false);
+      const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
       
       const [clipboard, setClipboard] = useState({ type: null, data: null });
       const [toastMsg, setToastMsg] = useState('');
@@ -2030,16 +2699,16 @@
 
       return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
-          <header className="h-16 bg-slate-900 text-white flex items-center justify-between px-3 md:px-6 shrink-0 z-30">
-            <div className="flex items-center space-x-2 md:space-x-4">
+          <header className="h-16 bg-slate-900 text-white flex items-center px-3 md:px-6 shrink-0 z-30">
+            <div className="flex items-center space-x-2 md:space-x-4 flex-1">
               <button onClick={onReset} className="p-2 hover:bg-white/10 rounded-full transition-colors"><Icons.Left className="w-5 h-5"/></button>
-              <div className="hidden md:block">
+              <div className="hidden xl:block">
                 <h1 className="font-black text-xl text-blue-400 leading-none truncate max-w-[150px] sm:max-w-xs">Universal Analyzer</h1>
                 <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest truncate max-w-[150px] sm:max-w-xs">{fileName}</p>
               </div>
             </div>
             
-            <div className="flex items-center">
+            <div className="flex items-center justify-center flex-shrink-0">
               {viewMode === 'analysis' && (
                 <div className="flex space-x-1 md:space-x-2 border-r border-slate-700 pr-1 md:pr-3 mr-1 md:mr-2">
                   <button onClick={() => analysisPanelRef.current?.runAnalysis()} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 md:px-8 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-black transition-all shadow-md flex items-center tracking-wide">
@@ -2060,16 +2729,21 @@
                 </button>
               </div>
 
-              <div className="border-l border-slate-700 pl-1 md:pl-3 ml-1 md:ml-2 relative group hidden sm:block">
-                 <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                 <button className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-bold transition-all shadow-sm border border-slate-600 flex items-center">
-                   <Icons.Upload className="w-3.5 h-3.5 md:mr-1" /> <span className="hidden lg:inline">ファイル読込</span>
+              <div className="border-l border-slate-700 pl-1 md:pl-3 ml-1 md:ml-2 flex items-center hidden sm:flex">
+                 <div className="relative group">
+                   <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                   <button className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-bold transition-all shadow-sm border border-slate-600 flex items-center">
+                     <Icons.Upload className="w-3.5 h-3.5 md:mr-1" /> <span className="hidden lg:inline">ファイル読込</span>
+                   </button>
+                 </div>
+                 <button onClick={() => setIsDataSourceOpen(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-bold transition-all shadow-sm border border-indigo-500 flex items-center ml-2">
+                   <Icons.Database className="w-3.5 h-3.5 md:mr-1" /> <span className="hidden lg:inline">データソース</span>
                  </button>
               </div>
             </div>
             
-            <div className="flex items-center space-x-1 md:space-x-3 ml-auto pl-2">
-              <div className="hidden xl:block font-black text-blue-500 text-[10px] animate-pulse tracking-tighter border border-blue-500/30 px-2 py-1 rounded bg-blue-500/10">AI READY</div>
+            <div className="flex items-center justify-end space-x-1 md:space-x-3 flex-1">
+              <div className="hidden 2xl:block font-black text-blue-500 text-[10px] animate-pulse tracking-tighter border border-blue-500/30 px-2 py-1 rounded bg-blue-500/10">AI READY</div>
               <button onClick={() => setIsManualOpen(true)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors flex items-center text-slate-300 hover:text-white text-xs font-bold border border-white/10 shadow-sm whitespace-nowrap">
                 <Icons.Book className="w-4 h-4 md:mr-1.5"/> <span className="hidden md:inline">使い方</span>
               </button>
@@ -2184,6 +2858,7 @@
           </footer>
 
           <ManualModal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} />
+          <DataSourceModal isOpen={isDataSourceOpen} onClose={() => setIsDataSourceOpen(false)} />
           {toastMsg && (
             <div className="fixed bottom-6 right-6 bg-slate-800/90 backdrop-blur-sm text-white px-5 py-3 rounded-xl shadow-2xl text-sm font-bold animate-in z-[200] flex items-center">
               <Icons.Info className="w-5 h-5 mr-2 text-blue-400" /> {toastMsg}
@@ -2202,6 +2877,7 @@
       const [errorMsg, setErrorMsg] = useState('');
       const [isSettingsOpen, setIsSettingsOpen] = useState(false);
       const [isManualOpen, setIsManualOpen] = useState(false);
+      const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
       const [isDragging, setIsDragging] = useState(false);
 
       useEffect(() => {
@@ -2286,15 +2962,22 @@
               <span className="text-xs text-slate-400 mt-1 block">（ドラッグ＆ドロップ、または <strong className="font-bold text-slate-500">Ctrl+V / Cmd+V</strong> で貼り付け）</span>
             </p>
             {errorMsg && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-bold mb-8 border border-red-100">{errorMsg}</div>}
-            <div className="relative group">
-              <input type="file" accept=".csv,.xlsx,.xls" onChange={e=>processFile(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"/>
-              <div className={`text-white font-black py-5 rounded-2xl shadow-xl flex items-center justify-center transition-all active:scale-95 pointer-events-none ${isDragging ? 'bg-blue-700' : 'bg-blue-600 group-hover:bg-blue-700'}`}>
-                <Icons.Sheet className="w-6 h-6 mr-3" /> ファイルを選択する
+            
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <div className="relative group w-full sm:w-auto">
+                <input type="file" accept=".csv,.xlsx,.xls" onChange={e=>processFile(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"/>
+                <div className={`text-white font-black py-4 px-6 w-full rounded-2xl shadow-xl flex items-center justify-center transition-all active:scale-95 pointer-events-none ${isDragging ? 'bg-blue-700' : 'bg-blue-600 group-hover:bg-blue-700'}`}>
+                  <Icons.Sheet className="w-6 h-6 mr-2" /> ファイルを選択する
+                </div>
               </div>
+              <button onClick={() => setIsDataSourceOpen(true)} className="text-white font-black py-4 px-6 w-full sm:w-auto rounded-2xl shadow-xl flex items-center justify-center transition-all active:scale-95 bg-indigo-600 hover:bg-indigo-700">
+                <Icons.Database className="w-6 h-6 mr-2" /> データソースDB
+              </button>
             </div>
           </div>
           <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
           <ManualModal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} />
+          <DataSourceModal isOpen={isDataSourceOpen} onClose={() => setIsDataSourceOpen(false)} />
         </div>
       );
     };
