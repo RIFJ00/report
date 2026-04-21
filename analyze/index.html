@@ -1295,7 +1295,7 @@
         let currentBg = BACKGROUND_COLORS[bgColor];
         const isDarkTheme = ['dark', 'black', 'navy'].includes(bgColor);
         
-        // グラフ内部にデータ元を描画するためのアノテーション設定
+        // グラフ内部(画像保存時)にデータ元を描画するためのアノテーション設定
         let annotations = [];
         if (showDataSource && fileName) {
             annotations.push({
@@ -1304,7 +1304,7 @@
                 xref: 'paper',
                 yref: 'paper',
                 x: 1,
-                y: -0.15,
+                y: -0.18, // グラフの下部余白に配置
                 xanchor: 'right',
                 yanchor: 'top',
                 font: { size: 10, color: isDarkTheme ? '#64748b' : '#94a3b8' }
@@ -1313,7 +1313,7 @@
 
         let baseLayout = {
             title: chartTitle ? { text: chartTitle, font: { color: currentBg.font, size: 18 } } : undefined,
-            margin: { t: chartTitle ? 60 : 40, b: showDataSource ? 80 : 40 },
+            margin: { t: chartTitle ? 60 : 40, b: showDataSource ? 70 : 40, l: 50, r: 20 },
             colorway: COLOR_PALETTES[colorPalette].colorway,
             plot_bgcolor: currentBg.plot,
             paper_bgcolor: currentBg.paper,
@@ -1348,7 +1348,7 @@
               if (yAxisChk.length === 0) throw new Error("数値を1つ以上選択してください");
               let val = toNum(filteredData[0][yAxisChk[0]]);
               let gaugeTitle = chartTitle || yAxisChk[0];
-              let gaugeLayout = { ...baseLayout, margin: { t: 60, b: showDataSource ? 80 : 40 } };
+              let gaugeLayout = { ...baseLayout, margin: { t: 60, b: showDataSource ? 70 : 40, l: 40, r: 40 } };
               if (chartTitle) gaugeLayout.title = undefined;
               
               window.Plotly.newPlot('chart-area', [{ type: "indicator", mode: "gauge+number", value: val, title: { text: gaugeTitle, font: { color: currentBg.font } }, gauge: { bar: { color: COLOR_PALETTES[colorPalette].colorway[0] } } }], gaugeLayout, plotConfig);
@@ -1507,7 +1507,7 @@
             case 'funnel': {
               let xLabels = xAxis === 'デフォルト（行/データ順）' ? yAxisChk : [xAxis];
               let values = yAxisChk.map(c => filteredData.reduce((acc, d) => acc + (toNum(d[c]) || 0), 0));
-              let layout = { ...baseLayout, margin: { l: 150, t: chartTitle ? 60 : 40, b: showDataSource ? 80 : 40 } };
+              let layout = { ...baseLayout, margin: { l: 150, t: chartTitle ? 60 : 40, b: showDataSource ? 70 : 40, r: 20 } };
               window.Plotly.newPlot('chart-area', [{ type: 'funnel', y: yAxisChk, x: values, textinfo: "value+percent initial" }], layout, plotConfig);
               extractedDataForAI = { type: 'funnel', stages: yAxisChk, values: values };
               break;
@@ -1783,7 +1783,7 @@
                 }
                 
                 window.Plotly.newPlot('chart-area', [{ x: ks, y: vs, type: 'bar', marker: {color: COLOR_PALETTES[colorPalette].colorway[0] || 'lightblue'} }], { 
-                    ...baseLayout, margin: {t:80, b: showDataSource ? 80 : 40}, title: { text: statTitle, font: { color: currentBg.font, size: 16 } }
+                    ...baseLayout, margin: {t:80, b: showDataSource ? 70 : 40, l: 50, r: 20}, title: { text: statTitle, font: { color: currentBg.font, size: 16 } }
                 }, plotConfig);
                 extractedDataForAI = { test_type: testName, p_value: pValue, group_summary: summary };
                 break;
@@ -2294,6 +2294,12 @@
                     </div>
                   )}
 
+                  {/* データ元と日付の表示 (HTML版: Z-indexを付与して重なりを防止) */}
+                  {showDataSource && !noDataMsg && (
+                    <div className={`absolute bottom-3 right-5 text-[10px] font-bold z-10 pointer-events-none ${isDarkTheme ? 'text-slate-500' : 'text-slate-400'}`}>
+                      データ元: {fileName} ({new Date().toLocaleDateString('ja-JP')})
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -2699,16 +2705,16 @@
 
       return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
-          <header className="h-16 bg-slate-900 text-white flex items-center px-3 md:px-6 shrink-0 z-30">
-            <div className="flex items-center space-x-2 md:space-x-4 flex-1">
+          <header className="w-full bg-slate-900 text-white flex flex-wrap items-center justify-between px-3 md:px-6 py-2 shrink-0 z-30 gap-2 min-h-[4rem]">
+            <div className="flex items-center space-x-2 md:space-x-4 shrink-0">
               <button onClick={onReset} className="p-2 hover:bg-white/10 rounded-full transition-colors"><Icons.Left className="w-5 h-5"/></button>
-              <div className="hidden xl:block">
+              <div className="hidden sm:block">
                 <h1 className="font-black text-xl text-blue-400 leading-none truncate max-w-[150px] sm:max-w-xs">Universal Analyzer</h1>
                 <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest truncate max-w-[150px] sm:max-w-xs">{fileName}</p>
               </div>
             </div>
             
-            <div className="flex items-center justify-center flex-shrink-0">
+            <div className="flex items-center justify-center shrink-0 flex-wrap gap-2">
               {viewMode === 'analysis' && (
                 <div className="flex space-x-1 md:space-x-2 border-r border-slate-700 pr-1 md:pr-3 mr-1 md:mr-2">
                   <button onClick={() => analysisPanelRef.current?.runAnalysis()} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 md:px-8 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-black transition-all shadow-md flex items-center tracking-wide">
@@ -2720,17 +2726,17 @@
                 </div>
               )}
 
-              <div className="flex bg-slate-800 rounded-xl p-1 border border-white/10 flex-shrink-0 mx-1 md:mx-2">
+              <div className="flex bg-slate-800 rounded-xl p-1 border border-white/10 shrink-0">
                 <button onClick={() => setViewMode('analysis')} className={`flex items-center px-3 md:px-6 py-1.5 md:py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'analysis' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>
-                  <Icons.Chart className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">分析</span>
+                  <Icons.Chart className="w-4 h-4 md:mr-2" /> <span className="hidden sm:inline">分析</span>
                 </button>
                 <button onClick={() => setViewMode('editor')} className={`flex items-center px-3 md:px-6 py-1.5 md:py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'editor' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>
-                  <Icons.Table className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">編集</span>
+                  <Icons.Table className="w-4 h-4 md:mr-2" /> <span className="hidden sm:inline">編集</span>
                 </button>
               </div>
 
-              <div className="border-l border-slate-700 pl-1 md:pl-3 ml-1 md:ml-2 flex items-center hidden sm:flex">
-                 <div className="relative group">
+              <div className="border-l border-slate-700 pl-1 md:pl-3 ml-1 md:ml-2 flex items-center hidden sm:flex shrink-0">
+                 <div className="relative group flex items-center">
                    <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
                    <button className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-bold transition-all shadow-sm border border-slate-600 flex items-center">
                      <Icons.Upload className="w-3.5 h-3.5 md:mr-1" /> <span className="hidden lg:inline">ファイル読込</span>
@@ -2742,8 +2748,8 @@
               </div>
             </div>
             
-            <div className="flex items-center justify-end space-x-1 md:space-x-3 flex-1">
-              <div className="hidden 2xl:block font-black text-blue-500 text-[10px] animate-pulse tracking-tighter border border-blue-500/30 px-2 py-1 rounded bg-blue-500/10">AI READY</div>
+            <div className="flex items-center justify-end space-x-1 md:space-x-3 shrink-0">
+              <div className="hidden xl:block font-black text-blue-500 text-[10px] animate-pulse tracking-tighter border border-blue-500/30 px-2 py-1 rounded bg-blue-500/10">AI READY</div>
               <button onClick={() => setIsManualOpen(true)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors flex items-center text-slate-300 hover:text-white text-xs font-bold border border-white/10 shadow-sm whitespace-nowrap">
                 <Icons.Book className="w-4 h-4 md:mr-1.5"/> <span className="hidden md:inline">使い方</span>
               </button>
