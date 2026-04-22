@@ -1010,7 +1010,7 @@
                     <li><strong>ファイル選択:</strong> トップ画面やヘッダーの「ファイル読込」ボタンから <code>.csv</code>, <code>.xlsx</code>, <code>.xls</code> ファイルを読み込めます。</li>
                     <li><strong>データソースDB:</strong> ヘッダーの「データソース」ボタンから、国や機関が提供する統計データを検索して、参照元URLにアクセスできます。</li>
                     <li><strong>ドラッグ＆ドロップ:</strong> トップ画面の中央エリアにファイルを直接ドラッグ＆ドロップして読み込むことも可能です。</li>
-                    <li><strong>コピー＆ペースト:</strong> Excelやスプレッドシートからデータをコピーし、トップ画面で <code>Ctrl+V</code> (Macは <code>Cmd+V</code>) を押すだけで直接データを貼り付けて分析を開始できます。</li>
+                    <li><strong>コピー＆ペースト:</strong> Excelやスプレッドシートからデータをコピーし、トップ画面または分析画面で直接 <code>Ctrl+V</code> (Macは <code>Cmd+V</code>) を押すだけで、既存データの末尾に追加（追記）して分析に反映できます。</li>
                   </ul>
                 </section>
 
@@ -1039,7 +1039,7 @@
 
                 <section>
                   <h4 className="text-lg font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-3">4. データ分析モード（グラフ作成）</h4>
-                  <p className="mb-2">左側のサイドバーで条件を設定し、ヘッダーの「分析を実行」ボタンを押すと右側にグラフが表示されます。</p>
+                  <p className="mb-2">左側のサイドバーで条件を設定したり、編集画面でデータを変更すると、<strong>即座にリアルタイムで自動的にグラフが更新</strong>されます。（手動で更新したい場合はヘッダーの「分析を実行」ボタンも使用できます）</p>
                   <ul className="list-disc pl-5 space-y-2">
                     <li><strong>分析手法の選択:</strong> 基礎統計量、折れ線グラフ、棒グラフなど全31種類の分析手法から目的に合ったものを選択します。手法横の「ℹ️」アイコンにカーソルを合わせると、各手法の詳細な解説が表示されます。</li>
                     <li><strong>データの絞り込み:</strong> 「期間」での絞り込みに加え、項目(カテゴリ)フィルターを追加することができます。初期状態では自動判別された主要な列が絞り込み候補として表示されますが、編集モードで列名横の★アイコンをクリックして特定の項目を指定すると、その項目でもフィルターをかけて特定の値のみを抽出することができます。カテゴリ数が多すぎる場合に便利です。</li>
@@ -1829,15 +1829,15 @@
         } catch (e) { setNoDataMsg(e.message); }
       };
 
-      // タイトル入力や背景色などの設定が変わった場合に、自動的にグラフ（レイアウトとアノテーション）を更新するためのエフェクト
+      // 設定やデータが変更された際に、自動的にグラフ（レイアウトとアノテーション含む）を更新するためのエフェクト
       useEffect(() => {
         const timer = setTimeout(() => {
-          if (yAxisChk.length > 0 && !summaryData) {
+          if (yAxisChk.length > 0) {
             runAnalysis();
           }
         }, 500);
         return () => clearTimeout(timer);
-      }, [chartTitle, colorPalette, bgColor, showDataSource]);
+      }, [chartTitle, colorPalette, bgColor, showDataSource, filteredData, analysisType, xAxis, yAxisChk]);
 
       const handleAIAnalysis = async () => {
         setIsModalOpen(true);
@@ -2477,6 +2477,62 @@
           }
         }); return nr;
       }), [gridData, cols]);
+
+      // 編集画面等でCtrl+Vを押した際、既存データにコピーしたデータを追加する
+      useEffect(() => {
+        const handleWorkspacePaste = (e) => {
+          // 入力フォーム(セル等)にフォーカスがある場合は通常のペーストを優先
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+          const clipboardData = e.clipboardData || window.clipboardData;
+          if (!clipboardData) return;
+          const htmlData = clipboardData.getData('text/html');
+          const textData = clipboardData.getData('text/plain');
+          if (!textData && !htmlData) return;
+
+          try {
+            let wb;
+            if (htmlData && htmlData.includes('<table')) {
+              const doc = new DOMParser().parseFromString(htmlData, 'text/html');
+              const table = doc.querySelector('table');
+              if (table) {
+                const ws = window.XLSX.utils.table_to_sheet(table);
+                wb = window.XLSX.utils.book_new();
+                window.XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+              } else { wb = window.XLSX.read(textData, {type: 'string'}); }
+            } else if (textData) { wb = window.XLSX.read(textData, {type: 'string'}); }
+
+            if (wb) {
+               const pastedJson = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+               if (pastedJson.length > 0) { 
+                   pushHistory(gridData, gridColumns);
+                   
+                   const newKeys = Object.keys(pastedJson[0]);
+                   let updatedCols = [...gridColumns];
+                   newKeys.forEach(k => {
+                       if (!updatedCols.includes(k)) updatedCols.push(k);
+                   });
+                   
+                   const appendedData = [...gridData];
+                   pastedJson.forEach(row => {
+                       const newRow = {};
+                       updatedCols.forEach(col => {
+                           newRow[col] = row[col] !== undefined ? row[col] : "";
+                       });
+                       appendedData.push(newRow);
+                   });
+                   
+                   setGridColumns(updatedCols);
+                   setGridData(appendedData);
+                   showToast(`クリップボードから ${pastedJson.length} 件のデータを末尾に追加しました。`);
+               }
+            }
+          } catch (err) { console.error(err); showToast('ペーストされたデータの追加に失敗しました。'); }
+        };
+
+        window.addEventListener('paste', handleWorkspacePaste);
+        return () => window.removeEventListener('paste', handleWorkspacePaste);
+      }, [gridData, gridColumns]);
 
       const transposeData = () => {
         if (!gridData.length) return;
