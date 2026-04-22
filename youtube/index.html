@@ -199,7 +199,7 @@
     <div id="passwordModal" class="fixed inset-0 bg-black/50 z-[300] hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
         <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform scale-95 transition-transform duration-300 p-6">
             <h3 class="text-lg font-bold text-gray-900 mb-3"><i class="fas fa-lock text-gray-500 mr-2"></i>管理者認証</h3>
-            <p class="text-sm text-gray-600 mb-4">設定や手動更新を行うにはパスワードを入力してください。</p>
+            <p class="text-sm text-gray-600 mb-4">設定や手動更新を行うするにはパスワードを入力してください。</p>
             <input type="password" id="adminPasswordInput" placeholder="パスワード" class="w-full border border-gray-300 rounded-md px-3 py-2 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition">
             <p id="passwordError" class="text-xs text-red-500 hidden mb-4">パスワードが間違っています。</p>
             <div class="flex justify-end gap-3 mt-4"><button id="cancelPasswordBtn" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md text-sm font-medium transition">キャンセル</button><button id="submitPasswordBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition shadow-md">ロック解除</button></div>
@@ -423,20 +423,36 @@
             const urlParams = new URLSearchParams(window.location.search);
             const urlPw = urlParams.get('pw');
             
-            const clearUrlPassword = () => {
+            // #youtube のチェック (大文字小文字を区別しない)
+            const isHashAuth = window.location.hash.toLowerCase() === '#youtube';
+
+            const clearUrlTriggers = () => {
+                let changed = false;
+                
+                // ?pw=youtube の削除
                 if (urlParams.has('pw')) {
                     urlParams.delete('pw');
-                    // 他のパラメータが残っているかチェック
+                    changed = true;
+                }
+                
+                // #youtube の削除
+                let finalHash = window.location.hash;
+                if (isHashAuth) {
+                    finalHash = '';
+                    changed = true;
+                }
+
+                if (changed) {
                     const newSearch = urlParams.toString();
-                    const newPath = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
-                    // アドレスバーを即座に書き換え
+                    const newPath = window.location.pathname + (newSearch ? '?' + newSearch : '') + finalHash;
+                    // アドレスバーからパラメータ/ハッシュを跡形もなく消去
                     window.history.replaceState({}, document.title, newPath);
                 }
             };
 
-            if (urlPw === 'youtube') {
-                // パスワードが一致した場合、即座にアドレスバーから消去
-                clearUrlPassword();
+            if (urlPw === 'youtube' || isHashAuth) {
+                // パスワード/ハッシュが一致した場合、即座にアドレスバーから消去
+                clearUrlTriggers();
                 siteModal.style.display = 'none'; 
                 initAuth().then(initApp);
             } else {
