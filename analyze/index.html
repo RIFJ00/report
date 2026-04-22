@@ -1045,6 +1045,7 @@
                     <li><strong>データの絞り込み:</strong> 「期間」での絞り込みに加え、項目(カテゴリ)フィルターを追加することができます。初期状態では自動判別された主要な列が絞り込み候補として表示されますが、編集モードで列名横の★アイコンをクリックして特定の項目を指定すると、その項目でもフィルターをかけて特定の値のみを抽出することができます。カテゴリ数が多すぎる場合に便利です。</li>
                     <li><strong>軸 / カテゴリ (X軸):</strong> グラフの横軸となる項目を選びます。</li>
                     <li><strong>分析対象 / 数値 (Y軸):</strong> グラフの縦軸（値）となる数値項目を選びます。比較などで複数選択が可能です。</li>
+                    <li><strong>グラフの操作と保存:</strong> グラフ上をマウスでドラッグするとその範囲をズーム(拡大)でき、ダブルクリックで元のサイズにリセットされます。グラフ画像は上部の「グラフ保存」ボタンからダウンロードできます。</li>
                     <li><strong>グラフタイトル:</strong> サイドバー下部で任意のタイトルを入力すると、出力結果のグラフ領域内に表示され、保存時のファイル名にも適用されます。</li>
                     <li><strong>カラーテーマと背景色:</strong> グラフの色合いや背景色を自由に変更できます。ダークモードなど、用途や好みに合わせて切り替えが可能です。</li>
                     <li><strong>データ元と日付の表示:</strong> サイドバー下部のチェックボックスにより、グラフ右下にデータ元（ファイル名）と本日の日付を表示・非表示に切り替えることができます。結果を画像として保存・共有する際に便利です。</li>
@@ -1325,6 +1326,7 @@
         let currentColorscale = COLOR_PALETTES[colorPalette].colorscale;
         let plotConfig = { 
             responsive: true, 
+            displayModeBar: false, // ツールチップとの重なりを防止するためにモードバーを非表示
             toImageButtonOptions: { 
                 filename: chartTitle || 'Analysis_Chart', 
                 format: 'png', 
@@ -1839,6 +1841,17 @@
         return () => clearTimeout(timer);
       }, [chartTitle, colorPalette, bgColor, showDataSource, filteredData, analysisType, xAxis, yAxisChk]);
 
+      const handleDownloadChart = () => {
+        const chartArea = document.getElementById('chart-area');
+        if (chartArea && window.Plotly) {
+           window.Plotly.downloadImage(chartArea, {
+             format: 'png',
+             filename: chartTitle || 'Analysis_Chart',
+             scale: 2
+           });
+        }
+      };
+
       const handleAIAnalysis = async () => {
         setIsModalOpen(true);
         setAiLoading(true);
@@ -2260,6 +2273,9 @@
                   <div className={`flex justify-between items-center mb-6 border-b pb-3 flex-wrap gap-2 ${isDarkTheme ? 'border-slate-700' : 'border-current opacity-80'}`}>
                     <h2 className="font-bold text-lg">{chartTitle ? `${chartTitle} ` : ''}可視化結果</h2>
                     <div className="flex space-x-2">
+                      <button onClick={handleDownloadChart} className={`px-3 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm border ${isDarkTheme ? 'bg-slate-700 hover:bg-slate-600 text-slate-200 border-slate-600' : 'bg-white/60 hover:bg-white/90 border-current opacity-80'}`} title="グラフ画像をダウンロード">
+                        <Icons.Download className="w-4 h-4 md:mr-1.5" /> <span className="hidden xl:inline">グラフ保存</span>
+                      </button>
                       <button onClick={() => setShowHistoryModal(true)} className={`px-3 py-2 rounded-xl text-sm font-bold flex items-center transition-all shadow-sm border ${isDarkTheme ? 'bg-slate-700 hover:bg-slate-600 text-slate-200 border-slate-600' : 'bg-white/60 hover:bg-white/90 border-current opacity-80'}`}>
                         <Icons.History className="w-4 h-4 md:mr-1.5" /> <span className="hidden xl:inline">履歴を見る ({savedReports.length})</span>
                       </button>
