@@ -831,7 +831,7 @@
       return { numeric: num, categorical: cat, date: dt, all: keys };
     };
 
-    const callGemini = async (prompt) => {
+    const callGemini = async (prompt, base64Image = null, history = []) => {
       const apiKey = localStorage.getItem('gemini_api_key');
       let aiModel = localStorage.getItem('gemini_api_model') || 'gemini-2.5-flash';
       
@@ -845,9 +845,30 @@
       }
 
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${aiModel}:generateContent?key=${apiKey}`;
+      
+      let contents = [];
+      if (history && history.length > 0) {
+          history.forEach(m => {
+              contents.push({
+                  role: m.role === 'assistant' ? 'model' : 'user',
+                  parts: [{ text: m.text }]
+              });
+          });
+      }
+      
+      let currentParts = [{ text: prompt }];
+      if (base64Image) {
+          const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+          currentParts.push({
+              inlineData: { mimeType: "image/png", data: base64Data }
+          });
+      }
+      
+      contents.push({ role: "user", parts: currentParts });
+
       const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        systemInstruction: { parts: [{ text: "あなたはプロの金融・データアナリストです。提供された実際の集計データや統計量に基づいて、主要な傾向や示唆を日本語で提供してください。一般的な説明は避け、必ず具体的な「数値（平均、変動率、差分など）」を引用し、推測ではなくデータに基づいた実践的な洞察を、箇条書きと太字を活用して分かりやすく記述してください。" }] }
+        contents: contents,
+        systemInstruction: { parts: [{ text: "あなたはプロの金融・データアナリストです。提供された実際の集計データ、統計量、およびグラフ画像に基づいて、主要な傾向や示唆を日本語で提供してください。一般的な説明は避け、必ず具体的な「数値（平均、変動率、差分など）」や「視覚的な特徴」を引用し、推測ではなくデータに基づいた実践的な洞察を、箇条書きと太字を活用して分かりやすく記述してください。" }] }
       };
       
       let delay = 1000;
@@ -2019,6 +2040,16 @@
         const reportTitle = `${typeInfo ? typeInfo.name.split('. ')[1] : 'データ分析'}${titleSuffix}`;
         setCurrentReportTitle(reportTitle);
         
+        let base64Image = null;
+        const chartArea = document.getElementById('chart-area');
+        if (chartArea && window.Plotly && !summaryData) {
+            try {
+                base64Image = await window.Plotly.toImage(chartArea, {format: 'png', width: 800, height: 600});
+            } catch (e) {
+                console.warn("グラフ画像の取得に失敗しました", e);
+            }
+        }
+        
         let dataStr = "";
         if (chartDataForAI) {
             try {
@@ -2044,13 +2075,16 @@
         let dateFilterInfo = dateFilterCol ? `\n期間指定: ${dateFilterCol} (${startDate || '指定なし'} 〜 ${endDate || '指定なし'})` : '';
         let currentXAxisInfo = xAxis || '未選択';
         
-        // 編集している生データのサンプルを追加
-        let sampleDataStr = "";
+        // 編集している全生データを追加 (APIの制限を考慮して最大100,000文字程度でカット)
+        let allDataStr = "";
         try {
-            sampleDataStr = JSON.stringify(filteredData.slice(0, 3));
+            allDataStr = JSON.stringify(filteredData);
+            if (allDataStr.length > 100000) {
+                allDataStr = allDataStr.substring(0, 100000) + "...(データ長が大きすぎるため以降省略)";
+            }
         } catch(e) {}
 
-        let aiPrompt = `あなたはデータアナリストです。ユーザーは現在、以下の設定でグラフを開き、データを編集・確認しています。この状況を踏まえて分析を行ってください。
+        let aiPrompt = `あなたはデータアナリストです。ユーザーは現在、以下の設定でグラフを開き、データを編集・確認しています。この状況と、添付されたグラフの画像(視覚的特徴)を踏まえて総合的に分析を行ってください。
 
 【現在のグラフ表示設定】
 - グラフタイトル: ${chartTitle || '未設定'}
@@ -2060,19 +2094,17 @@
 
 【編集・抽出されているデータ状況】
 - データ件数: 全 ${gridData.length} 件中、条件に一致する ${filteredData.length} 件を抽出して分析中${dateFilterInfo}
-- 編集中の生データサンプル(上位3件): ${sampleDataStr}
+- 編集画面上の生データ: ${allDataStr}
 
 【対象項目の基本統計量】
 ${statsStr}
 
-【グラフに描画されている集計データ】
-${dataStr}
-
-上記「開いているグラフの目的」と「編集・抽出されているデータの内容」を確認した上で、データから読み取れる主要な傾向や実践的な示唆を日本語で提供してください。必ず「基本統計量」や「集計データ」の実際の数値を引用して、具体的かつ論理的に記述してください。`;
+${dataStr ? `【グラフに描画されている集計データ】\n${dataStr}\n` : ''}
+上記「開いているグラフ画像から読み取れる視覚的な特徴(トレンド、偏り、異常値など)」と「編集・抽出されている数値生データや統計量」を照らし合わせて、主要な傾向や実践的な示唆を日本語で提供してください。必ず実際の「数値」を引用し、具体的かつ論理的に記述してください。`;
         
         try {
-          const res = await callGemini(aiPrompt);
-          setChatHistory([{ role: "assistant", text: res }]);
+          const res = await callGemini(aiPrompt, base64Image);
+          setChatHistory([{ role: "assistant", text: res, hasImage: !!base64Image }]);
         } catch (e) {
           setChatHistory([{ role: "assistant", text: e.message || "AI分析中にエラーが発生しました。" }]);
         } finally { 
@@ -2086,12 +2118,16 @@ ${dataStr}
       const askAI = async () => {
         if (!userInput.trim()) return;
         const msg = userInput; setUserInput("");
+        
+        // 直前の履歴をコピーして追加
+        const currentHistory = [...chatHistory];
         setChatHistory(p => [...p, { role: "user", text: msg }]);
         setAiLoading(true);
         setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
 
         try {
-          const res = await callGemini(`文脈を踏まえて質問に答えてください: ${msg}`);
+          // コンテキストを維持して追加の質問を送信
+          const res = await callGemini(`これまでの分析結果と文脈を踏まえて、以下の質問に答えてください: ${msg}`, null, currentHistory);
           setChatHistory(p => [...p, { role: "assistant", text: res }]);
         } catch (e) {
           setChatHistory(p => [...p, { role: "assistant", text: e.message || "エラーが発生しました。" }]);
