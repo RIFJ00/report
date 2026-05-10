@@ -2043,8 +2043,32 @@
         let statsStr = JSON.stringify(overallStats);
         let dateFilterInfo = dateFilterCol ? `\n期間指定: ${dateFilterCol} (${startDate || '指定なし'} 〜 ${endDate || '指定なし'})` : '';
         let currentXAxisInfo = xAxis || '未選択';
+        
+        // 編集している生データのサンプルを追加
+        let sampleDataStr = "";
+        try {
+            sampleDataStr = JSON.stringify(filteredData.slice(0, 3));
+        } catch(e) {}
 
-        let aiPrompt = `【分析条件】\n分析手法: ${analysisType}\nX軸(カテゴリ): ${currentXAxisInfo}\nY軸(数値): ${yAxisChk.join(", ")}\n対象データ件数: ${filteredData.length}${dateFilterInfo}\n\n【対象項目の基本統計量】\n${statsStr}\n\n【グラフ表示用の集計・サンプリングデータ】\n${dataStr}\n\n上記データと条件に基づいて、データから読み取れる主要な傾向や示唆を日本語で提供してください。必ず「基本統計量」や「集計データ」の実際の数値を引用して具体的に分析してください。`;
+        let aiPrompt = `あなたはデータアナリストです。ユーザーは現在、以下の設定でグラフを開き、データを編集・確認しています。この状況を踏まえて分析を行ってください。
+
+【現在のグラフ表示設定】
+- グラフタイトル: ${chartTitle || '未設定'}
+- 分析手法: ${typeInfo ? typeInfo.name : analysisType} (${typeInfo ? typeInfo.desc : ''})
+- X軸(カテゴリ): ${currentXAxisInfo}
+- Y軸(数値): ${yAxisChk.join(", ")}
+
+【編集・抽出されているデータ状況】
+- データ件数: 全 ${gridData.length} 件中、条件に一致する ${filteredData.length} 件を抽出して分析中${dateFilterInfo}
+- 編集中の生データサンプル(上位3件): ${sampleDataStr}
+
+【対象項目の基本統計量】
+${statsStr}
+
+【グラフに描画されている集計データ】
+${dataStr}
+
+上記「開いているグラフの目的」と「編集・抽出されているデータの内容」を確認した上で、データから読み取れる主要な傾向や実践的な示唆を日本語で提供してください。必ず「基本統計量」や「集計データ」の実際の数値を引用して、具体的かつ論理的に記述してください。`;
         
         try {
           const res = await callGemini(aiPrompt);
