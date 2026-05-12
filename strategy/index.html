@@ -458,7 +458,7 @@
                 <p class="mb-2">会議情報を時系列で追うことで、情報を先取りし、受動的な情報収集から能動的な事業開発を目指す。</p>
                 <p class="font-bold text-gray-600">本サイトは一般社団法人日本みらい研が作成したものです。</p>
                 <div class="flex items-center justify-center gap-1 mt-2">
-                    <p class="text-xs text-gray-400">データアクセス日: <span id="current-datetime"></span></p>
+                    <p class="text-xs text-gray-400">データ最終更新日: <span id="current-datetime">取得中...</span></p>
                     
                     <!-- 設定ボタン -->
                     <button onclick="handleAdminClick()" class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-200" title="設定 (管理者専用)">
@@ -877,6 +877,70 @@
 
         let isAppInitialized = false;
         let adminClickCount = 0;
+        let authUser = null;
+
+        // データ更新日管理用
+        let latestUpdateTimestamp = 0;
+        let fallbackDateStr = localStorage.getItem('seisaku_update_date') || '';
+
+        // データ内のタイムスタンプや変更検知から最新の更新日を割り出して表示する関数
+        function processDataUpdate(documents, isInitialChange) {
+            let hasTimestampField = false;
+            
+            // 1. タイムスタンプフィールドを探して最大値を取得
+            documents.forEach(docData => {
+                ['updatedAt', 'updateAt', '更新日', '更新日時', 'modifiedAt', 'timestamp', 'createdAt', '作成日'].forEach(field => {
+                    if (docData[field]) {
+                        let t = 0;
+                        if (typeof docData[field].toMillis === 'function') {
+                            t = docData[field].toMillis();
+                        } else if (docData[field].seconds) {
+                            t = docData[field].seconds * 1000;
+                        } else if (typeof docData[field] === 'number') {
+                            t = docData[field] < 10000000000 ? docData[field] * 1000 : docData[field];
+                        } else {
+                            const parsed = new Date(docData[field]).getTime();
+                            if (!isNaN(parsed)) t = parsed;
+                        }
+                        if (t > latestUpdateTimestamp) {
+                            latestUpdateTimestamp = t;
+                            hasTimestampField = true;
+                        }
+                    }
+                });
+            });
+
+            const updateDisplayDate = (dateStr) => {
+                const updateElem = document.getElementById('data-update-date');
+                if (updateElem) updateElem.innerText = dateStr;
+                const footElem = document.getElementById('current-datetime');
+                if (footElem) footElem.innerText = dateStr;
+            };
+
+            if (hasTimestampField && latestUpdateTimestamp > 0) {
+                const d = new Date(latestUpdateTimestamp);
+                const datetimeStr = `${d.getFullYear()}年${String(d.getMonth() + 1).padStart(2, '0')}月${String(d.getDate()).padStart(2, '0')}日`;
+                localStorage.setItem('seisaku_update_date', datetimeStr);
+                updateDisplayDate(datetimeStr);
+                return;
+            }
+
+            // 2. タイムスタンプが無い場合：初回ロード以降の「変更検知」を更新日とする
+            if (!isInitialChange) {
+                const d = new Date();
+                fallbackDateStr = `${d.getFullYear()}年${String(d.getMonth() + 1).padStart(2, '0')}月${String(d.getDate()).padStart(2, '0')}日`;
+                localStorage.setItem('seisaku_update_date', fallbackDateStr);
+            }
+            
+            // まだ一度も日付が設定されていない場合はとりあえず今日の日付をセット
+            if (!fallbackDateStr) {
+                const d = new Date();
+                fallbackDateStr = `${d.getFullYear()}年${String(d.getMonth() + 1).padStart(2, '0')}月${String(d.getDate()).padStart(2, '0')}日`;
+                localStorage.setItem('seisaku_update_date', fallbackDateStr);
+            }
+
+            updateDisplayDate(fallbackDateStr);
+        }
 
         // Firebase SDKを動的にインポートして初期化する関数
         function initFirebase() {
@@ -937,6 +1001,7 @@
                     let foundCount = 0;
 
                     if (allDocuments.length > 0) {
+                        processDataUpdate(allDocuments, isInitial);
                         allDocuments.forEach(itemData => {
                             let fieldNameStr = itemData['分野'] || itemData['分野名'] || itemData.name;
                             if (!fieldNameStr) {
@@ -1036,6 +1101,7 @@
                     }));
                     
                     if (allDocuments.length > 0) {
+                        processDataUpdate(allDocuments, isInitial);
                         const parsedData = {};
 
                         allDocuments.forEach(meeting => {
@@ -1103,9 +1169,6 @@
                         if (isInitial) {
                             console.log(`${allDocuments.length}件の関連会議データを取得しました。`);
                         }
-                        
-                        updateAccessDate(); // 変更時に更新日を現在時刻に
-
                     } else {
                         relatedCouncilsData = {};
                         document.getElementById('data-update-date').innerText = "データなし";
@@ -1157,6 +1220,7 @@
                     let foundCount = 0;
 
                     if (allDocuments.length > 0) {
+                        processDataUpdate(allDocuments, isInitial);
                         allDocuments.forEach(itemData => {
                             let fieldNameStr = itemData['分野'] || itemData['分野名'] || itemData.name;
                             if (!fieldNameStr) {
@@ -1565,27 +1629,6 @@
             updatePdfDisplay();
         }
 
-        function updateAccessDate() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            
-            const datetimeStr = `${year}年${month}月${day}日`;
-            
-            // フッターのデータアクセス日を更新
-            const elem = document.getElementById('current-datetime');
-            if (elem) {
-                elem.innerText = datetimeStr;
-            }
-            
-            // 右上のデータ更新日を更新
-            const updateElem = document.getElementById('data-update-date');
-            if (updateElem) {
-                updateElem.innerText = datetimeStr;
-            }
-        }
-
         function verifyViewPassword() {
             const pw = document.getElementById('view-password-input').value;
             if (pw === VIEW_PASSWORD) {
@@ -1638,7 +1681,6 @@
             isAppInitialized = true;
             
             updateFieldSelect();
-            updateAccessDate();
             
             try {
                 // Firebaseの初期化と認証を先に実行して待機する
