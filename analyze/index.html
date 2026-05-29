@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Universal Data Analyzer - Master Edition (43 Tools)</title>
+  <title>Universal Data Analyzer - Master Edition (44 Tools)</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -768,8 +768,9 @@
       { id: 'candlestick_ma', name: '39. 移動平均付きローソク足', group: '株式・金融', desc: 'ローソク足に終値の移動平均線（20期間）を重ねて表示します。' },
       { id: 'bollinger', name: '40. ボリンジャーバンド', group: '株式・金融', desc: '終値の移動平均線を中心に、価格の変動幅（±2σ）を帯状に表示します。' },
       { id: 'macd', name: '41. MACD付きローソク足', group: '株式・金融', desc: 'ローソク足の下にMACD(12,26,9)を描画し、トレンドの転換点を探ります。' },
-      { id: 'rsi', name: '42. RSI (相対力指数)', group: '株式・金融', desc: '直近14期間の「買われすぎ/売られすぎ」を0〜100%で示すオシレーター指標です。' },
-      { id: 'drawdown', name: '43. ドローダウン推移', group: '株式・金融', desc: '過去の最高値からの下落率（%）を時系列で表示し、リスクを可視化します。' }
+      { id: 'candlestick_vol', name: '42. 出来高付きローソク足', group: '株式・金融', desc: 'ローソク足の下部に出来高（ボリューム）を棒グラフで表示します。Y軸に5項目（始値・高値・安値・終値・出来高）を選択してください。' },
+      { id: 'rsi', name: '43. RSI (相対力指数)', group: '株式・金融', desc: '直近14期間の「買われすぎ/売られすぎ」を0〜100%で示すオシレーター指標です。' },
+      { id: 'drawdown', name: '44. ドローダウン推移', group: '株式・金融', desc: '過去の最高値からの下落率（%）を時系列で表示し、リスクを可視化します。' }
     ];
 
     // ==========================================
@@ -1466,13 +1467,19 @@
             }
             case 'candlestick':
             case 'candlestick_ma':
-            case 'macd': {
-              if (yAxisChk.length < 4) throw new Error('ローソク足を描画するには、分析対象(数値)を4つ（始値、高値、安値、終値）選択してください。');
+            case 'macd':
+            case 'candlestick_vol': {
+              let requiredCount = analysisType === 'candlestick_vol' ? 5 : 4;
+              if (yAxisChk.length < requiredCount) throw new Error(`このグラフを描画するには、分析対象(数値)を${requiredCount}つ（始値、高値、安値、終値${analysisType === 'candlestick_vol' ? '、出来高' : ''}）選択してください。`);
               
               let openCol = yAxisChk.find(c => /始値|open|初値/i.test(c)) || yAxisChk[0];
               let highCol = yAxisChk.find(c => /高値|high|最高/i.test(c)) || yAxisChk[1];
               let lowCol = yAxisChk.find(c => /安値|low|最低/i.test(c)) || yAxisChk[2];
               let closeCol = yAxisChk.find(c => /終値|close/i.test(c)) || yAxisChk[3];
+              let volCol = null;
+              if (analysisType === 'candlestick_vol') {
+                  volCol = yAxisChk.find(c => /出来高|volume|vol|売買高/i.test(c)) || yAxisChk[4] || yAxisChk.find(c => c !== openCol && c !== highCol && c !== lowCol && c !== closeCol);
+              }
 
               let sorted = [...filteredData].sort((a,b) => {
                   let vA = a[xAxis];
@@ -1480,20 +1487,25 @@
                   return vA < vB ? -1 : 1;
               });
 
-              let xVals = [], oVals = [], hVals = [], lVals = [], cVals = [];
+              let xVals = [], oVals = [], hVals = [], lVals = [], cVals = [], vVals = [], colors = [];
               
               sorted.forEach(d => {
                   let o = toNum(d[openCol]);
                   let h = toNum(d[highCol]);
                   let l = toNum(d[lowCol]);
                   let c = toNum(d[closeCol]);
+                  let v = volCol ? toNum(d[volCol]) : null;
                   
-                  if (o !== null && h !== null && l !== null && c !== null) {
+                  if (o !== null && h !== null && l !== null && c !== null && (analysisType !== 'candlestick_vol' || v !== null)) {
                       xVals.push(d[xAxis]);
                       oVals.push(o);
                       cVals.push(c);
                       hVals.push(Math.max(o, h, l, c));
                       lVals.push(Math.min(o, h, l, c));
+                      if (analysisType === 'candlestick_vol') {
+                          vVals.push(v);
+                          colors.push(c >= o ? '#ef4444' : '#3b82f6'); 
+                      }
                   }
               });
 
@@ -1504,7 +1516,7 @@
                 low: lVals,
                 close: cVals,
                 type: 'candlestick',
-                xaxis: 'x', yaxis: analysisType === 'macd' ? 'y2' : 'y',
+                xaxis: 'x', yaxis: (analysisType === 'macd' || analysisType === 'candlestick_vol') ? 'y2' : 'y',
                 name: '価格',
                 increasing: { line: { color: '#ef4444' } }, 
                 decreasing: { line: { color: '#3b82f6' } }  
@@ -1562,10 +1574,21 @@
                   layout.grid = { rows: 2, columns: 1, pattern: 'independent' };
                   layout.yaxis2 = { domain: [0.3, 1], title: '価格', gridcolor: currentBg.grid, zerolinecolor: currentBg.grid };
                   layout.yaxis = { domain: [0, 0.25], title: 'MACD', gridcolor: currentBg.grid, zerolinecolor: currentBg.grid };
+              } else if (analysisType === 'candlestick_vol') {
+                  traces.push({ 
+                      x: xVals, y: vVals, type: 'bar', name: '出来高', yaxis: 'y', 
+                      marker: { color: colors, opacity: 0.6 } 
+                  });
+
+                  layout.grid = { rows: 2, columns: 1, pattern: 'independent' };
+                  layout.yaxis2 = { domain: [0.3, 1], title: '価格', gridcolor: currentBg.grid, zerolinecolor: currentBg.grid };
+                  layout.yaxis = { domain: [0, 0.25], title: '出来高', gridcolor: currentBg.grid, zerolinecolor: currentBg.grid };
               }
               
               window.Plotly.newPlot('chart-area', traces, layout, plotConfig);
-              extractedDataForAI = { type: analysisType, data_points: xVals.length, metrics: [openCol, highCol, lowCol, closeCol] };
+              let metrics = [openCol, highCol, lowCol, closeCol];
+              if (volCol) metrics.push(volCol);
+              extractedDataForAI = { type: analysisType, data_points: xVals.length, metrics: metrics };
               break;
             }
             case 'bollinger': {
@@ -2230,9 +2253,11 @@ ${dataStr ? `【グラフに描画されている集計データ】\n${dataStr}\
       const handleAnalysisTypeChange = (e) => {
         const newType = e.target.value;
         setAnalysisType(newType);
-        // 株式関係(ローソク足)が選択された場合は自動で4つ選択状態にする
+        // 株式関係(ローソク足)が選択された場合は自動で選択状態にする
         if (newType === 'candlestick' || newType === 'candlestick_ma' || newType === 'macd') {
           setYAxisChk(cols.numeric.length ? cols.numeric.slice(0, 4) : [cols.all[0]]);
+        } else if (newType === 'candlestick_vol') {
+          setYAxisChk(cols.numeric.length ? cols.numeric.slice(0, 5) : [cols.all[0]]);
         }
       };
 
