@@ -9,8 +9,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   
   <!-- React & ReactDOM (UMD) -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
   
   <!-- SheetJS for Excel/CSV Import & Export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -22,7 +22,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
 
   <!-- Babel -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.10/babel.min.js"></script>
 
   <!-- html2pdf for PDF Export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -77,11 +77,34 @@
   </script>
   
   <!-- Babel (ブラウザ上でReact JSXを処理するためのコンパイラ) -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.10/babel.min.js"></script>
 </head>
 <body>
   <!-- Reactアプリが描画されるマウントポイント -->
-  <div id="root"></div>
+  <div id="root">
+    <div style="min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f8fafc;color:#1e293b;font-family:Inter,'Noto Sans JP',sans-serif;">
+      <div style="max-width:480px;width:100%;background:white;border:1px solid #e2e8f0;border-radius:16px;padding:28px;box-shadow:0 20px 45px rgba(15,23,42,.08);text-align:center;">
+        <div style="font-weight:900;font-size:20px;margin-bottom:8px;">Data Analyzer を読み込み中</div>
+        <div style="font-size:13px;color:#64748b;line-height:1.7;">画面が切り替わらない場合は、必要な外部ライブラリの読み込みに失敗しています。</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('error', function(event) {
+      const root = document.getElementById('root');
+      if (!root || root.dataset.rendered === 'true') return;
+      const message = event && (event.message || (event.error && event.error.message)) || '不明なエラー';
+      const escaped = String(message).replace(/[&<>]/g, function(c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]); });
+      root.innerHTML = `<div style="min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f8fafc;color:#1e293b;font-family:Inter,'Noto Sans JP',sans-serif;"><div style="max-width:560px;width:100%;background:white;border:1px solid #fecaca;border-radius:16px;padding:28px;box-shadow:0 20px 45px rgba(15,23,42,.08);"><div style="font-weight:900;font-size:20px;margin-bottom:8px;color:#b91c1c;">画面の読み込みに失敗しました</div><div style="font-size:13px;color:#475569;line-height:1.7;">ブラウザを再読み込みしてください。直らない場合は、React / Babel などの外部ライブラリが読み込めていない可能性があります。</div><pre style="white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-top:16px;font-size:12px;color:#334155;">${escaped}</pre></div></div>`;
+    }, true);
+
+    window.setTimeout(function() {
+      const root = document.getElementById('root');
+      if (!root || root.dataset.rendered === 'true') return;
+      root.innerHTML = `<div style="min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f8fafc;color:#1e293b;font-family:Inter,'Noto Sans JP',sans-serif;"><div style="max-width:560px;width:100%;background:white;border:1px solid #fde68a;border-radius:16px;padding:28px;box-shadow:0 20px 45px rgba(15,23,42,.08);"><div style="font-weight:900;font-size:20px;margin-bottom:8px;color:#92400e;">読み込みが完了していません</div><div style="font-size:13px;color:#475569;line-height:1.7;">必要な外部ライブラリの読み込みに時間がかかっているか、ブロックされています。インターネット接続を確認してから、このページを再読み込みしてください。</div></div></div>`;
+    }, 8000);
+  </script>
 
   <!-- ここからReactのコード -->
   <script type="text/babel" data-type="module">
@@ -3167,7 +3190,6 @@ ${dataStr ? `【グラフに描画されている集計データ】\n${dataStr}\
                   </table>
               </div>
             </div>
-            )}
           </main>
           
           {/* 追加したフッター */}
@@ -3308,8 +3330,17 @@ ${dataStr ? `【グラフに描画されている集計データ】\n${dataStr}\
       );
     };
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    const rootElement = document.getElementById('root');
+    try {
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(<App />);
+      window.setTimeout(() => { rootElement.dataset.rendered = 'true'; }, 0);
+    } catch (error) {
+      window.dispatchEvent(new ErrorEvent('error', {
+        message: error && error.message ? error.message : 'Reactアプリの起動に失敗しました',
+        error
+      }));
+    }
   </script>
 </body>
 </html>
