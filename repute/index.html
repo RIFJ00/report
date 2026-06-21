@@ -27,7 +27,8 @@
             "imports": {
                 "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
                 "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
-                "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
+                "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js",
+                "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime?dev"
             }
         }
     </script>
@@ -94,34 +95,63 @@
             '内閣不支持': '内閣不支持率', '内閣不支持率': '内閣不支持率'
         };
 
-        // 日付を「〇年〇月〇日」にフォーマット
-        const formatDate = (dateStr) => {
-            if (!dateStr) return '';
-            if (dateStr.includes('年')) return dateStr; 
-            const parts = dateStr.split(/[-/]/);
-            if (parts.length === 3) {
-                return `${parts[0]}年${parseInt(parts[1], 10)}月${parseInt(parts[2], 10)}日`;
+        // Firestore Timestamp、Date、一般的な日付文字列を安全に Date に変換
+        const parseDate = (value) => {
+            if (!value) return null;
+
+            if (typeof value?.toDate === 'function') {
+                const date = value.toDate();
+                return Number.isNaN(date.getTime()) ? null : date;
             }
-            return dateStr;
+
+            if (value instanceof Date) {
+                return Number.isNaN(value.getTime()) ? null : value;
+            }
+
+            if (typeof value === 'number') {
+                const date = new Date(value);
+                return Number.isNaN(date.getTime()) ? null : date;
+            }
+
+            if (typeof value === 'string') {
+                const normalized = value.trim()
+                    .replace(/年|月/g, '-')
+                    .replace(/日/g, '')
+                    .replace(/\//g, '-');
+                const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+                if (match) {
+                    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+                    return Number.isNaN(date.getTime()) ? null : date;
+                }
+            }
+
+            return null;
         };
+
+        const formatDate = (date) => date
+            ? new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' }).format(date)
+            : '';
 
         // データベースの全ドキュメントを月ごとに集計して平均を出す
         const processData = (docs) => {
             const monthlyData = {};
-            let latestDateStr = '';
+            let latestDate = null;
 
             // 1. 月ごとにグループ化し、最新日付を取得
             docs.forEach(doc => {
                 const data = doc;
                 // dateフィールドの探し方を強化
-                const dateStr = data.date || data.createdAt || data.日付 || data.調査日 || ''; 
-                
-                if (dateStr && dateStr > latestDateStr) {
-                    latestDateStr = dateStr;
+                const nestedData = data.data && typeof data.data === 'object' ? data.data : {};
+                const dateValue = data.date || data.createdAt || data.日付 || data.調査日
+                    || nestedData.date || nestedData.createdAt || nestedData.日付 || nestedData.調査日;
+                const recordDate = parseDate(dateValue);
+
+                if (recordDate && (!latestDate || recordDate > latestDate)) {
+                    latestDate = recordDate;
                 }
 
-                if (dateStr) {
-                    const monthKey = dateStr.substring(0, 7); // "YYYY-MM"
+                if (recordDate) {
+                    const monthKey = `${recordDate.getFullYear()}-${String(recordDate.getMonth() + 1).padStart(2, '0')}`;
                     if (!monthlyData[monthKey]) monthlyData[monthKey] = [];
                     monthlyData[monthKey].push(data);
                 }
@@ -165,9 +195,10 @@
             };
 
             return {
-                latestDate: formatDate(latestDateStr),
+                latestDate: formatDate(latestDate),
                 currentData: calculateAverage(monthlyData[currentMonthKey]),
-                previousData: previousMonthKey ? calculateAverage(monthlyData[previousMonthKey]) : {}
+                previousData: previousMonthKey ? calculateAverage(monthlyData[previousMonthKey]) : {},
+                hasPreviousData: Boolean(previousMonthKey)
             };
         };
 
@@ -183,11 +214,8 @@
                     '国民民主党': 0, '維新': 0, '公明党（参考）': 0, '共産党': 0,
                     'れいわ': 0, '社民党': 0, '保守党': 0, '参政党': 0, 'みらい': 0, '支持なし': 0
                 },
-                previousData: { 
-                    '内閣支持率': 0, '内閣不支持率': 0, '自民党': 0, '中道改革連合': 0,
-                    '国民民主党': 0, '維新': 0, '公明党（参考）': 0, '共産党': 0,
-                    'れいわ': 0, '社民党': 0, '保守党': 0, '参政党': 0, 'みらい': 0, '支持なし': 0
-                }
+                previousData: {},
+                hasPreviousData: false
             };
 
             const [dashboardData, setDashboardData] = useState(defaultDashboardData);
@@ -236,7 +264,7 @@
                 combined['調査期間'] = `各社平均（${dashboardData.latestDate}）`;
 
                 for (const key in dashboardData.previousData) {
-                    if (combined[key] !== undefined) {
+                    if (dashboardData.hasPreviousData && combined[key] !== undefined) {
                         const diff = combined[key] - dashboardData.previousData[key];
                         combined[`${key}_diff`] = diff.toFixed(1);
                     }
@@ -324,7 +352,7 @@
                                     </div>
                                     <div className="p-4 text-center">
                                         <div className="flex items-baseline justify-center">
-                                            <p className="text-3xl font-bold">{supportData[party.dataKey] !== undefined ? Number(supportData[party.dataKey]).toFixed(1) : '0.0'}</p>
+                                            <p className="text-3xl font-bold">{supportData[party.dataKey] !== undefined ? Number(supportData[party.dataKey]).toFixed(1) : '-'}</p>
                                             <span className="text-lg ml-1">%</span>
                                             <DiffLabel diff={supportData[`${party.dataKey}_diff`]} />
                                         </div>
