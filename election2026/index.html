@@ -9,20 +9,20 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- React & ReactDOM (Ver 18) -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
     
     <!-- Prop Types -->
-    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prop-types@15.8.1/prop-types.min.js"></script>
 
     <!-- Recharts -->
-    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.js"></script>
     
     <!-- SheetJS -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 
     <!-- Babel -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.10/babel.min.js"></script>
 
     <style>
         ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -36,7 +36,7 @@
     <script type="module" id="firebase-script">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // 指定されたFirebase設定 (データの保存先・読込先)
         const firebaseConfig = {
@@ -56,12 +56,11 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-election-app';
 
         window.fb = {
-            initAuth: () => new Promise((resolve) => {
-                onAuthStateChanged(auth, (user) => {
-                    if (user) resolve(user);
-                    else signInAnonymously(auth).catch(console.error);
-                });
-            }),
+            initAuth: async () => {
+                if (auth.currentUser) return auth.currentUser;
+                const credential = await signInAnonymously(auth);
+                return credential.user;
+            },
             saveData: async (type, data) => {
                 let user = auth.currentUser;
                 if (!user) {
@@ -112,6 +111,16 @@
 </head>
 <body class="bg-gray-100 text-gray-800">
     <div id="root"></div>
+
+    <script>
+        // Babelなどの外部ライブラリが読み込めない場合も、白画面のままにしない。
+        window.setTimeout(() => {
+            const root = document.getElementById('root');
+            if (root && !root.hasChildNodes()) {
+                root.innerHTML = '<div style="margin:24px;padding:20px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#991b1b;font-family:sans-serif;line-height:1.7"><strong>画面の読み込みに失敗しました。</strong><br>外部ライブラリに接続できていない可能性があります。インターネット接続を確認して、ページを再読み込みしてください。</div>';
+            }
+        }, 8000);
+    </script>
 
     <script type="text/babel" id="app-script">
         // --- ライブラリ読み込みチェック ---
@@ -188,7 +197,7 @@
             "岐阜": "東海ブロック", "静岡": "東海ブロック", "愛知": "東海ブロック", "三重": "東海ブロック",
             "滋賀": "近畿ブロック", "京都": "近畿ブロック", "大阪": "近畿ブロック", "兵庫": "近畿ブロック", "奈良": "近畿ブロック", "和歌山": "近畿ブロック",
             "鳥取": "中国ブロック", "島根": "中国ブロック", "岡山": "中国ブロック", "広島": "中国ブロック", "山口": "中国ブロック",
-            "徳島": "四国ブロック", "香川": "四国ブロック", "愛媛": "四国ブロック", "香川": "四国ブロック", "高知": "四国ブロック",
+            "徳島": "四国ブロック", "香川": "四国ブロック", "愛媛": "四国ブロック", "高知": "四国ブロック",
             "福岡": "九州ブロック", "佐賀": "九州ブロック", "長崎": "九州ブロック", "熊本": "九州ブロック", "大分": "九州ブロック", "宮崎": "九州ブロック", "鹿児島": "九州ブロック", "沖縄": "九州ブロック"
         };
         const BLOCK_TO_PREFS = {};
@@ -215,20 +224,117 @@
             ['National', { voterCount: 105000000, komeiProportional: 6000000, referenceTurnout: 0.55, turnout2026: null }]
         ]; 
 
+        const toFiniteNumber = (value, fallback = 0) => {
+            const num = Number(value);
+            return Number.isFinite(num) ? num : fallback;
+        };
+
+        const normalizeCandidate = (candidate, index = 0) => {
+            const c = candidate && typeof candidate === 'object' ? candidate : {};
+            const district = String(c.district || '不明').trim() || '不明';
+            const party = String(c.party || '無所属').trim() || '無所属';
+            const name = String(c.name || '(名称なし)').trim() || '(名称なし)';
+            const inferredType = district.includes('比例') || district.includes('ブロック') ? 'proportional' : 'single';
+            return {
+                ...c,
+                id: String(c.id || `candidate-${index}`),
+                district,
+                party,
+                name,
+                age: String(c.age || '-'),
+                incumbentStatus: String(c.incumbentStatus || '-'),
+                predictedVotes: Math.max(0, toFiniteNumber(c.predictedVotes, 0)),
+                candidateIndex: Math.max(0, toFiniteNumber(c.candidateIndex, 1)),
+                type: c.type === 'proportional' || c.type === 'single' ? c.type : inferredType,
+                votes2024: c.votes2024 == null ? null : toFiniteNumber(c.votes2024, 0),
+                votes2021: c.votes2021 == null ? null : toFiniteNumber(c.votes2021, 0),
+                votes2017: c.votes2017 == null ? null : toFiniteNumber(c.votes2017, 0),
+                votes2014: c.votes2014 == null ? null : toFiniteNumber(c.votes2014, 0),
+                votes2012: c.votes2012 == null ? null : toFiniteNumber(c.votes2012, 0),
+                votes2009: c.votes2009 == null ? null : toFiniteNumber(c.votes2009, 0),
+                votes2005: c.votes2005 == null ? null : toFiniteNumber(c.votes2005, 0),
+                votes2026: c.votes2026 == null ? null : toFiniteNumber(c.votes2026, 0),
+                status: c.status == null ? '' : String(c.status),
+                status2021: c.status2021 == null ? '' : String(c.status2021),
+                status2026: c.status2026 == null ? null : String(c.status2026),
+                winningStatus: c.winningStatus == null ? '' : String(c.winningStatus),
+                rank: c.rank == null ? '' : String(c.rank)
+            };
+        };
+
+        const normalizeStoredRate = (value) => {
+            if (value === null || value === undefined || value === '') return null;
+            const num = Number(value);
+            if (!Number.isFinite(num)) return null;
+            return num > 1 ? num / 100 : num;
+        };
+
+        const createVoterMap = (entries, fallbackEntries = INITIAL_VOTER_COUNTS) => {
+            if (!Array.isArray(entries)) return new Map(fallbackEntries);
+            const normalized = entries
+                .filter(entry => Array.isArray(entry) && entry.length >= 2)
+                .map(([key, value]) => {
+                    if (typeof value === 'number') return [String(key), Math.max(0, value)];
+                    const v = value && typeof value === 'object' ? value : {};
+                    return [String(key), {
+                        ...v,
+                        voterCount: Math.max(0, toFiniteNumber(v.voterCount, 0)),
+                        komeiProportional: Math.max(0, toFiniteNumber(v.komeiProportional, 0)),
+                        referenceTurnout: normalizeStoredRate(v.referenceTurnout),
+                        turnout2026: normalizeStoredRate(v.turnout2026)
+                    }];
+                });
+            return normalized.length > 0 ? new Map(normalized) : new Map(fallbackEntries);
+        };
+
+        const normalizeSupportRates = (data) => {
+            if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+            const normalized = {};
+            Object.entries(data).forEach(([party, rates]) => {
+                const r = rates && typeof rates === 'object' ? rates : {};
+                normalized[String(party)] = {
+                    support: normalizeStoredRate(r.support),
+                    turnout: normalizeStoredRate(r.turnout)
+                };
+            });
+            return normalized;
+        };
+
         // --- Logic ---
         const calculateDhondt = (votesObj, totalSeats) => {
-            let seats = {};
-            Object.keys(votesObj).forEach(party => seats[party] = 0);
-            for (let i = 0; i < totalSeats; i++) {
+            const seats = {};
+            const parties = Object.keys(votesObj || {});
+            parties.forEach(party => seats[party] = 0);
+            const eligibleParties = parties.filter(party => Number.isFinite(Number(votesObj[party])) && Number(votesObj[party]) > 0);
+            const seatCount = Math.max(0, Math.floor(Number(totalSeats) || 0));
+            if (eligibleParties.length === 0 || seatCount === 0) return seats;
+
+            for (let i = 0; i < seatCount; i++) {
                 let maxQuotient = -1;
                 let maxParty = null;
-                Object.keys(votesObj).forEach(party => {
-                    const quotient = votesObj[party] / (seats[party] + 1);
+                eligibleParties.forEach(party => {
+                    const quotient = Number(votesObj[party]) / (seats[party] + 1);
                     if (quotient > maxQuotient) { maxQuotient = quotient; maxParty = party; }
                 });
                 if (maxParty) seats[maxParty]++;
             }
             return seats;
+        };
+
+        // 保存領域が無効な環境でも、アプリ全体が停止しないようにする。
+        const safeStorage = {
+            getItem: (key) => {
+                try { return window.localStorage.getItem(key); }
+                catch (e) { console.warn("Local storage is unavailable:", e); return null; }
+            },
+            setItem: (key, value) => {
+                try { window.localStorage.setItem(key, value); return true; }
+                catch (e) { console.warn("Failed to save local data:", e); return false; }
+            },
+            removeItem: (key) => {
+                try { window.localStorage.removeItem(key); return true; }
+                catch (e) { console.warn("Failed to remove local data:", e); return false; }
+            }
         };
 
         // Helper to merge Komei into Chudo (Global scope for access in Modal)
@@ -249,6 +355,24 @@
             if (!config) return null;
             return <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4"><div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full"><h3 className="text-lg font-bold text-gray-900 mb-2">確認</h3><p className="text-gray-600 mb-6 whitespace-pre-wrap">{config.message}</p><div className="flex gap-3"><button onClick={onCancel} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors font-bold">キャンセル</button><button onClick={() => { config.onConfirm(); onCancel(); }} className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition-colors font-bold">実行する</button></div></div></div>;
         };
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { error: null };
+            }
+            static getDerivedStateFromError(error) {
+                return { error };
+            }
+            componentDidCatch(error, info) {
+                console.error("Application render failed:", error, info);
+            }
+            render() {
+                if (this.state.error) {
+                    return <div style={{ margin: 24, padding: 20, border: '1px solid #fecaca', borderRadius: 8, background: '#fef2f2', color: '#991b1b', fontFamily: 'sans-serif', lineHeight: 1.7 }}><strong>画面の表示中にエラーが発生しました。</strong><br/>保存済みデータを読み直すか、ページを再読み込みしてください。<details style={{ marginTop: 12 }}><summary>エラーの詳細</summary><pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{String(this.state.error?.message || this.state.error)}</pre></details></div>;
+                }
+                return this.props.children;
+            }
+        }
         const CodeExportDialog = ({ code, onClose }) => {
             const [copied, setCopied] = useState(false);
             const handleCopy = () => { navigator.clipboard.writeText(code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
@@ -494,45 +618,48 @@
         };
 
         const App = () => {
-            const [isLoggedIn, setIsLoggedIn] = useState(true); 
+            const [isLoggedIn, setIsLoggedIn] = useState(IS_READ_ONLY); 
             const [dbStatus, setDbStatus] = useState('init'); // init, connecting, connected, error
             
             // --- 1. localStorage からの読み込みロジックを追加 ---
             const [candidates, setCandidates] = useState(() => {
                 try {
-                    const saved = localStorage.getItem('election_candidates');
+                    const saved = safeStorage.getItem('election_candidates');
                     if (saved) {
                         const parsed = JSON.parse(saved);
+                        if (!Array.isArray(parsed)) return INITIAL_MOCK_DATA.map(normalizeCandidate);
                         // マイグレーション: 古いデータに新しいフィールドを補完
-                        return parsed.map(c => ({
+                        return parsed.map((c, index) => normalizeCandidate({
                             ...c,
                             votes2026: c.votes2026 !== undefined ? c.votes2026 : null,
                             status2026: c.status2026 !== undefined ? c.status2026 : null,
                             rank: c.rank !== undefined ? c.rank : (c.type === 'proportional' ? '-' : ''), // 順位の初期値
                             // 必要なら他のフィールドも
-                        }));
+                        }, index));
                     }
-                    return INITIAL_MOCK_DATA;
+                    return INITIAL_MOCK_DATA.map(normalizeCandidate);
                 } catch (e) {
                     console.error("Failed to load candidates", e);
-                    return INITIAL_MOCK_DATA;
+                    return INITIAL_MOCK_DATA.map(normalizeCandidate);
                 }
             });
             const [voterCounts, setVoterCounts] = useState(() => {
                 try {
-                    const saved = localStorage.getItem('election_voters');
-                    return saved ? new Map(JSON.parse(saved)) : new Map(INITIAL_VOTER_COUNTS);
+                    const saved = safeStorage.getItem('election_voters');
+                    return saved ? createVoterMap(JSON.parse(saved)) : createVoterMap(INITIAL_VOTER_COUNTS);
                 } catch (e) {
                     console.error("Failed to load voters from localStorage", e);
-                    return new Map(INITIAL_VOTER_COUNTS);
+                    return createVoterMap(INITIAL_VOTER_COUNTS);
                 }
             });
             
             // State for support rates (for the new file upload)
             const [supportRates, setSupportRates] = useState(() => {
                  try {
-                     const saved = localStorage.getItem('election_support_rates');
-                     return saved ? JSON.parse(saved) : null;
+                     const saved = safeStorage.getItem('election_support_rates');
+                     if (!saved) return null;
+                     const parsed = JSON.parse(saved);
+                     return normalizeSupportRates(parsed);
                  } catch (e) {
                      return null;
                  }
@@ -540,7 +667,7 @@
             
             // 支持率データの更新日時
             const [supportRatesLastUpdated, setSupportRatesLastUpdated] = useState(() => {
-                return localStorage.getItem('election_support_rates_updated') || null;
+                return safeStorage.getItem('election_support_rates_updated') || null;
             });
 
             const [lastUpdated, setLastUpdated] = useState("Simulation Data");
@@ -578,26 +705,29 @@
                             // データの購読を開始
                             unsubscribeCandidates = window.fb.subscribe('candidates', (data, time) => {
                                 if (data && Array.isArray(data)) {
-                                    setCandidates(data);
+                                    const normalizedData = data.map(normalizeCandidate);
+                                    setCandidates(normalizedData);
                                     // --- 2. データ受信時に localStorage へ保存 ---
-                                    localStorage.setItem('election_candidates', JSON.stringify(data));
+                                    safeStorage.setItem('election_candidates', JSON.stringify(normalizedData));
                                     if(time) setLastUpdated(new Date(time).toLocaleString('ja-JP'));
                                 }
                             });
                             unsubscribeVoters = window.fb.subscribe('voters', (data) => {
                                 if (data) {
-                                    setVoterCounts(new Map(Object.entries(data)));
-                                    localStorage.setItem('election_voters', JSON.stringify(Object.entries(data)));
+                                    const normalizedVoters = createVoterMap(Object.entries(data));
+                                    setVoterCounts(normalizedVoters);
+                                    safeStorage.setItem('election_voters', JSON.stringify(Array.from(normalizedVoters.entries())));
                                 }
                             });
                              unsubscribeSupport = window.fb.subscribe('support_rates', (data, time) => {
-                                if (data) {
-                                    setSupportRates(data);
-                                    localStorage.setItem('election_support_rates', JSON.stringify(data));
+                                if (data && typeof data === 'object' && !Array.isArray(data)) {
+                                    const normalizedSupport = normalizeSupportRates(data);
+                                    setSupportRates(normalizedSupport);
+                                    safeStorage.setItem('election_support_rates', JSON.stringify(normalizedSupport));
                                     if (time) {
                                         const dateStr = new Date(time).toLocaleString('ja-JP');
                                         setSupportRatesLastUpdated(dateStr);
-                                        localStorage.setItem('election_support_rates_updated', dateStr);
+                                        safeStorage.setItem('election_support_rates_updated', dateStr);
                                     }
                                 }
                             });
@@ -628,6 +758,11 @@
                 const clean = String(val).replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/["',]/g, ''); 
                 const num = parseFloat(clean); 
                 return isNaN(num) ? null : num; 
+            };
+            const normalizeRate = (val) => {
+                const num = parseNumber(val);
+                if (num === null) return null;
+                return num > 1 ? num / 100 : num;
             };
             const getStr = (val) => val === undefined || val === null ? "" : String(val);
             const calculateAge = (birthDateStr) => { const today = new Date(); const birthDate = new Date(birthDateStr); if (isNaN(birthDate.getTime())) return null; let age = today.getFullYear() - birthDate.getFullYear(); const m = today.getMonth() - birthDate.getMonth(); if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) { age--; } const yyyy = birthDate.getFullYear(); const mm = String(birthDate.getMonth() + 1).padStart(2, '0'); const dd = String(birthDate.getDate()).padStart(2, '0'); return `${yyyy}/${mm}/${dd} (${age}歳)`; };
@@ -837,8 +972,8 @@
                     setLastUpdated(new Date().toLocaleString('ja-JP'));
                     
                     // --- 3. 手動アップロード時も localStorage へ保存 ---
-                    localStorage.setItem('election_candidates', JSON.stringify(newCandidates));
-                    localStorage.setItem('election_voters', JSON.stringify(Array.from(newVoterCounts.entries())));
+                    safeStorage.setItem('election_candidates', JSON.stringify(newCandidates));
+                    safeStorage.setItem('election_voters', JSON.stringify(Array.from(newVoterCounts.entries())));
 
                     if(window.fb) {
                         try {
@@ -895,22 +1030,18 @@
                     const districtRaw = getStr(row[districtIdx]).replace(/"/g, '').trim();
                     const voterVal = parseNumber(row[voterCountIdx]);
                     const komeiVal = komeiPropIdx !== -1 ? parseNumber(row[komeiPropIdx]) : 0;
-                    const turnoutVal = turnoutIdx !== -1 ? parseNumber(row[turnoutIdx]) : null;
-                    let turnout2026Val = turnout2026Idx !== -1 ? parseNumber(row[turnout2026Idx]) : null;
-                    if (turnout2026Val !== null && turnout2026Val > 1) turnout2026Val /= 100;
+                    const turnoutVal = turnoutIdx !== -1 ? normalizeRate(row[turnoutIdx]) : null;
+                    const turnout2026Val = turnout2026Idx !== -1 ? normalizeRate(row[turnout2026Idx]) : null;
 
                     if (districtRaw) { 
                         // 特別処理: 全国合計の保存
                         if (districtRaw.includes("全国") || districtRaw.includes("合計") || districtRaw.includes("総数")) {
                             const currentNat = newVoterCounts.get('National') || {};
-                            let natTurnout = turnoutVal;
-                            // 1以上なら%表記とみなして100で割る簡易判定
-                            if (natTurnout !== null && natTurnout > 1) natTurnout /= 100;
-                            
                             newVoterCounts.set('National', { 
                                 voterCount: voterVal || currentNat.voterCount || 0, 
                                 komeiProportional: 0, 
-                                referenceTurnout: natTurnout !== null ? natTurnout : (currentNat.referenceTurnout || 0.55)
+                                referenceTurnout: turnoutVal !== null ? turnoutVal : (currentNat.referenceTurnout || 0.55),
+                                turnout2026: turnout2026Val !== null ? turnout2026Val : currentNat.turnout2026
                             });
                         }
 
@@ -940,7 +1071,7 @@
                     // ★修正点: まずローカルステートを即時更新
                     setVoterCounts(newVoterCounts);
                     // --- 3. 手動アップロード時も localStorage へ保存 ---
-                    localStorage.setItem('election_voters', JSON.stringify(Array.from(newVoterCounts.entries())));
+                    safeStorage.setItem('election_voters', JSON.stringify(Array.from(newVoterCounts.entries())));
                     
                     // Update: Logic changed to prioritize Firestore save over local state update when Firebase is available
                     if(window.fb) { 
@@ -1014,14 +1145,14 @@
                      Object.keys(partyIndices).forEach(p => {
                          const idx = partyIndices[p];
                          newSupportRates[p] = {
-                             support: supportRow ? parseNumber(supportRow[idx]) : null,
-                             turnout: turnoutRow ? parseNumber(turnoutRow[idx]) : null
+                             support: supportRow ? normalizeRate(supportRow[idx]) : null,
+                             turnout: turnoutRow ? normalizeRate(turnoutRow[idx]) : null
                          };
                      });
                      
                      // State更新 & 保存
                      setSupportRates(newSupportRates);
-                     localStorage.setItem('election_support_rates', JSON.stringify(newSupportRates));
+                     safeStorage.setItem('election_support_rates', JSON.stringify(newSupportRates));
                      
                      if (window.fb) {
                         try {
@@ -1063,8 +1194,8 @@
             };
 
             const handleExportData = () => { /* ... same ... */
-                const headers = ["選挙区", "政党", "候補者名", "年齢", "回数/現新", "今回予想", "当落", "当落予想", "2024年得票数", "2021年得票数", "2017年得票数", "2014年得票数", "2012年得票数", "2009年得票数", "2005年得票数", "候補者指数"];
-                const csvContent = [headers.join(','), ...candidates.map(c => [c.district, c.party, c.name, c.age, c.incumbentStatus, c.predictedVotes, c.status, c.winningStatus, c.votes2024, c.votes2021, c.votes2017, c.votes2014, c.votes2012, c.votes2009, c.votes2005, c.candidateIndex].map(val => `"${val !== null && val !== undefined ? val : ''}"`).join(','))].join('\n');
+                const headers = ["選挙区", "政党", "候補者名", "年齢", "回数/現新", "順位", "今回予想", "2026当落", "2026年得票数", "2024当落", "当落予想", "2024年得票数", "2021年得票数", "2017年得票数", "2014年得票数", "2012年得票数", "2009年得票数", "2005年得票数", "候補者指数"];
+                const csvContent = [headers.join(','), ...candidates.map(c => [c.district, c.party, c.name, c.age, c.incumbentStatus, c.rank, c.predictedVotes, c.status2026, c.votes2026, c.status, c.winningStatus, c.votes2024, c.votes2021, c.votes2017, c.votes2014, c.votes2012, c.votes2009, c.votes2005, c.candidateIndex].map(val => `"${String(val !== null && val !== undefined ? val : '').replace(/"/g, '""')}"`).join(','))].join('\n');
                 const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement("a");
                 const url = URL.createObjectURL(blob);
@@ -1074,6 +1205,7 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+                URL.revokeObjectURL(url);
             };
 
             const handleResetData = () => { /* ... same ... */
@@ -1085,10 +1217,10 @@
                         setSupportRates(null); // Reset support rates
                         setSupportRatesLastUpdated(null); // Reset date
                         // --- Reset localStorage ---
-                        localStorage.removeItem('election_candidates');
-                        localStorage.removeItem('election_voters');
-                        localStorage.removeItem('election_support_rates'); // Reset support rates storage
-                        localStorage.removeItem('election_support_rates_updated');
+                        safeStorage.removeItem('election_candidates');
+                        safeStorage.removeItem('election_voters');
+                        safeStorage.removeItem('election_support_rates'); // Reset support rates storage
+                        safeStorage.removeItem('election_support_rates_updated');
                         setLastUpdated("Simulation Data");
                         setSimSettings({ takaichiEffect: 0, coalitionEffect: 0, newPartyEffect: 0, emergingSurge: 0, turnoutChange: 0 });
                         setAlertMessage("表示をリセットしました。");
@@ -1106,7 +1238,7 @@
                     });
                     if (window.fb) { window.fb.saveData('candidates', newCandidates); }
                     // Update localStorage
-                    localStorage.setItem('election_candidates', JSON.stringify(newCandidates));
+                    safeStorage.setItem('election_candidates', JSON.stringify(newCandidates));
                     return newCandidates;
                 });
             };
@@ -1418,7 +1550,7 @@
 
                     if (type === 'proportional') {
                           const targetPrefs = BLOCK_TO_PREFS[key]; 
-                          if (targetPrefs) {
+                          if (!vData && targetPrefs) {
                               let totalVotersInBlock = 0;
                               let totalVotesInBlock = 0;
 
@@ -1888,9 +2020,9 @@
                 );
             };
 
-            // if (!isLoggedIn) {
-            //    return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
-            // }
+            if (!isLoggedIn) {
+               return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
+            }
 
             return (
                 <div className="h-screen bg-gray-100 font-sans text-gray-800 flex flex-col overflow-hidden">
@@ -1976,7 +2108,7 @@
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(<ErrorBoundary><App /></ErrorBoundary>);
     </script>
 </body>
 </html>
