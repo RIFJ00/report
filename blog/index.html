@@ -697,5 +697,58 @@
 
         loadBookmarks();
     </script>
+<!-- ↓↓↓ Firebase トラッキングコード開始 ↓↓↓ -->
+<script type="module">
+  // 1. Firebaseの機能を読み込む
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+  // 2. あなたのFirebaseの「カギ」
+  const firebaseConfig = {
+    apiKey: "AIzaSyBCab1xgIJreW-f44r6CqR6PVNcENXR2io",
+    authDomain: "access-log-a2cf5.firebaseapp.com",
+    projectId: "access-log-a2cf5",
+    storageBucket: "access-log-a2cf5.firebasestorage.app",
+    messagingSenderId: "274810287422",
+    appId: "1:274810287422:web:7b382816c7e4e12d54686f"
+  };
+
+  // 3. 準備
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+  // ※ envAppId は、この画面上で動かすための特殊なIDなので、実際のサイトでは固定の文字列（例: 'my-website'）にします
+  const targetAppId = 'my-website'; 
+
+  // 4. 送信するデータの中身を作る
+  const logData = {
+    timestamp: new Date().toISOString(),
+    url: window.location.href,
+    host: window.location.hostname,
+    path: window.location.pathname,
+    referrer: document.referrer,
+    userAgent: navigator.userAgent,
+    // 実際のサイトからのアクセスなので、ステータスはとりあえず200（成功）としておく
+    status: 200, 
+    // 実際のメソッドは通常GETなのでGETとしておく
+    method: 'GET',
+    // 実際の画面ではIDが必要
+    id: Math.random().toString(36).substr(2, 9)
+  };
+
+  // 5. 匿名ログインして、データを送信する
+  signInAnonymously(auth).then((userCredential) => {
+    const user = userCredential.user;
+    // 保存先の「パス」を管理画面と合わせる
+    const logsRef = collection(db, 'artifacts', targetAppId, 'users', user.uid, 'access_logs');
+    addDoc(logsRef, logData)
+      .then(() => console.log("アクセスログ送信完了"))
+      .catch((e) => console.error("ログ送信エラー", e));
+  }).catch((error) => {
+    console.error("認証エラー", error);
+  });
+</script>
+<!-- ↑↑↑ Firebase トラッキングコード終了 ↑↑↑ -->    
 </body>
 </html>
