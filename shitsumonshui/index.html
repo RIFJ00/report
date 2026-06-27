@@ -1278,5 +1278,54 @@
       modal.style.display = 'none';
     };
   </script>
+  <!-- ↓↓↓ Firebase トラッキングコード開始 ↓↓↓ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBCab1xgIJreW-f44r6CqR6PVNcENXR2io",
+    authDomain: "access-log-a2cf5.firebaseapp.com",
+    projectId: "access-log-a2cf5",
+    storageBucket: "access-log-a2cf5.firebasestorage.app",
+    messagingSenderId: "274810287422",
+    appId: "1:274810287422:web:7b382816c7e4e12d54686f"
+  };
+
+  const app = initializeApp(firebaseConfig, 'loggerApp');
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+  const targetAppId = 'my-website'; 
+
+  // ★変更点: IPアドレスを取得するAPIを呼び出してから、データを送信します
+  fetch('https://api.ipify.org?format=json')
+    .then(response => response.json())
+    .then(data => {
+      const logData = {
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        host: window.location.hostname,
+        path: window.location.pathname,
+        referrer: document.referrer,
+        userAgent: navigator.userAgent,
+        ip: data.ip, // ★取得したIPアドレスを追加
+        status: 200, 
+        method: 'GET',
+        id: Math.random().toString(36).substr(2, 9)
+      };
+
+      signInAnonymously(auth).then((userCredential) => {
+        const logsRef = collection(db, 'artifacts', targetAppId, 'public', 'data', 'access_logs');
+        addDoc(logsRef, logData)
+          .then(() => console.log("アクセスログ送信完了"))
+          .catch((e) => console.error("ログ送信エラー", e));
+      }).catch((error) => {
+        console.error("認証エラー", error);
+      });
+    })
+    .catch(error => console.error('IPアドレスの取得に失敗しました', error));
+</script>
+<!-- ↑↑↑ Firebase トラッキングコード終了 ↑↑↑ -->
 </body>
 </html>
