@@ -715,10 +715,12 @@
   };
 
   // 3. 準備
-  const app = initializeApp(firebaseConfig);
+  // ★ここが最大の修正ポイントです！
+  // 既存のFirebaseとぶつからないように 'loggerApp' という別の名前をつけて初期化します。
+  const app = initializeApp(firebaseConfig, 'loggerApp');
   const db = getFirestore(app);
   const auth = getAuth(app);
-  // ※ envAppId は、この画面上で動かすための特殊なIDなので、実際のサイトでは固定の文字列（例: 'my-website'）にします
+  
   const targetAppId = 'my-website'; 
 
   // 4. 送信するデータの中身を作る
@@ -729,17 +731,14 @@
     path: window.location.pathname,
     referrer: document.referrer,
     userAgent: navigator.userAgent,
-    // 実際のサイトからのアクセスなので、ステータスはとりあえず200（成功）としておく
     status: 200, 
-    // 実際のメソッドは通常GETなのでGETとしておく
     method: 'GET',
-    // 実際の画面ではIDが必要
     id: Math.random().toString(36).substr(2, 9)
   };
 
-// 5. 匿名ログインして、データを送信する
+  // 5. 匿名ログインして、データを送信する
   signInAnonymously(auth).then((userCredential) => {
-    // ★ここを変更しました！（users/... ではなく public/data/... に送信）
+    // 共通の箱（public/data）へ送信
     const logsRef = collection(db, 'artifacts', targetAppId, 'public', 'data', 'access_logs');
     
     addDoc(logsRef, logData)
@@ -749,6 +748,6 @@
     console.error("認証エラー", error);
   });
 </script>
-<!-- ↑↑↑ Firebase トラッキングコード終了 ↑↑↑ -->    
+<!-- ↑↑↑ Firebase トラッキングコード終了 ↑↑↑ -->
 </body>
 </html>
