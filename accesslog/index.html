@@ -36,6 +36,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
         import { getFirestore, collection, onSnapshot, query, orderBy, limit, deleteDoc, doc } from 'firebase/firestore';
 
+        // Firebaseの設定
         const firebaseConfig = {
           apiKey: "AIzaSyBCab1xgIJreW-f44r6CqR6PVNcENXR2io",
           authDomain: "access-log-a2cf5.firebaseapp.com",
@@ -44,6 +45,7 @@
           messagingSenderId: "274810287422",
           appId: "1:274810287422:web:7b382816c7e4e12d54686f"
         };
+        
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -56,6 +58,7 @@
           const [authError, setAuthError] = useState(null);
           const [logs, setLogs] = useState([]);
           
+          // ローカルストレージから保存されたURLリストを読み込む
           const [targetUrls, setTargetUrls] = useState(() => {
             const saved = localStorage.getItem(TARGET_URLS_STORAGE_KEY);
             if (saved) {
@@ -69,12 +72,14 @@
           const [viewMode, setViewMode] = useState('list');
           const [selectedLog, setSelectedLog] = useState(null);
           
+          // 削除用ステート
           const [logToDelete, setLogToDelete] = useState(null);
           const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
           const [isDeletingAll, setIsDeletingAll] = useState(false);
           const [selectedLogIds, setSelectedLogIds] = useState(new Set());
           const [deleteError, setDeleteError] = useState(null);
 
+          // Firebase認証
           useEffect(() => {
             const initAuth = async () => {
               try {
@@ -82,7 +87,7 @@
                   try {
                     await signInWithCustomToken(auth, __initial_auth_token);
                   } catch (tokenError) {
-                    console.warn("カスタムトークンの認証に失敗しました。匿名認証にフォールバックします。", tokenError);
+                    console.warn("カスタムトークン認証失敗、匿名認証にフォールバック:", tokenError);
                     await signInAnonymously(auth);
                   }
                 } else {
@@ -98,6 +103,7 @@
             return () => unsubscribe();
           }, []);
 
+          // ログデータのリアルタイム取得
           useEffect(() => {
             if (!user) return;
             const logsRef = collection(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs');
@@ -124,6 +130,7 @@
             return () => unsubscribe();
           }, [user]);
 
+          // URLリストのローカルストレージ保存
           useEffect(() => {
             localStorage.setItem(TARGET_URLS_STORAGE_KEY, JSON.stringify(targetUrls));
           }, [targetUrls]);
@@ -132,6 +139,7 @@
             return selectedUrl === 'All' ? logs : logs.filter(l => l.url === selectedUrl);
           }, [logs, selectedUrl]);
 
+          // フィルタリング変更時に選択項目をリセット
           useEffect(() => {
             const currentIds = new Set(filteredLogs.map(l => l.id));
             setSelectedLogIds(prev => {
@@ -427,7 +435,7 @@
               </div>
               
               <footer className="w-full text-center py-6 mt-auto text-slate-400 text-xs font-medium tracking-wider">
-                &copy; {new Date().getFullYear()} 一般社団法人 日本みらい研
+                &copy; {new Date().getFullYear()} 一般社団法人日本みらい研
               </footer>
 
               {logToDelete && (
@@ -584,11 +592,9 @@
           );
         }
 
-        // Reactコンポーネントを画面に描画
+        // Reactアプリのマウント
         const root = createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
 </body>
 </html>
-
-```
