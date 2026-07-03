@@ -1,584 +1,594 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  Activity, Globe, Server, Play, Square, RefreshCw, Clock, 
-  AlertTriangle, CheckCircle, Plus, X, List, BarChart3, Trash2
-} from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, onSnapshot, addDoc, query, orderBy, limit, deleteDoc, doc } from 'firebase/firestore';
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>政策リサーチ関連アクセスログ</title>
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBCab1xgIJreW-f44r6CqR6PVNcENXR2io",
-  authDomain: "access-log-a2cf5.firebaseapp.com",
-  projectId: "access-log-a2cf5",
-  storageBucket: "access-log-a2cf5.firebasestorage.app",
-  messagingSenderId: "274810287422",
-  appId: "1:274810287422:web:7b382816c7e4e12d54686f"
-};
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+    <script src="https://cdn.tailwindcss.com"></script>
 
-const TARGET_APP_ID = 'my-website';
-const TARGET_URLS_STORAGE_KEY = 'access_log_target_urls';
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [authError, setAuthError] = useState(null);
-  const [logs, setLogs] = useState([]);
-  
-  // ローカルストレージから保存されたURLリストを読み込む
-  const [targetUrls, setTargetUrls] = useState(() => {
-    const saved = localStorage.getItem(TARGET_URLS_STORAGE_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return ['https://report.rifj.jp/dashboard/'];
-      }
-    }
-    return ['https://report.rifj.jp/dashboard/'];
-  });
-
-  const [inputUrl, setInputUrl] = useState('');
-  const [selectedUrl, setSelectedUrl] = useState('All');
-  const [viewMode, setViewMode] = useState('list');
-  const [selectedLog, setSelectedLog] = useState(null);
-  
-  // 削除用ステート
-  const [logToDelete, setLogToDelete] = useState(null);
-  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
-  const [isDeletingAll, setIsDeletingAll] = useState(false);
-  const [selectedLogIds, setSelectedLogIds] = useState(new Set());
-  const [deleteError, setDeleteError] = useState(null); // エラー表示用
-
-  // Firebase認証の設定
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          try {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } catch (tokenError) {
-            console.warn("カスタムトークンの認証に失敗しました。匿名認証にフォールバックします。", tokenError);
-            await signInAnonymously(auth);
-          }
-        } else {
-          await signInAnonymously(auth);
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18",
+            "react-dom/client": "https://esm.sh/react-dom@18/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.344.0",
+            "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
+            "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
+            "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
         }
-      } catch (error) {
-        console.error("Firebase認証エラー:", error);
-        setAuthError(error.code || error.message);
-      }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
-  }, []);
-
-  // Firebaseから【本番の】ログデータをリアルタイムで読み込む
-  useEffect(() => {
-    if (!user) return;
-
-    const logsRef = collection(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs');
-    const q = query(logsRef, orderBy('timestamp', 'desc'), limit(5000));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
-      
-      const fetchedLogs = snapshot.docs.map(doc => ({
-        id: doc.id, 
-        ...doc.data()
-      })).filter(log => {
-        const logDate = new Date(log.timestamp);
-        return logDate >= oneMonthAgo;
-      });
-      
-      fetchedLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      setLogs(fetchedLogs);
-    }, (error) => {
-      console.error("Firebase読み込みエラー:", error);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
-
-  // URLリストが変更されたらローカルストレージに保存する
-  useEffect(() => {
-    localStorage.setItem(TARGET_URLS_STORAGE_KEY, JSON.stringify(targetUrls));
-  }, [targetUrls]);
-
-  const filteredLogs = useMemo(() => {
-    return selectedUrl === 'All' ? logs : logs.filter(l => l.url === selectedUrl);
-  }, [logs, selectedUrl]);
-
-  // filteredLogsが変わった時（削除やフィルタ変更時）に、存在しない選択項目をクリアする
-  useEffect(() => {
-    const currentIds = new Set(filteredLogs.map(l => l.id));
-    setSelectedLogIds(prev => {
-      const next = new Set();
-      prev.forEach(id => {
-        if (currentIds.has(id)) next.add(id);
-      });
-      return next.size !== prev.size ? next : prev;
-    });
-  }, [filteredLogs]);
-
-  const summaryData = useMemo(() => {
-    const daily = {};
-    filteredLogs.forEach(l => {
-      if (!l.timestamp) return;
-      const date = l.timestamp.split('T')[0];
-      daily[date] = (daily[date] || 0) + 1;
-    });
-    return Object.entries(daily).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [filteredLogs]);
-
-  const handleAddUrl = () => {
-    if (!inputUrl) return;
-    try {
-      new URL(inputUrl);
-      if (!targetUrls.includes(inputUrl)) setTargetUrls([...targetUrls, inputUrl]);
-      setInputUrl('');
-    } catch { 
-      console.warn('有効なURLを入力してください'); 
     }
-  };
+    </script>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
 
-  const handleRemoveUrl = (urlToRemove) => {
-    setTargetUrls(targetUrls.filter(url => url !== urlToRemove));
-    if (selectedUrl === urlToRemove) {
-      setSelectedUrl('All');
-    }
-  };
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+          Activity, Globe, RefreshCw, Clock, 
+          AlertTriangle, Plus, X, List, BarChart3, Trash2 
+        } from 'lucide-react';
+        import { initializeApp } from 'firebase/app';
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+        import { getFirestore, collection, onSnapshot, query, orderBy, limit, deleteDoc, doc } from 'firebase/firestore';
 
-  // ログ個別削除処理
-  const confirmDelete = (e, log) => {
-    e.stopPropagation(); // 行クリックによる詳細モーダル表示を防ぐ
-    setDeleteError(null);
-    setLogToDelete(log);
-  };
+        const firebaseConfig = {
+          apiKey: "AIzaSyBCab1xgIJreW-f44r6CqR6PVNcENXR2io",
+          authDomain: "access-log-a2cf5.firebaseapp.com",
+          projectId: "access-log-a2cf5",
+          storageBucket: "access-log-a2cf5.firebasestorage.app",
+          messagingSenderId: "274810287422",
+          appId: "1:274810287422:web:7b382816c7e4e12d54686f"
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
-  const executeDelete = async () => {
-    if (!logToDelete) return;
-    setDeleteError(null);
-    try {
-      await deleteDoc(doc(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs', logToDelete.id));
-      setLogToDelete(null); // 成功したら閉じる
-    } catch (error) {
-      console.error("ログ削除エラー:", error);
-      setDeleteError("削除権限エラー: Firebaseのセキュリティルールで削除が許可されていない可能性があります。");
-    }
-  };
+        const TARGET_APP_ID = 'my-website';
+        const TARGET_URLS_STORAGE_KEY = 'access_log_target_urls';
 
-  // チェックボックスの切り替え
-  const toggleLogSelection = (id) => {
-    const newSelected = new Set(selectedLogIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedLogIds(newSelected);
-  };
+        function App() {
+          const [user, setUser] = useState(null);
+          const [authError, setAuthError] = useState(null);
+          const [logs, setLogs] = useState([]);
+          
+          const [targetUrls, setTargetUrls] = useState(() => {
+            const saved = localStorage.getItem(TARGET_URLS_STORAGE_KEY);
+            if (saved) {
+              try { return JSON.parse(saved); } catch (e) { return ['https://report.rifj.jp/dashboard/']; }
+            }
+            return ['https://report.rifj.jp/dashboard/'];
+          });
 
-  const toggleAllSelection = () => {
-    if (selectedLogIds.size === filteredLogs.length && filteredLogs.length > 0) {
-      setSelectedLogIds(new Set());
-    } else {
-      setSelectedLogIds(new Set(filteredLogs.map(l => l.id)));
-    }
-  };
+          const [inputUrl, setInputUrl] = useState('');
+          const [selectedUrl, setSelectedUrl] = useState('All');
+          const [viewMode, setViewMode] = useState('list');
+          const [selectedLog, setSelectedLog] = useState(null);
+          
+          const [logToDelete, setLogToDelete] = useState(null);
+          const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+          const [isDeletingAll, setIsDeletingAll] = useState(false);
+          const [selectedLogIds, setSelectedLogIds] = useState(new Set());
+          const [deleteError, setDeleteError] = useState(null);
 
-  // 選択項目の一括削除処理
-  const executeDeleteSelected = async () => {
-    setIsDeletingAll(true);
-    setDeleteError(null);
-    try {
-      const deletePromises = Array.from(selectedLogIds).map(id => 
-        deleteDoc(doc(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs', id))
-      );
-      await Promise.all(deletePromises);
-      setShowDeleteAllConfirm(false);
-      setSelectedLogIds(new Set());
-    } catch (error) {
-      console.error("一括削除エラー:", error);
-      setDeleteError("削除権限エラー: Firebaseのセキュリティルールで削除が許可されていない可能性があります。");
-    } finally {
-      setIsDeletingAll(false);
-    }
-  };
+          useEffect(() => {
+            const initAuth = async () => {
+              try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                  try {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                  } catch (tokenError) {
+                    console.warn("カスタムトークンの認証に失敗しました。匿名認証にフォールバックします。", tokenError);
+                    await signInAnonymously(auth);
+                  }
+                } else {
+                  await signInAnonymously(auth);
+                }
+              } catch (error) {
+                console.error("Firebase認証エラー:", error);
+                setAuthError(error.code || error.message);
+              }
+            };
+            initAuth();
+            const unsubscribe = onAuthStateChanged(auth, setUser);
+            return () => unsubscribe();
+          }, []);
 
-  const todayDateString = new Date().toLocaleDateString('ja-JP', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short'
-  });
-
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-10 font-sans flex flex-col relative">
-      <div className="max-w-6xl mx-auto space-y-8 flex-grow w-full">
-        
-        {authError && (
-          <div className="bg-red-50 border border-red-200 p-6 rounded-2xl text-red-700 shadow-sm">
-            <div className="flex items-center gap-3 font-bold mb-4 text-xl">
-              <AlertTriangle className="text-red-500 w-8 h-8" />
-              Firebase の認証設定が必要です
-            </div>
-            <div className="text-sm space-y-3">
-              <p>表示されているエラー（<code>{authError}</code>）は、Firebase側で「匿名認証」が有効になっていないために発生しています。</p>
-            </div>
-          </div>
-        )}
-
-        <header className="flex flex-col gap-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex justify-between items-start md:items-center flex-wrap gap-4 border-b border-slate-100 pb-6">
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3">
-              <Activity className="text-blue-600 w-8 h-8" /> 
-              政策リサーチ関連アクセスログ
-            </h1>
-            <div className="text-sm font-medium text-slate-600 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
-              {todayDateString}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3 items-center pt-2">
-            <input 
-              value={inputUrl} 
-              onChange={e => setInputUrl(e.target.value)} 
-              onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
-              placeholder="https://report.rifj.jp/..." 
-              className="bg-slate-50 border border-slate-300 p-2 rounded-lg text-sm md:w-96 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-            />
-            <button onClick={handleAddUrl} className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition-colors shadow-sm">
-              <Plus size={20}/>
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-6 border-t border-slate-100 mt-2 items-center">
-            <span className="text-slate-500 text-sm py-1 mr-2 flex items-center gap-1 font-medium">
-              <Globe size={16}/> 監視対象URL:
-            </span>
-            <button 
-              onClick={() => setSelectedUrl('All')} 
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${selectedUrl === 'All' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'}`}
-            >
-              すべて表示
-            </button>
-            {targetUrls.map(u => (
-              <div key={u} className="flex items-center gap-1 bg-slate-100 px-3 py-1.5 rounded-full text-sm border border-slate-200">
-                <button 
-                  onClick={() => setSelectedUrl(u)} 
-                  className={`truncate max-w-[200px] font-medium ${selectedUrl === u ? 'text-blue-700 font-bold' : 'text-slate-600 hover:text-slate-800'}`}
-                  title={u}
-                >
-                  {u.replace('https://', '')}
-                </button>
-                <button 
-                  onClick={() => handleRemoveUrl(u)} 
-                  className="hover:text-red-500 text-slate-400 ml-1 bg-white rounded-full p-0.5 shadow-sm border border-slate-200"
-                  title="一覧から削除"
-                >
-                  <X size={14}/>
-                </button>
-              </div>
-            ))}
-          </div>
-        </header>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
-          <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4 flex-wrap gap-4">
-            <div className="flex gap-6">
-              <button 
-                onClick={() => setViewMode('list')} 
-                className={`flex items-center gap-2 pb-2 text-sm font-bold transition-colors ${viewMode === 'list' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                <List size={18}/>詳細リスト
-              </button>
-              <button 
-                onClick={() => setViewMode('summary')} 
-                className={`flex items-center gap-2 pb-2 text-sm font-bold transition-colors ${viewMode === 'summary' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                <BarChart3 size={18}/>日別集計
-              </button>
-            </div>
-            <div className="flex items-center gap-4 flex-wrap">
-              {viewMode === 'list' && selectedLogIds.size > 0 && (
-                <button 
-                  onClick={() => {
-                    setDeleteError(null);
-                    setShowDeleteAllConfirm(true);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors border border-red-200 shadow-sm"
-                >
-                  <Trash2 size={16} />
-                  選択中の{selectedLogIds.size}件を一括削除
-                </button>
-              )}
-              <div className="text-xs text-slate-500 font-medium">
-                表示範囲: 直近1ヶ月（最大5000件） / 現在 <span className="font-bold text-slate-700">{logs.length}</span> 件
-              </div>
-              <div className="flex items-center gap-2 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full shadow-sm">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
-                </span>
-                常時受信中
-              </div>
-            </div>
-          </div>
-
-          {viewMode === 'list' ? (
-            <div className="overflow-auto max-h-[500px] rounded-xl border border-slate-200 shadow-inner">
-              <table className="w-full text-sm">
-                <thead className="text-slate-600 text-left sticky top-0 bg-slate-100 border-b border-slate-200 z-10">
-                  <tr>
-                    <th className="py-3 px-4 w-12 text-center">
-                      <input 
-                        type="checkbox" 
-                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
-                        checked={filteredLogs.length > 0 && selectedLogIds.size === filteredLogs.length}
-                        onChange={toggleAllSelection}
-                      />
-                    </th>
-                    <th className="py-3 px-4 font-bold">日時</th>
-                    <th className="py-3 px-4 font-bold">パス</th>
-                    <th className="py-3 px-4 font-bold">IPアドレス / デバイス</th>
-                    <th className="py-3 px-4 font-bold text-center w-16">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredLogs.map(l => {
-                  const date = new Date(l.timestamp);
-                  return (
-                    <tr 
-                      key={l.id} 
-                      onClick={() => setSelectedLog(l)}
-                      className={`transition-colors cursor-pointer group ${selectedLogIds.has(l.id) ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}
-                    >
-                      <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                        <input 
-                          type="checkbox"
-                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
-                          checked={selectedLogIds.has(l.id)}
-                          onChange={() => toggleLogSelection(l.id)}
-                        />
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 font-mono whitespace-nowrap">
-                        {date.toLocaleDateString('ja-JP')} <span className="text-slate-400 ml-1">{date.toLocaleTimeString('ja-JP')}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-800">{l.path}</div>
-                        <div className="text-xs text-slate-400 truncate max-w-sm mt-0.5" title={l.url}>{l.url}</div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm font-medium text-slate-700 font-mono">{l.ip || '取得なし'}</div>
-                        <div className="text-xs text-slate-500 max-w-xs truncate mt-0.5" title={l.userAgent}>
-                          {l.userAgent}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <button 
-                          onClick={(e) => confirmDelete(e, l)}
-                          className="text-slate-300 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
-                          title="このログを削除"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filteredLogs.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="text-center py-16 text-slate-400 flex flex-col items-center justify-center">
-                      <Clock className="w-10 h-10 mb-3 text-slate-300" />
-                      <p className="text-base font-medium text-slate-500">まだアクセスログが届いていません</p>
-                      <p className="text-xs mt-1">実際のページにアクセスしてログの到着をお待ちください</p>
-                    </td>
-                  </tr>
-                )}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {summaryData.length === 0 ? (
-                <div className="text-center py-16 text-slate-400 text-base font-medium">集計データがありません。</div>
-              ) : (
-                summaryData.map(([date, count]) => (
-                  <div key={date} className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                    <span className="font-mono text-slate-600 text-sm font-medium">{date}</span>
-                    <span className="font-bold text-2xl text-blue-600">
-                      {count} <span className="text-xs font-medium text-slate-400 ml-1">アクセス</span>
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-      
-      <footer className="w-full text-center py-6 mt-auto text-slate-400 text-xs font-medium tracking-wider">
-        &copy; {new Date().getFullYear()} 一般社団法人 日本みらい研
-      </footer>
-
-      {/* 個別削除確認モーダル */}
-      {logToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col overflow-hidden">
-            <div className="p-6">
-              <div className="flex items-center gap-3 text-red-600 mb-4">
-                <AlertTriangle className="w-6 h-6" />
-                <h3 className="text-lg font-bold">ログの削除</h3>
-              </div>
-              <p className="text-slate-600 text-sm mb-2">以下のログを完全に削除します。この操作は取り消せません。</p>
-              
-              {deleteError && (
-                <div className="my-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm font-medium text-red-600">
-                  {deleteError}
-                </div>
-              )}
-
-              <div className="bg-slate-50 p-3 rounded-lg text-xs font-mono text-slate-500 break-all mb-4 border border-slate-100">
-                {logToDelete.path} <br/>
-                {new Date(logToDelete.timestamp).toLocaleString('ja-JP')}
-              </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  onClick={() => setLogToDelete(null)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors"
-                >
-                  キャンセル
-                </button>
-                <button 
-                  onClick={executeDelete}
-                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm"
-                >
-                  削除する
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 一括削除確認モーダル */}
-      {showDeleteAllConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col overflow-hidden">
-            <div className="p-6">
-              <div className="flex items-center gap-3 text-red-600 mb-4">
-                <AlertTriangle className="w-6 h-6" />
-                <h3 className="text-lg font-bold">選択中のログを一括削除</h3>
-              </div>
-              <p className="text-slate-600 text-sm mb-4 leading-relaxed">
-                現在選択されている <strong>{selectedLogIds.size}件</strong> のログをすべて削除します。<br />この操作は取り消せません。本当によろしいですか？
-              </p>
-
-              {deleteError && (
-                <div className="my-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm font-medium text-red-600">
-                  {deleteError}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  onClick={() => setShowDeleteAllConfirm(false)}
-                  disabled={isDeletingAll}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
-                >
-                  キャンセル
-                </button>
-                <button 
-                  onClick={executeDeleteSelected}
-                  disabled={isDeletingAll}
-                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
-                >
-                  {isDeletingAll ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                  {isDeletingAll ? '削除中...' : 'すべて削除する'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 詳細モーダル */}
-      {selectedLog && !logToDelete && !showDeleteAllConfirm && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity" onClick={() => setSelectedLog(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden transform transition-all" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
-              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <Activity className="text-blue-600 w-6 h-6" />
-                アクセスログ詳細
-              </h2>
-              <button 
-                onClick={() => setSelectedLog(null)}
-                className="text-slate-400 hover:text-slate-600 hover:bg-slate-200 p-2 rounded-full transition-colors"
-                title="閉じる"
-              >
-                <X size={20} />
-              </button>
-            </div>
+          useEffect(() => {
+            if (!user) return;
+            const logsRef = collection(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs');
+            const q = query(logsRef, orderBy('timestamp', 'desc'), limit(5000));
             
-            <div className="p-6 overflow-y-auto space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">日時</div>
-                  <div className="text-sm text-slate-800 font-mono">
-                    {new Date(selectedLog.timestamp).toLocaleString('ja-JP')}
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+              const oneMonthAgo = new Date();
+              oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+              
+              const fetchedLogs = snapshot.docs.map(doc => ({
+                id: doc.id, 
+                ...doc.data()
+              })).filter(log => {
+                const logDate = new Date(log.timestamp);
+                return logDate >= oneMonthAgo;
+              });
+              
+              fetchedLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+              setLogs(fetchedLogs);
+            }, (error) => {
+              console.error("Firebase読み込みエラー:", error);
+            });
+
+            return () => unsubscribe();
+          }, [user]);
+
+          useEffect(() => {
+            localStorage.setItem(TARGET_URLS_STORAGE_KEY, JSON.stringify(targetUrls));
+          }, [targetUrls]);
+
+          const filteredLogs = useMemo(() => {
+            return selectedUrl === 'All' ? logs : logs.filter(l => l.url === selectedUrl);
+          }, [logs, selectedUrl]);
+
+          useEffect(() => {
+            const currentIds = new Set(filteredLogs.map(l => l.id));
+            setSelectedLogIds(prev => {
+              const next = new Set();
+              prev.forEach(id => {
+                if (currentIds.has(id)) next.add(id);
+              });
+              return next.size !== prev.size ? next : prev;
+            });
+          }, [filteredLogs]);
+
+          const summaryData = useMemo(() => {
+            const daily = {};
+            filteredLogs.forEach(l => {
+              if (!l.timestamp) return;
+              const date = l.timestamp.split('T')[0];
+              daily[date] = (daily[date] || 0) + 1;
+            });
+            return Object.entries(daily).sort((a, b) => b[0].localeCompare(a[0]));
+          }, [filteredLogs]);
+
+          const handleAddUrl = () => {
+            if (!inputUrl) return;
+            try {
+              new URL(inputUrl);
+              if (!targetUrls.includes(inputUrl)) setTargetUrls([...targetUrls, inputUrl]);
+              setInputUrl('');
+            } catch { 
+              console.warn('有効なURLを入力してください'); 
+            }
+          };
+
+          const handleRemoveUrl = (urlToRemove) => {
+            setTargetUrls(targetUrls.filter(url => url !== urlToRemove));
+            if (selectedUrl === urlToRemove) setSelectedUrl('All');
+          };
+
+          const confirmDelete = (e, log) => {
+            e.stopPropagation();
+            setDeleteError(null);
+            setLogToDelete(log);
+          };
+
+          const executeDelete = async () => {
+            if (!logToDelete) return;
+            setDeleteError(null);
+            try {
+              await deleteDoc(doc(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs', logToDelete.id));
+              setLogToDelete(null); 
+            } catch (error) {
+              console.error("ログ削除エラー:", error);
+              setDeleteError("削除権限エラー: Firebaseのセキュリティルールで削除が許可されていない可能性があります。");
+            }
+          };
+
+          const toggleLogSelection = (id) => {
+            const newSelected = new Set(selectedLogIds);
+            if (newSelected.has(id)) newSelected.delete(id);
+            else newSelected.add(id);
+            setSelectedLogIds(newSelected);
+          };
+
+          const toggleAllSelection = () => {
+            if (selectedLogIds.size === filteredLogs.length && filteredLogs.length > 0) {
+              setSelectedLogIds(new Set());
+            } else {
+              setSelectedLogIds(new Set(filteredLogs.map(l => l.id)));
+            }
+          };
+
+          const executeDeleteSelected = async () => {
+            setIsDeletingAll(true);
+            setDeleteError(null);
+            try {
+              const deletePromises = Array.from(selectedLogIds).map(id => 
+                deleteDoc(doc(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs', id))
+              );
+              await Promise.all(deletePromises);
+              setShowDeleteAllConfirm(false);
+              setSelectedLogIds(new Set());
+            } catch (error) {
+              console.error("一括削除エラー:", error);
+              setDeleteError("削除権限エラー: Firebaseのセキュリティルールで削除が許可されていない可能性があります。");
+            } finally {
+              setIsDeletingAll(false);
+            }
+          };
+
+          const todayDateString = new Date().toLocaleDateString('ja-JP', {
+            year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
+          });
+
+          return (
+            <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-10 font-sans flex flex-col relative">
+              <div className="max-w-6xl mx-auto space-y-8 flex-grow w-full">
+                
+                {authError && (
+                  <div className="bg-red-50 border border-red-200 p-6 rounded-2xl text-red-700 shadow-sm">
+                    <div className="flex items-center gap-3 font-bold mb-4 text-xl">
+                      <AlertTriangle className="text-red-500 w-8 h-8" />
+                      Firebase の認証設定が必要です
+                    </div>
+                    <div className="text-sm space-y-3">
+                      <p>表示されているエラー（<code>{authError}</code>）は、Firebase側で「匿名認証」が有効になっていないために発生しています。</p>
+                    </div>
                   </div>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">IPアドレス</div>
-                  <div className="text-sm text-slate-800 font-mono font-medium">{selectedLog.ip || '取得なし'}</div>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">メソッド / ステータス</div>
-                  <div className="text-sm font-medium flex items-center gap-2">
-                    <span className="text-blue-600 font-bold">{selectedLog.method}</span>
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${selectedLog.status >= 400 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                      {selectedLog.status}
+                )}
+
+                <header className="flex flex-col gap-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                  <div className="flex justify-between items-start md:items-center flex-wrap gap-4 border-b border-slate-100 pb-6">
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3">
+                      <Activity className="text-blue-600 w-8 h-8" /> 
+                      政策リサーチ関連アクセスログ
+                    </h1>
+                    <div className="text-sm font-medium text-slate-600 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
+                      {todayDateString}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 items-center pt-2">
+                    <input 
+                      value={inputUrl} 
+                      onChange={e => setInputUrl(e.target.value)} 
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
+                      placeholder="https://report.rifj.jp/..." 
+                      className="bg-slate-50 border border-slate-300 p-2 rounded-lg text-sm md:w-96 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                    />
+                    <button onClick={handleAddUrl} className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition-colors shadow-sm">
+                      <Plus size={20}/>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-6 border-t border-slate-100 mt-2 items-center">
+                    <span className="text-slate-500 text-sm py-1 mr-2 flex items-center gap-1 font-medium">
+                      <Globe size={16}/> 監視対象URL:
                     </span>
+                    <button 
+                      onClick={() => setSelectedUrl('All')} 
+                      className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${selectedUrl === 'All' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'}`}
+                    >
+                      すべて表示
+                    </button>
+                    {targetUrls.map(u => (
+                      <div key={u} className="flex items-center gap-1 bg-slate-100 px-3 py-1.5 rounded-full text-sm border border-slate-200">
+                        <button 
+                          onClick={() => setSelectedUrl(u)} 
+                          className={`truncate max-w-[200px] font-medium ${selectedUrl === u ? 'text-blue-700 font-bold' : 'text-slate-600 hover:text-slate-800'}`}
+                          title={u}
+                        >
+                          {u.replace('https://', '')}
+                        </button>
+                        <button 
+                          onClick={() => handleRemoveUrl(u)} 
+                          className="hover:text-red-500 text-slate-400 ml-1 bg-white rounded-full p-0.5 shadow-sm border border-slate-200"
+                          title="一覧から削除"
+                        >
+                          <X size={14}/>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </header>
+
+                <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+                  <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4 flex-wrap gap-4">
+                    <div className="flex gap-6">
+                      <button 
+                        onClick={() => setViewMode('list')} 
+                        className={`flex items-center gap-2 pb-2 text-sm font-bold transition-colors ${viewMode === 'list' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      >
+                        <List size={18}/>詳細リスト
+                      </button>
+                      <button 
+                        onClick={() => setViewMode('summary')} 
+                        className={`flex items-center gap-2 pb-2 text-sm font-bold transition-colors ${viewMode === 'summary' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      >
+                        <BarChart3 size={18}/>日別集計
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {viewMode === 'list' && selectedLogIds.size > 0 && (
+                        <button 
+                          onClick={() => { setDeleteError(null); setShowDeleteAllConfirm(true); }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors border border-red-200 shadow-sm"
+                        >
+                          <Trash2 size={16} />
+                          選択中の{selectedLogIds.size}件を一括削除
+                        </button>
+                      )}
+                      <div className="text-xs text-slate-500 font-medium">
+                        表示範囲: 直近1ヶ月（最大5000件） / 現在 <span className="font-bold text-slate-700">{logs.length}</span> 件
+                      </div>
+                      <div className="flex items-center gap-2 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full shadow-sm">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+                        </span>
+                        常時受信中
+                      </div>
+                    </div>
+                  </div>
+
+                  {viewMode === 'list' ? (
+                    <div className="overflow-auto max-h-[500px] rounded-xl border border-slate-200 shadow-inner">
+                      <table className="w-full text-sm">
+                        <thead className="text-slate-600 text-left sticky top-0 bg-slate-100 border-b border-slate-200 z-10">
+                          <tr>
+                            <th className="py-3 px-4 w-12 text-center">
+                              <input 
+                                type="checkbox" 
+                                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                                checked={filteredLogs.length > 0 && selectedLogIds.size === filteredLogs.length}
+                                onChange={toggleAllSelection}
+                              />
+                            </th>
+                            <th className="py-3 px-4 font-bold">日時</th>
+                            <th className="py-3 px-4 font-bold">パス</th>
+                            <th className="py-3 px-4 font-bold">IPアドレス / デバイス</th>
+                            <th className="py-3 px-4 font-bold text-center w-16">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                        {filteredLogs.map(l => {
+                          const date = new Date(l.timestamp);
+                          return (
+                            <tr 
+                              key={l.id} 
+                              onClick={() => setSelectedLog(l)}
+                              className={`transition-colors cursor-pointer group ${selectedLogIds.has(l.id) ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}
+                            >
+                              <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                <input 
+                                  type="checkbox"
+                                  className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                                  checked={selectedLogIds.has(l.id)}
+                                  onChange={() => toggleLogSelection(l.id)}
+                                />
+                              </td>
+                              <td className="py-3 px-4 text-slate-600 font-mono whitespace-nowrap">
+                                {date.toLocaleDateString('ja-JP')} <span className="text-slate-400 ml-1">{date.toLocaleTimeString('ja-JP')}</span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="font-semibold text-slate-800">{l.path}</div>
+                                <div className="text-xs text-slate-400 truncate max-w-sm mt-0.5" title={l.url}>{l.url}</div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="text-sm font-medium text-slate-700 font-mono">{l.ip || '取得なし'}</div>
+                                <div className="text-xs text-slate-500 max-w-xs truncate mt-0.5" title={l.userAgent}>
+                                  {l.userAgent}
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <button 
+                                  onClick={(e) => confirmDelete(e, l)}
+                                  className="text-slate-300 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                                  title="このログを削除"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {filteredLogs.length === 0 && (
+                          <tr>
+                            <td colSpan="5" className="text-center py-16 text-slate-400 flex flex-col items-center justify-center">
+                              <Clock className="w-10 h-10 mb-3 text-slate-300" />
+                              <p className="text-base font-medium text-slate-500">まだアクセスログが届いていません</p>
+                              <p className="text-xs mt-1">実際のページにアクセスしてログの到着をお待ちください</p>
+                            </td>
+                          </tr>
+                        )}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {summaryData.length === 0 ? (
+                        <div className="text-center py-16 text-slate-400 text-base font-medium">集計データがありません。</div>
+                      ) : (
+                        summaryData.map(([date, count]) => (
+                          <div key={date} className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                            <span className="font-mono text-slate-600 text-sm font-medium">{date}</span>
+                            <span className="font-bold text-2xl text-blue-600">
+                              {count} <span className="text-xs font-medium text-slate-400 ml-1">アクセス</span>
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <footer className="w-full text-center py-6 mt-auto text-slate-400 text-xs font-medium tracking-wider">
+                &copy; {new Date().getFullYear()} 一般社団法人 日本みらい研
+              </footer>
+
+              {logToDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
+                  <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col overflow-hidden">
+                    <div className="p-6">
+                      <div className="flex items-center gap-3 text-red-600 mb-4">
+                        <AlertTriangle className="w-6 h-6" />
+                        <h3 className="text-lg font-bold">ログの削除</h3>
+                      </div>
+                      <p className="text-slate-600 text-sm mb-2">以下のログを完全に削除します。この操作は取り消せません。</p>
+                      
+                      {deleteError && (
+                        <div className="my-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm font-medium text-red-600">
+                          {deleteError}
+                        </div>
+                      )}
+
+                      <div className="bg-slate-50 p-3 rounded-lg text-xs font-mono text-slate-500 break-all mb-4 border border-slate-100">
+                        {logToDelete.path} <br/>
+                        {new Date(logToDelete.timestamp).toLocaleString('ja-JP')}
+                      </div>
+                      <div className="flex justify-end gap-3 mt-6">
+                        <button 
+                          onClick={() => setLogToDelete(null)}
+                          className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors"
+                        >
+                          キャンセル
+                        </button>
+                        <button 
+                          onClick={executeDelete}
+                          className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+                        >
+                          削除する
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">ログID</div>
-                  <div className="text-sm text-slate-600 font-mono text-xs">{selectedLog.id}</div>
+              )}
+
+              {showDeleteAllConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
+                  <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col overflow-hidden">
+                    <div className="p-6">
+                      <div className="flex items-center gap-3 text-red-600 mb-4">
+                        <AlertTriangle className="w-6 h-6" />
+                        <h3 className="text-lg font-bold">選択中のログを一括削除</h3>
+                      </div>
+                      <p className="text-slate-600 text-sm mb-4 leading-relaxed">
+                        現在選択されている <strong>{selectedLogIds.size}件</strong> のログをすべて削除します。<br />この操作は取り消せません。本当によろしいですか？
+                      </p>
+
+                      {deleteError && (
+                        <div className="my-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm font-medium text-red-600">
+                          {deleteError}
+                        </div>
+                      )}
+
+                      <div className="flex justify-end gap-3 mt-6">
+                        <button 
+                          onClick={() => setShowDeleteAllConfirm(false)}
+                          disabled={isDeletingAll}
+                          className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
+                        >
+                          キャンセル
+                        </button>
+                        <button 
+                          onClick={executeDeleteSelected}
+                          disabled={isDeletingAll}
+                          className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                        >
+                          {isDeletingAll ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                          {isDeletingAll ? '削除中...' : 'すべて削除する'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">URL (フルパス)</div>
-                <div className="text-sm text-slate-800 break-all">{selectedLog.url}</div>
-              </div>
+              {selectedLog && !logToDelete && !showDeleteAllConfirm && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity" onClick={() => setSelectedLog(null)}>
+                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden transform transition-all" onClick={e => e.stopPropagation()}>
+                    <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
+                      <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <Activity className="text-blue-600 w-6 h-6" />
+                        アクセスログ詳細
+                      </h2>
+                      <button 
+                        onClick={() => setSelectedLog(null)}
+                        className="text-slate-400 hover:text-slate-600 hover:bg-slate-200 p-2 rounded-full transition-colors"
+                        title="閉じる"
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                    
+                    <div className="p-6 overflow-y-auto space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                          <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">日時</div>
+                          <div className="text-sm text-slate-800 font-mono">
+                            {new Date(selectedLog.timestamp).toLocaleString('ja-JP')}
+                          </div>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                          <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">IPアドレス</div>
+                          <div className="text-sm text-slate-800 font-mono font-medium">{selectedLog.ip || '取得なし'}</div>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                          <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">メソッド / ステータス</div>
+                          <div className="text-sm font-medium flex items-center gap-2">
+                            <span className="text-blue-600 font-bold">{selectedLog.method}</span>
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${selectedLog.status >= 400 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {selectedLog.status}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                          <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">ログID</div>
+                          <div className="text-sm text-slate-600 font-mono text-xs">{selectedLog.id}</div>
+                        </div>
+                      </div>
 
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">リファラー (遷移元)</div>
-                <div className="text-sm text-slate-800 break-all">{selectedLog.referrer || 'なし (直接アクセスなど)'}</div>
-              </div>
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">URL (フルパス)</div>
+                        <div className="text-sm text-slate-800 break-all">{selectedLog.url}</div>
+                      </div>
 
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">ユーザーエージェント (デバイス・ブラウザ情報)</div>
-                <div className="text-sm text-slate-700 font-mono text-xs leading-relaxed break-words">{selectedLog.userAgent}</div>
-              </div>
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">リファラー (遷移元)</div>
+                        <div className="text-sm text-slate-800 break-all">{selectedLog.referrer || 'なし (直接アクセスなど)'}</div>
+                      </div>
+
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">ユーザーエージェント (デバイス・ブラウザ情報)</div>
+                        <div className="text-sm text-slate-700 font-mono text-xs leading-relaxed break-words">{selectedLog.userAgent}</div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 border-t border-slate-100 bg-slate-50 text-right flex-shrink-0">
+                      <button 
+                        onClick={() => setSelectedLog(null)}
+                        className="px-6 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
+                      >
+                        閉じる
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+          );
+        }
 
-            <div className="p-4 border-t border-slate-100 bg-slate-50 text-right flex-shrink-0">
-              <button 
-                onClick={() => setSelectedLog(null)}
-                className="px-6 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
-              >
-                閉じる
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+        // Reactコンポーネントを画面に描画
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+```
