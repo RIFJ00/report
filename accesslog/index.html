@@ -57,41 +57,33 @@
     const TARGET_APP_ID = 'my-website';
     const TARGET_URLS_STORAGE_KEY = 'access_log_target_urls';
     const IP_ALIASES_STORAGE_KEY = 'access_log_ip_aliases';
-    const PATH_ALIASES_STORAGE_KEY = 'access_log_path_aliases'; // 追加: パス名称の保存キー
-    const SEARCH_QUERY_STORAGE_KEY = 'access_log_search_query'; // 追加: 検索キーワードの保存キー
-    const SELECTED_URL_STORAGE_KEY = 'access_log_selected_url'; // 追加: 選択中URLの保存キー
+    const PATH_ALIASES_STORAGE_KEY = 'access_log_path_aliases';
+    const SEARCH_QUERY_STORAGE_KEY = 'access_log_search_query';
+    const SELECTED_URL_STORAGE_KEY = 'access_log_selected_url';
 
-    // 名称の文字列から自動的に色（Tailwindクラス）を決定する関数 (20色)
-    const getColorClassForAlias = (aliasName) => {
-      if (!aliasName) return 'bg-slate-100 text-slate-700 border-slate-200';
-      const colors = [
+    // 重複を避けるための20色のカラーパレット（似た色が連続しないように配置）
+    const ALIAS_COLORS = [
         'bg-red-100 text-red-700 border-red-200',
-        'bg-orange-100 text-orange-800 border-orange-200',
-        'bg-amber-100 text-amber-800 border-amber-300',
-        'bg-yellow-100 text-yellow-800 border-yellow-300',
-        'bg-lime-100 text-lime-800 border-lime-300',
-        'bg-green-100 text-green-700 border-green-200',
-        'bg-emerald-100 text-emerald-700 border-emerald-200',
-        'bg-teal-100 text-teal-700 border-teal-200',
-        'bg-cyan-100 text-cyan-800 border-cyan-200',
-        'bg-sky-100 text-sky-700 border-sky-200',
         'bg-blue-100 text-blue-700 border-blue-200',
-        'bg-indigo-100 text-indigo-700 border-indigo-200',
-        'bg-violet-100 text-violet-700 border-violet-200',
+        'bg-emerald-100 text-emerald-700 border-emerald-200',
+        'bg-amber-100 text-amber-800 border-amber-300',
         'bg-purple-100 text-purple-700 border-purple-200',
-        'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',
+        'bg-cyan-100 text-cyan-800 border-cyan-200',
         'bg-pink-100 text-pink-700 border-pink-200',
+        'bg-lime-100 text-lime-800 border-lime-300',
+        'bg-indigo-100 text-indigo-700 border-indigo-200',
+        'bg-orange-100 text-orange-800 border-orange-200',
+        'bg-teal-100 text-teal-700 border-teal-200',
+        'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',
+        'bg-sky-100 text-sky-700 border-sky-200',
+        'bg-yellow-100 text-yellow-800 border-yellow-300',
+        'bg-green-100 text-green-700 border-green-200',
+        'bg-violet-100 text-violet-700 border-violet-200',
         'bg-rose-100 text-rose-700 border-rose-200',
         'bg-stone-200 text-stone-700 border-stone-300',
         'bg-neutral-200 text-neutral-700 border-neutral-300',
         'bg-zinc-200 text-zinc-700 border-zinc-300'
-      ];
-      let hash = 0;
-      for (let i = 0; i < aliasName.length; i++) {
-        hash = aliasName.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      return colors[Math.abs(hash) % colors.length];
-    };
+    ];
 
     function App() {
       const [user, setUser] = useState(null);
@@ -141,6 +133,27 @@
         return saved ? JSON.parse(saved) : {};
       });
       const [editingPath, setEditingPath] = useState(null);
+
+      // 名称に割り当てる色を計算（登録されている全名称を収集し、重複しないように20色を順番に割り振る）
+      const aliasColorMap = useMemo(() => {
+        // IPとパスの名称をすべて集め、空文字を除外して名前順にソート
+        const uniqueNames = Array.from(new Set([
+          ...Object.values(ipAliases),
+          ...Object.values(pathAliases)
+        ])).filter(Boolean).sort();
+        
+        const map = {};
+        uniqueNames.forEach((name, index) => {
+          map[name] = ALIAS_COLORS[index % ALIAS_COLORS.length];
+        });
+        return map;
+      }, [ipAliases, pathAliases]);
+
+      // 名称の文字列から割り当てられた色を取得する関数
+      const getColorClassForAlias = (aliasName) => {
+        if (!aliasName) return 'bg-slate-100 text-slate-700 border-slate-200';
+        return aliasColorMap[aliasName] || 'bg-slate-100 text-slate-700 border-slate-200';
+      };
       
       // 削除用ステート
       const [logToDelete, setLogToDelete] = useState(null);
@@ -398,7 +411,6 @@
 
       return (
         <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-10 font-sans flex flex-col relative">
-          {/* 画面全体の最大幅を 6xl から 7xl (1280px) に拡大 */}
           <div className="max-w-7xl mx-auto space-y-8 flex-grow w-full">
             
             {authError && (
@@ -560,7 +572,6 @@
                         </th>
                         <th className="py-3 px-4 font-bold">日時</th>
                         <th className="py-3 px-4 font-bold">パス</th>
-                        {/* ヘッダの最小幅と比率を拡大 */}
                         <th className="py-3 px-4 font-bold min-w-[450px] w-[50%]">IPアドレス / デバイス</th>
                         <th className="py-3 px-4 font-bold text-center w-16">操作</th>
                       </tr>
@@ -588,7 +599,7 @@
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2 mb-0.5">
                               {pathAliases[l.path] ? (
-                                <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded border truncate max-w-[120px] ${getColorClassForAlias(pathAliases[l.path])}`} title={pathAliases[l.path]}>
+                                <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded border whitespace-normal break-words ${getColorClassForAlias(pathAliases[l.path])}`} title={pathAliases[l.path]}>
                                   {pathAliases[l.path]}
                                 </span>
                               ) : null}
@@ -603,13 +614,12 @@
                                 </button>
                               )}
                             </div>
-                            {/* URLの最大幅も拡大 */}
                             <div className="text-xs text-slate-400 truncate max-w-md lg:max-w-lg mt-0.5" title={l.url}>{l.url}</div>
                           </td>
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-2 mb-0.5">
+                            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                               {ipAliases[l.ip] ? (
-                                <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded border truncate max-w-[120px] ${getColorClassForAlias(ipAliases[l.ip])}`} title={ipAliases[l.ip]}>
+                                <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded border whitespace-normal break-words ${getColorClassForAlias(ipAliases[l.ip])}`} title={ipAliases[l.ip]}>
                                   {ipAliases[l.ip]}
                                 </span>
                               ) : null}
@@ -626,7 +636,6 @@
                                 </button>
                               )}
                             </div>
-                            {/* デバイス情報の最大幅制限を大幅に緩和 (max-w-xs -> max-w-md lg:max-w-2xl) */}
                             <div className="text-xs text-slate-500 max-w-md lg:max-w-2xl xl:max-w-3xl truncate" title={l.userAgent}>
                               {l.userAgent}
                             </div>
