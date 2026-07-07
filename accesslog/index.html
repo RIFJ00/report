@@ -136,7 +136,6 @@
 
       // 名称に割り当てる色を計算（登録されている全名称を収集し、重複しないように20色を順番に割り振る）
       const aliasColorMap = useMemo(() => {
-        // IPとパスの名称をすべて集め、空文字を除外して名前順にソート
         const uniqueNames = Array.from(new Set([
           ...Object.values(ipAliases),
           ...Object.values(pathAliases)
@@ -157,6 +156,7 @@
       
       // 削除用ステート
       const [logToDelete, setLogToDelete] = useState(null);
+      const [isDeleting, setIsDeleting] = useState(false); // 個別削除のローディング状態
       const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
       const [isDeletingAll, setIsDeletingAll] = useState(false);
       const [selectedLogIds, setSelectedLogIds] = useState(new Set());
@@ -186,7 +186,7 @@
         return () => unsubscribe();
       }, []);
 
-      // Firebaseから【本番の】ログデータをリアルタイムで読み込む
+      // Firebaseからログデータをリアルタイムで読み込む
       useEffect(() => {
         if (!user) return;
 
@@ -214,30 +214,12 @@
         return () => unsubscribe();
       }, [user]);
 
-      // URLリストが変更されたらローカルストレージに保存する
-      useEffect(() => {
-        localStorage.setItem(TARGET_URLS_STORAGE_KEY, JSON.stringify(targetUrls));
-      }, [targetUrls]);
-
-      // 選択中のURLタブが変更されたら保存する
-      useEffect(() => {
-        localStorage.setItem(SELECTED_URL_STORAGE_KEY, selectedUrl);
-      }, [selectedUrl]);
-
-      // 検索キーワードが変更されたら保存する
-      useEffect(() => {
-        localStorage.setItem(SEARCH_QUERY_STORAGE_KEY, ipSearchQuery);
-      }, [ipSearchQuery]);
-
-      // IPエイリアスが変更されたらローカルストレージに保存する
-      useEffect(() => {
-        localStorage.setItem(IP_ALIASES_STORAGE_KEY, JSON.stringify(ipAliases));
-      }, [ipAliases]);
-
-      // パスエイリアスが変更されたらローカルストレージに保存する
-      useEffect(() => {
-        localStorage.setItem(PATH_ALIASES_STORAGE_KEY, JSON.stringify(pathAliases));
-      }, [pathAliases]);
+      // 各種設定のローカルストレージへの保存
+      useEffect(() => { localStorage.setItem(TARGET_URLS_STORAGE_KEY, JSON.stringify(targetUrls)); }, [targetUrls]);
+      useEffect(() => { localStorage.setItem(SELECTED_URL_STORAGE_KEY, selectedUrl); }, [selectedUrl]);
+      useEffect(() => { localStorage.setItem(SEARCH_QUERY_STORAGE_KEY, ipSearchQuery); }, [ipSearchQuery]);
+      useEffect(() => { localStorage.setItem(IP_ALIASES_STORAGE_KEY, JSON.stringify(ipAliases)); }, [ipAliases]);
+      useEffect(() => { localStorage.setItem(PATH_ALIASES_STORAGE_KEY, JSON.stringify(pathAliases)); }, [pathAliases]);
 
       const urlFilteredLogs = useMemo(() => {
         return selectedUrl === 'All' ? logs : logs.filter(l => l.url === selectedUrl);
@@ -246,25 +228,19 @@
       const filteredLogs = useMemo(() => {
         let result = urlFilteredLogs;
         
-        // 日付でフィルタ
         if (selectedDate) {
           result = result.filter(l => l.timestamp && l.timestamp.split('T')[0] === selectedDate);
         }
         
-        // IP、名称、パス、URLで複数キーワードフィルタ (OR検索)
         if (ipSearchQuery) {
-          // 全角スペースやカンマを半角スペースに変換し、分割して空文字を除外
           const queries = ipSearchQuery.toLowerCase().replace(/[,、　]/g, ' ').split(/\s+/).filter(q => q);
-          
           if (queries.length > 0) {
             result = result.filter(l => {
               return queries.some(query => {
                 const ipMatches = l.ip && l.ip.toLowerCase().includes(query);
-                const alias = ipAliases[l.ip];
-                const aliasMatches = alias && alias.toLowerCase().includes(query);
+                const aliasMatches = ipAliases[l.ip] && ipAliases[l.ip].toLowerCase().includes(query);
                 const pathMatches = l.path && l.path.toLowerCase().includes(query);
-                const pathAlias = pathAliases[l.path];
-                const pathAliasMatches = pathAlias && pathAlias.toLowerCase().includes(query);
+                const pathAliasMatches = pathAliases[l.path] && pathAliases[l.path].toLowerCase().includes(query);
                 const urlMatches = l.url && l.url.toLowerCase().includes(query);
                 return ipMatches || aliasMatches || pathMatches || pathAliasMatches || urlMatches;
               });
@@ -275,7 +251,6 @@
         return result;
       }, [urlFilteredLogs, selectedDate, ipSearchQuery, ipAliases, pathAliases]);
 
-      // filteredLogsが変わった時（削除やフィルタ変更時）に、存在しない選択項目をクリアする
       useEffect(() => {
         const currentIds = new Set(filteredLogs.map(l => l.id));
         setSelectedLogIds(prev => {
@@ -310,68 +285,66 @@
 
       const handleRemoveUrl = (urlToRemove) => {
         setTargetUrls(targetUrls.filter(url => url !== urlToRemove));
-        if (selectedUrl === urlToRemove) {
-          setSelectedUrl('All');
-        }
+        if (selectedUrl === urlToRemove) setSelectedUrl('All');
       };
 
-      // IP名前の保存
       const handleSaveIpAlias = () => {
         if (!editingIp) return;
         setIpAliases(prev => {
           const next = { ...prev };
-          if (editingIp.name.trim()) {
-            next[editingIp.ip] = editingIp.name.trim();
-          } else {
-            delete next[editingIp.ip]; // 空なら削除
-          }
+          if (editingIp.name.trim()) next[editingIp.ip] = editingIp.name.trim();
+          else delete next[editingIp.ip];
           return next;
         });
         setEditingIp(null);
       };
 
-      // パス名前の保存
       const handleSavePathAlias = () => {
         if (!editingPath) return;
         setPathAliases(prev => {
           const next = { ...prev };
-          if (editingPath.name.trim()) {
-            next[editingPath.path] = editingPath.name.trim();
-          } else {
-            delete next[editingPath.path]; // 空なら削除
-          }
+          if (editingPath.name.trim()) next[editingPath.path] = editingPath.name.trim();
+          else delete next[editingPath.path];
           return next;
         });
         setEditingPath(null);
       };
 
-      // ログ個別削除処理
+      // =============== 削除機能の大幅改善 =============== //
+
       const confirmDelete = (e, log) => {
-        e.stopPropagation(); // 行クリックによる詳細モーダル表示を防ぐ
+        e.stopPropagation();
         setDeleteError(null);
         setLogToDelete(log);
       };
 
+      // 個別削除
       const executeDelete = async () => {
         if (!logToDelete) return;
+        setIsDeleting(true);
         setDeleteError(null);
+        
         try {
+          // 【オプティミスティック更新】データベースの処理完了を待たずに、画面上から即座に消す
+          setLogs(prevLogs => prevLogs.filter(l => l.id !== logToDelete.id));
+
+          // Firebase から削除
           await deleteDoc(doc(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs', logToDelete.id));
-          setLogToDelete(null); // 成功したら閉じる
+          
+          setLogToDelete(null); // モーダルを閉じる
         } catch (error) {
           console.error("ログ削除エラー:", error);
-          setDeleteError("削除権限エラー: Firebaseのセキュリティルールで削除が許可されていない可能性があります。");
+          setDeleteError(`削除エラー: 権限がないか、通信に失敗しました。(${error.message})`);
+        } finally {
+          setIsDeleting(false);
         }
       };
 
-      // チェックボックスの切り替え
+      // チェックボックス操作
       const toggleLogSelection = (id) => {
         const newSelected = new Set(selectedLogIds);
-        if (newSelected.has(id)) {
-          newSelected.delete(id);
-        } else {
-          newSelected.add(id);
-        }
+        if (newSelected.has(id)) newSelected.delete(id);
+        else newSelected.add(id);
         setSelectedLogIds(newSelected);
       };
 
@@ -383,20 +356,26 @@
         }
       };
 
-      // 選択項目の一括削除処理
+      // 一括削除
       const executeDeleteSelected = async () => {
         setIsDeletingAll(true);
         setDeleteError(null);
+        
         try {
+          // 【オプティミスティック更新】データベースの処理完了を待たずに、画面上から即座に消す
+          setLogs(prevLogs => prevLogs.filter(l => !selectedLogIds.has(l.id)));
+
+          // Firebase から一括削除
           const deletePromises = Array.from(selectedLogIds).map(id => 
             deleteDoc(doc(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs', id))
           );
           await Promise.all(deletePromises);
-          setShowDeleteAllConfirm(false);
-          setSelectedLogIds(new Set());
+          
+          setShowDeleteAllConfirm(false); // モーダルを閉じる
+          setSelectedLogIds(new Set()); // 選択状態をリセット
         } catch (error) {
           console.error("一括削除エラー:", error);
-          setDeleteError("削除権限エラー: Firebaseのセキュリティルールで削除が許可されていない可能性があります。");
+          setDeleteError(`一括削除エラー: 権限がないか、通信に失敗しました。(${error.message})`);
         } finally {
           setIsDeletingAll(false);
         }
@@ -571,9 +550,7 @@
                           />
                         </th>
                         <th className="py-3 px-4 font-bold">日時</th>
-                        {/* パスの幅を広く確保する */}
                         <th className="py-3 px-4 font-bold min-w-[320px] w-[35%]">パス</th>
-                        {/* IPアドレス列の幅調整 */}
                         <th className="py-3 px-4 font-bold min-w-[450px] w-[45%]">IPアドレス / デバイス</th>
                         <th className="py-3 px-4 font-bold text-center w-16">操作</th>
                       </tr>
@@ -658,8 +635,7 @@
                       <tr>
                         <td colSpan="5" className="text-center py-16 text-slate-400 flex flex-col items-center justify-center">
                           <Clock className="w-10 h-10 mb-3 text-slate-300" />
-                          <p className="text-base font-medium text-slate-500">まだアクセスログが届いていません</p>
-                          <p className="text-xs mt-1">実際のページにアクセスしてログの到着をお待ちください</p>
+                          <p className="text-base font-medium text-slate-500">データがありません</p>
                         </td>
                       </tr>
                     )}
@@ -721,15 +697,18 @@
                   <div className="flex justify-end gap-3 mt-6">
                     <button 
                       onClick={() => setLogToDelete(null)}
-                      className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors"
+                      disabled={isDeleting}
+                      className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
                     >
                       キャンセル
                     </button>
                     <button 
                       onClick={executeDelete}
-                      className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+                      disabled={isDeleting}
+                      className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
                     >
-                      削除する
+                      {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      {isDeleting ? '削除中...' : '削除する'}
                     </button>
                   </div>
                 </div>
