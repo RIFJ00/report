@@ -26,10 +26,8 @@
   </script>
 </head>
 <body class="bg-slate-50 font-sans">
-  <!-- Reactアプリのマウントポイント -->
   <div id="root"></div>
 
-  <!-- Reactのコード (Babelでモジュールとしてコンパイル) -->
   <script type="text/babel" data-type="module">
     import React, { useState, useEffect, useMemo, useRef } from 'react';
     import { createRoot } from 'react-dom/client';
@@ -61,7 +59,6 @@
     const SEARCH_QUERY_STORAGE_KEY = 'access_log_search_query';
     const SELECTED_URL_STORAGE_KEY = 'access_log_selected_url';
 
-    // 重複を避けるための20色のカラーパレット（似た色が連続しないように配置）
     const ALIAS_COLORS = [
         'bg-red-100 text-red-700 border-red-200',
         'bg-blue-100 text-blue-700 border-blue-200',
@@ -90,29 +87,24 @@
       const [authError, setAuthError] = useState(null);
       const [logs, setLogs] = useState([]);
       
-      // ローカルストレージから保存されたURLリストを読み込む
       const [targetUrls, setTargetUrls] = useState(() => {
-        const saved = localStorage.getItem(TARGET_URLS_STORAGE_KEY);
-        if (saved) {
-          try {
-            return JSON.parse(saved);
-          } catch (e) {
-            return ['https://report.rifj.jp/dashboard/'];
-          }
+        try {
+          const saved = localStorage.getItem(TARGET_URLS_STORAGE_KEY);
+          const parsed = saved ? JSON.parse(saved) : null;
+          return Array.isArray(parsed) ? parsed : ['https://report.rifj.jp/dashboard/'];
+        } catch (e) {
+          return ['https://report.rifj.jp/dashboard/'];
         }
-        return ['https://report.rifj.jp/dashboard/'];
       });
 
       const [inputUrl, setInputUrl] = useState('');
       
-      // 選択中のURLをローカルストレージから初期化
       const [selectedUrl, setSelectedUrl] = useState(() => {
         return localStorage.getItem(SELECTED_URL_STORAGE_KEY) || 'All';
       });
       
       const [selectedDate, setSelectedDate] = useState(null);
       
-      // 検索キーワードをローカルストレージから初期化
       const [ipSearchQuery, setIpSearchQuery] = useState(() => {
         return localStorage.getItem(SEARCH_QUERY_STORAGE_KEY) || '';
       });
@@ -120,25 +112,32 @@
       const [viewMode, setViewMode] = useState('list');
       const [selectedLog, setSelectedLog] = useState(null);
       
-      // IPアドレスのエイリアス（名前）管理
       const [ipAliases, setIpAliases] = useState(() => {
-        const saved = localStorage.getItem(IP_ALIASES_STORAGE_KEY);
-        return saved ? JSON.parse(saved) : {};
+        try {
+          const saved = localStorage.getItem(IP_ALIASES_STORAGE_KEY);
+          const parsed = saved ? JSON.parse(saved) : null;
+          return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+        } catch (e) {
+          return {};
+        }
       });
       const [editingIp, setEditingIp] = useState(null);
 
-      // パスのエイリアス（名前）管理
       const [pathAliases, setPathAliases] = useState(() => {
-        const saved = localStorage.getItem(PATH_ALIASES_STORAGE_KEY);
-        return saved ? JSON.parse(saved) : {};
+        try {
+          const saved = localStorage.getItem(PATH_ALIASES_STORAGE_KEY);
+          const parsed = saved ? JSON.parse(saved) : null;
+          return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+        } catch (e) {
+          return {};
+        }
       });
       const [editingPath, setEditingPath] = useState(null);
 
-      // 名称に割り当てる色を計算（登録されている全名称を収集し、重複しないように20色を順番に割り振る）
       const aliasColorMap = useMemo(() => {
         const uniqueNames = Array.from(new Set([
-          ...Object.values(ipAliases),
-          ...Object.values(pathAliases)
+          ...Object.values(ipAliases || {}),
+          ...Object.values(pathAliases || {})
         ])).filter(Boolean).sort();
         
         const map = {};
@@ -148,21 +147,21 @@
         return map;
       }, [ipAliases, pathAliases]);
 
-      // 名称の文字列から割り当てられた色を取得する関数
       const getColorClassForAlias = (aliasName) => {
         if (!aliasName) return 'bg-slate-100 text-slate-700 border-slate-200';
         return aliasColorMap[aliasName] || 'bg-slate-100 text-slate-700 border-slate-200';
       };
       
-      // 削除用ステート
       const [logToDelete, setLogToDelete] = useState(null);
-      const [isDeleting, setIsDeleting] = useState(false); // 個別削除のローディング状態
+      const [isDeleting, setIsDeleting] = useState(false); 
       const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
       const [isDeletingAll, setIsDeletingAll] = useState(false);
       const [selectedLogIds, setSelectedLogIds] = useState(new Set());
-      const [deleteError, setDeleteError] = useState(null); // エラー表示用
+      
+      // エラーメッセージ用
+      const [deleteError, setDeleteError] = useState(null);
+      const [toastMessage, setToastMessage] = useState(null); // 追加: 画面右上に出る目立つエラー通知
 
-      // Firebase認証の設定
       useEffect(() => {
         const initAuth = async () => {
           try {
@@ -186,7 +185,6 @@
         return () => unsubscribe();
       }, []);
 
-      // Firebaseからログデータをリアルタイムで読み込む
       useEffect(() => {
         if (!user) return;
 
@@ -214,7 +212,6 @@
         return () => unsubscribe();
       }, [user]);
 
-      // 各種設定のローカルストレージへの保存
       useEffect(() => { localStorage.setItem(TARGET_URLS_STORAGE_KEY, JSON.stringify(targetUrls)); }, [targetUrls]);
       useEffect(() => { localStorage.setItem(SELECTED_URL_STORAGE_KEY, selectedUrl); }, [selectedUrl]);
       useEffect(() => { localStorage.setItem(SEARCH_QUERY_STORAGE_KEY, ipSearchQuery); }, [ipSearchQuery]);
@@ -237,11 +234,13 @@
           if (queries.length > 0) {
             result = result.filter(l => {
               return queries.some(query => {
-                const ipMatches = l.ip && l.ip.toLowerCase().includes(query);
-                const aliasMatches = ipAliases[l.ip] && ipAliases[l.ip].toLowerCase().includes(query);
-                const pathMatches = l.path && l.path.toLowerCase().includes(query);
-                const pathAliasMatches = pathAliases[l.path] && pathAliases[l.path].toLowerCase().includes(query);
-                const urlMatches = l.url && l.url.toLowerCase().includes(query);
+                const ipMatches = l.ip && String(l.ip).toLowerCase().includes(query);
+                const safeIpAliases = ipAliases || {};
+                const aliasMatches = safeIpAliases[l.ip] && String(safeIpAliases[l.ip]).toLowerCase().includes(query);
+                const pathMatches = l.path && String(l.path).toLowerCase().includes(query);
+                const safePathAliases = pathAliases || {};
+                const pathAliasMatches = safePathAliases[l.path] && String(safePathAliases[l.path]).toLowerCase().includes(query);
+                const urlMatches = l.url && String(l.url).toLowerCase().includes(query);
                 return ipMatches || aliasMatches || pathMatches || pathAliasMatches || urlMatches;
               });
             });
@@ -310,37 +309,65 @@
         setEditingPath(null);
       };
 
-      // =============== 削除機能の大幅改善 =============== //
-
       const confirmDelete = (e, log) => {
         e.stopPropagation();
         setDeleteError(null);
         setLogToDelete(log);
       };
 
-      // 個別削除
+      // ----------------------------------------------------
+      // 【修正】安全なタイムアウト付き削除関数（クラッシュ問題を解消）
+      // ----------------------------------------------------
       const executeDelete = async () => {
         if (!logToDelete) return;
         setIsDeleting(true);
         setDeleteError(null);
         
-        try {
-          // 【オプティミスティック更新】データベースの処理完了を待たずに、画面上から即座に消す
-          setLogs(prevLogs => prevLogs.filter(l => l.id !== logToDelete.id));
+        const targetId = logToDelete.id;
+        const targetLog = logToDelete; // 失敗時の復元用に保持
+        
+        // 【即時反映】待たせずにモーダルを閉じ、リストから消す
+        setLogToDelete(null); 
+        setLogs(prevLogs => prevLogs.filter(l => l.id !== targetId));
 
-          // Firebase から削除
-          await deleteDoc(doc(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs', logToDelete.id));
+        try {
+          const docRef = doc(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs', targetId);
           
-          setLogToDelete(null); // モーダルを閉じる
+          // タイムアウト付きの削除リクエスト（タイマーは必ずクリアしてエラーを防ぐ）
+          await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+              reject(new Error("データベースの応答がありません（タイムアウト）"));
+            }, 10000);
+            
+            deleteDoc(docRef)
+              .then(() => {
+                clearTimeout(timer);
+                resolve();
+              })
+              .catch((err) => {
+                clearTimeout(timer);
+                reject(err);
+              });
+          });
+          
         } catch (error) {
           console.error("ログ削除エラー:", error);
-          setDeleteError(`削除エラー: 権限がないか、通信に失敗しました。(${error.message})`);
+          // エラー時はリストにデータを戻す（ロールバック）
+          setLogs(prevLogs => {
+            if (!prevLogs.find(l => l.id === targetId)) {
+              return [...prevLogs, targetLog].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            }
+            return prevLogs;
+          });
+          
+          const errorMsg = `削除に失敗しました（データを復元しました）: ${error.message}`;
+          setToastMessage(errorMsg); 
+          setTimeout(() => setToastMessage(null), 8000);
         } finally {
           setIsDeleting(false);
         }
       };
 
-      // チェックボックス操作
       const toggleLogSelection = (id) => {
         const newSelected = new Set(selectedLogIds);
         if (newSelected.has(id)) newSelected.delete(id);
@@ -356,26 +383,60 @@
         }
       };
 
-      // 一括削除
+      // ----------------------------------------------------
+      // 【修正】一括削除も安全なタイムアウトと復元機能に対応
+      // ----------------------------------------------------
       const executeDeleteSelected = async () => {
+        if (selectedLogIds.size === 0) return;
         setIsDeletingAll(true);
         setDeleteError(null);
         
-        try {
-          // 【オプティミスティック更新】データベースの処理完了を待たずに、画面上から即座に消す
-          setLogs(prevLogs => prevLogs.filter(l => !selectedLogIds.has(l.id)));
+        const targetIds = Array.from(selectedLogIds);
+        const targetsToRestore = logs.filter(l => targetIds.includes(l.id)); // 失敗時の復元用に保持
+        
+        // 【即時反映】待たせずにモーダルを閉じ、リストから消す
+        setShowDeleteAllConfirm(false); 
+        setSelectedLogIds(new Set()); 
+        setLogs(prevLogs => prevLogs.filter(l => !targetIds.includes(l.id)));
 
-          // Firebase から一括削除
-          const deletePromises = Array.from(selectedLogIds).map(id => 
-            deleteDoc(doc(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs', id))
-          );
-          await Promise.all(deletePromises);
+        try {
+          const deletePromises = targetIds.map(id => {
+            const docRef = doc(db, 'artifacts', TARGET_APP_ID, 'public', 'data', 'access_logs', id);
+            return deleteDoc(docRef);
+          });
           
-          setShowDeleteAllConfirm(false); // モーダルを閉じる
-          setSelectedLogIds(new Set()); // 選択状態をリセット
+          // タイムアウト付きの削除リクエスト
+          await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+              reject(new Error("データベースの応答がありません（タイムアウト）"));
+            }, 15000);
+            
+            Promise.all(deletePromises)
+              .then(() => {
+                clearTimeout(timer);
+                resolve();
+              })
+              .catch((err) => {
+                clearTimeout(timer);
+                reject(err);
+              });
+          });
+          
         } catch (error) {
           console.error("一括削除エラー:", error);
-          setDeleteError(`一括削除エラー: 権限がないか、通信に失敗しました。(${error.message})`);
+          // エラー時はリストにデータを戻す（ロールバック）
+          setLogs(prevLogs => {
+            const currentIds = new Set(prevLogs.map(l => l.id));
+            const toAdd = targetsToRestore.filter(l => !currentIds.has(l.id));
+            if (toAdd.length > 0) {
+              return [...prevLogs, ...toAdd].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            }
+            return prevLogs;
+          });
+
+          const errorMsg = `一括削除に失敗しました（データを復元しました）: ${error.message}`;
+          setToastMessage(errorMsg); 
+          setTimeout(() => setToastMessage(null), 8000);
         } finally {
           setIsDeletingAll(false);
         }
@@ -390,6 +451,22 @@
 
       return (
         <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-10 font-sans flex flex-col relative">
+          
+          {/* 目立つエラー通知 (トースト) */}
+          {toastMessage && (
+            <div className="fixed top-6 right-6 z-[100] bg-red-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-start gap-3 max-w-md animate-bounce">
+              <AlertTriangle className="w-6 h-6 flex-shrink-0" />
+              <div>
+                <h4 className="font-bold text-lg mb-1">削除に失敗しました</h4>
+                <p className="text-sm opacity-90">{toastMessage}</p>
+                <p className="text-xs opacity-70 mt-2">※Firebaseルールの変更が反映されるまで、設定後10分程度かかる場合があります。</p>
+              </div>
+              <button onClick={() => setToastMessage(null)} className="ml-2 hover:bg-red-700 p-1 rounded">
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
           <div className="max-w-7xl mx-auto space-y-8 flex-grow w-full">
             
             {authError && (
@@ -475,7 +552,6 @@
                     <BarChart3 size={18}/>日別集計
                   </button>
                   
-                  {/* IP・名称・パス検索ボックス */}
                   {viewMode === 'list' && (
                     <div className="flex items-center relative pb-2 ml-2">
                       <Search className="w-4 h-4 absolute left-3 top-[calc(50%-4px)] transform -translate-y-1/2 text-slate-400" />
@@ -513,10 +589,7 @@
                 <div className="flex items-center gap-4 flex-wrap">
                   {viewMode === 'list' && selectedLogIds.size > 0 && (
                     <button 
-                      onClick={() => {
-                        setDeleteError(null);
-                        setShowDeleteAllConfirm(true);
-                      }}
+                      onClick={() => setShowDeleteAllConfirm(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors border border-red-200 shadow-sm"
                     >
                       <Trash2 size={16} />
@@ -683,9 +756,10 @@
                     <h3 className="text-lg font-bold">ログの削除</h3>
                   </div>
                   <p className="text-slate-600 text-sm mb-2">以下のログを完全に削除します。この操作は取り消せません。</p>
-                  
+
+                  {/* エラーメッセージ表示領域 */}
                   {deleteError && (
-                    <div className="my-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm font-medium text-red-600">
+                    <div className="my-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-medium">
                       {deleteError}
                     </div>
                   )}
@@ -708,7 +782,7 @@
                       className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
                     >
                       {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      {isDeleting ? '削除中...' : '削除する'}
+                      {isDeleting ? '処理中...' : '削除する'}
                     </button>
                   </div>
                 </div>
@@ -729,8 +803,9 @@
                     現在選択されている <strong>{selectedLogIds.size}件</strong> のログをすべて削除します。<br />この操作は取り消せません。本当によろしいですか？
                   </p>
 
+                  {/* エラーメッセージ表示領域 */}
                   {deleteError && (
-                    <div className="my-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm font-medium text-red-600">
+                    <div className="my-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-medium">
                       {deleteError}
                     </div>
                   )}
@@ -749,7 +824,7 @@
                       className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                     >
                       {isDeletingAll ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      {isDeletingAll ? '削除中...' : 'すべて削除する'}
+                      {isDeletingAll ? '処理中...' : 'すべて削除する'}
                     </button>
                   </div>
                 </div>
@@ -957,7 +1032,6 @@
       );
     }
 
-    // Reactアプリのレンダリング
     const root = createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
