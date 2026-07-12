@@ -53,8 +53,10 @@
           データの追加
         </h2>
         <button 
+          id="manual-add-btn"
           onclick="window.app.openAddModal()"
-          class="mt-2 md:mt-0 flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-md hover:bg-indigo-700 shadow-sm transition-all active:scale-95"
+          class="mt-2 md:mt-0 flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-md hover:bg-indigo-700 shadow-sm transition-all active:scale-95 disabled:opacity-50"
+          disabled
         >
           <i data-lucide="plus-circle" class="w-4 h-4 mr-2"></i>
           手動で新規登録
@@ -158,23 +160,26 @@
   <!-- Firebase v11 JS SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, onSnapshot, writeBatch, doc, deleteDoc, updateDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, onSnapshot, writeBatch, doc, deleteDoc, updateDoc, addDoc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
-      authDomain: "seisakuresearch00.firebaseapp.com",
-      projectId: "seisakuresearch00",
-      storageBucket: "seisakuresearch00.firebasestorage.app",
-      messagingSenderId: "356788263577",
-      appId: "1:356788263577:web:ecc3782d0c82cb7da43608",
-      measurementId: "G-Y1C3GPNC9Z"
-    };
+    // Firebase Config - Use environment variable if available, else fallback to user provided
+    const firebaseConfig = typeof __firebase_config !== 'undefined' 
+      ? JSON.parse(__firebase_config) 
+      : {
+          apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
+          authDomain: "seisakuresearch00.firebaseapp.com",
+          projectId: "seisakuresearch00",
+          storageBucket: "seisakuresearch00.firebasestorage.app",
+          messagingSenderId: "356788263577",
+          appId: "1:356788263577:web:ecc3782d0c82cb7da43608",
+          measurementId: "G-Y1C3GPNC9Z"
+        };
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const appId = 'seisakuresearch';
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'seisakuresearch';
 
     const TABS = [
       { id: 'meetings', label: '会議体リスト', collection: 'meetings', icon: 'list', filterCol: '関連分野', sortCol: '順位', uniqueKeys: ['関連分野', '会議名'] },
@@ -185,7 +190,8 @@
     const COLUMNS = {
       meetings: ['関連分野', '区分', '順位', '会議名', 'URL', '所管', '対象分野', '直近開催日', '備考'],
       fields: ['分野', '解説'],
-      links: ['分野', '会議名', '会議体URL', '構成員', 'ロードマップ', '概要']
+      // 「全体像」を「概要」の右側に配置
+      links: ['分野', '会議名', '会議体URL', '構成員', 'ロードマップ', '概要', '全体像']
     };
 
     // Application State
@@ -253,6 +259,8 @@
     // Global Object for UI access
     window.app = {
       switchTab: (id) => {
+        if (!state.user) return; 
+
         state.activeTab = id;
         state.selectedIds = [];
         state.searchQuery = '';
@@ -260,8 +268,12 @@
         state.message = { text: '', type: '' };
         state.sortByRank = false;
 
-        document.getElementById('search-input').value = '';
-        document.getElementById('clear-search-btn').classList.add('hidden');
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) searchInput.value = '';
+        
+        const clearBtn = document.getElementById('clear-search-btn');
+        if (clearBtn) clearBtn.classList.add('hidden');
+
         renderTabs();
         renderMessage();
         updateImportUI();
@@ -282,6 +294,13 @@
           state.loading = false;
           updateFilterSelect();
           updateTable();
+        }, (error) => {
+          console.error("Firestore error:", error);
+          if (error.code === 'permission-denied') {
+            showMessage("アクセス権限がありません。", 'error');
+          }
+          state.loading = false;
+          updateTable();
         });
       },
 
@@ -291,7 +310,7 @@
       },
 
       handleImport: async () => {
-        if (!state.file) return;
+        if (!state.file || !state.user) return;
         state.importing = true;
         showMessage('', '');
         updateImportUI();
@@ -408,7 +427,7 @@
       closeAddModal: () => { state.isAdding = false; renderModals(); },
 
       handleSaveAdd: async () => {
-        const currentTabDef = TABS.find(t => t.id === state.activeTab);
+        if (!state.user) return;
         const cols = COLUMNS[state.activeTab];
         const item = {};
         cols.forEach(c => {
@@ -417,6 +436,7 @@
         });
 
         try {
+          const currentTabDef = TABS.find(t => t.id === state.activeTab);
           const dataRef = collection(db, 'artifacts', appId, 'public', 'data', currentTabDef.collection);
           const timestamp = Date.now();
           await addDoc(dataRef, { ...item, createdAt: timestamp, updatedAt: timestamp });
@@ -432,7 +452,7 @@
       },
       closeEditModal: () => { state.editingItem = null; renderModals(); },
       handleSaveEdit: async () => {
-        if (!state.editingItem) return;
+        if (!state.editingItem || !state.user) return;
         const currentTabDef = TABS.find(t => t.id === state.activeTab);
         const activeColumns = COLUMNS[state.activeTab];
         activeColumns.forEach(col => {
@@ -451,6 +471,7 @@
 
       openDeleteModal: (id) => { state.deletingId = id; renderModals(); },
       handleDelete: async () => {
+        if (!state.user) return;
         const currentTabDef = TABS.find(t => t.id === state.activeTab);
         try {
           await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', currentTabDef.collection, state.deletingId));
@@ -462,6 +483,7 @@
 
       openBulkDeleteModal: () => { state.showBulkDeleteConfirm = true; renderModals(); },
       handleBulkDelete: async () => {
+        if (!state.user) return;
         const currentTabDef = TABS.find(t => t.id === state.activeTab);
         try {
           const batch = writeBatch(db);
@@ -485,7 +507,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${currentTabDef.label}_${new Date().toISOString().slice(0,10)}.csv`;
+        a.download = `${currentTabDef.label}_${new Date().toISOString().slice(0,10).replace(/-/g, '')}.csv`;
         a.click();
       }
     };
@@ -513,20 +535,28 @@
     }
 
     function updateImportUI() {
-      document.getElementById('import-btn').disabled = !state.file || state.importing;
-      document.getElementById('import-btn').className = `flex items-center px-5 py-2.5 rounded-md font-medium text-white ${!state.file || state.importing ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`;
-      document.getElementById('import-btn').innerHTML = state.importing ? '<i data-lucide="refresh-cw" class="w-4 h-4 mr-2 animate-spin"></i>保存中' : '<i data-lucide="upload" class="w-4 h-4 mr-2"></i>一括保存';
+      const importBtn = document.getElementById('import-btn');
+      if (importBtn) {
+        importBtn.disabled = !state.file || state.importing;
+        importBtn.className = `flex items-center px-5 py-2.5 rounded-md font-medium text-white ${!state.file || state.importing ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`;
+        importBtn.innerHTML = state.importing ? '<i data-lucide="refresh-cw" class="w-4 h-4 mr-2 animate-spin"></i>保存中' : '<i data-lucide="upload" class="w-4 h-4 mr-2"></i>一括保存';
+      }
+      
+      const addBtn = document.getElementById('manual-add-btn');
+      if (addBtn) addBtn.disabled = !state.user;
+      
       lucide.createIcons();
     }
 
     function updateFilterSelect() {
-      const col = TABS.find(t => t.id === state.activeTab).filterCol;
+      const tabDef = TABS.find(t => t.id === state.activeTab);
+      const col = tabDef.filterCol;
       const select = document.getElementById('filter-select');
       if (!col) { document.getElementById('filter-select-container').style.display = 'none'; return; }
       const fields = Array.from(new Set(state.dataList.sort((a,b) => (a.createdAt||0)-(b.createdAt||0)).map(m => m[col]).filter(Boolean)));
       if (!fields.length) { document.getElementById('filter-select-container').style.display = 'none'; return; }
       document.getElementById('filter-select-container').style.display = 'block';
-      select.innerHTML = `<option value="">すべての${escapeHTML(col)}</option>` + fields.map(f => `<option value="${escapeHTML(f)}">${escapeHTML(f)}</option>`).join('');
+      select.innerHTML = `<option value="">すべての${escapeHTML(col)}</option>` + fields.map(f => `<option value="${escapeHTML(f)}" ${state.selectedFieldFilter === f ? 'selected' : ''}>${escapeHTML(f)}</option>`).join('');
     }
 
     function computeProcessedData() {
@@ -537,7 +567,8 @@
       let filtered = state.dataList.filter(item => {
         if (state.selectedFieldFilter && item[filterCol] !== state.selectedFieldFilter) return false;
         if (!state.searchQuery) return true;
-        return activeColumns.some(col => String(item[col] || '').toLowerCase().includes(state.searchQuery.toLowerCase()));
+        const q = state.searchQuery.toLowerCase();
+        return activeColumns.some(col => String(item[col] || '').toLowerCase().includes(q));
       });
 
       const fieldOrder = {};
@@ -567,8 +598,12 @@
       document.getElementById('last-modified-display').textContent = maxTime ? `最終更新: ${new Date(maxTime).toLocaleString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})}` : '最終更新: ---';
       
       document.getElementById('data-count-display').textContent = `表示 ${processed.length} / 全 ${state.dataList.length} 件`;
-      document.getElementById('bulk-delete-action-btn').style.display = state.selectedIds.length ? 'flex' : 'none';
-      document.getElementById('bulk-delete-action-btn').innerHTML = `<i data-lucide="trash-2" class="w-4 h-4 mr-1.5"></i>一括削除(${state.selectedIds.length})`;
+      
+      const bulkBtn = document.getElementById('bulk-delete-action-btn');
+      if (bulkBtn) {
+        bulkBtn.style.display = state.selectedIds.length ? 'flex' : 'none';
+        bulkBtn.innerHTML = `<i data-lucide="trash-2" class="w-4 h-4 mr-1.5"></i>一括削除(${state.selectedIds.length})`;
+      }
 
       document.getElementById('loading-state').style.display = state.loading ? 'flex' : 'none';
       document.getElementById('empty-state').style.display = (!state.loading && !processed.length) ? 'block' : 'none';
@@ -577,7 +612,7 @@
       if (processed.length) {
         document.getElementById('table-thead').innerHTML = `<tr>
           <th class="p-3 text-left w-10"><input type="checkbox" onchange="window.app.selectAll(this.checked)" ${processed.every(d => state.selectedIds.includes(d.id)) ? 'checked' : ''}></th>
-          ${activeColumns.map(c => `<th class="p-3 text-left whitespace-nowrap">${escapeHTML(c)}</th>`).join('')}
+          ${activeColumns.map(c => `<th class="p-3 text-left whitespace-nowrap text-xs font-semibold text-gray-600 uppercase tracking-wider">${escapeHTML(c)}</th>`).join('')}
           <th class="p-3 text-right">操作</th>
         </tr>`;
         document.getElementById('table-tbody').innerHTML = processed.map(item => `
@@ -659,16 +694,40 @@
       lucide.createIcons();
     }
 
-    // Init UI
+    // Auth & Init
+    async function initAuth() {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          try {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } catch (customTokenError) {
+            console.warn("Custom token mismatch, falling back to anonymous.");
+            await signInAnonymously(auth);
+          }
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Auth error:", err);
+        showMessage(`認証エラー: ${err.message}`, 'error');
+      }
+    }
+
+    onAuthStateChanged(auth, (u) => {
+      state.user = u;
+      const dot = document.getElementById('auth-status-dot');
+      const text = document.getElementById('auth-status-text');
+      if (dot) dot.className = `w-2 h-2 rounded-full mr-2 ${u ? 'bg-green-500' : 'bg-gray-400'}`;
+      if (text) text.textContent = u ? 'システム接続済' : '接続中...';
+      
+      if (u) {
+        window.app.switchTab(state.activeTab);
+      }
+    });
+
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
-      onAuthStateChanged(auth, (u) => {
-        state.user = u;
-        document.getElementById('auth-status-dot').className = `w-2 h-2 rounded-full mr-2 ${u ? 'bg-green-500' : 'bg-gray-400'}`;
-        document.getElementById('auth-status-text').textContent = u ? 'システム接続済' : '接続中...';
-        if (u) window.app.switchTab('meetings');
-      });
-      signInAnonymously(auth);
+      initAuth();
 
       document.getElementById('file-input').onchange = window.app.handleFileChange;
       document.getElementById('use-shift-jis').onchange = e => state.useShiftJis = e.target.checked;
