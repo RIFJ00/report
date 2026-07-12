@@ -401,11 +401,12 @@
 
                             <div id="pdf-display-section" class="col-span-1 md:col-span-2 mt-6 pt-8 border-t-2 border-gray-100 scroll-mt-8">
                                 <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-4 gap-3 border-b border-gray-200">
-                                    <div class="w-full md:w-auto flex flex-col">
-                                        <div class="flex space-x-2 w-full">
-                                            <button onclick="switchPdfTab('overview')" id="tab-overview" class="px-4 py-2 text-sm font-bold border-b-2 border-blue-600 text-blue-600 transition-colors focus:outline-none -mb-[2px]">概要</button>
-                                            <button onclick="switchPdfTab('roadmap')" id="tab-roadmap" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors focus:outline-none -mb-[2px]">ロードマップ等</button>
-                                            <button onclick="switchPdfTab('member')" id="tab-member" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors focus:outline-none -mb-[2px]">構成員等</button>
+                                    <div class="w-full md:w-auto flex flex-col overflow-hidden">
+                                        <div class="flex space-x-2 w-full overflow-x-auto no-scrollbar pb-1">
+                                            <button onclick="switchPdfTab('overview')" id="tab-overview" class="px-4 py-2 text-sm font-bold border-b-2 border-blue-600 text-blue-600 transition-colors focus:outline-none -mb-[2px] whitespace-nowrap">概要</button>
+                                            <button onclick="switchPdfTab('roadmap')" id="tab-roadmap" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors focus:outline-none -mb-[2px] whitespace-nowrap">ロードマップ等</button>
+                                            <button onclick="switchPdfTab('member')" id="tab-member" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors focus:outline-none -mb-[2px] whitespace-nowrap">構成員等</button>
+                                            <button onclick="switchPdfTab('overall')" id="tab-overall" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors focus:outline-none -mb-[2px] whitespace-nowrap">全体像</button>
                                         </div>
                                         <p id="pdf-warning" class="text-[11px] text-gray-500 mt-2 mb-2 hidden">※枠内に表示されない場合は、別タブで開いてください。</p>
                                     </div>
@@ -887,7 +888,8 @@
         let overviewUrls = {};
         let roadmapUrls = {};
         let memberUrls = {};
-        let pdfTabNames = { overview: {}, roadmap: {}, member: {} };
+        let overallUrls = {};
+        let pdfTabNames = { overview: {}, roadmap: {}, member: {}, overall: {} };
 
         let currentPdfTab = 'overview';
         let currentReportUrl = "";
@@ -1265,7 +1267,8 @@
                     let newOverviewUrls = {};
                     let newRoadmapUrls = {};
                     let newMemberUrls = {};
-                    let newPdfTabNames = { overview: {}, roadmap: {}, member: {} };
+                    let newOverallUrls = {};
+                    let newPdfTabNames = { overview: {}, roadmap: {}, member: {}, overall: {} };
 
                     let foundCount = 0;
 
@@ -1374,6 +1377,16 @@
                                     newPdfTabNames.member[fieldId] = memberName;
                                 }
 
+                                // 全体像URLとタブ名
+                                const overallUrl = itemData['全体像'] || itemData.overall || itemData['全体像URL'] || itemData.overall_url || "";
+                                if (overallUrl && String(overallUrl).trim() !== "") {
+                                    newOverallUrls[fieldId] = overallUrl;
+                                }
+                                const overallName = itemData['全体像名'] || itemData['全体像タブ名'] || itemData.overall_name || "";
+                                if (overallName && String(overallName).trim() !== "") {
+                                    newPdfTabNames.overall[fieldId] = overallName;
+                                }
+
                                 let match17 = areas17.find(item => fieldId === `17_${item.no}`);
                                 let match8 = areas8.find(item => fieldId === `8_${item.no}`);
                                 let targetArea = match17 || match8;
@@ -1392,6 +1405,7 @@
                         overviewUrls = newOverviewUrls;
                         roadmapUrls = newRoadmapUrls;
                         memberUrls = newMemberUrls;
+                        overallUrls = newOverallUrls;
                         pdfTabNames = newPdfTabNames;
                         
                         if (isInitial && foundCount > 0) {
@@ -1401,7 +1415,8 @@
                         overviewUrls = {};
                         roadmapUrls = {};
                         memberUrls = {};
-                        pdfTabNames = { overview: {}, roadmap: {}, member: {} };
+                        overallUrls = {};
+                        pdfTabNames = { overview: {}, roadmap: {}, member: {}, overall: {} };
                     }
 
                     isInitial = false;
@@ -1541,6 +1556,7 @@
             document.getElementById('tab-overview').innerText = pdfTabNames.overview[fieldId] || "概要";
             document.getElementById('tab-roadmap').innerText = pdfTabNames.roadmap[fieldId] || "ロードマップ等";
             document.getElementById('tab-member').innerText = pdfTabNames.member[fieldId] || "構成員等";
+            document.getElementById('tab-overall').innerText = pdfTabNames.overall[fieldId] || "全体像";
 
             if (url) {
                 externalLink.href = url;
@@ -1665,6 +1681,7 @@
             if (currentPdfTab === 'overview') return overviewUrls[id] || "";
             if (currentPdfTab === 'roadmap') return roadmapUrls[id] || "";
             if (currentPdfTab === 'member') return memberUrls[id] || "";
+            if (currentPdfTab === 'overall') return overallUrls[id] || "";
             return "";
         }
 
@@ -1685,7 +1702,7 @@
         function switchPdfTab(tabName) {
             currentPdfTab = tabName;
             
-            const tabs = ['overview', 'roadmap', 'member'];
+            const tabs = ['overview', 'roadmap', 'member', 'overall'];
             tabs.forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
                 if (t === tabName) {
@@ -2229,9 +2246,7 @@
             adminClickCount = 0; 
         }
     </script>
-    アクセスログ用コード
-
-<!-- ↓↓↓ Firebase トラッキングコード開始 ↓↓↓ -->
+    <!-- ↓↓↓ Firebase トラッキングコード開始 ↓↓↓ -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -2280,6 +2295,5 @@
     .catch(error => console.error('IPアドレスの取得に失敗しました', error));
 </script>
 <!-- ↑↑↑ Firebase トラッキングコード終了 ↑↑↑ -->
-    
 </body>
 </html>
