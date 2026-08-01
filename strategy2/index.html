@@ -28,6 +28,24 @@
     </style>
 <body class="p-2 md:p-6 h-screen overflow-hidden bg-gray-100">
 
+    <!-- ログインオーバーレイ -->
+    <div id="login-overlay" class="fixed inset-0 bg-gray-900 z-[9999] flex justify-center items-center transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl w-11/12 md:w-96 overflow-hidden flex flex-col">
+            <div class="p-4 border-b bg-emerald-50 flex justify-center items-center">
+                <h3 class="font-bold text-emerald-900 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    閲覧パスワード
+                </h3>
+            </div>
+            <div class="p-6">
+                <p class="text-sm text-gray-600 mb-4 text-center">本ページを閲覧するためのパスワードを入力してください。</p>
+                <input type="password" id="view-password-input" class="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeypress="if(event.key==='Enter') verifyViewPassword()" placeholder="パスワード">
+                <p id="view-password-error" class="text-red-500 text-xs mt-2 hidden text-center">パスワードが間違っています。</p>
+                <button onclick="verifyViewPassword()" class="mt-5 w-full bg-emerald-600 text-white font-bold py-2.5 rounded-lg shadow hover:bg-emerald-700 transition-colors">閲覧する</button>
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl flex flex-col h-full overflow-hidden relative border border-emerald-100">
         
         <!-- ナビゲーションタブ (固定) -->
@@ -64,7 +82,7 @@
                         </h1>
                         <p class="text-emerald-100 text-sm md:text-base leading-relaxed">
                             <span class="block mb-1">政府は「産業クラスター」を全国各地に形成し、世界をリードする技術・ビジネスの創出を目指す。</span>
-                            <span class="block">3つの社会実装計画と4本の横断的支援策で、地場産業の付加価値向上と販路開拓を強力に支援する。</span>
+                            <span class="block">3つの社会実装計画と4本の横断的支援策で、地場産業の付加価値向上と販路開拓を支援する。</span>
                         </p>
                     </div>
                     <div class="w-full md:w-1/4 flex flex-col justify-start items-end md:items-center">
@@ -600,6 +618,8 @@
 
     <script>
         // 1. 定数と状態変数の宣言（最上部に配置してReferenceErrorを防止）
+        const VIEW_PASSWORD = "strategy";
+
         const kenseiOrder = [
             "内閣官房", "内閣府", "国家公安委員会", "警察庁", "こども家庭庁", "金融庁", "消費者庁", "デジタル庁", "復興庁",
             "総務省", "法務省", "外務省", "財務省", "文部科学省", "厚生労働省", "農林水産省", "経済産業省", "国土交通省", "環境省", "防衛省"
@@ -686,20 +706,15 @@
         let currentReportBtn = null;
         let isAppInitialized = false;
 
+        // データ最終更新日（コードやデータを変更した際にこの日付を手動で更新してください）
+        const LAST_UPDATED_DATE = "2026年08月02日";
+
         // 日付を「YYYY年MM月DD日」形式にフォーマット
         function formatDateToYMD(dateObj) {
             const year = dateObj.getFullYear();
             const month = String(dateObj.getMonth() + 1).padStart(2, '0');
             const day = String(dateObj.getDate()).padStart(2, '0');
             return `${year}年${month}月${day}日`;
-        }
-
-        function updateDisplayDate() {
-            const todayStr = formatDateToYMD(new Date());
-            const updateElem = document.getElementById('data-update-date');
-            if (updateElem) updateElem.innerText = todayStr;
-            const footElem = document.getElementById('current-datetime');
-            if (footElem) footElem.innerText = todayStr;
         }
 
         function initAppData() {
@@ -709,18 +724,17 @@
             updateFieldSelect();
         }
 
-        // データ内のタイムスタンプや変更検知から最新の更新日を割り出して表示する関数
+        // データ更新日とアクセス日を画面に表示する関数
         function processDataUpdate() {
-            const updateDisplayDate = (dateStr) => {
-                const updateElem = document.getElementById('data-update-date');
-                if (updateElem) updateElem.innerText = dateStr;
-                const footElem = document.getElementById('current-datetime');
-                if (footElem) footElem.innerText = dateStr;
-            };
+            // データ更新日の表示（固定の最終更新日を反映）
+            const updateElem = document.getElementById('data-update-date');
+            if (updateElem) updateElem.innerText = LAST_UPDATED_DATE;
 
+            // データアクセス日の表示（本日の日付を反映）
             const today = new Date();
             const todayStr = formatDateToYMD(today);
-            updateDisplayDate(todayStr);
+            const footElem = document.getElementById('current-datetime');
+            if (footElem) footElem.innerText = todayStr;
         }
 
         const normalizeStr = (str) => {
@@ -1309,8 +1323,55 @@
             }, 1500);
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
+        function verifyViewPassword() {
+            const pw = document.getElementById('view-password-input').value;
+            if (pw === VIEW_PASSWORD) {
+                unlockView();
+            } else {
+                document.getElementById('view-password-error').classList.remove('hidden');
+            }
+        }
+
+        function unlockView() {
+            const overlay = document.getElementById('login-overlay');
+            overlay.classList.add('opacity-0');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+            }, 300);
+            
             initAppData();
+        }
+
+        function checkUrlPassword() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const pw = urlParams.get('pw') || urlParams.get('p') || urlParams.get('pass');
+                
+                if (pw === VIEW_PASSWORD) {
+                    try {
+                        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                        window.history.replaceState({path: newUrl}, '', newUrl);
+                    } catch(e) {
+                        console.warn("History API not supported or restricted in this environment.");
+                    }
+                    unlockView();
+                } else {
+                    setTimeout(() => {
+                        const input = document.getElementById('view-password-input');
+                        if(input) input.focus();
+                    }, 100);
+                }
+            } catch(e) {
+                console.error("URL Params error", e);
+                setTimeout(() => {
+                    const input = document.getElementById('view-password-input');
+                    if(input) input.focus();
+                }, 100);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            checkUrlPassword();
         });
     </script>
 
