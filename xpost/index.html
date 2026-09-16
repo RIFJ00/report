@@ -1,5 +1,5 @@
 <!-- Chosen Palette: Slate Blue & Warm Gray -->
-<!-- Application Structure Plan: Single-page React application for Prime Minister X posts viewer. Strictly fixed header and search control panel with date range filter (start and end date), with an independent inner scrolling container starting from the post count display bar down to the list, pagination, and footer. Date format normalizer guarantees 100% accurate date filtering. Persistent items per page setting in localStorage. Dynamic date styling (Today: Red Bold, Yesterday: Red, 2 Days Ago: Light Red). -->
+<!-- Application Structure Plan: Single-page React application for Prime Minister X posts viewer. Strictly fixed header and search control panel with date range filter (start and end date), with an independent inner scrolling container starting from the post count display bar down to the list, pagination, and footer. Date format normalizer guarantees 100% accurate date filtering. Persistent items per page setting in localStorage. Dynamic date styling (Today: Red Bold, Yesterday: Red, 2 Days Ago: Light Red). Category dropdown sorted alphabetically (A-Z). Dynamic sorting options added for Category (A-Z) and Evaluation (Star count descending). -->
 <!-- Visualization & Content Choices: Dynamic card view grid, date range pickers (Start Date & End Date), pagination with selectable items per page (15/30/100, default 30), sticky search/filter panel, status badges, X tweet embed modal, access timestamps, dynamic date highlight. NO SVG graphics used. NO Mermaid JS used. -->
 <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
 <!DOCTYPE html>
@@ -93,6 +93,13 @@
       return '';
     };
 
+    // 評価文字列から★の数をカウントするヘルパー
+    const getStarCount = (evalStr) => {
+      if (!evalStr) return 0;
+      const matches = evalStr.match(/★/g);
+      return matches ? matches.length : 0;
+    };
+
     // 当日・前日・前々日によって日付テキストのスタイルを決定するヘルパー
     const getDateStyle = (dateStr) => {
       if (!dateStr) return 'text-gray-500 font-medium';
@@ -139,7 +146,7 @@
       const [endDate, setEndDate] = useState('');
       
       const [searchKeyword, setSearchKeyword] = useState('');
-      const [sortOrder, setSortOrder] = useState('desc');
+      const [sortOrder, setSortOrder] = useState('date-desc');
       
       const [currentPage, setCurrentPage] = useState(1);
       
@@ -163,8 +170,17 @@
         setAccessTime(formattedDate);
       }, []);
 
-      const categories = ['すべて', ...Array.from(new Set(posts.map(p => p.category).filter(Boolean)))];
-      const evaluations = ['すべて', ...Array.from(new Set(posts.map(p => p.evaluation).filter(Boolean)))];
+      // 区分の順位を A からの順（昇順）にソートしてプルダウンに反映
+      const categories = [
+        'すべて',
+        ...Array.from(new Set(posts.map(p => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ja'))
+      ];
+
+      // 評価のプルダウン（★の多い順）
+      const evaluations = [
+        'すべて',
+        ...Array.from(new Set(posts.map(p => p.evaluation).filter(Boolean))).sort((a, b) => getStarCount(b) - getStarCount(a))
+      ];
 
       const processedPosts = posts
         .filter(post => {
@@ -198,9 +214,33 @@
           return matchCategory && matchEvaluation && matchDate && matchKeyword;
         })
         .sort((a, b) => {
-          const dateA = new Date(normalizeDate(a.date) || a.date);
-          const dateB = new Date(normalizeDate(b.date) || b.date);
-          return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+          if (sortOrder === 'date-desc') {
+            const dateA = new Date(normalizeDate(a.date) || a.date);
+            const dateB = new Date(normalizeDate(b.date) || b.date);
+            return dateB - dateA;
+          } else if (sortOrder === 'date-asc') {
+            const dateA = new Date(normalizeDate(a.date) || a.date);
+            const dateB = new Date(normalizeDate(b.date) || b.date);
+            return dateA - dateB;
+          } else if (sortOrder === 'category-asc') {
+            const catA = a.category || '';
+            const catB = b.category || '';
+            const cmp = catA.localeCompare(catB, 'ja');
+            if (cmp !== 0) return cmp;
+            // 区分が同じ場合は新しい日付順
+            const dateA = new Date(normalizeDate(a.date) || a.date);
+            const dateB = new Date(normalizeDate(b.date) || b.date);
+            return dateB - dateA;
+          } else if (sortOrder === 'evaluation-desc') {
+            const starA = getStarCount(a.evaluation);
+            const starB = getStarCount(b.evaluation);
+            if (starB !== starA) return starB - starA;
+            // 評価が同じ場合は新しい日付順
+            const dateA = new Date(normalizeDate(a.date) || a.date);
+            const dateB = new Date(normalizeDate(b.date) || b.date);
+            return dateB - dateA;
+          }
+          return 0;
         });
 
       useEffect(() => {
@@ -270,7 +310,7 @@
         setStartDate('');
         setEndDate('');
         setSearchKeyword('');
-        setSortOrder('desc');
+        setSortOrder('date-desc');
         setCurrentPage(1);
       };
 
@@ -343,10 +383,12 @@
                   <select 
                     value={sortOrder}
                     onChange={(e) => setSortOrder(e.target.value)}
-                    className="w-full sm:w-[130px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
+                    className="w-full sm:w-[135px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border font-medium"
                   >
-                    <option value="desc">新しい日時順</option>
-                    <option value="asc">古い日時順</option>
+                    <option value="date-desc">新しい日時順</option>
+                    <option value="date-asc">古い日時順</option>
+                    <option value="category-asc">区分順 (A〜Z)</option>
+                    <option value="evaluation-desc">評価順 (★多)</option>
                   </select>
                 </div>
 
@@ -355,7 +397,7 @@
                    <select 
                      value={selectedCategory} 
                      onChange={(e) => setSelectedCategory(e.target.value)}
-                     className="w-full sm:w-[130px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
+                     className="w-full sm:w-[145px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
                    >
                      {categories.map(cat => (
                        <option key={cat} value={cat}>{cat}</option>
@@ -617,5 +659,54 @@
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<PrimeMinisterXViewer />);
   </script>
+  <!-- ↓↓↓ Firebase トラッキングコード開始 ↓↓↓ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBCab1xgIJreW-f44r6CqR6PVNcENXR2io",
+    authDomain: "access-log-a2cf5.firebaseapp.com",
+    projectId: "access-log-a2cf5",
+    storageBucket: "access-log-a2cf5.firebasestorage.app",
+    messagingSenderId: "274810287422",
+    appId: "1:274810287422:web:7b382816c7e4e12d54686f"
+  };
+
+  const app = initializeApp(firebaseConfig, 'loggerApp');
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+  const targetAppId = 'my-website'; 
+
+  // ★変更点: IPアドレスを取得するAPIを呼び出してから、データを送信します
+  fetch('https://api.ipify.org?format=json')
+    .then(response => response.json())
+    .then(data => {
+      const logData = {
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        host: window.location.hostname,
+        path: window.location.pathname,
+        referrer: document.referrer,
+        userAgent: navigator.userAgent,
+        ip: data.ip, // ★取得したIPアドレスを追加
+        status: 200, 
+        method: 'GET',
+        id: Math.random().toString(36).substr(2, 9)
+      };
+
+      signInAnonymously(auth).then((userCredential) => {
+        const logsRef = collection(db, 'artifacts', targetAppId, 'public', 'data', 'access_logs');
+        addDoc(logsRef, logData)
+          .then(() => console.log("アクセスログ送信完了"))
+          .catch((e) => console.error("ログ送信エラー", e));
+      }).catch((error) => {
+        console.error("認証エラー", error);
+      });
+    })
+    .catch(error => console.error('IPアドレスの取得に失敗しました', error));
+</script>
+<!-- ↑↑↑ Firebase トラッキングコード終了 ↑↑↑ -->
 </body>
 </html>
