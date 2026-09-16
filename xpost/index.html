@@ -1,6 +1,6 @@
 <!-- Chosen Palette: Slate Blue & Warm Gray -->
-<!-- Application Structure Plan: Single-page React application for viewing, filtering, searching, and exploring Prime Minister X posts (Read-Only Mode for Public Security). Strictly fixed header and search control panel, with an independent inner scrolling container for the post cards starting from the count display bar down to the footer. Persistent items per page setting in localStorage. -->
-<!-- Visualization & Content Choices: Dynamic card view grid, pagination with selectable items per page (15/30/100, default 30), sticky search/filter panel, status badges, X tweet embed modal, and access timestamps. NO SVG graphics used. NO Mermaid JS used. -->
+<!-- Application Structure Plan: Single-page React application for viewing, filtering, searching, and exploring Prime Minister X posts (Read-Only Mode for Public Security). Strictly fixed header and search control panel, with an independent inner scrolling container for the post cards starting from the count display bar down to the footer. Persistent items per page setting in localStorage. Dynamic date styling (Today: Red Bold, Yesterday: Red, 2 Days Ago: Light Red). -->
+<!-- Visualization & Content Choices: Dynamic card view grid, pagination with selectable items per page (15/30/100, default 30), sticky search/filter panel, status badges, X tweet embed modal, access timestamps, dynamic date highlight. NO SVG graphics used. NO Mermaid JS used. -->
 <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -73,6 +73,36 @@
       const match = dateStr.match(/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/);
       if (match) return match[0];
       return dateStr.split(' ')[0] || dateStr;
+    };
+
+    // 当日・前日・前々日によって日付テキストのスタイルを決定するヘルパー
+    const getDateStyle = (dateStr) => {
+      if (!dateStr) return 'text-gray-500 font-medium';
+      
+      const cleanDateStr = formatDateOnly(dateStr).replace(/-/g, '/');
+      
+      const now = new Date();
+      const formatYMD = (d) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+      
+      const todayStr = formatYMD(now);
+      
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = formatYMD(yesterday);
+      
+      const twoDaysAgo = new Date(now);
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      const twoDaysAgoStr = formatYMD(twoDaysAgo);
+
+      if (cleanDateStr === todayStr) {
+        return 'text-red-600 font-bold'; // 当日：赤太字
+      } else if (cleanDateStr === yesterdayStr) {
+        return 'text-red-600 font-normal'; // 前日：赤字
+      } else if (cleanDateStr === twoDaysAgoStr) {
+        return 'text-red-400 font-normal'; // 前々日：赤薄字
+      }
+      
+      return 'text-gray-500 font-medium'; // その他
     };
 
     function PrimeMinisterXViewer() {
@@ -213,7 +243,7 @@
             
             {/* 上部固定エリア（ヘッダー ＋ 検索・フィルターバー） - スクロールしない */}
             <div className="flex-shrink-0 z-30 bg-white border-b border-gray-200">
-              {/* ヘッダー：items-end により右下の底面にデータ更新日バッジを配置 */}
+              {/* ヘッダー */}
               <header className="bg-blue-900 text-white p-5 md:p-6 border-b border-blue-800 flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                   <h1 className="text-2xl md:text-3xl font-bold flex items-center">
@@ -347,7 +377,8 @@
                     >
                       <div className="flex-shrink-0 flex md:flex-col items-center md:items-start gap-3 md:w-48">
                          <div className="flex flex-col">
-                            <div className="text-sm text-gray-500 font-medium flex items-center">
+                            {/* 日付表示：当日(赤太字) / 前日(赤字) / 前々日(赤薄字) / その他(標準) */}
+                            <div className={`text-sm flex items-center ${getDateStyle(post.date)}`}>
                                📅 {post.date}
                             </div>
                             <div className="flex flex-wrap gap-2 mt-2">
@@ -481,7 +512,7 @@
                       </div>
                     )}
                     
-                    <div className="text-sm text-gray-500 font-medium flex items-center mb-4">
+                    <div className={`text-sm flex items-center mb-4 ${getDateStyle(selectedPost.date)}`}>
                       📅 {selectedPost.date}
                     </div>
                     
