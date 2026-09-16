@@ -70,7 +70,7 @@
                 政策リサーチ 関連画面
             </h1>
             <!-- ボタン群を右端に揃える -->
-            <div class="flex flex-wrap justify-center md:justify-end gap-4 items-start w-full md:w-auto">
+            <div class="flex flex-wrap justify-center md:justify-end gap-3 md:gap-4 items-start w-full md:w-auto">
                 <!-- 使い方ボタン -->
                 <div class="flex flex-col items-center">
                     <button id="openManual" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-full text-sm font-bold transition-colors flex items-center gap-2 border border-gray-300">
@@ -86,6 +86,14 @@
                         支持率調査
                     </button>
                     <p id="poll-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 確認中...</p>
+                </div>
+                <!-- 首相官邸Xポストボタン（新設） -->
+                <div class="flex flex-col items-center">
+                    <button onclick="window.open('https://report.rifj.jp/xpost/', '_blank')" class="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95 border border-gray-800">
+                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        首相官邸Xポスト
+                    </button>
+                    <p id="xpost-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 確認中...</p>
                 </div>
                 <!-- 成長戦略概要ボタン -->
                 <div class="flex flex-col items-center">
@@ -178,7 +186,7 @@
                 <p class="text-sm text-blue-800 font-medium">データ内容を分析</p>
             </div>
 
-            <!-- レイアウトツール (他のボタンと同じサイズに統一) -->
+            <!-- レイアウトツール -->
             <div class="hover-card bg-gradient-to-tr from-indigo-50 to-indigo-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-indigo-200">
                 <div class="mb-6">
                     <svg class="w-16 h-16 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -191,7 +199,7 @@
                 <p class="text-sm text-indigo-800 font-medium">レイアウト構成を設計</p>
             </div>
 
-            <!-- 調査＆レポート (他のボタンと同じサイズに統一) -->
+            <!-- 調査＆レポート -->
             <div class="hover-card bg-gradient-to-tr from-teal-50 to-teal-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-teal-200">
                 <div class="mb-6">
                     <svg class="w-16 h-16 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -250,13 +258,20 @@
                     </h3>
                     <div class="grid grid-cols-1 gap-4">
                         <!-- ヘッダーボタン -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div class="p-4 border border-gray-100 rounded-xl bg-gray-50/50">
                                 <div class="flex items-center gap-2 mb-2">
                                     <span class="bg-gray-200 text-gray-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Header</span>
                                     <span class="font-bold text-gray-800 text-sm">支持率調査</span>
                                 </div>
                                 <p class="text-xs text-gray-600 leading-relaxed">報道各社の政党・内閣支持率を集計・分析する専用ツールを開きます。最新の調査日をリアルタイムに反映します。</p>
+                            </div>
+                            <div class="p-4 border border-gray-100 rounded-xl bg-gray-50/50">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="bg-gray-200 text-gray-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Header</span>
+                                    <span class="font-bold text-gray-800 text-sm">首相官邸Xポスト</span>
+                                </div>
+                                <p class="text-xs text-gray-600 leading-relaxed">首相官邸公式Xの投稿動向を分析・閲覧できる画面を開きます。データが更新された最新日を自動同期します。</p>
                             </div>
                             <div class="p-4 border border-gray-100 rounded-xl bg-gray-50/50">
                                 <div class="flex items-center gap-2 mb-2">
@@ -466,6 +481,7 @@
             initBlog();
             initDiet();
             initPoll();
+            initXPost();
             initImport();
         }
 
@@ -473,7 +489,8 @@
             const el = document.getElementById(elementId);
             if (!el || !date || isNaN(date.getTime())) return;
             
-            if (elementId === 'poll-status' || elementId === 'strategy-status') {
+            const isHeaderStatus = (elementId === 'poll-status' || elementId === 'strategy-status' || elementId === 'xpost-status');
+            if (isHeaderStatus) {
                 const simpleDate = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
                 el.textContent = `更新日: ${simpleDate}`;
             } else {
@@ -488,11 +505,11 @@
             const isSameDay = (d1, d2) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
 
             if (isSameDay(date, today)) {
-                el.className = (elementId === 'poll-status' || elementId === 'strategy-status') ? "text-[10px] font-black text-red-600 mt-1" : "text-xs font-black text-red-600";
+                el.className = isHeaderStatus ? "text-[10px] font-black text-red-600 mt-1" : "text-xs font-black text-red-600";
             } else if (isSameDay(date, yesterday)) {
-                el.className = (elementId === 'poll-status' || elementId === 'strategy-status') ? "text-[10px] font-bold text-red-500 mt-1" : "text-xs font-bold text-red-500";
+                el.className = isHeaderStatus ? "text-[10px] font-bold text-red-500 mt-1" : "text-xs font-bold text-red-500";
             } else {
-                if (elementId === 'poll-status' || elementId === 'strategy-status') el.className = "text-[10px] text-gray-500 mt-1 font-medium";
+                if (isHeaderStatus) el.className = "text-[10px] text-gray-500 mt-1 font-medium";
                 else if (elementId === 'point-status') el.className = "text-xs text-green-800 font-medium opacity-75";
                 else if (elementId === 'policy-status') el.className = "text-xs text-purple-800 font-medium opacity-75";
                 else if (elementId === 'blog-status') el.className = "text-xs text-red-800 font-medium opacity-75";
@@ -506,6 +523,13 @@
             if (!ts) return null;
             if (ts.toDate) return ts.toDate();
             const d = new Date(ts);
+            return isNaN(d.getTime()) ? null : d;
+        };
+
+        const parseDateText = (text) => {
+            if (!text) return null;
+            const cleaned = text.replace(/年|月/g, '/').replace(/日/g, '').trim();
+            const d = new Date(cleaned);
             return isNaN(d.getTime()) ? null : d;
         };
 
@@ -555,6 +579,73 @@
                 });
                 if (latestDateStr) updateStatusDisplay('poll-status', new Date(latestDateStr));
             }, (err) => console.warn("Poll snapshot error", err));
+        };
+
+        /**
+         * 首相官邸Xポスト: https://report.rifj.jp/xpost/ から更新日を取得
+         */
+        const initXPost = async () => {
+            // 1. 同一オリジン/外部フェッチによるページ解析
+            try {
+                const fetchUrl = (window.location.hostname === 'report.rifj.jp')
+                    ? '/xpost/'
+                    : 'https://report.rifj.jp/xpost/';
+                
+                const response = await fetch(fetchUrl, { method: 'GET', cache: 'no-cache' });
+                if (response.ok) {
+                    const html = await response.text();
+                    let latestFoundDate = null;
+
+                    // A: 「更新日」「最終更新」「直近更新」等に続く日付パターンを抽出
+                    const dateKeywordsMatch = html.match(/(?:更新日|最終更新|更新|取得日|最新データ)[^\d]{0,10}(\d{4}[年\/\-]\d{1,2}[月\/\-]\d{1,2}日?)/);
+                    if (dateKeywordsMatch && dateKeywordsMatch[1]) {
+                        latestFoundDate = parseDateText(dateKeywordsMatch[1]);
+                    }
+
+                    // B: <time>タグ、またはメタタグの探索
+                    if (!latestFoundDate) {
+                        const timeTagMatch = html.match(/<time[^>]+datetime=["']([^"']+)["']/i) ||
+                                              html.match(/<meta[^>]+(?:modified_time|last-modified|date)[^>]+content=["']([^"']+)["']/i);
+                        if (timeTagMatch && timeTagMatch[1]) {
+                            latestFoundDate = toDateSafely(timeTagMatch[1]);
+                        }
+                    }
+
+                    // C: 本文中の一般的な日付表記（YYYY/MM/DD 等）
+                    if (!latestFoundDate) {
+                        const generalDateMatch = html.match(/\b(202[4-9][\/\-]\d{1,2}[\/\-]\d{1,2})\b/);
+                        if (generalDateMatch && generalDateMatch[1]) {
+                            latestFoundDate = parseDateText(generalDateMatch[1]);
+                        }
+                    }
+
+                    // D: HTTPレスポンスの Last-Modified ヘッダー
+                    if (!latestFoundDate && response.headers.get('last-modified')) {
+                        const headerLm = new Date(response.headers.get('last-modified'));
+                        if (!isNaN(headerLm.getTime())) latestFoundDate = headerLm;
+                    }
+
+                    if (latestFoundDate) {
+                        updateStatusDisplay('xpost-status', latestFoundDate);
+                        return;
+                    }
+                }
+            } catch (fetchErr) {
+                console.warn("xpost direct fetch notice:", fetchErr.message);
+            }
+
+            // 2. Firestore側に同期メタデータが存在する場合のフェイルセーフ購読
+            try {
+                await safeAuth(appImport);
+                onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/xpost_last_import_metadata"), (snap) => {
+                    if (snap.exists()) {
+                        const d = toDateSafely(snap.data().lastImportTimestamp || snap.data().updatedAt || snap.data().date);
+                        if (d) updateStatusDisplay('xpost-status', d);
+                    }
+                }, () => {});
+            } catch (e) {
+                console.warn("xpost firestore fallback notice:", e);
+            }
         };
 
         const initImport = async () => {
@@ -652,7 +743,7 @@
         const openSecBtn = document.getElementById('openSecurity');
         const closeSecBtns = [document.getElementById('closeSecurity'), document.getElementById('closeSecurityBtn'), secOverlay];
 
-        function openSecModal() { secModal.classList.remove('hidden'); setTimeout(() => { secOverlay.classList.add('opacity-100'); secContent.classList.add('opacity-100', 'scale-100'); secContent.classList.remove('scale-95'); }, 10); }
+        function openSecModal() { secModal.classList.remove('hidden'); setTimeout(() => { secOverlay.classList.add('opacity-100'); secContent.classList.add('opacity-100', 'scale-100'); content.classList.remove('scale-95'); }, 10); }
         function closeSecModal() { secOverlay.classList.remove('opacity-100'); secContent.classList.remove('opacity-100', 'scale-100'); secContent.classList.add('scale-95'); setTimeout(() => { secModal.classList.add('hidden'); }, 300); }
 
         openSecBtn.addEventListener('click', openSecModal);
@@ -693,7 +784,7 @@
         }
 
         // -------------------------------------------------------------
-        // 【追加】自動ログイン時の同期型表示セーフガード (ダブルチェック)
+        // 自動ログイン時の同期型表示セーフガード (ダブルチェック)
         // -------------------------------------------------------------
         const checkDashboardVisibility = () => {
             const mainContent = document.getElementById('main-content');
@@ -703,58 +794,9 @@
             }
         };
 
-        // ページロード完了時と、0.5秒間隔の定期チェックで自動ログイン時のタイムラグを完璧に防止
+        // ページロード完了時と、0.5秒間隔の定期チェックで自動ログイン時のタイムラグを防止
         window.addEventListener('load', checkDashboardVisibility);
         setInterval(checkDashboardVisibility, 500);
     </script>
-    <!-- ↓↓↓ Firebase トラッキングコード開始 ↓↓↓ -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyBCab1xgIJreW-f44r6CqR6PVNcENXR2io",
-    authDomain: "access-log-a2cf5.firebaseapp.com",
-    projectId: "access-log-a2cf5",
-    storageBucket: "access-log-a2cf5.firebasestorage.app",
-    messagingSenderId: "274810287422",
-    appId: "1:274810287422:web:7b382816c7e4e12d54686f"
-  };
-
-  const app = initializeApp(firebaseConfig, 'loggerApp');
-  const db = getFirestore(app);
-  const auth = getAuth(app);
-  const targetAppId = 'my-website'; 
-
-  // ★変更点: IPアドレスを取得するAPIを呼び出してから、データを送信します
-  fetch('https://api.ipify.org?format=json')
-    .then(response => response.json())
-    .then(data => {
-      const logData = {
-        timestamp: new Date().toISOString(),
-        url: window.location.href,
-        host: window.location.hostname,
-        path: window.location.pathname,
-        referrer: document.referrer,
-        userAgent: navigator.userAgent,
-        ip: data.ip, // ★取得したIPアドレスを追加
-        status: 200, 
-        method: 'GET',
-        id: Math.random().toString(36).substr(2, 9)
-      };
-
-      signInAnonymously(auth).then((userCredential) => {
-        const logsRef = collection(db, 'artifacts', targetAppId, 'public', 'data', 'access_logs');
-        addDoc(logsRef, logData)
-          .then(() => console.log("アクセスログ送信完了"))
-          .catch((e) => console.error("ログ送信エラー", e));
-      }).catch((error) => {
-        console.error("認証エラー", error);
-      });
-    })
-    .catch(error => console.error('IPアドレスの取得に失敗しました', error));
-</script>
-<!-- ↑↑↑ Firebase トラッキングコード終了 ↑↑↑ -->
 </body>
 </html>
