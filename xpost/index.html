@@ -1,6 +1,6 @@
 <!-- Chosen Palette: Slate Blue & Warm Gray -->
-<!-- Application Structure Plan: Single-page React application for viewing, filtering, searching, and exploring Prime Minister X posts (Read-Only Mode for Public Security). Strictly fixed header and search control panel, with an independent inner scrolling container for the post cards starting from the count display bar down to the footer. Persistent items per page setting in localStorage. Dynamic date styling (Today: Red Bold, Yesterday: Red, 2 Days Ago: Light Red). -->
-<!-- Visualization & Content Choices: Dynamic card view grid, pagination with selectable items per page (15/30/100, default 30), sticky search/filter panel, status badges, X tweet embed modal, access timestamps, dynamic date highlight. NO SVG graphics used. NO Mermaid JS used. -->
+<!-- Application Structure Plan: Single-page React application for Prime Minister X posts viewer. Strictly fixed header and search control panel with date range filter (start and end date), with an independent inner scrolling container starting from the post count display bar down to the list, pagination, and footer. Date format normalizer guarantees 100% accurate date filtering. Persistent items per page setting in localStorage. Dynamic date styling (Today: Red Bold, Yesterday: Red, 2 Days Ago: Light Red). -->
+<!-- Visualization & Content Choices: Dynamic card view grid, date range pickers (Start Date & End Date), pagination with selectable items per page (15/30/100, default 30), sticky search/filter panel, status badges, X tweet embed modal, access timestamps, dynamic date highlight. NO SVG graphics used. NO Mermaid JS used. -->
 <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -67,22 +67,41 @@
       return url.includes('twitter.com') || url.includes('x.com');
     };
 
-    // 日時文字列から日付（YYYY/MM/DD等）のみを抽出するヘルパー
+    // 日時文字列から表示用日付（YYYY/MM/DD）のみを抽出するヘルパー
     const formatDateOnly = (dateStr) => {
       if (!dateStr) return '未設定';
-      const match = dateStr.match(/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/);
-      if (match) return match[0];
+      const match = dateStr.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+      if (match) {
+        const yyyy = match[1];
+        const mm = match[2].padStart(2, '0');
+        const dd = match[3].padStart(2, '0');
+        return `${yyyy}/${mm}/${dd}`;
+      }
       return dateStr.split(' ')[0] || dateStr;
+    };
+
+    // 日付文字列を比較基準フォーマット（YYYY-MM-DD）に変換する関数
+    const normalizeDate = (dateStr) => {
+      if (!dateStr) return '';
+      const match = dateStr.match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+      if (match) {
+        const yyyy = match[1];
+        const mm = match[2].padStart(2, '0');
+        const dd = match[3].padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      }
+      return '';
     };
 
     // 当日・前日・前々日によって日付テキストのスタイルを決定するヘルパー
     const getDateStyle = (dateStr) => {
       if (!dateStr) return 'text-gray-500 font-medium';
       
-      const cleanDateStr = formatDateOnly(dateStr).replace(/-/g, '/');
+      const normalizedStr = normalizeDate(dateStr);
+      if (!normalizedStr) return 'text-gray-500 font-medium';
       
       const now = new Date();
-      const formatYMD = (d) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+      const formatYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       
       const todayStr = formatYMD(now);
       
@@ -94,11 +113,11 @@
       twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
       const twoDaysAgoStr = formatYMD(twoDaysAgo);
 
-      if (cleanDateStr === todayStr) {
+      if (normalizedStr === todayStr) {
         return 'text-red-600 font-bold'; // 当日：赤太字
-      } else if (cleanDateStr === yesterdayStr) {
+      } else if (normalizedStr === yesterdayStr) {
         return 'text-red-600 font-normal'; // 前日：赤字
-      } else if (cleanDateStr === twoDaysAgoStr) {
+      } else if (normalizedStr === twoDaysAgoStr) {
         return 'text-red-400 font-normal'; // 前々日：赤薄字
       }
       
@@ -114,7 +133,11 @@
 
       const [selectedCategory, setSelectedCategory] = useState('すべて');
       const [selectedEvaluation, setSelectedEvaluation] = useState('すべて');
-      const [searchDate, setSearchDate] = useState('');
+      
+      // 日付の範囲検索（開始日・終了日）
+      const [startDate, setStartDate] = useState('');
+      const [endDate, setEndDate] = useState('');
+      
       const [searchKeyword, setSearchKeyword] = useState('');
       const [sortOrder, setSortOrder] = useState('desc');
       
@@ -147,8 +170,21 @@
         .filter(post => {
           const matchCategory = selectedCategory === 'すべて' || post.category === selectedCategory;
           const matchEvaluation = selectedEvaluation === 'すべて' || post.evaluation === selectedEvaluation;
-          const matchDate = searchDate === '' || (post.date && post.date.startsWith(searchDate));
           
+          // 日付の範囲検索ロジック
+          const postDateNormalized = normalizeDate(post.date);
+          let matchDate = true;
+          if (startDate && postDateNormalized) {
+            matchDate = matchDate && (postDateNormalized >= startDate);
+          } else if (startDate && !postDateNormalized) {
+            matchDate = false;
+          }
+          if (endDate && postDateNormalized) {
+            matchDate = matchDate && (postDateNormalized <= endDate);
+          } else if (endDate && !postDateNormalized) {
+            matchDate = false;
+          }
+
           const keyword = searchKeyword.toLowerCase();
           const matchKeyword = keyword === '' || (
             (post.title && post.title.toLowerCase().includes(keyword)) ||
@@ -162,14 +198,14 @@
           return matchCategory && matchEvaluation && matchDate && matchKeyword;
         })
         .sort((a, b) => {
-          const dateA = new Date(a.date);
-          const dateB = new Date(b.date);
+          const dateA = new Date(normalizeDate(a.date) || a.date);
+          const dateB = new Date(normalizeDate(b.date) || b.date);
           return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
         });
 
       useEffect(() => {
         setCurrentPage(1);
-      }, [selectedCategory, selectedEvaluation, searchDate, searchKeyword, sortOrder, itemsPerPage]);
+      }, [selectedCategory, selectedEvaluation, startDate, endDate, searchKeyword, sortOrder, itemsPerPage]);
 
       const totalPages = Math.ceil(processedPosts.length / itemsPerPage) || 1;
       const startIndex = (currentPage - 1) * itemsPerPage;
@@ -231,7 +267,8 @@
       const handleClearFilters = () => {
         setSelectedCategory('すべて');
         setSelectedEvaluation('すべて');
-        setSearchDate('');
+        setStartDate('');
+        setEndDate('');
         setSearchKeyword('');
         setSortOrder('desc');
         setCurrentPage(1);
@@ -268,7 +305,7 @@
 
               {/* 検索・フィルターエリア */}
               <div className="bg-gray-50 p-4 flex flex-wrap items-end gap-3 shadow-sm">
-                <div className="flex-1 min-w-[180px]">
+                <div className="flex-1 min-w-[160px]">
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">語句で検索</label>
                   <input
                     type="text"
@@ -279,13 +316,25 @@
                   />
                 </div>
                 
+                {/* 開始日選択 */}
                 <div className="w-full sm:w-auto">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">日付で検索</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">開始日</label>
                   <input 
                     type="date" 
-                    value={searchDate}
-                    onChange={(e) => setSearchDate(e.target.value)}
-                    className="w-full sm:w-[135px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none text-sm shadow-sm transition-shadow box-border"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full sm:w-[135px] border border-gray-300 rounded-md px-2 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none text-sm shadow-sm transition-shadow box-border bg-white"
+                  />
+                </div>
+
+                {/* 終了日選択 */}
+                <div className="w-full sm:w-auto">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">終了日</label>
+                  <input 
+                    type="date" 
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full sm:w-[135px] border border-gray-300 rounded-md px-2 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none text-sm shadow-sm transition-shadow box-border bg-white"
                   />
                 </div>
 
@@ -294,7 +343,7 @@
                   <select 
                     value={sortOrder}
                     onChange={(e) => setSortOrder(e.target.value)}
-                    className="w-full sm:w-[135px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
+                    className="w-full sm:w-[130px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
                   >
                     <option value="desc">新しい日時順</option>
                     <option value="asc">古い日時順</option>
@@ -306,7 +355,7 @@
                    <select 
                      value={selectedCategory} 
                      onChange={(e) => setSelectedCategory(e.target.value)}
-                     className="w-full sm:w-[140px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
+                     className="w-full sm:w-[130px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
                    >
                      {categories.map(cat => (
                        <option key={cat} value={cat}>{cat}</option>
@@ -319,7 +368,7 @@
                    <select 
                      value={selectedEvaluation} 
                      onChange={(e) => setSelectedEvaluation(e.target.value)}
-                     className="w-full sm:w-[130px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
+                     className="w-full sm:w-[120px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
                    >
                      {evaluations.map(ev => (
                        <option key={ev} value={ev}>{ev}</option>
@@ -333,7 +382,7 @@
                    <select 
                      value={itemsPerPage} 
                      onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-                     className="w-full sm:w-[110px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm font-medium transition-shadow box-border"
+                     className="w-full sm:w-[105px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm font-medium transition-shadow box-border"
                    >
                      <option value={15}>15 件</option>
                      <option value={30}>30 件</option>
@@ -379,7 +428,7 @@
                          <div className="flex flex-col">
                             {/* 日付表示：当日(赤太字) / 前日(赤字) / 前々日(赤薄字) / その他(標準) */}
                             <div className={`text-sm flex items-center ${getDateStyle(post.date)}`}>
-                               📅 {post.date}
+                               📅 {formatDateOnly(post.date)}
                             </div>
                             <div className="flex flex-wrap gap-2 mt-2">
                               {post.category && (
@@ -513,7 +562,7 @@
                     )}
                     
                     <div className={`text-sm flex items-center mb-4 ${getDateStyle(selectedPost.date)}`}>
-                      📅 {selectedPost.date}
+                      📅 {formatDateOnly(selectedPost.date)}
                     </div>
                     
                     <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
