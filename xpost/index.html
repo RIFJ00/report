@@ -1,6 +1,6 @@
 <!-- Chosen Palette: Slate Blue & Warm Gray -->
-<!-- Application Structure Plan: Single-page React application for viewing, filtering, searching, and exploring Prime Minister X posts (Read-Only Mode for Public Security). -->
-<!-- Visualization & Content Choices: Interactive data card grid, pagination, detailed view modal, search & filter controls, header update date, and footer access timestamp. NO SVG graphics used. NO Mermaid JS used. -->
+<!-- Application Structure Plan: Single-page React application for viewing, filtering, searching, and exploring Prime Minister X posts (Read-Only Mode for Public Security). Strictly fixed header and search control panel, with an independent inner scrolling container for the post cards starting from the count display bar down to the footer. Persistent items per page setting in localStorage. -->
+<!-- Visualization & Content Choices: Dynamic card view grid, pagination with selectable items per page (15/30/100, default 30), sticky search/filter panel, status badges, X tweet embed modal, and access timestamps. NO SVG graphics used. NO Mermaid JS used. -->
 <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -42,8 +42,8 @@
     }
   </script>
 </head>
-<body class="bg-gray-50">
-  <div id="root"></div>
+<body class="bg-gray-50 h-screen overflow-hidden">
+  <div id="root" class="h-full"></div>
 
   <!-- アプリケーションのコード -->
   <script type="text/babel" data-type="module">
@@ -89,7 +89,19 @@
       const [sortOrder, setSortOrder] = useState('desc');
       
       const [currentPage, setCurrentPage] = useState(1);
-      const itemsPerPage = 15;
+      
+      // 表示件数状態（デフォルト30件、localStorage保存対応）
+      const [itemsPerPage, setItemsPerPage] = useState(() => {
+        const saved = localStorage.getItem('pm_x_viewer_items_per_page');
+        return saved ? parseInt(saved, 10) : 30;
+      });
+
+      // 表示件数変更ハンドラ
+      const handleItemsPerPageChange = (num) => {
+        setItemsPerPage(num);
+        localStorage.setItem('pm_x_viewer_items_per_page', num.toString());
+        setCurrentPage(1);
+      };
 
       // アクセス日時の設定（リアルタイム）
       useEffect(() => {
@@ -127,9 +139,9 @@
 
       useEffect(() => {
         setCurrentPage(1);
-      }, [selectedCategory, selectedEvaluation, searchDate, searchKeyword, sortOrder]);
+      }, [selectedCategory, selectedEvaluation, searchDate, searchKeyword, sortOrder, itemsPerPage]);
 
-      const totalPages = Math.ceil(processedPosts.length / itemsPerPage);
+      const totalPages = Math.ceil(processedPosts.length / itemsPerPage) || 1;
       const startIndex = (currentPage - 1) * itemsPerPage;
       const endIndex = startIndex + itemsPerPage;
       const currentPosts = processedPosts.slice(startIndex, endIndex);
@@ -196,118 +208,141 @@
       };
 
       return (
-        <div className="min-h-screen bg-gray-50 text-gray-800 font-sans p-4 md:p-8 flex flex-col justify-between">
-          <div className="max-w-5xl mx-auto bg-white rounded-xl shadow-md overflow-hidden w-full">
+        <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans flex flex-col overflow-hidden p-2 sm:p-4 md:p-6">
+          <div className="max-w-5xl mx-auto bg-white rounded-xl shadow-md overflow-hidden w-full flex flex-col h-full border border-gray-200">
             
-            {/* ヘッダー：items-end により右下の底面にバッジを配置 */}
-            <header className="bg-blue-900 text-white p-6 border-b border-blue-800 flex flex-col md:flex-row md:items-end justify-between gap-4">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold flex items-center">
-                  <span className="mr-3 text-2xl">𝕏</span>
-                  高市首相 X投稿アーカイブ
-                </h1>
-                <p className="mt-2 text-blue-100 text-sm">
-                  高市首相の過去のX投稿を閲覧・検索できる公開アーカイブログです。
-                </p>
-                <p className="mt-1 text-blue-200/90 text-xs md:text-sm">
-                  なお、区分や評価は一般社団法人日本みらい研の独自分析です。
-                </p>
-              </div>
+            {/* 上部固定エリア（ヘッダー ＋ 検索・フィルターバー） - スクロールしない */}
+            <div className="flex-shrink-0 z-30 bg-white border-b border-gray-200">
+              {/* ヘッダー：items-end により右下の底面にデータ更新日バッジを配置 */}
+              <header className="bg-blue-900 text-white p-5 md:p-6 border-b border-blue-800 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold flex items-center">
+                    <span className="mr-3 text-2xl">𝕏</span>
+                    高市首相 X投稿アーカイブ
+                  </h1>
+                  <p className="mt-2 text-blue-100 text-sm">
+                    高市首相の過去のX投稿を閲覧・検索できる公開アーカイブログです。
+                  </p>
+                  <p className="mt-1 text-blue-200/90 text-xs md:text-sm">
+                    なお、区分や評価は一般社団法人日本みらい研の独自分析です。
+                  </p>
+                </div>
 
-              {/* 右下に下揃えで配置 */}
-              <div className="flex-shrink-0 flex flex-col items-start md:items-end justify-end gap-2 text-xs md:self-end">
-                <span className="text-blue-200/90 font-medium bg-blue-800/60 px-3 py-1.5 rounded-md border border-blue-700/50">
-                  データ更新日: {formatDateOnly(lastUpdatedTime)}
-                </span>
-              </div>
-            </header>
+                {/* 右下に下揃えで配置 */}
+                <div className="flex-shrink-0 flex flex-col items-start md:items-end justify-end gap-2 text-xs md:self-end">
+                  <span className="text-blue-200/90 font-medium bg-blue-800/60 px-3 py-1.5 rounded-md border border-blue-700/50">
+                    データ更新日: {formatDateOnly(lastUpdatedTime)}
+                  </span>
+                </div>
+              </header>
 
-            {/* 検索・フィルターエリア */}
-            <div className="bg-gray-50 border-b border-gray-200 p-4 sm:p-6 flex flex-wrap items-end gap-4 shadow-sm relative z-10">
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">語句で検索</label>
-                <input
-                  type="text"
-                  placeholder="タイトルや本文を検索..."
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="w-full px-3 h-[34px] border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none text-sm shadow-sm transition-shadow box-border"
-                />
-              </div>
-              
-              <div className="w-full sm:w-auto">
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">日付で検索</label>
-                <input 
-                  type="date" 
-                  value={searchDate}
-                  onChange={(e) => setSearchDate(e.target.value)}
-                  className="w-full sm:w-[150px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none text-sm shadow-sm transition-shadow box-border"
-                />
-              </div>
+              {/* 検索・フィルターエリア */}
+              <div className="bg-gray-50 p-4 flex flex-wrap items-end gap-3 shadow-sm">
+                <div className="flex-1 min-w-[180px]">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">語句で検索</label>
+                  <input
+                    type="text"
+                    placeholder="タイトルや本文を検索..."
+                    value={searchKeyword}
+                    onChange={(e) => setSearchKeyword(e.target.value)}
+                    className="w-full px-3 h-[34px] border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none text-sm shadow-sm transition-shadow box-border"
+                  />
+                </div>
+                
+                <div className="w-full sm:w-auto">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">日付で検索</label>
+                  <input 
+                    type="date" 
+                    value={searchDate}
+                    onChange={(e) => setSearchDate(e.target.value)}
+                    className="w-full sm:w-[135px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none text-sm shadow-sm transition-shadow box-border"
+                  />
+                </div>
 
-              <div className="w-full sm:w-auto">
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">表示順</label>
-                <select 
-                  value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value)}
-                  className="w-full sm:w-[150px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
-                >
-                  <option value="desc">新しい日時順</option>
-                  <option value="asc">古い日時順</option>
-                </select>
-              </div>
+                <div className="w-full sm:w-auto">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">表示順</label>
+                  <select 
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                    className="w-full sm:w-[135px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
+                  >
+                    <option value="desc">新しい日時順</option>
+                    <option value="asc">古い日時順</option>
+                  </select>
+                </div>
 
-              <div className="w-full sm:w-auto">
-                 <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">区分で絞り込み</label>
-                 <select 
-                   value={selectedCategory} 
-                   onChange={(e) => setSelectedCategory(e.target.value)}
-                   className="w-full sm:w-[160px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
-                 >
-                   {categories.map(cat => (
-                     <option key={cat} value={cat}>{cat}</option>
-                   ))}
-                 </select>
-              </div>
+                <div className="w-full sm:w-auto">
+                   <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">区分</label>
+                   <select 
+                     value={selectedCategory} 
+                     onChange={(e) => setSelectedCategory(e.target.value)}
+                     className="w-full sm:w-[140px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
+                   >
+                     {categories.map(cat => (
+                       <option key={cat} value={cat}>{cat}</option>
+                     ))}
+                   </select>
+                </div>
 
-              <div className="w-full sm:w-auto">
-                 <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">評価で絞り込み</label>
-                 <select 
-                   value={selectedEvaluation} 
-                   onChange={(e) => setSelectedEvaluation(e.target.value)}
-                   className="w-full sm:w-[140px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
-                 >
-                   {evaluations.map(ev => (
-                     <option key={ev} value={ev}>{ev}</option>
-                   ))}
-                 </select>
-              </div>
-              
-              <div className="w-full sm:w-auto">
-                <button
-                  onClick={handleClearFilters}
-                  className="w-full sm:w-auto bg-white border border-gray-300 text-gray-600 hover:bg-gray-100 hover:text-gray-900 px-4 h-[34px] rounded-md text-sm font-medium transition-colors shadow-sm flex items-center justify-center box-border"
-                >
-                  クリア
-                </button>
+                <div className="w-full sm:w-auto">
+                   <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">評価</label>
+                   <select 
+                     value={selectedEvaluation} 
+                     onChange={(e) => setSelectedEvaluation(e.target.value)}
+                     className="w-full sm:w-[130px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
+                   >
+                     {evaluations.map(ev => (
+                       <option key={ev} value={ev}>{ev}</option>
+                     ))}
+                   </select>
+                </div>
+
+                {/* 表示件数選択機能 */}
+                <div className="w-full sm:w-auto">
+                   <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">表示件数</label>
+                   <select 
+                     value={itemsPerPage} 
+                     onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                     className="w-full sm:w-[110px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm font-medium transition-shadow box-border"
+                   >
+                     <option value={15}>15 件</option>
+                     <option value={30}>30 件</option>
+                     <option value={100}>100 件</option>
+                   </select>
+                </div>
+                
+                <div className="w-full sm:w-auto">
+                  <button
+                    onClick={handleClearFilters}
+                    className="w-full sm:w-auto bg-white border border-gray-300 text-gray-600 hover:bg-gray-100 hover:text-gray-900 px-4 h-[34px] rounded-md text-sm font-medium transition-colors shadow-sm flex items-center justify-center box-border"
+                  >
+                    クリア
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* コンテンツ一覧 */}
-            <div className="p-0 sm:p-4">
-              <div className="flex justify-between items-center px-4 sm:px-2 py-3 border-b sm:border-none border-gray-200">
-                <div className="text-sm text-gray-500 font-medium">
-                  全 <span className="text-gray-900 font-bold">{processedPosts.length}</span> 件
+            {/* 独立スクロールエリア（「全 103 件中...」以下がスクロールする） */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50/50">
+              
+              {/* カウントバー */}
+              <div className="flex justify-between items-center px-1 py-2 mb-4 border-b border-gray-200 bg-white/80 backdrop-blur-sm p-3 rounded-lg shadow-sm">
+                <div className="text-sm text-gray-700 font-medium">
+                  全 <span className="text-gray-900 font-bold text-base">{processedPosts.length}</span> 件
                   {processedPosts.length > 0 && `中 ${startIndex + 1} - ${Math.min(endIndex, processedPosts.length)}件目を表示`}
+                </div>
+                <div className="text-xs text-gray-500 font-medium bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+                  1ページあたり {itemsPerPage} 件
                 </div>
               </div>
               
+              {/* 投稿リスト */}
               {currentPosts.length > 0 ? (
-                <div className="grid gap-4 sm:gap-6 mt-2">
+                <div className="grid gap-4 sm:gap-6">
                   {currentPosts.map(post => (
                     <div 
                       key={post.id} 
-                      className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col md:flex-row gap-4 group"
+                      className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col md:flex-row gap-4 group"
                       onClick={() => setSelectedPost(post)}
                     >
                       <div className="flex-shrink-0 flex md:flex-col items-center md:items-start gap-3 md:w-48">
@@ -379,7 +414,7 @@
                   <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm text-gray-700">
-                        <span className="font-medium">{totalPages}</span> ページ中 <span className="font-medium text-blue-600">{currentPage}</span> ページ目を表示
+                        全 <span className="font-medium">{totalPages}</span> ページ中 <span className="font-medium text-blue-600">{currentPage}</span> ページ目を表示
                       </p>
                     </div>
                     <div>
@@ -406,14 +441,14 @@
                   </div>
                 </div>
               )}
+
+              {/* フッター */}
+              <footer className="mt-8 text-center text-xs text-gray-500 border-t border-gray-200 pt-6 pb-6 w-full max-w-5xl mx-auto">
+                <p className="font-bold text-gray-800 text-base md:text-lg mb-1">一般社団法人日本みらい研</p>
+                <p className="text-gray-500 text-xs">アクセス日時: {accessTime || '---'}</p>
+              </footer>
             </div>
           </div>
-
-          {/* フッター */}
-          <footer className="mt-8 text-center text-xs text-gray-500 border-t border-gray-200 pt-6 pb-6 w-full max-w-5xl mx-auto">
-            <p className="font-bold text-gray-800 text-base md:text-lg mb-1">一般社団法人日本みらい研</p>
-            <p className="text-gray-500 text-xs">アクセス日時: {accessTime || '---'}</p>
-          </footer>
 
           {/* 詳細モーダル */}
           {selectedPost && (
