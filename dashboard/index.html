@@ -1,6 +1,6 @@
 <!-- Chosen Palette: Slate & Indigo Executive Palette -->
-<!-- Application Structure Plan: A centralized policy research portal offering single-click navigation to specialized research micro-applications. Status indicators below each button provide real-time feedback on data update timelines. The structure prioritizes quick visual navigation for researchers with modal overlays for operational guidance and security specifications. -->
-<!-- Visualization & Content Choices: Interactive grid and header controls backed by real-time Firestore listeners and automated HTTP fetch parsing. Status indicators dynamically apply color-coding based on data freshness (today/yesterday/earlier). Text-based layout without Mermaid JS or external SVG asset requirements. -->
+<!-- Application Structure Plan: A centralized policy research portal offering single-click navigation to specialized research micro-applications. Status indicators below each button provide real-time feedback on data update timelines. The structure prioritizes quick visual navigation for researchers with modal overlays for operational guidance and security specifications. Updated to fetch X post updates using x_posts_meta/info lastUpdated and x_posts collection document timestamps. -->
+<!-- Visualization & Content Choices: Interactive grid and header controls backed by real-time Firestore listeners. Status indicators dynamically apply color-coding based on data freshness (today/yesterday/earlier). Text-based layout without Mermaid JS or external SVG asset requirements. -->
 <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -16,11 +16,9 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* 認証前のコンテンツ非表示 */
         #main-content {
             display: none;
         }
-        /* カードのホバーアニメーション */
         .hover-card {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -35,7 +33,6 @@
             0%, 100% { opacity: 1; }
             50% { opacity: .5; }
         }
-        /* モーダルの表示制御用 */
         .modal-overlay {
             transition: opacity 0.3s ease;
         }
@@ -91,7 +88,7 @@
                     </button>
                     <p id="poll-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 確認中...</p>
                 </div>
-                <!-- 首相官邸ボタン（Xロゴアイコン付き） -->
+                <!-- 首相官邸ボタン -->
                 <div class="flex flex-col items-center">
                     <button onclick="window.open('https://report.rifj.jp/xpost/', '_blank')" class="h-10 bg-gray-900 hover:bg-black text-white px-4 rounded-full text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 border border-gray-800">
                         <span class="font-black text-sm leading-none">𝕏</span>
@@ -399,6 +396,16 @@
         const firebaseConfigImport = { apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04", authDomain: "import-b6097.firebaseapp.com", projectId: "import-b6097", storageBucket: "import-b6097.firebasestorage.app", messagingSenderId: "462510788117", appId: "1:462510788117:web:44ff1fd1af583f67bc081c" };
         const firebaseConfigPoll = { apiKey: "AIzaSyCzxK80B7Tl2EoBemiWq2_rKFPHhr1vkVI", authDomain: "election-fe317.firebaseapp.com", projectId: "election-fe317", storageBucket: "election-fe317.firebasestorage.app", messagingSenderId: "3312762738", appId: "1:3312762738:web:9f7c1430d5f5ceaacee7eb" };
         
+        const firebaseConfigXPost = {
+            apiKey: "AIzaSyA7dp6nU6M6YkqaR4cZQfvQ3bRgtZeY1CY",
+            authDomain: "xpost-942ed.firebaseapp.com",
+            projectId: "xpost-942ed",
+            storageBucket: "xpost-942ed.firebasestorage.app",
+            messagingSenderId: "344400516416",
+            appId: "1:344400516416:web:2cfda7f42a970dedc096a5",
+            measurementId: "G-3V0YP0Z3QS"
+        };
+
         const firebaseConfigStrategy = {
             apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
             authDomain: "seisakuresearch00.firebaseapp.com",
@@ -413,7 +420,8 @@
         const dbImport = getFirestore(appImport);
         const appPoll = initializeApp(firebaseConfigPoll, "pollApp");
         const dbPoll = getFirestore(appPoll);
-        
+        const appXPost = initializeApp(firebaseConfigXPost, "xpostApp");
+        const dbXPost = getFirestore(appXPost);
         const appStrategy = initializeApp(firebaseConfigStrategy, "strategyApp");
         const dbStrategy = getFirestore(appStrategy);
 
@@ -423,8 +431,6 @@
         const authForm = document.getElementById('auth-form');
         const passwordInput = document.getElementById('site-password');
         const authError = document.getElementById('auth-error');
-
-        let isDashboardVisible = false;
 
         function showDashboard() {
             authScreen.style.display = 'none';
@@ -436,7 +442,6 @@
                 secBtn.classList.remove('hidden');
             }
             
-            isDashboardVisible = true;
             initAllSnapshots();
         }
 
@@ -506,14 +511,12 @@
         const toDateSafely = (ts) => {
             if (!ts) return null;
             if (ts.toDate) return ts.toDate();
+            if (typeof ts === 'string') {
+                const normalized = ts.replace(/\./g, '/').replace(/-/g, '/');
+                const d = new Date(normalized);
+                if (!isNaN(d.getTime())) return d;
+            }
             const d = new Date(ts);
-            return isNaN(d.getTime()) ? null : d;
-        };
-
-        const parseDateText = (text) => {
-            if (!text) return null;
-            const cleaned = text.replace(/年|月/g, '/').replace(/日/g, '').trim();
-            const d = new Date(cleaned);
             return isNaN(d.getTime()) ? null : d;
         };
 
@@ -566,61 +569,45 @@
         };
 
         const initXPost = async () => {
-            try {
-                const fetchUrl = (window.location.hostname === 'report.rifj.jp')
-                    ? '/xpost/'
-                    : 'https://report.rifj.jp/xpost/';
-                
-                const response = await fetch(fetchUrl, { method: 'GET', cache: 'no-cache' });
-                if (response.ok) {
-                    const html = await response.text();
-                    let latestFoundDate = null;
-
-                    const dateKeywordsMatch = html.match(/(?:更新日|最終更新|更新|取得日|最新データ)[^\d]{0,10}(\d{4}[年\/\-]\d{1,2}[月\/\-]\d{1,2}日?)/);
-                    if (dateKeywordsMatch && dateKeywordsMatch[1]) {
-                        latestFoundDate = parseDateText(dateKeywordsMatch[1]);
-                    }
-
-                    if (!latestFoundDate) {
-                        const timeTagMatch = html.match(/<time[^>]+datetime=["']([^"']+)["']/i) ||
-                                              html.match(/<meta[^>]+(?:modified_time|last-modified|date)[^>]+content=["']([^"']+)["']/i);
-                        if (timeTagMatch && timeTagMatch[1]) {
-                            latestFoundDate = toDateSafely(timeTagMatch[1]);
-                        }
-                    }
-
-                    if (!latestFoundDate) {
-                        const generalDateMatch = html.match(/\b(202[4-9][\/\-]\d{1,2}[\/\-]\d{1,2})\b/);
-                        if (generalDateMatch && generalDateMatch[1]) {
-                            latestFoundDate = parseDateText(generalDateMatch[1]);
-                        }
-                    }
-
-                    if (!latestFoundDate && response.headers.get('last-modified')) {
-                        const headerLm = new Date(response.headers.get('last-modified'));
-                        if (!isNaN(headerLm.getTime())) latestFoundDate = headerLm;
-                    }
-
-                    if (latestFoundDate) {
-                        updateStatusDisplay('xpost-status', latestFoundDate);
-                        return;
+            await safeAuth(appXPost);
+            
+            // 1. メタデータ (x_posts_meta/info) から最終更新日を監視
+            onSnapshot(doc(dbXPost, 'x_posts_meta', 'info'), (docSnap) => {
+                if (docSnap.exists() && docSnap.data().lastUpdated) {
+                    const parsed = toDateSafely(docSnap.data().lastUpdated);
+                    if (parsed) {
+                        updateStatusDisplay('xpost-status', parsed);
                     }
                 }
-            } catch (fetchErr) {
-                console.warn("xpost direct fetch notice:", fetchErr.message);
-            }
+            }, (err) => {
+                console.warn("XPost meta snapshot error", err);
+            });
 
-            try {
-                await safeAuth(appImport);
-                onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/xpost_last_import_metadata"), (snap) => {
-                    if (snap.exists()) {
-                        const d = toDateSafely(snap.data().lastImportTimestamp || snap.data().updatedAt || snap.data().date);
-                        if (d) updateStatusDisplay('xpost-status', d);
+            // 2. 投稿コレクション (x_posts) の最新日付をリアルタイム集計
+            const handleSnapshot = (snapshot) => {
+                let latestDate = null;
+                snapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    const candidateTs = data.date || data.createdAt || data.timestamp || data.updatedAt || data.pubDate;
+                    const parsed = toDateSafely(candidateTs);
+                    if (parsed && (!latestDate || parsed > latestDate)) {
+                        latestDate = parsed;
                     }
-                }, () => {});
-            } catch (e) {
-                console.warn("xpost firestore fallback notice:", e);
-            }
+                });
+                if (latestDate) {
+                    updateStatusDisplay('xpost-status', latestDate);
+                }
+            };
+
+            onSnapshot(collection(dbXPost, 'x_posts'), handleSnapshot, (err) => {
+                console.warn("XPost x_posts snapshot fallback", err);
+                onSnapshot(collection(dbXPost, 'posts'), handleSnapshot, (err2) => {
+                    console.warn("XPost posts snapshot fallback", err2);
+                    onSnapshot(collection(dbXPost, 'tweets'), handleSnapshot, (err3) => {
+                        console.warn("XPost tweets snapshot error", err3);
+                    });
+                });
+            });
         };
 
         const initImport = async () => {
@@ -716,11 +703,11 @@
         const openSecBtn = document.getElementById('openSecurity');
         const closeSecBtns = [document.getElementById('closeSecurity'), document.getElementById('closeSecurityBtn'), secOverlay];
 
-        function openSecModal() { secModal.classList.remove('hidden'); setTimeout(() => { secOverlay.classList.add('opacity-100'); secContent.classList.add('opacity-100', 'scale-100'); content.classList.remove('scale-95'); }, 10); }
+        function openSecModal() { secModal.classList.remove('hidden'); setTimeout(() => { secOverlay.classList.add('opacity-100'); secContent.classList.add('opacity-100', 'scale-100'); secContent.classList.remove('scale-95'); }, 10); }
         function closeSecModal() { secOverlay.classList.remove('opacity-100'); secContent.classList.remove('opacity-100', 'scale-100'); secContent.classList.add('scale-95'); setTimeout(() => { secModal.classList.add('hidden'); }, 300); }
 
         openSecBtn.addEventListener('click', openSecModal);
-        closeSecBtns.forEach(btn => btn.addEventListener('click', closeModal));
+        closeSecBtns.forEach(btn => btn.addEventListener('click', closeSecModal));
 
         // キーボード「Escape」キーでモーダルを閉じる
         document.addEventListener('keydown', (e) => {
