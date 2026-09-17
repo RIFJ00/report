@@ -1,664 +1,758 @@
-<!-- Chosen Palette: Slate Blue & Warm Gray -->
-<!-- Application Structure Plan: Single-page React application for Prime Minister X posts viewer. Strictly fixed header and search control panel with date range filter (start and end date), with an independent inner scrolling container starting from the post count display bar down to the list, pagination, and footer. Date format normalizer guarantees 100% accurate date filtering. Persistent items per page setting in localStorage. Dynamic date styling (Today: Red Bold, Yesterday: Red, 2 Days Ago: Light Red). Category dropdown sorted alphabetically (A-Z). Dynamic sorting options added for Category (A-Z) and Evaluation (Star count descending). -->
-<!-- Visualization & Content Choices: Dynamic card view grid, date range pickers (Start Date & End Date), pagination with selectable items per page (15/30/100, default 30), sticky search/filter panel, status badges, X tweet embed modal, access timestamps, dynamic date highlight. NO SVG graphics used. NO Mermaid JS used. -->
+<!-- Chosen Palette: Slate & Indigo Executive Palette -->
+<!-- Application Structure Plan: A centralized policy research portal offering single-click navigation to specialized research micro-applications. Status indicators below each button provide real-time feedback on data update timelines. The structure prioritizes quick visual navigation for researchers with modal overlays for operational guidance and security specifications. Updated to fetch X post updates using x_posts_meta/info lastUpdated and x_posts collection document timestamps. -->
+<!-- Visualization & Content Choices: Interactive grid and header controls backed by real-time Firestore listeners. Status indicators dynamically apply color-coding based on data freshness (today/yesterday/earlier). Text-based layout without Mermaid JS or external SVG asset requirements. -->
 <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>首相官邸Xビューワー</title>
-  
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- React & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  
-  <!-- Babel -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <!-- Firebaseの設定 -->
-  <script>
-    const __firebase_config = JSON.stringify({
-      apiKey: "AIzaSyA7dp6nU6M6YkqaR4cZQfvQ3bRgtZeY1CY",
-      authDomain: "xpost-942ed.firebaseapp.com",
-      projectId: "xpost-942ed",
-      storageBucket: "xpost-942ed.firebasestorage.app",
-      messagingSenderId: "344400516416",
-      appId: "1:344400516416:web:2cfda7f42a970dedc096a5",
-      measurementId: "G-3V0YP0Z3QS"
-    });
-  </script>
-
-  <!-- Firebase SDK のモジュールインポート -->
-  <script type="importmap">
-    {
-      "imports": {
-        "firebase/app": "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js",
-        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js"
-      }
-    }
-  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>政策リサーチ 関連画面</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #main-content {
+            display: none;
+        }
+        .hover-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .hover-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .status-loading {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .modal-overlay {
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+    </style>
 </head>
-<body class="bg-gray-50 h-screen overflow-hidden">
-  <div id="root" class="h-full"></div>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
 
-  <!-- アプリケーションのコード -->
-  <script type="text/babel" data-type="module">
-    import { initializeApp } from 'firebase/app';
-    import { getFirestore, doc, onSnapshot, collection } from 'firebase/firestore';
+    <!-- パスワード認証画面 -->
+    <div id="auth-screen" class="bg-white rounded-3xl shadow-2xl p-8 md:p-12 max-w-md w-full text-center border border-gray-200">
+        <div class="mb-6 flex justify-center">
+            <div class="bg-indigo-100 p-4 rounded-full text-indigo-600 font-bold text-3xl">
+                🔒
+            </div>
+        </div>
+        <h2 class="text-2xl font-extrabold text-gray-800 mb-2">政策リサーチ 関連画面</h2>
+        <p class="text-gray-500 mb-8 text-sm">このサイトを閲覧するにはパスワードが必要です</p>
+        
+        <form id="auth-form" class="space-y-4">
+            <input type="password" id="site-password" placeholder="パスワードを入力してください" 
+                   class="w-full px-6 py-4 rounded-xl border border-gray-200 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all text-center text-lg">
+            <div id="auth-error" class="text-red-500 text-xs font-bold hidden">パスワードが正しくありません</div>
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95">
+                ログイン
+            </button>
+        </form>
+    </div>
 
-    const { useState, useEffect } = React;
+    <!-- メインコンテンツ -->
+    <div id="main-content" class="bg-white rounded-3xl shadow-xl p-8 md:p-12 max-w-7xl w-full border border-gray-200 relative">
+        <!-- ヘッダー部分 -->
+        <div class="flex flex-col md:flex-row items-center md:justify-between gap-6 mb-12">
+            <h1 class="text-3xl md:text-5xl font-extrabold text-gray-800 leading-tight text-center md:text-left">
+                政策リサーチ 関連画面
+            </h1>
+            <!-- ボタン群を右端に揃える -->
+            <div class="flex flex-wrap justify-center md:justify-end gap-3 md:gap-4 items-start w-full md:w-auto">
+                <!-- 使い方ボタン -->
+                <div class="flex flex-col items-center">
+                    <button id="openManual" class="h-10 bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 rounded-full text-sm font-bold transition-colors flex items-center justify-center gap-2 border border-gray-300">
+                        <span class="text-base leading-none">ℹ️</span>
+                        <span>使い方</span>
+                    </button>
+                    <p class="text-[10px] text-gray-400 mt-1">Manual</p>
+                </div>
+                <!-- 支持率調査ボタン -->
+                <div class="flex flex-col items-center">
+                    <button onclick="window.open('https://report.rifj.jp/opinionpoll/', '_blank')" class="h-10 bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 rounded-full text-sm font-bold transition-colors flex items-center justify-center gap-2 border border-gray-300">
+                        <span class="text-base leading-none">📊</span>
+                        <span>支持率調査</span>
+                    </button>
+                    <p id="poll-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 確認中...</p>
+                </div>
+                <!-- 首相官邸ボタン -->
+                <div class="flex flex-col items-center">
+                    <button onclick="window.open('https://report.rifj.jp/xpost/', '_blank')" class="h-10 bg-gray-900 hover:bg-black text-white px-4 rounded-full text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 border border-gray-800">
+                        <span class="font-black text-sm leading-none">𝕏</span>
+                        <span>首相官邸</span>
+                    </button>
+                    <p id="xpost-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 確認中...</p>
+                </div>
+                <!-- 成長戦略概要ボタン -->
+                <div class="flex flex-col items-center">
+                    <button onclick="openUrlWithPassword('https://report.rifj.jp/strategy/', 'strategy')" class="h-10 bg-teal-600 hover:bg-teal-700 text-white px-4 rounded-full text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 border border-teal-700">
+                        <span class="text-base leading-none">📈</span>
+                        <span>成長戦略概要</span>
+                    </button>
+                    <p id="strategy-status" class="text-[10px] text-gray-500 mt-1 status-loading font-medium">更新日: 取得中...</p>
+                </div>
+            </div>
+        </div>
 
-    // Firebase 初期化
-    let app, db;
-    try {
-      const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-      app = initializeApp(firebaseConfig);
-      db = getFirestore(app);
-    } catch (e) {
-      console.warn("Firebase config initialization error:", e);
-    }
+        <!-- グリッドレイアウト -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- 本日のポイント -->
+            <div class="hover-card bg-gradient-to-tr from-green-50 to-green-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-green-200">
+                <div class="mb-6 text-5xl">
+                    ✅
+                </div>
+                <button onclick="openUrlWithPassword('https://report.rifj.jp/point/', 'point')" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-green-300">
+                    本日のポイント
+                </button>
+                <p id="point-status" class="text-xs text-green-800 font-medium status-loading">読込中...</p>
+            </div>
 
-    const isTwitterUrl = (url) => {
-      if (!url) return false;
-      return url.includes('twitter.com') || url.includes('x.com');
-    };
+            <!-- 政策レポート -->
+            <div class="hover-card bg-gradient-to-tr from-purple-50 to-purple-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-purple-200">
+                <div class="mb-6 text-5xl">
+                    📄
+                </div>
+                <button onclick="openUrlWithPassword('https://report.rifj.jp/policy/', 'policy')" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-purple-300">
+                    政策レポート
+                </button>
+                <p id="policy-status" class="text-xs text-purple-800 font-medium status-loading">読込中...</p>
+            </div>
 
-    // 日時文字列から表示用日付（YYYY/MM/DD）のみを抽出するヘルパー
-    const formatDateOnly = (dateStr) => {
-      if (!dateStr) return '未設定';
-      const match = dateStr.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
-      if (match) {
-        const yyyy = match[1];
-        const mm = match[2].padStart(2, '0');
-        const dd = match[3].padStart(2, '0');
-        return `${yyyy}/${mm}/${dd}`;
-      }
-      return dateStr.split(' ')[0] || dateStr;
-    };
+            <!-- 開発者のコラム -->
+            <div class="hover-card bg-gradient-to-tr from-red-50 to-red-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-red-200">
+                <div class="mb-6 text-5xl">
+                    📝
+                </div>
+                <button onclick="openUrlWithPassword('https://report.rifj.jp/blog/', 'blog')" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-red-300">
+                    開発者のコラム
+                </button>
+                <p id="blog-status" class="text-xs text-red-800 font-medium status-loading">読込中...</p>
+            </div>
 
-    // 日付文字列を比較基準フォーマット（YYYY-MM-DD）に変換する関数
-    const normalizeDate = (dateStr) => {
-      if (!dateStr) return '';
-      const match = dateStr.match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
-      if (match) {
-        const yyyy = match[1];
-        const mm = match[2].padStart(2, '0');
-        const dd = match[3].padStart(2, '0');
-        return `${yyyy}-${mm}-${dd}`;
-      }
-      return '';
-    };
+            <!-- 国会質問主意書 -->
+            <div class="hover-card bg-gradient-to-tr from-amber-50 to-amber-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-amber-200">
+                <div class="mb-6 text-5xl">
+                    ❓
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/shitsumonshui/', '_blank')" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-amber-300">
+                    国会質問主意書
+                </button>
+                <p id="diet-status" class="text-xs text-amber-800 font-medium status-loading">読込中...</p>
+            </div>
 
-    // 評価文字列から★の数をカウントするヘルパー
-    const getStarCount = (evalStr) => {
-      if (!evalStr) return 0;
-      const matches = evalStr.match(/★/g);
-      return matches ? matches.length : 0;
-    };
+            <!-- 関連動画チャネル -->
+            <div class="hover-card bg-gradient-to-tr from-rose-50 to-rose-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-rose-200">
+                <div class="mb-6 text-5xl">
+                    🎥
+                </div>
+                <button onclick="openUrlWithPassword('https://report.rifj.jp/youtube/', 'youtube')" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-rose-300">
+                    関連動画チャネル
+                </button>
+                <p id="video-status" class="text-xs text-rose-800 font-medium status-loading">読込中...</p>
+            </div>
 
-    // 当日・前日・前々日によって日付テキストのスタイルを決定するヘルパー
-    const getDateStyle = (dateStr) => {
-      if (!dateStr) return 'text-gray-500 font-medium';
-      
-      const normalizedStr = normalizeDate(dateStr);
-      if (!normalizedStr) return 'text-gray-500 font-medium';
-      
-      const now = new Date();
-      const formatYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      
-      const todayStr = formatYMD(now);
-      
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = formatYMD(yesterday);
-      
-      const twoDaysAgo = new Date(now);
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      const twoDaysAgoStr = formatYMD(twoDaysAgo);
+            <!-- 文脈解析ツール -->
+            <div class="hover-card bg-gradient-to-tr from-blue-50 to-blue-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-blue-200">
+                <div class="mb-6 text-5xl">
+                    🔍
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/text/', '_blank')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    文脈解析ツール
+                </button>
+                <p class="text-sm text-blue-800 font-medium">データ内容を分析</p>
+            </div>
 
-      if (normalizedStr === todayStr) {
-        return 'text-red-600 font-bold'; // 当日：赤太字
-      } else if (normalizedStr === yesterdayStr) {
-        return 'text-red-600 font-normal'; // 前日：赤字
-      } else if (normalizedStr === twoDaysAgoStr) {
-        return 'text-red-400 font-normal'; // 前々日：赤薄字
-      }
-      
-      return 'text-gray-500 font-medium'; // その他
-    };
+            <!-- レイアウトツール -->
+            <div class="hover-card bg-gradient-to-tr from-indigo-50 to-indigo-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-indigo-200">
+                <div class="mb-6 text-5xl">
+                    📐
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/layout/', '_blank')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+                    レイアウトツール
+                </button>
+                <p class="text-sm text-indigo-800 font-medium">レイアウト構成を設計</p>
+            </div>
 
-    function PrimeMinisterXViewer() {
-      const [posts, setPosts] = useState([]);
-      const [selectedPost, setSelectedPost] = useState(null);
-      
-      const [lastUpdatedTime, setLastUpdatedTime] = useState('');
-      const [accessTime, setAccessTime] = useState('');
+            <!-- 調査＆レポート -->
+            <div class="hover-card bg-gradient-to-tr from-teal-50 to-teal-100 p-8 rounded-2xl shadow-lg flex flex-col items-center border border-teal-200">
+                <div class="mb-6 text-5xl">
+                    📑
+                </div>
+                <button onclick="window.open('https://report.rifj.jp/word/', '_blank')" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-teal-300">
+                    調査＆レポート
+                </button>
+                <p class="text-sm text-teal-800 font-medium">調査と資料作成を自動化</p>
+            </div>
+        </div>
+    </div>
 
-      const [selectedCategory, setSelectedCategory] = useState('すべて');
-      const [selectedEvaluation, setSelectedEvaluation] = useState('すべて');
-      
-      // 日付の範囲検索（開始日・終了日）
-      const [startDate, setStartDate] = useState('');
-      const [endDate, setEndDate] = useState('');
-      
-      const [searchKeyword, setSearchKeyword] = useState('');
-      const [sortOrder, setSortOrder] = useState('date-desc');
-      
-      const [currentPage, setCurrentPage] = useState(1);
-      
-      // 表示件数状態（デフォルト30件、localStorage保存対応）
-      const [itemsPerPage, setItemsPerPage] = useState(() => {
-        const saved = localStorage.getItem('pm_x_viewer_items_per_page');
-        return saved ? parseInt(saved, 10) : 30;
-      });
+    <!-- 使い方ガイドモーダル -->
+    <div id="manualModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div id="modalOverlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm modal-overlay"></div>
+        <div id="modalContent" class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden relative z-10 opacity-0 scale-95 modal-content flex flex-col">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <h2 class="text-2xl font-extrabold text-gray-800">使い方ガイド</h2>
+                <button id="closeManual" class="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors text-xl font-bold">
+                    ✕
+                </button>
+            </div>
+            
+            <div class="p-8 overflow-y-auto space-y-8">
+                <!-- 更新日の説明 -->
+                <section>
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                        <span class="w-2 h-6 bg-blue-500 rounded-full"></span>
+                        データの更新日表示について
+                    </h3>
+                    <div class="bg-blue-50 rounded-2xl p-5 space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-black text-red-600 bg-white px-2 py-1 rounded border border-red-200 mt-1 whitespace-nowrap">赤色・太字</span>
+                            <div class="text-sm text-gray-700">
+                                <p class="font-bold text-red-600">本日の更新あり</p>
+                                <p class="text-xs opacity-90 leading-relaxed">更新情報のあるデータが「本日中」に取得・保存された場合、赤色の太字で強調表示されます。</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3 border-t border-blue-100 pt-3">
+                            <span class="text-xs font-bold text-red-500 bg-white px-2 py-1 rounded border border-red-200 mt-1 whitespace-nowrap">赤色</span>
+                            <div class="text-sm text-gray-700">
+                                <p class="font-bold text-red-500">昨日の更新あり</p>
+                                <p class="text-xs opacity-80 leading-relaxed">前日の更新データがある場合は赤色の通常フォントで表示されます。それ以前はグレーで表示されます。</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
 
-      // 表示件数変更ハンドラ
-      const handleItemsPerPageChange = (num) => {
-        setItemsPerPage(num);
-        localStorage.setItem('pm_x_viewer_items_per_page', num.toString());
-        setCurrentPage(1);
-      };
+                <!-- ボタン機能の説明 -->
+                <section>
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                        <span class="w-2 h-6 bg-indigo-500 rounded-full"></span>
+                        各ボタン・機能の内容
+                    </h3>
+                    <div class="grid grid-cols-1 gap-4">
+                        <!-- ヘッダーボタン -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="p-4 border border-gray-100 rounded-xl bg-gray-50/50">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="bg-gray-200 text-gray-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Header</span>
+                                    <span class="font-bold text-gray-800 text-sm">支持率調査</span>
+                                </div>
+                                <p class="text-xs text-gray-600 leading-relaxed">報道各社の政党・内閣支持率を集計・分析する専用ツールを開きます。最新の調査日をリアルタイムに反映します。</p>
+                            </div>
+                            <div class="p-4 border border-gray-100 rounded-xl bg-gray-50/50">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="bg-gray-200 text-gray-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Header</span>
+                                    <span class="font-bold text-gray-800 text-sm">首相官邸</span>
+                                </div>
+                                <p class="text-xs text-gray-600 leading-relaxed">首相官邸公式Xの投稿動向を分析・閲覧できる画面を開きます。データが更新された最新日を自動同期します。</p>
+                            </div>
+                            <div class="p-4 border border-gray-100 rounded-xl bg-gray-50/50">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="bg-gray-200 text-gray-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Header</span>
+                                    <span class="font-bold text-gray-800 text-sm">成長戦略概要</span>
+                                </div>
+                                <p class="text-xs text-gray-600 leading-relaxed">日本成長戦略の動向追跡と事業化ロードマップを表示します。データの修正が行われた最新の「更新日」を表示します。</p>
+                            </div>
+                        </div>
 
-      // アクセス日時の設定（リアルタイム）
-      useEffect(() => {
-        const now = new Date();
-        const formattedDate = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-        setAccessTime(formattedDate);
-      }, []);
+                        <!-- グリッドボタン -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                                <span class="font-bold text-green-700 text-sm mb-1">本日のポイント</span>
+                                <p class="text-[10px] text-gray-600 leading-relaxed">主要な会議などの内容を簡潔にまとめたスライドや動画をご覧いただけます（パスワード自動送信）。</p>
+                            </div>
+                            <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                                <span class="font-bold text-purple-700 text-sm mb-1">政策レポート</span>
+                                <p class="text-[10px] text-gray-600 leading-relaxed">政策情報や重要な会議体について詳しく解説したレポートを確認できます（パスワード自動送信）。</p>
+                            </div>
+                            <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                                <span class="font-bold text-red-700 text-sm mb-1">開発者のコラム</span>
+                                <p class="text-[10px] text-gray-600 leading-relaxed">政治動向や政策に関する深掘りなど、開発者の日々の分析・雑記をご覧いただけます（パスワード自動送信）。</p>
+                            </div>
+                            <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                                <span class="font-bold text-amber-700 text-sm mb-1">国会質問主意書</span>
+                                <p class="text-[10px] text-gray-600 leading-relaxed">国会に提出された衆参国会議員の質問主意書に対する政府回答を追跡します。</p>
+                            </div>
+                            <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                                <span class="font-bold text-rose-700 text-sm mb-1">関連動画チャネル</span>
+                                <p class="text-[10px] text-gray-600 leading-relaxed">会議概要やレポートの解説動画を最新公開日まで取得し閲覧できます（パスワード自動送信）。</p>
+                            </div>
+                            <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                                <span class="font-bold text-blue-700 text-sm mb-1">文脈解析ツール</span>
+                                <p class="text-[10px] text-gray-600 leading-relaxed">膨大なデータから文脈を読み取り、構造化・分析を支援するツールです。</p>
+                            </div>
+                            <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                                <span class="font-bold text-indigo-700 text-sm mb-1">レイアウトツール</span>
+                                <p class="text-[10px] text-gray-600 leading-relaxed">各種ドキュメントからレポートやスライドを容易に作成できる構成支援ツールです。</p>
+                            </div>
+                            <div class="flex flex-col p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                                <span class="font-bold text-teal-700 text-sm mb-1">調査＆レポート</span>
+                                <p class="text-[10px] text-gray-600 leading-relaxed">調べたい分野を自動分析し、最新情報をレポートやスライドで表示できるツールです。</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
 
-      // 区分の順位を A からの順（昇順）にソートしてプルダウンに反映
-      const categories = [
-        'すべて',
-        ...Array.from(new Set(posts.map(p => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ja'))
-      ];
+                <div class="text-center p-4 bg-gray-50 rounded-2xl text-[10px] text-gray-500 leading-normal">
+                    <p class="mb-1 text-red-600 font-bold">※（パスワード自動送信）の記載があるサイトは、本画面から専用の認証情報を付加して遷移するため、直接ブックマークしたURL等からは開けません。</p>
+                    <p>※　関連ツールの詳細な使い方については、遷移先各ページにあるヘルプガイドをご参照ください。</p>
+                </div>
+            </div>
+            
+            <div class="p-6 bg-gray-50/50 border-t border-gray-100 text-center">
+                <button id="closeManualBtn" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all active:scale-95">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
 
-      // 評価のプルダウン（★の多い順）
-      const evaluations = [
-        'すべて',
-        ...Array.from(new Set(posts.map(p => p.evaluation).filter(Boolean))).sort((a, b) => getStarCount(b) - getStarCount(a))
-      ];
+    <!-- セキュリティポリシーモーダル -->
+    <div id="securityPolicyModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div id="secModalOverlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm modal-overlay"></div>
+        <div id="secModalContent" class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden relative z-10 opacity-0 scale-95 modal-content flex flex-col">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <h2 class="text-2xl font-extrabold text-gray-800 flex items-center gap-2">
+                    🛡️ セキュリティポリシー
+                </h2>
+                <button id="closeSecurity" class="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors text-xl font-bold">
+                    ✕
+                </button>
+            </div>
+            
+            <div class="p-8 overflow-y-auto space-y-6 text-sm text-gray-600 leading-relaxed">
+                <p>一般社団法人日本みらい研（以下、「当法人」）は、提供する「政策リサーチ会員ページ」および「政策リサーチ 関連画面」（以下、「当ダッシュボード」）において、取り扱う情報の機密性、完全性、および可用性を確保し、安全で安心な利用環境を維持するため、以下のセキュリティポリシーを定めます。</p>
 
-      const processedPosts = posts
-        .filter(post => {
-          const matchCategory = selectedCategory === 'すべて' || post.category === selectedCategory;
-          const matchEvaluation = selectedEvaluation === 'すべて' || post.evaluation === selectedEvaluation;
-          
-          // 日付の範囲検索ロジック
-          const postDateNormalized = normalizeDate(post.date);
-          let matchDate = true;
-          if (startDate && postDateNormalized) {
-            matchDate = matchDate && (postDateNormalized >= startDate);
-          } else if (startDate && !postDateNormalized) {
-            matchDate = false;
-          }
-          if (endDate && postDateNormalized) {
-            matchDate = matchDate && (postDateNormalized <= endDate);
-          } else if (endDate && !postDateNormalized) {
-            matchDate = false;
-          }
+                <section class="space-y-2">
+                    <h3 class="text-base font-bold text-gray-800 border-l-4 border-indigo-600 pl-2">1. クラウドおよびホスティングの安全性（AWS / Google Cloud）</h3>
+                    <p>当ダッシュボードのデータ管理及び配信環境には、世界的レベルの高度なセキュリティと可用性を備えた<strong>Amazon Web Services (AWS)</strong>および<strong>Google Cloud Platform (Firebase)</strong>を採用しています。それぞれの環境では厳格なアクセスコントロール、ファイアウォール、VPC構成、および不正アクセス監視システムが常時稼働しており、認可されていない第三者からのデータ操作や傍受を100%遮断しています。</p>
+                </section>
 
-          const keyword = searchKeyword.toLowerCase();
-          const matchKeyword = keyword === '' || (
-            (post.title && post.title.toLowerCase().includes(keyword)) ||
-            (post.text && post.text.toLowerCase().includes(keyword)) ||
-            (post.category && post.category.toLowerCase().includes(keyword)) ||
-            (post.evaluation && post.evaluation.toLowerCase().includes(keyword)) ||
-            (post.postType && post.postType.toLowerCase().includes(keyword)) ||
-            (post.date && post.date.toLowerCase().includes(keyword))
-          );
+                <section class="space-y-2">
+                    <h3 class="text-base font-bold text-gray-800 border-l-4 border-indigo-600 pl-2">2. 通信の暗号化（SSL/TLS）</h3>
+                    <p>当ダッシュボードと利用者の端末、および各クラウドサーバー（AWS、Firebase）間の通信は、すべて最新の高度な暗号化プロトコル（HTTPS / SSL/TLS）を用いて保護されています。これにより、通信経路上でのデータの第三者による傍受、改ざん、なりすまし等のリスクを防ぎます。</p>
+                </section>
 
-          return matchCategory && matchEvaluation && matchDate && matchKeyword;
-        })
-        .sort((a, b) => {
-          if (sortOrder === 'date-desc') {
-            const dateA = new Date(normalizeDate(a.date) || a.date);
-            const dateB = new Date(normalizeDate(b.date) || b.date);
-            return dateB - dateA;
-          } else if (sortOrder === 'date-asc') {
-            const dateA = new Date(normalizeDate(a.date) || a.date);
-            const dateB = new Date(normalizeDate(b.date) || b.date);
-            return dateA - dateB;
-          } else if (sortOrder === 'category-asc') {
-            const catA = a.category || '';
-            const catB = b.category || '';
-            const cmp = catA.localeCompare(catB, 'ja');
-            if (cmp !== 0) return cmp;
-            // 区分が同じ場合は新しい日付順
-            const dateA = new Date(normalizeDate(a.date) || a.date);
-            const dateB = new Date(normalizeDate(b.date) || b.date);
-            return dateB - dateA;
-          } else if (sortOrder === 'evaluation-desc') {
-            const starA = getStarCount(a.evaluation);
-            const starB = getStarCount(b.evaluation);
-            if (starB !== starA) return starB - starA;
-            // 評価が同じ場合は新しい日付順
-            const dateA = new Date(normalizeDate(a.date) || a.date);
-            const dateB = new Date(normalizeDate(b.date) || b.date);
-            return dateB - dateA;
-          }
-          return 0;
+                <section class="space-y-2">
+                    <h3 class="text-base font-bold text-gray-800 border-l-4 border-indigo-600 pl-2">3. 個人を特定しない匿名認証</h3>
+                    <p>データ同期を行うシステムとの接続には、Firebase Authenticationの「匿名認証（Anonymous Authentication）」のスキームを組み込んでいます。これにより、利用者の名前、メールアドレス、クレジットカード番号などのプライベートな個人情報を収集または蓄積することなく、安全にデータのリアルタイム購読のみを確立しています。</p>
+                </section>
+
+                <section class="space-y-2">
+                    <h3 class="text-base font-bold text-gray-800 border-l-4 border-indigo-600 pl-2">4. 認証パスワードの取扱い</h3>
+                    <p>当ダッシュボードおよび各ツールへの接続用のパスワード情報、パラメータは安全に管理されたプログラムを介して処理されます。ツール間の遷移時に送信される認証情報は、暗号化またはワンタイムURLパラメータ等で安全に構築されており、認証情報が露出しない安全設計がなされています。</p>
+                </section>
+
+                <section class="space-y-2">
+                    <h3 class="text-base font-bold text-gray-800 border-l-4 border-indigo-600 pl-2">5. 組織的管理体制</h3>
+                    <p>当法人は情報管理に関する社内規程を整備し、データ管理統合ツールを扱う従事者に対して厳格なアクセス権の割り当てと、定期的な教育を行っています。また、万が一インシデントが発生した場合には、迅速に対応するための連絡・是正措置フローを確立しています。</p>
+                </section>
+
+                <div class="text-right text-xs text-gray-400 pt-4 border-t border-gray-100">
+                    一般社団法人 日本みらい研<br>
+                    策定日: 2026年6月5日
+                </div>
+            </div>
+            
+            <div class="p-6 bg-gray-50/50 border-t border-gray-100 text-center">
+                <button id="closeSecurityBtn" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all active:scale-95">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右下最端部のフローティングボタンレイアウト -->
+    <button id="openSecurity" class="hidden fixed bottom-2 right-2 md:bottom-3 md:right-3 bg-white/95 backdrop-blur-sm hover:bg-white text-gray-500 hover:text-gray-800 text-[10px] md:text-[11px] font-bold py-1 px-2.5 md:py-1.5 md:px-3 rounded-full shadow-sm border border-gray-200 transition-all active:scale-95 z-40 whitespace-nowrap" title="セキュリティポリシー">
+        セキュリティポリシー
+    </button>
+
+    <!-- トップに戻るボタン -->
+    <button id="scrollToTopBtn" onclick="scrollToTop()" class="fixed bottom-10 right-2 md:bottom-13 md:right-3 bg-blue-800 text-white p-2.5 md:p-3 rounded-full shadow-2xl hover:bg-blue-700 hover:-translate-y-1 transition-all duration-300 transform scale-0 opacity-0 z-50 flex items-center justify-center group" title="トップへ戻る">
+        <span class="font-bold text-lg">↑</span>
+    </button>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getFirestore, collection, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+
+        // --- Configurations ---
+        const firebaseConfigBlog = { apiKey: "AIzaSyD-2UK3S9QjydIIqcTwyfpZMh-Gy4fXlMA", authDomain: "blog-viewer-f83bc.firebaseapp.com", projectId: "blog-viewer-f83bc", storageBucket: "blog-viewer-f83bc.firebasestorage.app", messagingSenderId: "182374996524", appId: "1:182374996524:web:c6d9f3cfe32957a0bd4f89" };
+        const firebaseConfigDiet = { apiKey: "AIzaSyD7Tvb6Di--LS4E1AxDPhZo0L5ZKM6EmVs", authDomain: "user-9b981.firebaseapp.com", projectId: "user-9b981", appId: "unknown-diet-app" };
+        const firebaseConfigImport = { apiKey: "AIzaSyCU6YBFAcSUbrCi1-bCKbs1U0BCW5QFF04", authDomain: "import-b6097.firebaseapp.com", projectId: "import-b6097", storageBucket: "import-b6097.firebasestorage.app", messagingSenderId: "462510788117", appId: "1:462510788117:web:44ff1fd1af583f67bc081c" };
+        const firebaseConfigPoll = { apiKey: "AIzaSyCzxK80B7Tl2EoBemiWq2_rKFPHhr1vkVI", authDomain: "election-fe317.firebaseapp.com", projectId: "election-fe317", storageBucket: "election-fe317.firebasestorage.app", messagingSenderId: "3312762738", appId: "1:3312762738:web:9f7c1430d5f5ceaacee7eb" };
+        
+        const firebaseConfigXPost = {
+            apiKey: "AIzaSyA7dp6nU6M6YkqaR4cZQfvQ3bRgtZeY1CY",
+            authDomain: "xpost-942ed.firebaseapp.com",
+            projectId: "xpost-942ed",
+            storageBucket: "xpost-942ed.firebasestorage.app",
+            messagingSenderId: "344400516416",
+            appId: "1:344400516416:web:2cfda7f42a970dedc096a5",
+            measurementId: "G-3V0YP0Z3QS"
+        };
+
+        const firebaseConfigStrategy = {
+            apiKey: "AIzaSyBx5e752GWfvJDZ3lEx0IcArxjvCEz7S2M",
+            authDomain: "seisakuresearch00.firebaseapp.com",
+            projectId: "seisakuresearch00"
+        };
+
+        const appBlog = initializeApp(firebaseConfigBlog, "blogApp");
+        const dbBlog = getFirestore(appBlog);
+        const appDiet = initializeApp(firebaseConfigDiet, "dietApp");
+        const dbDiet = getFirestore(appDiet);
+        const appImport = initializeApp(firebaseConfigImport, "importApp");
+        const dbImport = getFirestore(appImport);
+        const appPoll = initializeApp(firebaseConfigPoll, "pollApp");
+        const dbPoll = getFirestore(appPoll);
+        const appXPost = initializeApp(firebaseConfigXPost, "xpostApp");
+        const dbXPost = getFirestore(appXPost);
+        const appStrategy = initializeApp(firebaseConfigStrategy, "strategyApp");
+        const dbStrategy = getFirestore(appStrategy);
+
+        const CORRECT_PASSWORD = 'dashboard8';
+        const authScreen = document.getElementById('auth-screen');
+        const mainContent = document.getElementById('main-content');
+        const authForm = document.getElementById('auth-form');
+        const passwordInput = document.getElementById('site-password');
+        const authError = document.getElementById('auth-error');
+
+        function showDashboard() {
+            authScreen.style.display = 'none';
+            mainContent.style.display = 'block';
+            document.body.className = "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4"; 
+            
+            const secBtn = document.getElementById('openSecurity');
+            if (secBtn) {
+                secBtn.classList.remove('hidden');
+            }
+            
+            initAllSnapshots();
+        }
+
+        function checkAuthentication() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const pwParam = urlParams.get('pw');
+            const pwHash = window.location.hash.substring(1);
+            if (pwParam === CORRECT_PASSWORD || pwHash === CORRECT_PASSWORD) {
+                const cleanUrl = window.location.origin + window.location.pathname;
+                window.history.replaceState(null, document.title, cleanUrl);
+                showDashboard();
+            }
+        }
+
+        authForm.onsubmit = (e) => {
+            e.preventDefault();
+            if (passwordInput.value === CORRECT_PASSWORD) {
+                showDashboard();
+            } else {
+                authError.classList.remove('hidden');
+                passwordInput.classList.add('border-red-500');
+            }
+        };
+
+        function initAllSnapshots() {
+            initBlog();
+            initDiet();
+            initPoll();
+            initXPost();
+            initImport();
+        }
+
+        function updateStatusDisplay(elementId, date) {
+            const el = document.getElementById(elementId);
+            if (!el || !date || isNaN(date.getTime())) return;
+            
+            const isHeaderStatus = (elementId === 'poll-status' || elementId === 'strategy-status' || elementId === 'xpost-status');
+            if (isHeaderStatus) {
+                const simpleDate = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+                el.textContent = `更新日: ${simpleDate}`;
+            } else {
+                const formatted = date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                el.textContent = `最終更新: ${formatted}`;
+            }
+
+            el.classList.remove('status-loading');
+            const today = new Date();
+            const yesterday = new Date();
+            yesterday.setDate(today.getDate() - 1);
+            const isSameDay = (d1, d2) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
+
+            if (isSameDay(date, today)) {
+                el.className = isHeaderStatus ? "text-[10px] font-black text-red-600 mt-1" : "text-xs font-black text-red-600";
+            } else if (isSameDay(date, yesterday)) {
+                el.className = isHeaderStatus ? "text-[10px] font-bold text-red-500 mt-1" : "text-xs font-bold text-red-500";
+            } else {
+                if (isHeaderStatus) el.className = "text-[10px] text-gray-500 mt-1 font-medium";
+                else if (elementId === 'point-status') el.className = "text-xs text-green-800 font-medium opacity-75";
+                else if (elementId === 'policy-status') el.className = "text-xs text-purple-800 font-medium opacity-75";
+                else if (elementId === 'blog-status') el.className = "text-xs text-red-800 font-medium opacity-75";
+                else if (elementId === 'diet-status') el.className = "text-xs text-amber-800 font-medium opacity-75";
+                else if (elementId === 'video-status') el.className = "text-xs text-rose-800 font-medium opacity-75";
+                else el.className = "text-xs font-medium opacity-75";
+            }
+        }
+
+        const toDateSafely = (ts) => {
+            if (!ts) return null;
+            if (ts.toDate) return ts.toDate();
+            if (typeof ts === 'string') {
+                const normalized = ts.replace(/\./g, '/').replace(/-/g, '/');
+                const d = new Date(normalized);
+                if (!isNaN(d.getTime())) return d;
+            }
+            const d = new Date(ts);
+            return isNaN(d.getTime()) ? null : d;
+        };
+
+        async function safeAuth(app) {
+            try {
+                const auth = getAuth(app);
+                await signInAnonymously(auth);
+                return true;
+            } catch (err) {
+                console.warn(`Auth failed for app: ${app.name}`, err.message);
+                return false;
+            }
+        }
+
+        const initBlog = async () => {
+            await safeAuth(appBlog);
+            onSnapshot(collection(dbBlog, "posts"), (snapshot) => {
+                let latest = null;
+                snapshot.docs.forEach(d => {
+                    const date = toDateSafely(d.data().createdAt);
+                    if (date && (!latest || date > latest)) latest = date;
+                });
+                updateStatusDisplay('blog-status', latest);
+            }, (err) => console.warn("Blog snapshot error", err));
+        };
+
+        const initDiet = async () => {
+            await safeAuth(appDiet);
+            onSnapshot(doc(dbDiet, "dashboard_data", "config"), (snap) => {
+                if (snap.exists()) {
+                    const sessions = snap.data().sessions || [];
+                    if (sessions.length > 0) {
+                        const latestSession = sessions.reduce((max, s) => new Date(s.updatedAt) > new Date(max.updatedAt) ? s : max, sessions[0]);
+                        updateStatusDisplay('diet-status', new Date(latestSession.updatedAt));
+                    }
+                }
+            }, (err) => console.warn("Diet snapshot error", err));
+        };
+
+        const initPoll = async () => {
+            await safeAuth(appPoll);
+            onSnapshot(collection(dbPoll, 'artifacts', 'election_analyzer_main', 'public', 'data', 'polls'), (snapshot) => {
+                let latestDateStr = "";
+                snapshot.forEach(doc => {
+                    const d = doc.data().date;
+                    if (d && d > latestDateStr) latestDateStr = d;
+                });
+                if (latestDateStr) updateStatusDisplay('poll-status', new Date(latestDateStr));
+            }, (err) => console.warn("Poll snapshot error", err));
+        };
+
+        const initXPost = async () => {
+            await safeAuth(appXPost);
+            
+            // 1. メタデータ (x_posts_meta/info) から最終更新日を監視
+            onSnapshot(doc(dbXPost, 'x_posts_meta', 'info'), (docSnap) => {
+                if (docSnap.exists() && docSnap.data().lastUpdated) {
+                    const parsed = toDateSafely(docSnap.data().lastUpdated);
+                    if (parsed) {
+                        updateStatusDisplay('xpost-status', parsed);
+                    }
+                }
+            }, (err) => {
+                console.warn("XPost meta snapshot error", err);
+            });
+
+            // 2. 投稿コレクション (x_posts) の最新日付をリアルタイム集計
+            const handleSnapshot = (snapshot) => {
+                let latestDate = null;
+                snapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    const candidateTs = data.date || data.createdAt || data.timestamp || data.updatedAt || data.pubDate;
+                    const parsed = toDateSafely(candidateTs);
+                    if (parsed && (!latestDate || parsed > latestDate)) {
+                        latestDate = parsed;
+                    }
+                });
+                if (latestDate) {
+                    updateStatusDisplay('xpost-status', latestDate);
+                }
+            };
+
+            onSnapshot(collection(dbXPost, 'x_posts'), handleSnapshot, (err) => {
+                console.warn("XPost x_posts snapshot fallback", err);
+                onSnapshot(collection(dbXPost, 'posts'), handleSnapshot, (err2) => {
+                    console.warn("XPost posts snapshot fallback", err2);
+                    onSnapshot(collection(dbXPost, 'tweets'), handleSnapshot, (err3) => {
+                        console.warn("XPost tweets snapshot error", err3);
+                    });
+                });
+            });
+        };
+
+        const initImport = async () => {
+            await safeAuth(appImport);
+            await safeAuth(appStrategy);
+            
+            const videoAppId = 'youtube-playlist-app';
+            const videoUpdateTimes = { meeting: null, policy: null };
+
+            const updateVideoChannelStatus = () => {
+                const times = [videoUpdateTimes.meeting, videoUpdateTimes.policy].filter(t => t !== null);
+                if (times.length === 0) return;
+                updateStatusDisplay('video-status', new Date(Math.max(...times.map(t => t.getTime()))));
+            };
+
+            const getLatestActualDisplayDate = (snap) => {
+                if (!snap.exists()) return null;
+                const data = snap.data();
+                if (data.lastModified) return toDateSafely(data.lastModified);
+                if (data.updatedAt) return toDateSafely(data.updatedAt);
+                const videos = data.videos || [];
+                if (videos.length === 0) return null;
+                const latestDisplayTime = Math.max(...videos.map(v => v.addedAt || v.pubDate || 0));
+                return latestDisplayTime > 0 ? new Date(latestDisplayTime) : null;
+            };
+
+            // 本日のポイント
+            onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/point_last_import_metadata"), (snap) => {
+                if (snap.exists()) updateStatusDisplay('point-status', toDateSafely(snap.data().lastImportTimestamp || snap.data().updatedAt));
+            }, (err) => console.warn("Point snapshot error", err));
+
+            // 政策レポート
+            onSnapshot(doc(dbImport, "artifacts/default-policy-research-app/public/data/policy_data/policy_last_import_metadata"), (snap) => {
+                if (snap.exists()) updateStatusDisplay('policy-status', toDateSafely(snap.data().lastImportTimestamp || snap.data().updatedAt));
+            }, (err) => console.warn("Policy report snapshot error", err));
+
+            // 成長戦略概要
+            const strategyDataRef = collection(dbStrategy, 'artifacts', 'seisakuresearch', 'public', 'data', 'meetings');
+            onSnapshot(strategyDataRef, (snapshot) => {
+                let latestCorrectionTime = 0;
+                snapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    const times = [data.updatedAt, data.timestamp, data.createdAt];
+                    times.forEach(ts => {
+                        const d = toDateSafely(ts);
+                        if (d) {
+                            const timeVal = d.getTime();
+                            if (timeVal > latestCorrectionTime) {
+                                latestCorrectionTime = timeVal;
+                            }
+                        }
+                    });
+                });
+                if (latestCorrectionTime > 0) {
+                    updateStatusDisplay('strategy-status', new Date(latestCorrectionTime));
+                }
+            }, (err) => console.warn("Strategy meetings correction date fetch error", err));
+
+            // 関連動画
+            onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_'), (snap) => {
+                const latest = getLatestActualDisplayDate(snap);
+                if (latest) { videoUpdateTimes.meeting = latest; updateVideoChannelStatus(); }
+            }, (err) => console.warn("Video meeting snapshot error", err));
+
+            onSnapshot(doc(dbImport, 'artifacts', videoAppId, 'public', 'data', 'playlists', 'PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2'), (snap) => {
+                const latest = getLatestActualDisplayDate(snap);
+                if (latest) { videoUpdateTimes.policy = latest; updateVideoChannelStatus(); }
+            }, (err) => console.warn("Video policy snapshot error", err));
+        };
+
+        checkAuthentication();
+    </script>
+
+    <!-- モーダル開閉・スクロールトップスクリプト -->
+    <script>
+        // 使い方ガイドモーダル
+        const modal = document.getElementById('manualModal');
+        const overlay = document.getElementById('modalOverlay');
+        const content = document.getElementById('modalContent');
+        const openBtn = document.getElementById('openManual');
+        const closeBtns = [document.getElementById('closeManual'), document.getElementById('closeManualBtn'), overlay];
+
+        function openModal() { modal.classList.remove('hidden'); setTimeout(() => { overlay.classList.add('opacity-100'); content.classList.add('opacity-100', 'scale-100'); content.classList.remove('scale-95'); }, 10); }
+        function closeModal() { overlay.classList.remove('opacity-100'); content.classList.remove('opacity-100', 'scale-100'); content.classList.add('scale-95'); setTimeout(() => { modal.classList.add('hidden'); }, 300); }
+
+        openBtn.addEventListener('click', openModal);
+        closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
+
+        // セキュリティポリシーモーダル
+        const secModal = document.getElementById('securityPolicyModal');
+        const secOverlay = document.getElementById('secModalOverlay');
+        const secContent = document.getElementById('secModalContent');
+        const openSecBtn = document.getElementById('openSecurity');
+        const closeSecBtns = [document.getElementById('closeSecurity'), document.getElementById('closeSecurityBtn'), secOverlay];
+
+        function openSecModal() { secModal.classList.remove('hidden'); setTimeout(() => { secOverlay.classList.add('opacity-100'); secContent.classList.add('opacity-100', 'scale-100'); secContent.classList.remove('scale-95'); }, 10); }
+        function closeSecModal() { secOverlay.classList.remove('opacity-100'); secContent.classList.remove('opacity-100', 'scale-100'); secContent.classList.add('scale-95'); setTimeout(() => { secModal.classList.add('hidden'); }, 300); }
+
+        openSecBtn.addEventListener('click', openSecModal);
+        closeSecBtns.forEach(btn => btn.addEventListener('click', closeSecModal));
+
+        // キーボード「Escape」キーでモーダルを閉じる
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                closeSecModal();
+            }
         });
 
-      useEffect(() => {
-        setCurrentPage(1);
-      }, [selectedCategory, selectedEvaluation, startDate, endDate, searchKeyword, sortOrder, itemsPerPage]);
-
-      const totalPages = Math.ceil(processedPosts.length / itemsPerPage) || 1;
-      const startIndex = (currentPage - 1) * itemsPerPage;
-      const endIndex = startIndex + itemsPerPage;
-      const currentPosts = processedPosts.slice(startIndex, endIndex);
-
-      // Twitter 埋め込み用スクリプト読み込み
-      useEffect(() => {
-        const script = document.createElement("script");
-        script.src = "https://platform.twitter.com/widgets.js";
-        script.async = true;
-        script.charset = "utf-8";
-        document.body.appendChild(script);
-      }, []);
-
-      useEffect(() => {
-        if (selectedPost && window.twttr) {
-          setTimeout(() => {
-            if (window.twttr && window.twttr.widgets) {
-              window.twttr.widgets.load();
-            }
-          }, 100);
+        // ページ遷移ヘルパー
+        function openUrlWithPassword(baseUrl, password) {
+            const targetUrl = `${baseUrl}?pw=${password}#${password}`;
+            window.open(targetUrl, '_blank');
         }
-      }, [selectedPost]);
 
-      // Firestore リアルタイム取得（読み込みのみ）
-      useEffect(() => {
-        if (!db) return;
+        // トップへ戻るボタン表示・制御
+        const scrollBtn = document.getElementById('scrollToTopBtn');
 
-        try {
-          const postsRef = collection(db, 'x_posts');
-          const unsubscribePosts = onSnapshot(postsRef, (snapshot) => {
-            const fetchedPosts = [];
-            snapshot.forEach(doc => {
-              fetchedPosts.push({ id: doc.id, ...doc.data() });
-            });
-            setPosts(fetchedPosts);
-          }, (error) => {
-            console.error("Firestore取得エラー:", error);
-          });
+        window.addEventListener('scroll', () => {
+            if (document.getElementById('main-content').style.display !== 'block') return;
 
-          // 最終更新日時の取得
-          const metaRef = doc(db, 'x_posts_meta', 'info');
-          const unsubscribeMeta = onSnapshot(metaRef, (docSnap) => {
-            if (docSnap.exists() && docSnap.data().lastUpdated) {
-              setLastUpdatedTime(docSnap.data().lastUpdated);
+            if (window.scrollY > 300) {
+                scrollBtn.classList.remove('scale-0', 'opacity-0');
+                scrollBtn.classList.add('scale-100', 'opacity-100');
+            } else {
+                scrollBtn.classList.remove('scale-100', 'opacity-100');
+                scrollBtn.classList.add('scale-0', 'opacity-0');
             }
-          });
+        });
 
-          return () => {
-            unsubscribePosts();
-            unsubscribeMeta();
-          };
-        } catch(e) {
-          console.warn("Firestore listener failed:", e);
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
-      }, [db]);
 
-      const handleClearFilters = () => {
-        setSelectedCategory('すべて');
-        setSelectedEvaluation('すべて');
-        setStartDate('');
-        setEndDate('');
-        setSearchKeyword('');
-        setSortOrder('date-desc');
-        setCurrentPage(1);
-      };
+        const checkDashboardVisibility = () => {
+            const mainContent = document.getElementById('main-content');
+            const secBtn = document.getElementById('openSecurity');
+            if (mainContent && secBtn && mainContent.style.display === 'block') {
+                secBtn.classList.remove('hidden');
+            }
+        };
 
-      return (
-        <div className="h-screen w-full bg-gray-50 text-gray-800 font-sans flex flex-col overflow-hidden p-2 sm:p-4 md:p-6">
-          <div className="max-w-5xl mx-auto bg-white rounded-xl shadow-md overflow-hidden w-full flex flex-col h-full border border-gray-200">
-            
-            {/* 上部固定エリア（ヘッダー ＋ 検索・フィルターバー） - スクロールしない */}
-            <div className="flex-shrink-0 z-30 bg-white border-b border-gray-200">
-              {/* ヘッダー */}
-              <header className="bg-blue-900 text-white p-5 md:p-6 border-b border-blue-800 flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl md:text-3xl font-bold flex items-center">
-                    <span className="mr-3 text-2xl">𝕏</span>
-                    高市首相 X投稿アーカイブ
-                  </h1>
-                  <p className="mt-2 text-blue-100 text-sm">
-                    高市首相の過去のX投稿を閲覧・検索できる公開アーカイブログです。
-                  </p>
-                  <p className="mt-1 text-blue-200/90 text-xs md:text-sm">
-                    なお、区分や評価は一般社団法人日本みらい研の独自分析です。
-                  </p>
-                </div>
-
-                {/* 右下に下揃えで配置 */}
-                <div className="flex-shrink-0 flex flex-col items-start md:items-end justify-end gap-2 text-xs md:self-end">
-                  <span className="text-blue-200/90 font-medium bg-blue-800/60 px-3 py-1.5 rounded-md border border-blue-700/50">
-                    データ更新日: {formatDateOnly(lastUpdatedTime)}
-                  </span>
-                </div>
-              </header>
-
-              {/* 検索・フィルターエリア */}
-              <div className="bg-gray-50 p-4 flex flex-wrap items-end gap-3 shadow-sm">
-                <div className="flex-1 min-w-[160px]">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">語句で検索</label>
-                  <input
-                    type="text"
-                    placeholder="タイトルや本文を検索..."
-                    value={searchKeyword}
-                    onChange={(e) => setSearchKeyword(e.target.value)}
-                    className="w-full px-3 h-[34px] border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none text-sm shadow-sm transition-shadow box-border"
-                  />
-                </div>
-                
-                {/* 開始日選択 */}
-                <div className="w-full sm:w-auto">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">開始日</label>
-                  <input 
-                    type="date" 
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full sm:w-[135px] border border-gray-300 rounded-md px-2 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none text-sm shadow-sm transition-shadow box-border bg-white"
-                  />
-                </div>
-
-                {/* 終了日選択 */}
-                <div className="w-full sm:w-auto">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">終了日</label>
-                  <input 
-                    type="date" 
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full sm:w-[135px] border border-gray-300 rounded-md px-2 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none text-sm shadow-sm transition-shadow box-border bg-white"
-                  />
-                </div>
-
-                <div className="w-full sm:w-auto">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">表示順</label>
-                  <select 
-                    value={sortOrder}
-                    onChange={(e) => setSortOrder(e.target.value)}
-                    className="w-full sm:w-[135px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border font-medium"
-                  >
-                    <option value="date-desc">新しい日時順</option>
-                    <option value="date-asc">古い日時順</option>
-                    <option value="category-asc">区分順 (A〜Z)</option>
-                    <option value="evaluation-desc">評価順 (★多)</option>
-                  </select>
-                </div>
-
-                <div className="w-full sm:w-auto">
-                   <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">区分</label>
-                   <select 
-                     value={selectedCategory} 
-                     onChange={(e) => setSelectedCategory(e.target.value)}
-                     className="w-full sm:w-[145px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
-                   >
-                     {categories.map(cat => (
-                       <option key={cat} value={cat}>{cat}</option>
-                     ))}
-                   </select>
-                </div>
-
-                <div className="w-full sm:w-auto">
-                   <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">評価</label>
-                   <select 
-                     value={selectedEvaluation} 
-                     onChange={(e) => setSelectedEvaluation(e.target.value)}
-                     className="w-full sm:w-[120px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border"
-                   >
-                     {evaluations.map(ev => (
-                       <option key={ev} value={ev}>{ev}</option>
-                     ))}
-                   </select>
-                </div>
-
-                {/* 表示件数選択機能 */}
-                <div className="w-full sm:w-auto">
-                   <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">表示件数</label>
-                   <select 
-                     value={itemsPerPage} 
-                     onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-                     className="w-full sm:w-[105px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm font-medium transition-shadow box-border"
-                   >
-                     <option value={15}>15 件</option>
-                     <option value={30}>30 件</option>
-                     <option value={100}>100 件</option>
-                   </select>
-                </div>
-                
-                <div className="w-full sm:w-auto">
-                  <button
-                    onClick={handleClearFilters}
-                    className="w-full sm:w-auto bg-white border border-gray-300 text-gray-600 hover:bg-gray-100 hover:text-gray-900 px-4 h-[34px] rounded-md text-sm font-medium transition-colors shadow-sm flex items-center justify-center box-border"
-                  >
-                    クリア
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* 独立スクロールエリア（「全 103 件中...」以下がスクロールする） */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50/50">
-              
-              {/* カウントバー */}
-              <div className="flex justify-between items-center px-1 py-2 mb-4 border-b border-gray-200 bg-white/80 backdrop-blur-sm p-3 rounded-lg shadow-sm">
-                <div className="text-sm text-gray-700 font-medium">
-                  全 <span className="text-gray-900 font-bold text-base">{processedPosts.length}</span> 件
-                  {processedPosts.length > 0 && `中 ${startIndex + 1} - ${Math.min(endIndex, processedPosts.length)}件目を表示`}
-                </div>
-                <div className="text-xs text-gray-500 font-medium bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
-                  1ページあたり {itemsPerPage} 件
-                </div>
-              </div>
-              
-              {/* 投稿リスト */}
-              {currentPosts.length > 0 ? (
-                <div className="grid gap-4 sm:gap-6">
-                  {currentPosts.map(post => (
-                    <div 
-                      key={post.id} 
-                      className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col md:flex-row gap-4 group"
-                      onClick={() => setSelectedPost(post)}
-                    >
-                      <div className="flex-shrink-0 flex md:flex-col items-center md:items-start gap-3 md:w-48">
-                         <div className="flex flex-col">
-                            {/* 日付表示：当日(赤太字) / 前日(赤字) / 前々日(赤薄字) / その他(標準) */}
-                            <div className={`text-sm flex items-center ${getDateStyle(post.date)}`}>
-                               📅 {formatDateOnly(post.date)}
-                            </div>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {post.category && (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                  {post.category}
-                                </span>
-                              )}
-                              {post.evaluation && (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                                  {post.evaluation}
-                                </span>
-                              )}
-                              {post.postType && (
-                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                                   {post.postType}
-                                 </span>
-                              )}
-                            </div>
-                         </div>
-                      </div>
-                      
-                      <div className="flex-grow flex flex-col">
-                         {post.title && (
-                           <h3 className="font-bold text-gray-900 text-lg mb-1.5 group-hover:text-blue-700 transition-colors truncate max-w-full md:max-w-xl">
-                             {post.title}
-                           </h3>
-                         )}
-                        <p className="text-gray-700 text-sm leading-relaxed line-clamp-3">
-                          {post.text}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-20 px-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">表示するデータがありません</h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    指定された条件に一致する投稿は見つかりませんでした。
-                  </p>
-                </div>
-              )}
-
-              {/* ページネーション */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-6 rounded-lg shadow-sm">
-                  <div className="flex flex-1 justify-between sm:hidden">
-                    <button
-                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      disabled={currentPage === 1}
-                      className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      前へ
-                    </button>
-                    <button
-                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage === totalPages}
-                      className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      次へ
-                    </button>
-                  </div>
-                  <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm text-gray-700">
-                        全 <span className="font-medium">{totalPages}</span> ページ中 <span className="font-medium text-blue-600">{currentPage}</span> ページ目を表示
-                      </p>
-                    </div>
-                    <div>
-                      <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                        <button
-                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                          disabled={currentPage === 1}
-                          className="relative inline-flex items-center rounded-l-md px-3 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          前へ
-                        </button>
-                        <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">
-                          {currentPage} / {totalPages}
-                        </span>
-                        <button
-                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                          disabled={currentPage === totalPages}
-                          className="relative inline-flex items-center rounded-r-md px-3 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          次へ
-                        </button>
-                      </nav>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* フッター */}
-              <footer className="mt-8 text-center text-xs text-gray-500 border-t border-gray-200 pt-6 pb-6 w-full max-w-5xl mx-auto">
-                <p className="font-bold text-gray-800 text-base md:text-lg mb-1">一般社団法人日本みらい研</p>
-                <p className="text-gray-500 text-xs">アクセス日時: {accessTime || '---'}</p>
-              </footer>
-            </div>
-          </div>
-
-          {/* 詳細モーダル */}
-          {selectedPost && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60 transition-opacity">
-              <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="p-6 overflow-y-auto flex-grow">
-                  
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {selectedPost.category && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                        {selectedPost.category}
-                      </span>
-                    )}
-                    {selectedPost.evaluation && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        {selectedPost.evaluation}
-                      </span>
-                    )}
-                    {selectedPost.postType && (
-                       <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">
-                         {selectedPost.postType}
-                       </span>
-                    )}
-                  </div>
-
-                  <div className="space-y-4">
-                    {selectedPost.title && (
-                      <div className="border-b border-gray-100 pb-3 mb-3">
-                        <h2 className="text-xl font-bold text-gray-900 leading-snug">{selectedPost.title}</h2>
-                      </div>
-                    )}
-                    
-                    <div className={`text-sm flex items-center mb-4 ${getDateStyle(selectedPost.date)}`}>
-                      📅 {formatDateOnly(selectedPost.date)}
-                    </div>
-                    
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                      <p className="text-gray-800 whitespace-pre-wrap leading-relaxed text-sm md:text-base">
-                        {selectedPost.text}
-                      </p>
-                    </div>
-                    
-                    {selectedPost.url && (
-                      <div className="mt-6 flex flex-col">
-                        {isTwitterUrl(selectedPost.url) ? (
-                           <div className="border-t border-gray-100 pt-4">
-                              <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                                𝕏 実際のポスト (URLから自動表示)
-                              </h4>
-                              <div className="flex justify-center bg-white border border-gray-200 rounded-xl p-4 min-h-[200px] overflow-hidden shadow-sm">
-                                <blockquote className="twitter-tweet" data-dnt="true" data-theme="light">
-                                  <a href={selectedPost.url.replace('x.com', 'twitter.com')}></a>
-                                </blockquote>
-                              </div>
-                           </div>
-                        ) : (
-                          <a 
-                            href={selectedPost.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="inline-flex items-center w-fit text-blue-600 hover:text-blue-800 font-medium transition-colors bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-md"
-                          >
-                            🔗 リンク先を開く
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 flex-shrink-0">
-                  <button
-                    onClick={() => setSelectedPost(null)}
-                    className="px-5 py-2 bg-blue-900 text-white rounded-md hover:bg-blue-800 font-medium transition-colors shadow-sm"
-                  >
-                    閉じる
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<PrimeMinisterXViewer />);
-  </script>
+        window.addEventListener('load', checkDashboardVisibility);
+        setInterval(checkDashboardVisibility, 500);
+    </script>
   <!-- ↓↓↓ Firebase トラッキングコード開始 ↓↓↓ -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
