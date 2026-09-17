@@ -1,5 +1,5 @@
 <!-- Chosen Palette: Slate Blue & Warm Gray -->
-<!-- Application Structure Plan: Single-page React application for Prime Minister X posts viewer. Strictly fixed header and search control panel with date range filter (start and end date), with an independent inner scrolling container starting from the post count display bar down to the list, pagination, and footer. Date format normalizer guarantees 100% accurate date filtering. Persistent items per page setting in localStorage. Dynamic date styling (Today: Red Bold, Yesterday: Red, 2 Days Ago: Light Red). Category dropdown sorted alphabetically (A-Z). Dynamic sorting options added for Category (A-Z) and Evaluation (Star count descending). -->
+<!-- Application Structure Plan: Single-page React application for Prime Minister X posts viewer. Strictly fixed header and search control panel with date range filter (start and end date), with an independent inner scrolling container starting from the post count display bar down to the list, pagination, and footer. Date format normalizer guarantees 100% accurate date filtering and dynamically derives the latest data update date from all registered posts in Firestore. Persistent items per page setting in localStorage. Dynamic date styling (Today: Red Bold, Yesterday: Red, 2 Days Ago: Light Red). Category dropdown sorted alphabetically (A-Z). Dynamic sorting options added for Category (A-Z) and Evaluation (Star count descending). -->
 <!-- Visualization & Content Choices: Dynamic card view grid, date range pickers (Start Date & End Date), pagination with selectable items per page (15/30/100, default 30), sticky search/filter panel, status badges, X tweet embed modal, access timestamps, dynamic date highlight. NO SVG graphics used. NO Mermaid JS used. -->
 <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
 <!DOCTYPE html>
@@ -70,20 +70,34 @@
     // 日時文字列から表示用日付（YYYY/MM/DD）のみを抽出するヘルパー
     const formatDateOnly = (dateStr) => {
       if (!dateStr) return '未設定';
-      const match = dateStr.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+      if (typeof dateStr === 'object' && dateStr.seconds) {
+        const d = new Date(dateStr.seconds * 1000);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}/${mm}/${dd}`;
+      }
+      const match = String(dateStr).match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
       if (match) {
         const yyyy = match[1];
         const mm = match[2].padStart(2, '0');
         const dd = match[3].padStart(2, '0');
         return `${yyyy}/${mm}/${dd}`;
       }
-      return dateStr.split(' ')[0] || dateStr;
+      return String(dateStr).split(' ')[0] || String(dateStr);
     };
 
     // 日付文字列を比較基準フォーマット（YYYY-MM-DD）に変換する関数
     const normalizeDate = (dateStr) => {
       if (!dateStr) return '';
-      const match = dateStr.match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+      if (typeof dateStr === 'object' && dateStr.seconds) {
+        const d = new Date(dateStr.seconds * 1000);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      }
+      const match = String(dateStr).match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
       if (match) {
         const yyyy = match[1];
         const mm = match[2].padStart(2, '0');
@@ -271,7 +285,7 @@
         }
       }, [selectedPost]);
 
-      // Firestore リアルタイム取得（読み込みのみ）
+      // Firestore リアルタイム取得 & データ全体の最新日を自動算出
       useEffect(() => {
         if (!db) return;
 
@@ -283,15 +297,36 @@
               fetchedPosts.push({ id: doc.id, ...doc.data() });
             });
             setPosts(fetchedPosts);
+
+            // 登録されているデータの中で最も新しい日付を取得
+            let latestDateCandidate = '';
+            fetchedPosts.forEach(post => {
+              const candidateDate = post.date || post.createdAt || post.updatedAt || '';
+              if (candidateDate) {
+                const normCandidate = normalizeDate(candidateDate);
+                const normLatest = normalizeDate(latestDateCandidate);
+                if (normCandidate > normLatest) {
+                  latestDateCandidate = candidateDate;
+                }
+              }
+            });
+
+            if (latestDateCandidate) {
+              setLastUpdatedTime(latestDateCandidate);
+            }
           }, (error) => {
             console.error("Firestore取得エラー:", error);
           });
 
-          // 最終更新日時の取得
+          // 最終更新メタ情報の取得（メタ情報がさらに新しい場合は優先比較）
           const metaRef = doc(db, 'x_posts_meta', 'info');
           const unsubscribeMeta = onSnapshot(metaRef, (docSnap) => {
             if (docSnap.exists() && docSnap.data().lastUpdated) {
-              setLastUpdatedTime(docSnap.data().lastUpdated);
+              const metaDate = docSnap.data().lastUpdated;
+              setLastUpdatedTime(prev => {
+                if (!prev) return metaDate;
+                return normalizeDate(metaDate) > normalizeDate(prev) ? metaDate : prev;
+              });
             }
           });
 
@@ -335,7 +370,7 @@
                   </p>
                 </div>
 
-                {/* 右下に下揃えで配置 */}
+                {/* 右下に下揃えで配置 - 登録データの最新日を自動反映 */}
                 <div className="flex-shrink-0 flex flex-col items-start md:items-end justify-end gap-2 text-xs md:self-end">
                   <span className="text-blue-200/90 font-medium bg-blue-800/60 px-3 py-1.5 rounded-md border border-blue-700/50">
                     データ更新日: {formatDateOnly(lastUpdatedTime)}
@@ -443,7 +478,7 @@
               </div>
             </div>
 
-            {/* 独立スクロールエリア（「全 103 件中...」以下がスクロールする） */}
+            {/* 独立スクロールエリア */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50/50">
               
               {/* カウントバー */}
