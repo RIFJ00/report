@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NotebookLM & 画像生成AI プロンプト管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #1d4ed8; font-weight: 600; }
+        .tab-inactive { color: #6b7280; }
+        .tab-inactive:hover { color: #374151; }
+        /* スクロールバーのスタイル調整 */
+        pre::-webkit-scrollbar { height: 8px; width: 8px; }
+        pre::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        pre::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        pre::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">プロンプト一括管理ツール</h1>
+            <p class="text-slate-600 text-sm">NotebookLM用の音声概要プロンプトと、画像生成AI用のスタイルプロンプトをカテゴリ別に管理・コピーできます。</p>
+            
+            <div class="mt-4 bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg text-sm shadow-sm">
+                <strong class="font-bold">💡 ワンポイントアドバイス:</strong><br>
+                実写風（Photorealistic）を指定する場合、AIは時折「文字（ロゴ）」を描写する際に綴りを間違える（いわゆる文字化け）ことがあります。もし「一般社団法人日本みらい研」の文字が崩れて出力された場合は、何度か生成をやり直していただくか、ロゴの文字崩れが少ない画像を採用してください。
+            </div>
+
+            <div class="mt-6 flex flex-col md:flex-row md:items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <label for="char-profile" class="text-sm font-bold text-slate-800 mb-2 md:mb-0 md:mr-4 whitespace-nowrap flex items-center">
+                    <svg class="w-5 h-5 mr-1.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    人物設定（画像・音声プロンプト共通）:
+                </label>
+                <select id="char-profile" onchange="changeCharacterProfile(this.value)" class="flex-grow text-sm border-slate-300 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 p-2 bg-slate-50 border outline-none cursor-pointer">
+                    <option value="default">指定なし（デフォルト：表情と配置のみ）</option>
+                    <option value="patternA">パターンA：王道ビジネス（30代男性進行役 × 50代ベテラン男性専門家）</option>
+                    <option value="patternB">パターンB：親しみやすさ重視（30代女性進行役 × 40代男性専門家）</option>
+                    <option value="patternC">パターンC：先進的・テック系（40代男性進行役 × 40代女性専門家）</option>
+                    <option value="patternD">パターンD：王道・清楚系（20代女性NHKアナ風 × 40代男性学者風）</option>
+                    <option value="patternE">パターンE：報道特番・深掘り系（30代女性キャスター × 50代白髪の男性評論家）</option>
+                    <option value="patternF">パターンF：モダン・専門的（40代安定感ある男性キャスター × 30代女性アナリスト）</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- お気に入りセット機能 -->
+        <div class="mb-8 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="font-bold text-sm text-slate-800 flex items-center">
+                    <svg class="w-4 h-4 mr-1 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                    お気に入りセット（最大3つ）
+                </h3>
+                <button onclick="openSaveSetModal()" id="btn-save-set" class="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors focus:outline-none">
+                    + 現在の選択を保存
+                </button>
+            </div>
+            <div id="custom-sets-container" class="flex flex-wrap gap-2 min-h-[32px]">
+                <!-- JSで動的に生成 -->
+            </div>
+        </div>
+
+        <div class="mb-8">
+            <div class="flex justify-between items-end mb-4">
+                <h2 class="text-lg font-bold text-slate-800 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
+                    クイックアクセス（選択中のデフォルト設定）
+                </h2>
+                <button onclick="resetDefaults()" class="text-xs text-slate-500 hover:text-red-500 flex items-center transition-colors pb-1 focus:outline-none">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    設定をリセット
+                </button>
+            </div>
+            <div id="default-prompts" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- JSで動的に生成 -->
+            </div>
+        </div>
+
+        <!-- タブナビゲーション -->
+        <div class="border-b border-slate-200 mb-6 flex overflow-x-auto" id="tabs">
+            <!-- JSで動的に生成 -->
+        </div>
+
+        <!-- コンテンツエリア -->
+        <div id="content" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- JSで動的に生成 -->
+        </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div id="toast" class="fixed bottom-5 right-5 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-800 text-white px-6 py-3 rounded-lg shadow-lg flex items-center z-50 pointer-events-none">
+        <svg class="w-5 h-5 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        <span id="toast-msg">コピーしました！</span>
+    </div>
+
+    <!-- カスタム確認モーダル -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-300" id="confirm-modal-content">
+            <h3 class="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                設定のリセット
+            </h3>
+            <p class="text-sm text-slate-600 mb-6 mt-2">デフォルト選択状況、人物設定、および保存した「お気に入りセット」をすべて初期状態に戻しますか？</p>
+            <div class="flex justify-end space-x-3">
+                <button id="confirm-cancel" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors focus:outline-none">キャンセル</button>
+                <button id="confirm-ok" class="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors focus:outline-none">リセットする</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- セット保存モーダル -->
+    <div id="save-set-modal" class="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4 transform scale-95 transition-transform duration-300" id="save-set-modal-content">
+            <h3 class="text-lg font-bold text-slate-800 mb-2">お気に入りセットを保存</h3>
+            <p class="text-sm text-slate-600 mb-4">現在の「人物」「音声」「画像」「台本」の選択を保存します。</p>
+            <input type="text" id="set-name-input" placeholder="タイトル（例：シリアス向け設定）" class="w-full border border-slate-300 rounded-lg p-2 text-sm mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeSaveSetModal()" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors focus:outline-none">キャンセル</button>
+                <button onclick="executeSaveSet()" class="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors focus:outline-none">保存する</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // カテゴリの定義 (音声 -> 画像 -> 台本の順に変更)
+        const categories = [
+            { id: "all", title: "🌐 すべて表示" },
+            { id: "cat-audio", title: "🎙️ 音声概要" },
+            { id: "cat-img-basic", title: "🎨 動画 画像(ベーシック)" },
+            { id: "cat-img-dx", title: "🖥 動画 画像(DX・アニメ)" },
+            { id: "cat-img-report", title: "📊 動画 画像(レポート・実写)" },
+            { id: "cat-script", title: "📝 動画 台本生成" }
+        ];
+
+        // プロンプトデータの定義（並び順を 音声 -> 画像 -> 台本 に整理）
+        const promptData = [
+            // ==========================================
+            // --- 音声概要（NotebookLM向け） (4個) ---
+            // ==========================================
+            {
+                title: "基本（フォーマル・ビジネス）",
+                desc: "ビジネスパーソン向けに、客観的な事実に基づき論理的にまとめるスタイル",
+                categoryIds: ["cat-audio"],
+                content: `提供された資料を基に、進行役と専門家による2人の対話形式で音声概要を作成すること。
+【以下のルールを守ること】
+1. ターゲット: 忙しいビジネスパーソン。
+2. トーン＆マナー: 知的で落ち着いた、フォーマルなトーン。
+3. 長さの目安: 全体の長さが約5分程度に収まるように要約すること。
+4. 構成: 結論ファーストで、資料内の重要なデータや事実を論理的に解説すること。推測や外部知識は交えず、資料の内容にのみ基づくこと。`
+            },
+            {
+                title: "入門・教育用（親しみやすさ重視）",
+                desc: "一般層や初学者向けに、専門用語を避けて優しく解説するスタイル",
+                categoryIds: ["cat-audio"],
+                content: `提供された資料を基に、進行役と専門家による2人の対話形式で音声概要を作成すること。
+【以下のルールを守ること】
+1. ターゲット: テーマについて専門知識を持たない一般のリスナー。
+2. トーン＆マナー: 温かく、親しみやすい「特別講義」のような優しい雰囲気。
+3. 長さの目安: 全体の長さが約5分程度に収まるように要約すること。
+4. 構成: 専門用語は極力噛み砕き、具体例を交えながら視聴者に寄り添って解説すること。`
+            },
+            {
+                title: "深掘り・ディスカッション風（探求的）",
+                desc: "特定のテーマについて背景や論点を深く掘り下げるスタイル",
+                categoryIds: ["cat-audio"],
+                content: `提供された資料を基に、進行役と専門家による2人の対話形式で音声概要を作成すること。
+【以下のルールを守ること】
+1. ターゲット: テーマの背景や深い文脈に関心があるリスナー。
+2. トーン＆マナー: シリアスで探求的な、ドキュメンタリー番組のような雰囲気。
+3. 長さの目安: 全体の長さが約5分程度に収まるように要約すること。
+4. 構成: 表面的な情報だけでなく、資料が示唆する課題や重要な論点にフォーカスし、2人が少し熱を帯びて議論を深めていくような構成にすること。`
+            },
+            {
+                title: "ニュースハイライト風（簡潔・スピーディー）",
+                desc: "要点だけをテンポ良く伝えるニュース番組風のスタイル",
+                categoryIds: ["cat-audio"],
+                content: `提供された資料を基に、2人のキャスターによる対話形式で音声概要を作成すること。
+【以下のルールを守ること】
+1. ターゲット: 時間がなく、要点だけを素早く掴みたいリスナー。
+2. トーン＆マナー: テンポが良く、少しテンションが高めのニュース番組風。
+3. 長さの目安: 全体の長さが約5分程度に収まるように要約すること。
+4. 構成: 最も重要なハイライト事項を絞り込み、スピーディーかつ簡潔に一気に解説すること。`
+            },
+
+            // ==========================================
+            // --- 動画 画像用プロンプト (33個) ---
+            // ==========================================
+            {
+                title: "基本（劇画調優しめ）",
+                desc: "元のプロンプトの良さをそのまま活かした形です。",
+                categoryIds: ["cat-img-basic"],
+                content: `An illustration in dramatic "Gekiga" (realistic manga) style of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background features structured policy charts, data visualizations, and digital monitor screens in a modern news broadcast studio set. The overall color scheme and tone are automatically adjusted to match the seriousness of the uploaded topics. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "1. クリーンなコーポレートベクター",
+                desc: "王道のビジネススタイル。情報の整理・シンプルさ重視のDX解説にも最適。",
+                categoryIds: ["cat-img-basic", "cat-img-dx"],
+                content: `A clean corporate flat vector illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background features simple, modern data visualizations and policy charts. Dark navy and light blue color scheme. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "2. フォトリアルなニューススタジオ",
+                desc: "報道番組スタイル。国内政治などのレポート動画でも使いやすい。",
+                categoryIds: ["cat-img-basic", "cat-img-report"],
+                content: `A photorealistic broadcast news studio render of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background is a high-tech modern news set with glowing digital screens displaying economic charts. Cinematic lighting, hyper-realistic. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "3. アイソメトリック3D",
+                desc: "俯瞰的な図解スタイル。システム構造の解説(DX)にも向いています。",
+                categoryIds: ["cat-img-basic", "cat-img-dx"],
+                content: `An isometric 3D illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background is a miniature, three-dimensional diagram of an economic system with rising arrows and networks. Clean, brightly lit, tech-oriented 3D design. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "4. ミニマルラインアート",
+                desc: "余白を活かしたスタイル",
+                categoryIds: ["cat-img-basic"],
+                content: `A minimalist line art illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background is mostly clean white space with elegant, simple continuous line drawings of data graphs and a single pop of bright accent color. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "5. ブループリント・設計図風",
+                desc: "構造改革やシステム構築など、DX・インフラ向けの視覚表現。",
+                categoryIds: ["cat-img-basic", "cat-img-dx"],
+                content: `A technical blueprint style illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background is a classic cyan blueprint paper with intricate white technical drawings, schematics, and economic structures. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "高級ビジネス誌の実写風",
+                desc: "ハイエンド・コーポレート。官公庁の動向や政策の全体像を語る際、最も信頼感を与えます。",
+                categoryIds: ["cat-img-basic", "cat-img-report"],
+                content: `A high-end corporate photorealistic image of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background is a bright, modern glass-walled executive office with subtle economic charts on a smartboard. Depth of field, 8k resolution. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "シネマティック・ドキュメンタリー風",
+                desc: "実写・深みのある対話。マクロ経済の深層を掘り下げるような重みのあるテーマに最適。",
+                categoryIds: ["cat-img-basic", "cat-img-report"],
+                content: `A cinematic documentary style photograph of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background is a dimly lit, sophisticated policy think-tank library with glowing data screens. Dramatic but soft lighting, photorealistic. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "温かみのある水彩・エディトリアル風",
+                desc: "人間中心・社会保障向け。福祉、教育など人々の暮らしに直結する内容向け。",
+                categoryIds: ["cat-img-basic"],
+                content: `A soft editorial watercolor illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background features gentle washes of color and subtle, stylized policy charts. Warm, inviting, and human-centric. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "モダン3Dアニメーション風",
+                desc: "親しみやすい最先端。最新の取り組み(DXなど)を分かりやすく噛み砕いて伝えるのに向いています。",
+                categoryIds: ["cat-img-basic", "cat-img-dx"],
+                content: `A high-quality modern 3D animation style illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background is a stylized, bright policy center with soft glowing graphs. Friendly, clean, and highly detailed. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "現代のハイクオリティ・アニメ風",
+                desc: "日本の視聴者に最も親しみやすい。官公庁のPR動画などで主流のスタイル。",
+                categoryIds: ["cat-img-dx"],
+                content: `A high-quality modern Japanese anime style illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background is a stylized, bright policy center with soft glowing graphs. Friendly, clean, and highly detailed. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "モダンSaaS・フラットベクター風",
+                desc: "情報の整理・シンプルさ重視。「複雑なデジタル技術を、シンプルに伝える」DX文脈にマッチ。",
+                categoryIds: ["cat-img-dx", "cat-img-basic"],
+                content: `A modern, clean corporate flat vector illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background is a stylized, bright policy center with simple, soft glowing graphs. Friendly, minimalistic, and highly legible. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "クリーン・近未来風（ソーラーパンク）",
+                desc: "希望のあるデジタル社会。自然光や植物がデジタル技術と調和したスタイル。",
+                categoryIds: ["cat-img-dx"],
+                content: `A bright, optimistic near-future solarpunk style illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background is a stylized, bright policy center with soft glowing holographic graphs and natural light. Friendly, clean, and highly detailed. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "クレイアニメ・ミニチュア風",
+                desc: "極めてアナログで温かい表現。無機質なデジタルテーマに優しさと安心感を与えます。",
+                categoryIds: ["cat-img-dx"],
+                content: `A high-quality, cute claymation miniature style illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal discussion. The background is a stylized, bright policy center made of clay with soft glowing graphs. Friendly, tactile, and highly detailed. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "アイソメトリック・インフォグラフィック風",
+                desc: "システムや繋がりを俯瞰して見せる。DXやシステムの解説に最適。",
+                categoryIds: ["cat-img-dx", "cat-img-basic"],
+                content: `A clean isometric infographic style illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background is a miniature, 3D interconnected digital city and policy center with soft glowing graphs and data nodes. Friendly, highly structured, and clean. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "セルルック3DCG風",
+                desc: "日本アニメと3Dの融合。デジタル政策を現代的かつポップに伝えます。",
+                categoryIds: ["cat-img-dx"],
+                content: `A high-quality cel-shaded 3D anime style illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background is a stylized, bright policy center with soft glowing graphs, blending 2D animation aesthetics with clean 3D depth. Friendly, modern, and highly detailed. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "高品質なペーパークラフト風",
+                desc: "デジタルの冷たさを中和する。アナログで温かみのある手法で心理的ハードルを下げます。",
+                categoryIds: ["cat-img-dx"],
+                content: `A high-quality 3D papercraft style illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background is a stylized, bright policy center made of beautifully layered cut-out paper with soft glowing elements and distinct soft shadows. Friendly, tactile, and educational. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "クリーンな水彩画・エディトリアル風（人間中心）",
+                desc: "「システム」ではなく「人々の暮らしがどう良くなるか」を強調したい場合に。",
+                categoryIds: ["cat-img-dx", "cat-img-basic"],
+                content: `A soft, clean editorial watercolor style illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background is a bright policy center with gentle washes of color and subtle, soft glowing digital graphs. Warm, inviting, and human-centric. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "マクロ経済・金融政策（ハイエンド・ビジネス）",
+                desc: "経済成長、税制などデータと論理性を強調したいテーマに最適。",
+                categoryIds: ["cat-img-report"],
+                content: `A high-end corporate photorealistic render of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background features a sophisticated glass-walled executive boardroom overlooking a modern metropolis, with glowing holographic economic charts and GDP data visualizations. Sharp focus, professional broadcast lighting. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "社会保障・少子化・医療（シネマティック）",
+                desc: "「人々の暮らし」に直結するテーマに最適。温かみと誠実さを与えます。",
+                categoryIds: ["cat-img-report"],
+                content: `A warm, cinematic documentary style photograph of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background features an elegant, softly lit think-tank library with warm wood tones and subtle demographic charts on a smartboard. Soft natural sunlight, inviting and reassuring atmosphere. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "外交・安全保障・国家戦略（公式ブリーフィング）",
+                desc: "スケールの大きな重厚なテーマ向け。",
+                categoryIds: ["cat-img-report"],
+                content: `A cinematic photorealistic image of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background features an official government briefing room with subtle global maps, geopolitical data screens, and structured paneling. Dramatic but balanced studio lighting, serious and authoritative yet approachable tone. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "行政DX・次世代エネルギー・AI（モダン・ラボ）",
+                desc: "デジタル施策や未来志向のテーマに最適。DXカテゴリとしても有用。",
+                categoryIds: ["cat-img-report", "cat-img-dx"],
+                content: `A bright, modern photorealistic image of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background is a state-of-the-art policy research center featuring glowing translucent screens displaying digital network nodes and green energy statistics. Clean, bright, near-future tech aesthetic. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "政治問題・国内政治",
+                desc: "世論調査・選挙・議会動向などの解説に。",
+                categoryIds: ["cat-img-report"],
+                content: `A photorealistic broadcast render of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background features a sophisticated political analysis studio with glowing digital screens displaying public opinion polling data, parliamentary debate analytics, and election simulation maps. Cinematic, authoritative yet accessible lighting. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "海外の話題・国際情勢",
+                desc: "グローバルな視点を持ったシンクタンクとしての説得力を高めます。",
+                categoryIds: ["cat-img-report"],
+                content: `A cinematic photorealistic image of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background is a high-end international newsroom featuring large translucent screens with global geopolitical maps, international trade route graphics, and interconnected global data nodes. Sophisticated, global, and intellectual atmosphere. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "レポートや報告書の分析",
+                desc: "文書解析やテキストマイニングを連想させる知的なアーカイブ室の空間。",
+                categoryIds: ["cat-img-report"],
+                content: `A high-end cinematic documentary photograph of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background is a modern, elegantly lit research archive room with floating holographic projections of government committee documents, official whitepapers, and text-mined data visualizations. Calm, analytical, and highly intellectual ambiance. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "ホワイトボード・手書き解説風（教育・解説の王道）",
+                desc: "複雑な制度を、先生が黒板で図解してくれるような分かりやすさで伝えるスタイル。",
+                categoryIds: ["cat-img-basic", "cat-img-report"],
+                content: `A clean whiteboard animation style illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background is a large white board filled with hand-drawn, colorful marker illustrations of policy flowcharts, social systems, and data arrows. Highly educational, friendly, and simple. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "和モダン・グラフィック風（地方創生・農業・インバウンド向け）",
+                desc: "日本の地域社会、伝統産業、観光政策などを扱う場合に最適。",
+                categoryIds: ["cat-img-report"],
+                content: `A modern Japanese "Wa-Modern" graphic illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background features stylized Japanese motifs blended with economic charts, such as subtle gold leaf textures, traditional patterns, and a silhouette of a Japanese cityscape. Elegant, cultural, and professional. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "ティルトシフト・ミニチュア写真風（都市計画・インフラ向け）",
+                desc: "実写でありながら、風景がおもちゃのジオラマのように見える特殊な撮影技法（ティルトシフト）を再現。",
+                categoryIds: ["cat-img-report", "cat-img-dx"],
+                content: `A tilt-shift miniature diorama photograph of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background is a highly detailed, realistic miniature model of a bustling city, public infrastructure, and tiny data charts integrated into the landscape. Bright, soft natural lighting, engaging and tactile. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "ニュースペーパー・コラージュ風（メディア分析・歴史的経緯）",
+                desc: "過去からの政策の変遷や歴史的経緯の整理など、ジャーナリスティックな視点を強調。",
+                categoryIds: ["cat-img-report"],
+                content: `A sophisticated editorial collage style illustration of a host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background features beautifully overlapping layers of newspaper articles, official policy documents, and large bold typography highlighting key data points. Intellectual, journalistic, and stylish. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "ホワイトボード・手書き解説風（実写アレンジ）",
+                desc: "教育・解説の王道。実写の人物 ＋ ホワイトボード背景",
+                categoryIds: ["cat-img-report", "cat-img-basic"],
+                content: `A cinematic, photorealistic photograph of a live-action host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The background is a large physical white board filled with hand-drawn, colorful marker illustrations of policy flowcharts, social systems, and data arrows. Highly educational, friendly, and simple studio lighting. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "和モダン・グラフィック風（実写アレンジ）",
+                desc: "地方創生・農業・インバウンド向け。実写の人物 ＋ 和モダンなスタジオ空間",
+                categoryIds: ["cat-img-report"],
+                content: `A cinematic, photorealistic photograph of a live-action host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. The setting is a sophisticated modern Japanese "Wa-Modern" studio space. The background features stylized Japanese motifs blended with economic charts, such as subtle gold leaf textures, traditional wood patterns, and a sleek silhouette of a Japanese cityscape. Elegant, cultural, and professional lighting. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "ティルトシフト・ミニチュア写真風（実写アレンジ）",
+                desc: "都市計画・インフラ向け。実写の人物 ＋ 巨大なジオラマ模型",
+                categoryIds: ["cat-img-report", "cat-img-dx"],
+                content: `A cinematic, photorealistic photograph of a live-action host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. They are standing behind a highly detailed, realistic tilt-shift miniature diorama table model of a bustling city, public infrastructure, and tiny data charts integrated into the landscape. Bright, soft natural studio lighting with a shallow depth of field. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+            {
+                title: "ニュースペーパー・コラージュ風（実写アレンジ）",
+                desc: "メディア分析・歴史的経緯の解説。実写の人物 ＋ コラージュの背景セット",
+                categoryIds: ["cat-img-report"],
+                content: `A cinematic, photorealistic photograph of a live-action host and an expert with gentle, warm, and approachable facial expressions, standing on the left and right respectively, engaging in a formal policy discussion. They are set against a sophisticated, physical editorial collage backdrop featuring beautifully overlapping layers of real newspaper articles, official policy documents, and large bold typography highlighting key data points. Intellectual, journalistic, and stylish studio lighting. Include a text logo "一般社団法人日本みらい研" cleanly in the top right corner of the screen. Keep the bottom area of the image clean and unobtrusive.`
+            },
+
+            // ==========================================
+            // --- 動画 台本生成 (5個) ---
+            // ==========================================
+            {
+                title: "基本用",
+                desc: "基本となる対話形式の台本生成プロンプト",
+                categoryIds: ["cat-script"],
+                content: `②「この動画で重視するポイントは何ですか？」の部分（基本用）
+資料を活用し、進行役が視聴者目線で質問し、解説者が論理的に回答する2人の対話形式で構成すること。全体の長さは約5分以内に収まるように要約すること。
+【以下のルールを厳密に守って台本を作成すること】
+1. 事実の厳守: 推測や外部知識は一切交えず、必ずアップロードしたソース資料内のデータと事実のみを引用して解説を行なうこと。
+2. クレジットの音声案内: 読み込んだ資料の中に、1つでも「一般社団法人日本みらい研」のロゴや名称が含まれる資料があった場合は、会話の冒頭と結びの音声の中で必ず「なお、本解説は一般社団法人日本みらい研の分析に基づいている」という旨を言及すること。（※画面への文字表示の指示は行わないこと）
+3. 自然な呼称の徹底: 進行役から解説者へ呼びかける際、「専門家さん」という不自然な呼称は絶対に使用せず、テーマに合わせて自然な日本人名（例：三田さん、など）を適宜割り当てて呼ぶこと。また、登場人物が自分のことを「進行役である」「解説者である」と名乗ることも禁止する。実際の報道番組や公式な解説動画のように、直接本題に入る自然かつフォーマルな対話フローにすること。`
+            },
+            {
+                title: "パターン1：公式ブリーフィング・実写・劇画風",
+                desc: "王道でフォーマルな解説を行う場合",
+                categoryIds: ["cat-script"],
+                content: `資料を活用し、国の会議内容や最新の政策動向をビジネスパーソン向けに分かりやすく解説する、2人の対話形式（キャスターと政策アナリストを想定）で構成すること。全体のトーンは、政府の公式発表やシンクタンクのブリーフィングのような、知的で落ち着いた重厚な雰囲気にすること。全体の長さは約5分以内に収まるように要約すること。
+【以下のルールを厳密に守って台本を作成すること】
+1. 事実の厳守: 推測や外部知識は一切交えず、必ずアップロードしたソース資料内のデータと事実のみを引用して解説を行なうこと。
+2. クレジットの音声案内: 読み込んだ資料の中に、1つでも「一般社団法人日本みらい研」のロゴや名称が含まれる資料があった場合は、会話の冒頭と結びの音声の中で必ず「なお、本解説は一般社団法人日本みらい研の分析に基づいている」という旨を言及すること。（※画面への文字表示の指示は行わないこと）
+3. 自然な呼称の徹底: 進行役から解説者へ呼びかける際、「専門家さん」という不自然な呼称は絶対に使用せず、テーマに合わせて自然な日本人名（例：三田さん、など）を適宜割り当てて呼ぶこと。また、登場人物が自分のことを「進行役である」「解説者である」と名乗ることも禁止する。実際の報道番組や公式な解説動画のように、直接本題に入る自然かつフォーマルな対話フローにすること。`
+            },
+            {
+                title: "パターン2：ホワイトボード・水彩画・ミニチュア風",
+                desc: "視聴者に寄り添って優しく噛み砕いて伝えたい場合",
+                categoryIds: ["cat-script"],
+                content: `資料を活用し、国の会議内容や最新の政策動向を一般視聴者向けに優しく解説する、2人の対話形式（進行役と専門家を想定）で構成すること。全体のトーンは、専門用語を極力噛み砕き、視聴者に寄り添うような「温かみのある分かりやすい特別講義」のような雰囲気にすること。全体の長さは約5分以内に収まるように要約すること。
+【以下のルールを厳密に守って台本を作成すること】
+1. 事実の厳守: 推測や外部知識は一切交えず、必ずアップロードしたソース資料内のデータと事実のみを引用して解説を行なうこと。
+2. クレジットの音声案内: 読み込んだ資料の中に、1つでも「一般社団法人日本みらい研」のロゴや名称が含まれる資料があった場合は、会話の冒頭と結びの音声の中で必ず「なお、本解説は一般社団法人日本みらい研の分析に基づいている」という旨を言及すること。（※画面への文字表示の指示は行わないこと）
+3. 自然な呼称の徹底: 進行役から解説者へ呼びかける際、「専門家さん」という不自然な呼称は絶対に使用せず、テーマに合わせて自然な日本人名（例：三田さん、など）を適宜割り当てて呼ぶこと。また、登場人物が自分のことを「進行役である」「解説者である」と名乗ることも禁止する。実際の報道番組や公式な解説動画のように、直接本題に入る自然かつフォーマルな対話フローにすること。`
+            },
+            {
+                title: "パターン3：モダン3D・グラスモーフィズム・青写真",
+                desc: "未来志向でワクワク感を持って伝える場合",
+                categoryIds: ["cat-script"],
+                content: `資料を活用し、国の会議内容や最新のテクノロジー政策をビジネスパーソン向けに論理的に解説する、2人の対話形式（キャスターと政策アナリストを想定）で構成すること。全体のトーンは、未来志向で前向きな空気を持ち、新しい社会の仕組みを洗練された言葉で伝える「先進的なテック系ニュース番組」のような雰囲気にすること。全体の長さは約5分以内に収まるように要約すること。
+【以下のルールを厳密に守って台本を作成すること】
+1. 事実の厳守: 推測や外部知識は一切交えず、必ずアップロードしたソース資料内のデータと事実のみを引用して解説を行なうこと。
+2. クレジットの音声案内: 読み込んだ資料の中に、1つでも「一般社団法人日本みらい研」のロゴや名称が含まれる資料があった場合は、会話の冒頭と結びの音声の中で必ず「なお、本解説は一般社団法人日本みらい研の分析に基づいている」という旨を言及すること。（※画面への文字表示の指示は行わないこと）
+3. 自然な呼称の徹底: 進行役から解説者へ呼びかける際、「専門家さん」という不自然な呼称は絶対に使用せず、テーマに合わせて自然な日本人名（例：三田さん、など）を適宜割り当てて呼ぶこと。また、登場人物が自分のことを「進行役である」「解説者である」と名乗ることも禁止する。実際の報道番組や公式な解説動画のように、直接本題に入る自然かつフォーマルな対話フローにすること。`
+            },
+            {
+                title: "パターン4：シネマティックドキュメンタリー・新聞コラージュ",
+                desc: "ジャーナリスティックな視点で深掘りしたい場合",
+                categoryIds: ["cat-script"],
+                content: `資料を活用し、国の会議内容や複雑な政策レポートの深層を読み解く、2人の対話形式（キャスターと政策アナリストを想定）で構成すること。全体のトーンは、表面的なニュースにとどまらず、データや歴史的背景を鋭く分析する「シリアスで重みのあるドキュメンタリー番組」のような知的で探求的な雰囲気にすること。全体の長さは約5分以内に収まるように要約すること。
+【以下のルールを厳密に守って台本を作成すること】
+1. 事実の厳守: 推測や外部知識は一切交えず、必ずアップロードしたソース資料内のデータと事実のみを引用して解説を行なうこと。
+2. クレジットの音声案内: 読み込んだ資料の中に、1つでも「一般社団法人日本みらい研」のロゴや名称が含まれる資料があった場合は、会話の冒頭と結びの音声の中で必ず「なお、本解説は一般社団法人日本みらい研の分析に基づいている」という旨を言及すること。（※画面への文字表示の指示は行わないこと）
+3. 自然な呼称の徹底: 進行役から解説者へ呼びかける際、「専門家さん」という不自然な呼称は絶対に使用せず、テーマに合わせて自然な日本人名（例：三田さん、など）を適宜割り当てて呼ぶこと。また、登場人物が自分のことを「進行役である」「解説者である」と名乗ることも禁止する。実際の報道番組や公式な解説動画のように、直接本題に入る自然かつフォーマルな対話フローにすること。`
+            }
+        ];
+
+        let currentCategoryId = categories[0].id; // "all" をデフォルトに
+        let defaultSelected = { audio: null, image: null, script: null };
+        let currentCharProfile = 'default'; 
+        const STORAGE_KEY = 'promptManagerDefaultsV2';
+        const PROFILE_STORAGE_KEY = 'promptManagerProfileV2';
+        const CUSTOM_SETS_STORAGE_KEY = 'promptManagerCustomSetsV1';
+        let customSets = [];
+
+        function init() {
+            // データにIDとタイプ（音声/画像/台本）を付与
+            promptData.forEach((item, index) => {
+                item.id = 'prompt-' + index;
+                if (item.categoryIds.includes('cat-audio')) item.type = 'audio';
+                else if (item.categoryIds.includes('cat-script')) item.type = 'script';
+                else item.type = 'image';
+            });
+
+            // LocalStorageから設定を読み込み
+            const storedDefaults = localStorage.getItem(STORAGE_KEY);
+            if (storedDefaults) {
+                try {
+                    defaultSelected = JSON.parse(storedDefaults);
+                    validateDefaults(); // IDが存在・タイプが一致するかチェック
+                } catch(e) {
+                    setInitialDefaults();
+                }
+            } else {
+                setInitialDefaults();
+            }
+
+            // LocalStorageから人物設定を読み込み
+            const storedProfile = localStorage.getItem(PROFILE_STORAGE_KEY);
+            if (storedProfile) {
+                currentCharProfile = storedProfile;
+                const profileSelect = document.getElementById('char-profile');
+                if (profileSelect) profileSelect.value = currentCharProfile;
+            }
+
+            // LocalStorageからお気に入りセットを読み込み
+            const storedSets = localStorage.getItem(CUSTOM_SETS_STORAGE_KEY);
+            if (storedSets) {
+                try {
+                    customSets = JSON.parse(storedSets);
+                } catch(e) {
+                    customSets = [];
+                }
+            }
+
+            renderCustomSets();
+            renderDefaultPrompts();
+            renderTabs();
+            renderContent();
+        }
+
+        function setInitialDefaults() {
+            // 音声 -> 画像 -> 台本の順に初期セット
+            defaultSelected.audio = promptData.find(p => p.type === 'audio')?.id;
+            defaultSelected.image = promptData.find(p => p.type === 'image')?.id;
+            defaultSelected.script = promptData.find(p => p.type === 'script')?.id;
+            saveDefaults();
+        }
+
+        function validateDefaults() {
+            let changed = false;
+            // 指定されたIDが存在しない、またはタイプ（音声/画像/台本）がズレている場合は強制修正
+            ['audio', 'image', 'script'].forEach(type => {
+                const item = promptData.find(p => p.id === defaultSelected[type]);
+                if (!item || item.type !== type) {
+                    defaultSelected[type] = promptData.find(p => p.type === type)?.id;
+                    changed = true;
+                }
+            });
+            if (changed) saveDefaults();
+        }
+
+        function saveDefaults() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultSelected));
+        }
+
+        function changeCharacterProfile(value) {
+            currentCharProfile = value;
+            localStorage.setItem(PROFILE_STORAGE_KEY, value);
+            // 人物設定が変わったので、クイックアクセスとコンテンツを再描画
+            renderDefaultPrompts();
+            renderContent();
+            showToast("人物設定を変更しました");
+        }
+
+        function applyCharacterProfile(content, type) {
+            if (currentCharProfile === 'default') {
+                return content; // デフォルトの場合はそのまま返す
+            }
+
+            // 音声概要と動画台本生成の両方に声・キャラクターのイメージを適用
+            if (type === 'audio' || type === 'script') {
+                const audioProfiles = {
+                    patternA: "30代男性の進行役と、50代のベテラン男性専門家による対話を想定した、王道で落ち着いたビジネススタイルのトーン・話し方にすること。",
+                    patternB: "30代女性の進行役と、40代男性の専門家による対話を想定した、親しみやすく温かいトーン・話し方にすること。",
+                    patternC: "40代男性の進行役と、40代女性の専門家による対話を想定した、知的で先進的なトーン・話し方にすること。",
+                    patternD: "20代の落ち着いた女性アナウンサー風の進行役と、40代の男性学者風の専門家による対話を想定した、上品で聞き取りやすいトーン・話し方にすること。",
+                    patternE: "30代の女性キャスターと、50代のベテラン男性評論家による対話を想定した、シリアスで深掘りする報道特番スタイルのトーン・話し方にすること。",
+                    patternF: "40代の安定感のある男性キャスターと、30代の女性アナリストによる対話を想定した、モダンで専門的なトーン・話し方にすること。"
+                };
+                if (audioProfiles[currentCharProfile]) {
+                    // 音声概要（ルール4まで）と台本（ルール3まで）で箇条書きの番号を合わせる
+                    const ruleNumber = type === 'audio' ? '5' : '4';
+                    return content + `\n${ruleNumber}. キャスティング（声・台本のイメージ）: ${audioProfiles[currentCharProfile]}`;
+                }
+                return content;
+            }
+
+            if (type === 'image') {
+                // パターンA〜Fの純粋な人物描写＋カメラ指定
+                const profiles = {
+                    patternA: "30-year-old Japanese male host with short neatly parted black hair, wearing a navy blue suit and a light blue tie on the left, and a 50-year-old Japanese male expert with salt-and-pepper hair and silver-rimmed glasses, wearing a charcoal grey suit and a white shirt on the right. Both have gentle, warm, and approachable facial expressions, engaging in a formal policy discussion. Static camera, medium shot, consistent character appearance.",
+                    patternB: "30-year-old Japanese female host with shoulder-length brown bob hair, wearing a beige blazer and a white blouse on the left, and a 40-year-old Japanese male expert with short black hair and round glasses, wearing a dark blue suit and a maroon tie on the right. Both have gentle, warm, and approachable facial expressions, engaging in a formal policy discussion. Static camera, medium shot, consistent character appearance.",
+                    patternC: "40-year-old Japanese male host with short black hair, wearing a light grey suit and an open-collar white shirt (no tie) on the left, and a 40-year-old Japanese female expert with her black hair tied back in a neat ponytail, wearing a dark navy blazer and a light blue blouse on the right. Both have gentle, warm, and approachable facial expressions, engaging in a formal policy discussion. Static camera, medium shot, consistent character appearance.",
+                    patternD: "25-year-old Japanese female host with neat medium-length dark brown hair, wearing a pastel pink blazer over a white blouse on the left, and a 45-year-old Japanese male expert with slightly wavy neatly styled black hair, wearing a brown tweed jacket and a dark knit tie on the right. Both have gentle, warm, and approachable facial expressions, engaging in a formal policy discussion. Static camera, medium shot, consistent character appearance.",
+                    patternE: "35-year-old Japanese female host with a sleek black bob haircut, wearing a sharp navy blue blazer and a crisp white shirt on the left, and a 55-year-old Japanese male expert with full white hair and round tortoiseshell glasses, wearing a dark charcoal suit and a burgundy tie on the right. Both have gentle, warm, and approachable facial expressions, engaging in a formal policy discussion. Static camera, medium shot, consistent character appearance.",
+                    patternF: "45-year-old Japanese male host with classic short black hair, wearing a dark navy suit and a striped blue tie on the left, and a 35-year-old Japanese female expert with her hair tied in a sleek low bun, wearing a stylish beige blazer and a silk blouse on the right. Both have gentle, warm, and approachable facial expressions, engaging in a formal policy discussion. Static camera, medium shot, consistent character appearance."
+                };
+
+                // 実写アレンジ用プロンプトにある「live-action」を保護しつつ人物設定を置換する正規表現
+                const defaultCharRegex = /a (live-action )?host and an expert with gentle, warm, and approachable facial expressions, (?:¥)?standing on the left and right respectively, engaging in a formal (?:policy )?discussion\./gi;
+                
+                return content.replace(defaultCharRegex, (match, p1) => {
+                    const liveActionStr = p1 || ''; // live-actionがあれば引き継ぐ、なければ空文字列
+                    return `a ${liveActionStr}${profiles[currentCharProfile]}`;
+                });
+            }
+
+            return content;
+        }
+
+        function renderDefaultPrompts() {
+            const container = document.getElementById('default-prompts');
+            container.innerHTML = '';
+
+            // 並び順: 音声 -> 動画 画像 -> 動画 台本
+            const types = [
+                { key: 'audio', label: '🎙️ 音声概要', color: 'bg-purple-50 border-purple-200 text-purple-800' },
+                { key: 'image', label: '🎨 動画 画像', color: 'bg-pink-50 border-pink-200 text-pink-800' },
+                { key: 'script', label: '📝 動画 台本', color: 'bg-emerald-50 border-emerald-200 text-emerald-800' }
+            ];
+
+            types.forEach(t => {
+                let promptId = defaultSelected[t.key];
+                let item = promptData.find(p => p.id === promptId);
+                
+                // フェイルセーフ：万が一データが見つからない場合は先頭を強制取得
+                if (!item || item.type !== t.key) {
+                    item = promptData.find(p => p.type === t.key);
+                    if(item) {
+                        defaultSelected[t.key] = item.id;
+                        saveDefaults();
+                    }
+                }
+
+                if (!item) return;
+
+                // 人物設定の適用（画像のみ）
+                const appliedContent = applyCharacterProfile(item.content, item.type);
+
+                const card = document.createElement('div');
+                card.className = `p-4 rounded-xl border ${t.color} flex flex-col relative h-full shadow-sm`;
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="font-bold text-xs bg-white bg-opacity-60 px-2 py-1 rounded shadow-sm">${t.label}</span>
+                    </div>
+                    <div class="font-bold text-sm mb-2 leading-tight truncate" title="${item.title}">${item.title}</div>
+                    <div class="relative bg-white bg-opacity-70 rounded border border-white flex-grow">
+                        <pre class="p-3 text-[10px] sm:text-xs font-mono whitespace-pre-wrap overflow-y-auto h-24 leading-relaxed">${appliedContent}</pre>
+                    </div>
+                `;
+
+                // コピーボタン
+                const btnWrapper = document.createElement('div');
+                btnWrapper.className = "absolute top-3 right-3";
+                const copyBtn = document.createElement('button');
+                copyBtn.className = "bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 rounded p-1.5 shadow-sm transition-colors";
+                copyBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>`;
+                copyBtn.title = "コピーする";
+                copyBtn.onclick = () => copyText(appliedContent, copyBtn);
+                btnWrapper.appendChild(copyBtn);
+                
+                card.appendChild(btnWrapper);
+                container.appendChild(card);
+            });
+        }
+        
+        function setDefault(type, id) {
+            defaultSelected[type] = id;
+            saveDefaults(); 
+            renderDefaultPrompts();
+            updateDefaultButtonsState(); // 画面飛びを防ぐためにボタン部分のみ更新
+            showToast("デフォルトに設定しました");
+        }
+
+        function updateDefaultButtonsState() {
+            const buttons = document.querySelectorAll('.default-set-btn');
+            buttons.forEach(btn => {
+                const itemType = btn.dataset.type;
+                const itemId = btn.dataset.id;
+                const isDefault = defaultSelected[itemType] === itemId;
+                
+                if (isDefault) {
+                    btn.className = "default-set-btn flex items-center text-xs font-medium text-green-600 bg-green-50 px-3 py-1.5 rounded-full cursor-default transition-all duration-300";
+                    btn.innerHTML = `<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> デフォルト選択中`;
+                    btn.onclick = null;
+                } else {
+                    btn.className = "default-set-btn flex items-center text-xs font-medium text-slate-500 hover:text-blue-600 hover:bg-blue-50 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full transition-all duration-300 focus:outline-none";
+                    btn.innerHTML = `<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> デフォルトに設定`;
+                    btn.onclick = function() {
+                        setDefault(this.dataset.type, this.dataset.id);
+                    };
+                }
+            });
+        }
+
+        function resetDefaults() {
+            const modal = document.getElementById('confirm-modal');
+            const modalContent = document.getElementById('confirm-modal-content');
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+
+            document.getElementById('confirm-ok').onclick = () => {
+                executeReset();
+                closeModal();
+            };
+            document.getElementById('confirm-cancel').onclick = closeModal;
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('confirm-modal');
+            const modalContent = document.getElementById('confirm-modal-content');
+            
+            modal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function executeReset() {
+            // ローカルストレージの保存データをすべて削除
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(PROFILE_STORAGE_KEY);
+            localStorage.removeItem(CUSTOM_SETS_STORAGE_KEY);
+            
+            // 人物設定の初期化
+            currentCharProfile = 'default';
+            const profileSelect = document.getElementById('char-profile');
+            if (profileSelect) profileSelect.value = 'default';
+
+            // お気に入りセットの初期化
+            customSets = [];
+            renderCustomSets();
+
+            // タブの初期化
+            currentCategoryId = "all";
+
+            // デフォルト選択の初期化
+            setInitialDefaults();
+            
+            // 画面の再描画
+            renderTabs();
+            renderDefaultPrompts();
+            renderContent(); 
+            
+            showToast("すべての設定をリセットしました");
+        }
+
+        function renderTabs() {
+            const tabsContainer = document.getElementById('tabs');
+            tabsContainer.innerHTML = '';
+            
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = `px-5 py-3 text-sm focus:outline-none whitespace-nowrap transition-colors duration-200 ${cat.id === currentCategoryId ? 'tab-active' : 'tab-inactive'}`;
+                btn.textContent = cat.title;
+                btn.onclick = () => {
+                    currentCategoryId = cat.id;
+                    renderTabs();
+                    renderContent();
+                };
+                tabsContainer.appendChild(btn);
+            });
+        }
+
+        function renderContent() {
+            const contentContainer = document.getElementById('content');
+            contentContainer.innerHTML = '';
+            
+            const filteredData = currentCategoryId === "all" 
+                ? promptData 
+                : promptData.filter(item => item.categoryIds.includes(currentCategoryId));
+
+            filteredData.forEach(item => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full";
+                
+                const header = document.createElement('div');
+                header.className = "mb-3";
+                
+                // バッジによる視覚的な区別
+                const typeBadgeConfig = {
+                    audio: { label: '🎙️ 音声概要', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+                    image: { label: '🎨 動画 画像', color: 'bg-pink-100 text-pink-700 border-pink-200' },
+                    script: { label: '📝 動画 台本', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
+                };
+                const typeBadge = typeBadgeConfig[item.type];
+                const typeBadgeHTML = `<span class="inline-flex items-center ${typeBadge.color} border text-xs font-bold px-2 py-0.5 rounded-md mr-2 mb-2 shadow-sm">${typeBadge.label}</span>`;
+
+                const tagsHTML = item.categoryIds.map(catId => {
+                    const cat = categories.find(c => c.id === catId);
+                    const catName = cat ? cat.title.split(' ')[1] : ''; 
+                    return `<span class="inline-block bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-medium px-2 py-0.5 rounded-full mr-1 mb-2">${catName}</span>`;
+                }).join('');
+
+                header.innerHTML = `
+                    <div class="flex flex-wrap items-center">
+                        ${typeBadgeHTML}
+                        ${tagsHTML}
+                    </div>
+                    <h3 class="font-bold text-slate-800 text-lg leading-tight mb-1">${item.title}</h3>
+                `;
+                
+                if(item.desc) {
+                    header.innerHTML += `<p class="text-xs text-slate-500">${item.desc}</p>`;
+                }
+                card.appendChild(header);
+
+                // 人物設定の適用
+                const appliedContent = applyCharacterProfile(item.content, item.type);
+
+                const codeWrapper = document.createElement('div');
+                codeWrapper.className = "relative bg-slate-50 rounded-lg border border-slate-100 flex-grow mt-auto";
+                
+                const pre = document.createElement('pre');
+                pre.className = "p-4 text-xs text-slate-600 font-mono whitespace-pre-wrap overflow-y-auto max-h-48 leading-relaxed";
+                pre.textContent = appliedContent;
+                codeWrapper.appendChild(pre);
+
+                const btnWrapper = document.createElement('div');
+                btnWrapper.className = "absolute top-2 right-2";
+                const copyBtn = document.createElement('button');
+                copyBtn.className = "bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 rounded p-1.5 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500";
+                copyBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>`;
+                copyBtn.title = "コピーする";
+                copyBtn.onclick = () => copyText(appliedContent, copyBtn);
+                btnWrapper.appendChild(copyBtn);
+                
+                codeWrapper.appendChild(btnWrapper);
+                card.appendChild(codeWrapper);
+                
+                const footer = document.createElement('div');
+                footer.className = "mt-3 pt-3 border-t border-slate-100 flex justify-end";
+                
+                const isDefault = defaultSelected[item.type] === item.id;
+                const setDefaultBtn = document.createElement('button');
+                
+                // スクロール飛び防止のためのデータ属性付与
+                setDefaultBtn.dataset.type = item.type;
+                setDefaultBtn.dataset.id = item.id;
+                setDefaultBtn.classList.add('default-set-btn');
+                
+                if (isDefault) {
+                    setDefaultBtn.className = "default-set-btn flex items-center text-xs font-medium text-green-600 bg-green-50 px-3 py-1.5 rounded-full cursor-default transition-all duration-300";
+                    setDefaultBtn.innerHTML = `<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> デフォルト選択中`;
+                } else {
+                    setDefaultBtn.className = "default-set-btn flex items-center text-xs font-medium text-slate-500 hover:text-blue-600 hover:bg-blue-50 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full transition-all duration-300 focus:outline-none";
+                    setDefaultBtn.innerHTML = `<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> デフォルトに設定`;
+                    setDefaultBtn.onclick = () => setDefault(item.type, item.id);
+                }
+                
+                footer.appendChild(setDefaultBtn);
+                card.appendChild(footer);
+
+                contentContainer.appendChild(card);
+            });
+        }
+
+        function copyText(text, btnElement) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHTML = btnElement.innerHTML;
+                btnElement.innerHTML = `<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
+                btnElement.classList.add('bg-green-50', 'border-green-200');
+                
+                showToast("クリップボードにコピーしました");
+
+                setTimeout(() => {
+                    btnElement.innerHTML = originalHTML;
+                    btnElement.classList.remove('bg-green-50', 'border-green-200');
+                }, 2000);
+            }).catch(err => {
+                console.error('コピーに失敗しました', err);
+                showToast("コピーに失敗しました");
+            });
+        }
+
+        let toastTimeout;
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = msg;
+            
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // --- お気に入りセット用機能 ---
+        function renderCustomSets() {
+            const container = document.getElementById('custom-sets-container');
+            const saveBtn = document.getElementById('btn-save-set');
+            container.innerHTML = '';
+            
+            if (customSets.length >= 3) {
+                saveBtn.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+                saveBtn.innerText = '登録上限(3/3)';
+            } else {
+                saveBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+                saveBtn.innerText = '+ 現在の選択を保存';
+            }
+
+            if (customSets.length === 0) {
+                container.innerHTML = '<span class="text-xs text-slate-400 py-1">保存されたセットはありません</span>';
+                return;
+            }
+
+            customSets.forEach(set => {
+                const badge = document.createElement('div');
+                badge.className = "flex items-center bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm font-medium px-3 py-1.5 rounded-full shadow-sm cursor-pointer hover:bg-yellow-100 transition-colors";
+                badge.title = "クリックしてこのセットを適用";
+                
+                const titleSpan = document.createElement('span');
+                titleSpan.textContent = set.name;
+                titleSpan.onclick = () => applyCustomSet(set.id);
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.title = "このセットを削除";
+                deleteBtn.innerHTML = '<svg class="w-3.5 h-3.5 ml-2 text-yellow-600 hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteCustomSet(set.id);
+                };
+                
+                badge.appendChild(titleSpan);
+                badge.appendChild(deleteBtn);
+                container.appendChild(badge);
+            });
+        }
+
+        function openSaveSetModal() {
+            document.getElementById('set-name-input').value = '';
+            const modal = document.getElementById('save-set-modal');
+            const modalContent = document.getElementById('save-set-modal-content');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+            document.getElementById('set-name-input').focus();
+        }
+
+        function closeSaveSetModal() {
+            const modal = document.getElementById('save-set-modal');
+            const modalContent = document.getElementById('save-set-modal-content');
+            modal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function executeSaveSet() {
+            const name = document.getElementById('set-name-input').value.trim();
+            if (!name) {
+                showToast("タイトルを入力してください");
+                return;
+            }
+            if (customSets.length >= 3) {
+                showToast("登録できるのは最大3つまでです");
+                closeSaveSetModal();
+                return;
+            }
+
+            const newSet = {
+                id: Date.now().toString(),
+                name: name,
+                profile: currentCharProfile,
+                audio: defaultSelected.audio,
+                image: defaultSelected.image,
+                script: defaultSelected.script
+            };
+
+            customSets.push(newSet);
+            localStorage.setItem(CUSTOM_SETS_STORAGE_KEY, JSON.stringify(customSets));
+            
+            renderCustomSets();
+            closeSaveSetModal();
+            showToast("セットを保存しました");
+        }
+
+        function applyCustomSet(setId) {
+            const set = customSets.find(s => s.id === setId);
+            if (!set) return;
+
+            // プロンプトデータの存在チェック（フェイルセーフ）
+            const safeSet = {
+                audio: promptData.find(p => p.id === set.audio) ? set.audio : promptData.find(p => p.type === 'audio')?.id,
+                image: promptData.find(p => p.id === set.image) ? set.image : promptData.find(p => p.type === 'image')?.id,
+                script: promptData.find(p => p.id === set.script) ? set.script : promptData.find(p => p.type === 'script')?.id
+            };
+
+            currentCharProfile = set.profile;
+            const profileSelect = document.getElementById('char-profile');
+            if (profileSelect) profileSelect.value = currentCharProfile;
+            localStorage.setItem(PROFILE_STORAGE_KEY, currentCharProfile);
+
+            defaultSelected.audio = safeSet.audio;
+            defaultSelected.image = safeSet.image;
+            defaultSelected.script = safeSet.script;
+            saveDefaults();
+
+            renderDefaultPrompts();
+            renderContent();
+            updateDefaultButtonsState();
+            
+            showToast(`セット「${set.name}」を適用しました`);
+        }
+
+        function deleteCustomSet(setId) {
+            customSets = customSets.filter(s => s.id !== setId);
+            localStorage.setItem(CUSTOM_SETS_STORAGE_KEY, JSON.stringify(customSets));
+            renderCustomSets();
+            showToast("セットを削除しました");
+        }
+
+        // 初期化実行
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
