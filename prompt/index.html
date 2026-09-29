@@ -24,10 +24,16 @@
         <header class="mb-8">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-2">
                 <h1 class="text-3xl font-bold text-slate-900">プロンプト一括管理ツール</h1>
-                <button onclick="openManualModal()" class="mt-4 md:mt-0 flex items-center text-sm bg-slate-800 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-slate-700 transition-colors focus:outline-none">
-                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-                    使い方マニュアル
-                </button>
+                <div class="flex items-center space-x-3 mt-4 md:mt-0">
+                    <button onclick="openXPostModal()" class="flex items-center text-sm bg-black text-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-800 transition-colors focus:outline-none">
+                        <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        X投稿作成
+                    </button>
+                    <button onclick="openManualModal()" class="flex items-center text-sm bg-slate-800 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-slate-700 transition-colors focus:outline-none">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                        使い方マニュアル
+                    </button>
+                </div>
             </div>
             <p class="text-slate-600 text-sm">NotebookLM用の音声概要プロンプトと、画像生成AI用のスタイルプロンプトをカテゴリ別に管理・コピーできます。</p>
             
@@ -179,6 +185,64 @@
             <p>&copy; 制作: 一般社団法人日本みらい研</p>
             <p class="mt-1" id="access-date"></p>
         </footer>
+    </div>
+
+    <!-- X投稿作成 モーダル -->
+    <div id="x-post-modal" class="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300 overflow-y-auto pt-10 pb-10">
+        <div class="bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="x-post-modal-content">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl shrink-0">
+                <h3 class="text-xl font-bold text-slate-800 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    X (Twitter) 投稿文作成
+                </h3>
+                <button onclick="closeXPostModal()" class="text-slate-400 hover:text-slate-600 focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto text-sm text-slate-700 flex flex-col md:flex-row gap-6">
+                <!-- 入力フォーム -->
+                <div class="w-full md:w-1/2 space-y-4">
+                    <div class="bg-blue-50 text-blue-800 p-3 rounded-lg text-xs mb-4">
+                        左側のフォームに入力すると、右側のプレビューにリアルタイムで反映されます。URLを正しく入力すれば、Xに貼り付けた際に自動的にリンク化されます。
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">省庁名 <span class="text-slate-400 font-normal">※任意（入力すると「〇〇の」と追加されます）</span></label>
+                        <input type="text" id="x-input-ministry" placeholder="例: 内閣官房、経済産業省" oninput="updateXPostPreview()" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">開催日 <span class="text-slate-400 font-normal">※初期値は本日の日付です</span></label>
+                        <input type="text" id="x-input-date" oninput="updateXPostPreview()" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">会議名</label>
+                        <input type="text" id="x-input-meeting" placeholder="例: 産業構造審議会・排出量取引制度小委員会" oninput="updateXPostPreview()" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">動画解説のURL (YouTube等)</label>
+                        <input type="text" id="x-input-video" placeholder="https://youtu.be/..." oninput="updateXPostPreview()" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">会議のポイント(資料)のURL</label>
+                        <input type="text" id="x-input-doc" placeholder="https://miraiken..." oninput="updateXPostPreview()" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black focus:outline-none">
+                    </div>
+                </div>
+                <!-- プレビュー -->
+                <div class="w-full md:w-1/2 flex flex-col">
+                    <label class="block text-xs font-bold text-slate-700 mb-1 flex justify-between items-end">
+                        投稿文プレビュー
+                        <span class="font-normal text-slate-400">コピーしてXにそのまま貼り付けられます</span>
+                    </label>
+                    <textarea id="x-post-preview" readonly class="w-full h-full min-h-[350px] border border-slate-300 rounded-lg p-4 text-xs bg-slate-50 focus:outline-none resize-none font-mono leading-relaxed text-slate-800"></textarea>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3 rounded-b-xl shrink-0">
+                <button onclick="closeXPostModal()" class="px-5 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors focus:outline-none">閉じる</button>
+                <button onclick="copyXPost(this)" class="px-5 py-2 text-sm font-medium text-white bg-black hover:bg-gray-800 rounded-lg transition-colors focus:outline-none flex items-center">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    テキストをコピーする
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- トースト通知 -->
@@ -1442,6 +1506,93 @@
             }, 300);
         }
 
+        // --- X投稿機能 ---
+        function openXPostModal() {
+            const modal = document.getElementById('x-post-modal');
+            const modalContent = document.getElementById('x-post-modal-content');
+            
+            // 日付の初期設定
+            const now = new Date();
+            const month = now.getMonth() + 1;
+            const day = now.getDate();
+            const dateInput = document.getElementById('x-input-date');
+            if (!dateInput.value) {
+                dateInput.value = `${month}月${day}日`;
+            }
+            
+            updateXPostPreview();
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeXPostModal() {
+            const modal = document.getElementById('x-post-modal');
+            const modalContent = document.getElementById('x-post-modal-content');
+            modal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function updateXPostPreview() {
+            const ministry = document.getElementById('x-input-ministry').value.trim();
+            const date = document.getElementById('x-input-date').value || '⚫︎月⚫︎日';
+            const meeting = document.getElementById('x-input-meeting').value || '[会議名を入力]';
+            const video = document.getElementById('x-input-video').value || '[動画のURLを入力]';
+            const doc = document.getElementById('x-input-doc').value || '[資料のURLを入力]';
+
+            const ministryText = ministry ? `${ministry}の` : '';
+
+            const template = `政府の会議を、毎日追う。
+
+政府や中央省庁では、これからの政策を左右する会議が日々開かれております。
+
+日本みらい研が開発した「政策リサーチ」では、公開される政府会議を継続的に追跡し、主要な会議について、
+
+・会議のポイントをまとめた資料
+・短時間で確認できる動画解説
+
+などもAIを活用してまとめています。
+
+今回は、${ministryText}${date}開催の「${meeting}」を紹介します。
+
+膨大な資料をすべて読む時間がなくても、「何が議論され、政策がどこへ向かっているのか」を短時間で把握できます。
+
+▼動画解説
+${video}
+
+▼会議のポイント
+${doc}
+
+#政策リサーチ #日本みらい研 #政府審議会 #政策`;
+
+            document.getElementById('x-post-preview').value = template;
+        }
+
+        function copyXPost(btnElement) {
+            const text = document.getElementById('x-post-preview').value;
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHTML = btnElement.innerHTML;
+                btnElement.innerHTML = `<svg class="w-4 h-4 mr-1.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> コピーしました！`;
+                
+                showToast("X投稿用テキストをコピーしました");
+
+                setTimeout(() => {
+                    btnElement.innerHTML = originalHTML;
+                }, 2000);
+            }).catch(err => {
+                console.error('コピーに失敗しました', err);
+                showToast("コピーに失敗しました");
+            });
+        }
+        
         function setAccessDate() {
             const dateElement = document.getElementById('access-date');
             if (dateElement) {
