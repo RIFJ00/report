@@ -240,6 +240,14 @@
       const [selectedFileName, setSelectedFileName] = useState('');
       const [pasteText, setPasteText] = useState(''); // 追加: テキスト貼り付け用のstate
       
+      // AIクイック追加用のstate
+      const [quickAddUrl, setQuickAddUrl] = useState('');
+      const [quickAddText, setQuickAddText] = useState('');
+      const [quickAddDate, setQuickAddDate] = useState('');
+      
+      const [geminiApiKey, setGeminiApiKey] = useState('');
+      const [tempApiKey, setTempApiKey] = useState('');
+
       const [lastUpdatedTime, setLastUpdatedTime] = useState('');
       const [accessTime, setAccessTime] = useState('');
 
@@ -385,6 +393,43 @@
         }
       }, [db]);
 
+      // Gemini APIキーの読み込み (ユーザー固有データ)
+      useEffect(() => {
+        if (!user || !db) return;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'prime-minister-x-viewer';
+        
+        try {
+          // ユーザー専用の非公開領域からAPIキーを取得
+          const settingsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'gemini');
+          const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().key !== undefined) {
+              setGeminiApiKey(docSnap.data().key);
+              setTempApiKey(docSnap.data().key);
+            }
+          }, (error) => {
+            console.error("Settings fetch error:", error);
+          });
+          return () => unsubscribe();
+        } catch (error) {
+          console.warn("API Key listener failed:", error);
+        }
+      }, [user, db]);
+
+      // APIキーの保存処理
+      const handleSaveApiKey = async () => {
+        if (!user || !db) return;
+        try {
+          const appId = typeof __app_id !== 'undefined' ? __app_id : 'prime-minister-x-viewer';
+          // ユーザー専用の非公開領域にAPIキーを保存
+          const settingsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'gemini');
+          await setDoc(settingsRef, { key: tempApiKey }, { merge: true });
+          setUploadMessage({ text: 'APIキーを保存しました。', type: 'success' });
+        } catch (error) {
+          console.error("API Key save error:", error);
+          setUploadMessage({ text: 'APIキーの保存に失敗しました。', type: 'error' });
+        }
+      };
+
       // 管理設定ボタンクリック時の処理
       const handleOpenSettings = () => {
         if (isAdmin) {
@@ -415,6 +460,74 @@
         setIsAdmin(false);
         setShowSettingsModal(false);
         setUploadMessage({ text: '管理者モードをログアウトしました。', type: 'info' });
+      };
+
+      // クイック追加（URLと本文から自動補完して登録）処理
+      const handleQuickAddSubmit = async () => {
+        if (!quickAddUrl.trim() || !quickAddText.trim()) {
+           setUploadMessage({ text: 'URLと本文は必須です。', type: 'error' });
+           return;
+        }
+
+        // 簡易的なURLチェック（Pythonコードの正規表現に準拠）
+        const urlRegex = /^https?:\/\/(?:www\.)?x\.com\/[a-zA-Z0-9_]+\/status\/\d+/i;
+        if (!urlRegex.test(quickAddUrl)) {
+           if (!window.confirm('X(Twitter)のステータスURLの形式ではないようですが、このまま追加しますか？')) {
+               return;
+           }
+        }
+
+        setIsUploading(true);
+        setUploadMessage({ text: 'データを生成・追加中...', type: 'info' });
+
+        try {
+          // 日付が未入力の場合は今日の日付をYYYY/MM/DD形式で設定
+          const today = new Date();
+          const defaultDate = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+          let dateVal = quickAddDate ? quickAddDate.replace(/-/g, '/') : defaultDate;
+          
+          // 本文からタイトルを生成（1行目または先頭30文字）
+          const lines = quickAddText.split(/\r?\n/).filter(line => line.trim() !== '');
+          const titleVal = lines.length > 0 ? (lines[0].length > 30 ? lines[0].substring(0, 30) + '...' : lines[0]) : '無題';
+          
+          // 要約テキスト（最大150文字程度）
+          const summaryText = quickAddText.length > 150 ? quickAddText.substring(0, 150) + '...' : quickAddText;
+
+          // クライアントサイドでの簡易的なキーワードマッチ分類推測
+          let categoryVal = '分類未設定';
+          if (quickAddText.includes('外交') || quickAddText.includes('安保') || quickAddText.includes('平和')) categoryVal = 'C 外交・安全保障';
+          else if (quickAddText.includes('経済') || quickAddText.includes('賃上げ') || quickAddText.includes('投資')) categoryVal = 'B 経済・成長戦略';
+          else if (quickAddText.includes('災害') || quickAddText.includes('防災') || quickAddText.includes('避難')) categoryVal = 'D 災害・危機管理';
+          else if (quickAddText.includes('政策') || quickAddText.includes('法案')) categoryVal = 'A 政策・制度説明';
+
+          // 既存の重複チェック用のハッシュキー生成ロジックを使用
+          const uniqueStr = `${dateVal}-${summaryText.substring(0, 50)}-${quickAddUrl}`;
+          const id = `post-${generateHash(uniqueStr)}`;
+
+          const newPost = {
+            id: id,
+            date: dateVal,
+            title: titleVal,
+            text: quickAddText,
+            url: quickAddUrl,
+            category: categoryVal,
+            evaluation: '★★', // デフォルト値
+            postType: '手動追加', // デフォルト値
+          };
+
+          // 既存の保存関数を呼び出してFirestoreへ反映
+          await saveToFirestore([newPost]);
+          
+          // フォームをクリア
+          setQuickAddUrl('');
+          setQuickAddText('');
+          setQuickAddDate('');
+
+        } catch (error) {
+          console.error("Quick Add error:", error);
+          setUploadMessage({ text: `追加エラー: ${error.message}`, type: 'error' });
+          setIsUploading(false);
+        }
       };
 
       // 貼り付けテキストの解析と追加処理
@@ -524,6 +637,129 @@
 
           setShowSettingsModal(false);
           setIsUploading(false);
+      };
+
+      // AIを使用して投稿を解析し追加する機能
+      const handleAIQuickAdd = async () => {
+        if (!quickAddUrl.trim() || !quickAddText.trim()) {
+           setUploadMessage({ text: 'URLと本文は必須です。', type: 'error' });
+           return;
+        }
+
+        setIsUploading(true);
+        setUploadMessage({ text: 'AIが内容を分析・要約しています...', type: 'info' });
+
+        const MAIN_CATEGORIES = [
+            "A 政策・制度説明", "B 経済・成長戦略", "C 外交・安全保障", 
+            "D 災害・危機管理", "E 追悼・祝意・儀礼", "F 説明・反論", "G 人柄・日常"
+        ];
+        const FALLBACK_SIGNAL_TYPES = [
+            "緊急速報", "政府対応説明", "法律・政策解説", "政策解説", "長文政策解説", 
+            "外交メッセージ", "首脳外交", "成長戦略解説", "表敬・人物発信", "儀礼・追悼", 
+            "追悼・平和メッセージ", "反論・補足", "人物発信", "物価対策・政策説明", 
+            "防災注意喚起", "防災啓発", "復旧政策説明", "生活情報・政策説明", "表彰・政策接続", "政策＋人物発信"
+        ];
+        const IMPORTANCE = ["★★★", "★★", "★"];
+
+        const systemPrompt = `
+高市首相のX（旧Twitter）の投稿内容を分析し、要約と分類を行ってください。
+以下の制約に必ず従い、JSON形式で出力してください。
+
+1. title: 投稿内容を表す15文字程度の簡潔なタイトル。
+2. summary: 投稿内容の要約。意図や個人の評価を捏造せず、事実ベースで約150文字以内でまとめること。
+3. category: 以下の主分類から最も適切なものを1つ完全一致で選ぶこと。
+   [${MAIN_CATEGORIES.join(", ")}]
+4. postType: 以下の発信タイプから最も適切なものを1つ完全一致で選ぶこと。
+   [${FALLBACK_SIGNAL_TYPES.join(", ")}]
+5. evaluation: 投稿の重要度を以下のいずれかで判定すること。
+   [${IMPORTANCE.join(", ")}]
+        `;
+
+        const userPrompt = `URL: ${quickAddUrl}\n本文: ${quickAddText}`;
+
+        const payload = {
+            contents: [{ parts: [{ text: userPrompt }] }],
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: "OBJECT",
+                    properties: {
+                        title: { type: "STRING" },
+                        summary: { type: "STRING" },
+                        category: { type: "STRING" },
+                        evaluation: { type: "STRING" },
+                        postType: { type: "STRING" }
+                    },
+                    required: ["title", "summary", "category", "evaluation", "postType"]
+                }
+            }
+        };
+
+        try {
+            // APIキーは画面で設定されたものを使用。Canvas内のお試しの場合は空文字でも自動補完されます。
+            const apiKey = geminiApiKey || ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            
+            // 指数バックオフによるリトライロジック
+            let retries = 3;
+            let response = null;
+            while (retries > 0) {
+               response = await fetch(apiUrl, {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify(payload)
+               });
+               if (response.ok) break;
+               if (response.status === 429) {
+                  retries--;
+                  await new Promise(r => setTimeout(r, 2000));
+               } else {
+                  throw new Error(`API Error: ${response.status}`);
+               }
+            }
+
+            if (!response.ok) throw new Error("AI生成に失敗しました");
+
+            const result = await response.json();
+            
+            if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts.length > 0) {
+                const jsonText = result.candidates[0].content.parts[0].text;
+                const parsed = JSON.parse(jsonText);
+
+                // 日付が空の場合は今日の日付(YYYY/MM/DD)を適用
+                const now = new Date();
+                const defaultDate = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
+                const finalDate = quickAddDate || defaultDate;
+
+                const uniqueStr = `${finalDate}-${parsed.summary.substring(0, 50)}-${quickAddUrl}`;
+                const id = `post-${generateHash(uniqueStr)}`;
+
+                const newPost = {
+                    id: id,
+                    date: finalDate,
+                    title: parsed.title,
+                    text: parsed.summary, // 本文には約150文字の要約を入れる
+                    url: quickAddUrl,
+                    category: parsed.category,
+                    evaluation: parsed.evaluation,
+                    postType: parsed.postType
+                };
+
+                await saveToFirestore([newPost]);
+                
+                // 入力フォームをクリア
+                setQuickAddUrl('');
+                setQuickAddText('');
+                setQuickAddDate('');
+            } else {
+                throw new Error("AIからの応答形式が不正です");
+            }
+        } catch (error) {
+            console.error("AI Quick Add Error:", error);
+            setUploadMessage({ text: `AI分析エラー: ${error.message}`, type: 'error' });
+            setIsUploading(false);
+        }
       };
 
       const handleFileUpload = async (event) => {
@@ -1018,6 +1254,64 @@
                 </div>
                 
                 <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                  {/* AIクイック追加セクション */}
+                  <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                    <label className="block text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
+                      <span>✨</span> AI自動解析で追加
+                    </label>
+                    <p className="text-xs text-blue-700/80 mb-4">
+                      URLと本文を入力すると、AIが自動的に「タイトル」「分類」「重要度」を判定し、約150字の要約を作成して登録します。
+                    </p>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">X (Twitter) URL *</label>
+                        <input
+                          type="text"
+                          value={quickAddUrl}
+                          onChange={(e) => setQuickAddUrl(e.target.value)}
+                          placeholder="https://x.com/takaichi_sanae/status/..."
+                          className="w-full border border-gray-300 rounded-md px-3 h-[36px] text-sm focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm transition-shadow"
+                          disabled={isUploading}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">投稿本文 (オリジナルテキスト) *</label>
+                        <textarea
+                          value={quickAddText}
+                          onChange={(e) => setQuickAddText(e.target.value)}
+                          placeholder="投稿の全文を貼り付けてください。AIがこれを元に解析・要約します。"
+                          rows="3"
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm transition-shadow"
+                          disabled={isUploading}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">投稿日 (任意: 空欄なら今日)</label>
+                        <input
+                          type="text"
+                          value={quickAddDate}
+                          onChange={(e) => setQuickAddDate(e.target.value)}
+                          placeholder="YYYY/MM/DD"
+                          className="w-full border border-gray-300 rounded-md px-3 h-[36px] text-sm focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm transition-shadow"
+                          disabled={isUploading}
+                        />
+                      </div>
+
+                      <button
+                        onClick={handleAIQuickAdd}
+                        disabled={isUploading || !quickAddUrl.trim() || !quickAddText.trim()}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-md text-sm font-semibold transition-colors text-center shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+                      >
+                        {isUploading ? <span>処理中...</span> : <span>🤖 AIで分析して登録</span>}
+                      </button>
+                    </div>
+                  </div>
+
+                  <hr className="border-gray-200" />
+
                   {/* テキスト貼り付けセクション */}
                   <div>
                     <label className="block text-sm font-bold text-gray-800 mb-2">
@@ -1071,6 +1365,39 @@
                           選択中: {selectedFileName}
                         </div>
                       )}
+                    </div>
+                  </div>
+
+                  <hr className="border-gray-200" />
+
+                  {/* APIキー設定セクション */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+                      <span>🔑</span> Gemini APIキー設定
+                    </label>
+                    <p className="text-xs text-gray-500 mb-3">
+                      外部公開時にAI自動解析を使用するためのAPIキーを入力してください。<br/>
+                      <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center mt-1 mb-1 font-medium transition-colors">
+                        Google AI StudioでAPIキーを取得・確認 ↗
+                      </a><br/>
+                      <span className="text-gray-400">※キーは安全なデータベース（あなた専用の領域）に保存され、再起動後も維持されます。</span>
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={tempApiKey}
+                        onChange={(e) => setTempApiKey(e.target.value)}
+                        placeholder="AIzaSy..."
+                        className="flex-grow border border-gray-300 rounded-md px-3 h-[36px] text-sm focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm transition-shadow"
+                        disabled={isUploading}
+                      />
+                      <button
+                        onClick={handleSaveApiKey}
+                        disabled={isUploading}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 h-[36px] rounded-md text-sm font-semibold transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap flex items-center justify-center"
+                      >
+                        保存
+                      </button>
                     </div>
                   </div>
 
