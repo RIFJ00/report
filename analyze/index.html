@@ -758,8 +758,30 @@
                       sb.push(i>=51 ? (Math.max(...hVals.slice(i-51,i+1))+Math.min(...lVals.slice(i-51,i+1)))/2 : null);
                       sa.push((ten[i]!==null && kij[i]!==null) ? (ten[i]+kij[i])/2 : null);
                   }
-                  let fx = [...xVals]; for(let i=1; i<=26; i++) fx.push(`+${i}`);
-                  traces.push({ x: xVals, y: ten, type: 'scatter', mode: 'lines', name: '転換線', line: { width: 1 } }, { x: xVals, y: kij, type: 'scatter', mode: 'lines', name: '基準線', line: { width: 1 } }, { x: xVals, y: cVals.slice(26).concat(Array(26).fill(null)), type: 'scatter', mode: 'lines', name: '遅行スパン' }, { x: fx, y: Array(26).fill(null).concat(sa), type: 'scatter', mode: 'lines', name: '先行スパン1', line: { color: 'rgba(16, 185, 129, 0.6)' } }, { x: fx, y: Array(26).fill(null).concat(sb), type: 'scatter', mode: 'lines', name: '先行スパン2', fill: 'tonexty', fillcolor: 'rgba(148, 163, 184, 0.2)' });
+                  
+                  // Plotlyが正しく日付として認識できる「未来の26期間」を正確に生成する
+                  let fx = [...xVals];
+                  let lastDateStr = xVals[xVals.length - 1];
+                  let lastDate = new Date(lastDateStr);
+                  let isDateValid = !isNaN(lastDate.getTime());
+                  
+                  for(let i=1; i<=26; i++) {
+                      if (isDateValid) {
+                          // 最後の日付から1日ずつ未来の日付を足していく
+                          let nextD = new Date(lastDate.getTime() + (i * 24 * 60 * 60 * 1000));
+                          fx.push(nextD.toISOString().split('T')[0]);
+                      } else {
+                          fx.push(`未来${i}`);
+                      }
+                  }
+
+                  traces.push(
+                    { x: xVals, y: ten, type: 'scatter', mode: 'lines', name: '転換線', line: { width: 1, color: '#f43f5e' } }, 
+                    { x: xVals, y: kij, type: 'scatter', mode: 'lines', name: '基準線', line: { width: 1, color: '#3b82f6' } }, 
+                    { x: xVals, y: cVals.slice(26).concat(Array(26).fill(null)), type: 'scatter', mode: 'lines', name: '遅行スパン', line: { width: 1, color: '#8b5cf6' } }, 
+                    { x: fx, y: Array(26).fill(null).concat(sa), type: 'scatter', mode: 'lines', name: '先行スパン1', line: { color: 'rgba(16, 185, 129, 0.6)' } }, 
+                    { x: fx, y: Array(26).fill(null).concat(sb), type: 'scatter', mode: 'lines', name: '先行スパン2', fill: 'tonexty', fillcolor: 'rgba(148, 163, 184, 0.2)', line: { color: 'rgba(148, 163, 184, 0.6)' } }
+                  );
               }
               window.Plotly.newPlot('chart-area', traces, layout, plotConfig); break;
             }
@@ -1190,7 +1212,9 @@
                   <h2 className="font-black text-lg text-slate-700 flex items-center"><Icons.LayoutGrid className="w-5 h-5 mr-2 text-indigo-500"/>ダッシュボード (比較用ストック)</h2>
                   <button onClick={() => setStockedCharts([])} className="text-sm font-bold text-slate-400 hover:text-red-500 transition-colors">全てクリア</button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 w-full">
+                
+                {/* 2つ並列で均等に収まり、3つ目以降は下の段へ折り返すレイアウト (min-w-0ではみ出しを防止) */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 w-full">
                   {stockedCharts.map(chart => (
                     <div key={chart.id} className={`rounded-2xl shadow-sm border p-4 relative flex flex-col min-w-0 transition-colors duration-300 ${BACKGROUND_COLORS[bgColor].panelClass}`}>
                       <div className={`flex justify-between items-center border-b pb-2 mb-2 ${['dark', 'black', 'navy'].includes(bgColor) ? 'border-slate-700' : 'border-slate-200'}`}>
@@ -1201,7 +1225,7 @@
                         </div>
                       </div>
                       {chart.summaryData ? (
-                        <div className="overflow-auto custom-scrollbar flex-1 max-h-[250px]">
+                        <div className="overflow-auto custom-scrollbar flex-1 max-h-[250px] min-w-0">
                           <table className="min-w-full text-xs text-right whitespace-nowrap">
                             <thead className="opacity-70 border-b border-current"><tr><th className="px-2 py-1 text-left">項目名</th><th>数</th><th>平均</th><th>最小</th><th>最大</th></tr></thead>
                             <tbody className="divide-y divide-current opacity-90">
@@ -1210,7 +1234,7 @@
                           </table>
                         </div>
                       ) : (
-                        <div id={`stocked-chart-${chart.id}`} className="w-full h-[250px] sm:h-[300px]"></div>
+                        <div id={`stocked-chart-${chart.id}`} className="w-full h-[300px] min-w-0"></div>
                       )}
                     </div>
                   ))}
