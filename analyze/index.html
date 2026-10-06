@@ -987,15 +987,27 @@
           if (!chartArea && !summaryData) return;
           let pData = null, pLayout = null;
           if (chartArea && chartArea.data) { pData = JSON.parse(JSON.stringify(chartArea.data)); pLayout = JSON.parse(JSON.stringify(chartArea.layout)); pLayout.title = undefined; }
-          const newChart = { id: Date.now().toString(), title: chartTitle || typeInfo?.name || '無題の分析', type: analysisType, data: pData, layout: pLayout, summaryData: summaryData ? JSON.parse(JSON.stringify(summaryData)) : null, timestamp: new Date().toLocaleTimeString() };
+          
+          // グラフの種類名（数字部分を削除）を取得
+          const typeName = typeInfo ? typeInfo.name.replace(/^\d+\.\s*/, '') : '分析';
+          // ユーザー入力タイトルがある場合は結合して表示
+          const newTitle = chartTitle ? `${chartTitle} (${typeName})` : typeName;
+          
+          const newChart = { id: Date.now().toString(), title: newTitle, type: analysisType, data: pData, layout: pLayout, summaryData: summaryData ? JSON.parse(JSON.stringify(summaryData)) : null, timestamp: new Date().toLocaleTimeString() };
           setStockedCharts(prev => [newChart, ...prev]);
       };
 
       useEffect(() => {
           stockedCharts.forEach(chart => {
               if (!chart.summaryData && chart.data && chart.layout) {
-                  const el = document.getElementById(`stocked-chart-${chart.id}`);
-                  if (el && window.Plotly) { const slimLayout = { ...chart.layout, margin: { t: 30, b: 40, l: 40, r: 20 } }; window.Plotly.react(el, chart.data, slimLayout, { responsive: true, displayModeBar: false }); }
+                  // レンダリング直後はDOMの幅が確定していないため、少し遅延させて描画しレイアウト崩れを防ぐ
+                  setTimeout(() => {
+                      const el = document.getElementById(`stocked-chart-${chart.id}`);
+                      if (el && window.Plotly) { 
+                          const slimLayout = { ...chart.layout, margin: { t: 30, b: 40, l: 40, r: 20 }, autosize: true }; 
+                          window.Plotly.react(el, chart.data, slimLayout, { responsive: true, displayModeBar: false }); 
+                      }
+                  }, 100);
               }
           });
       }, [stockedCharts, bgColor]);
@@ -1204,13 +1216,6 @@
                           ))}
                         </tbody>
                       </table>
-                    </div>
-                  )}
-
-                  {/* データ元と日付の表示 (HTML版: Z-indexを付与して重なりを防止) */}
-                  {showDataSource && !noDataMsg && (
-                    <div className={`absolute bottom-3 right-5 text-[10px] font-bold z-10 pointer-events-none ${isDarkTheme ? 'text-slate-500' : 'text-slate-400'}`}>
-                      データ元: {fileName} ({new Date().toLocaleDateString('ja-JP')})
                     </div>
                   )}
                 </div>
