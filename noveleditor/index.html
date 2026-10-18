@@ -26,7 +26,7 @@
       text-combine-upright: all;
       -webkit-text-combine: horizontal;
     }
-    /* スクロールバーの非表示 */
+    /* スクロールバーの非表示（縦書き時の横スクロールを綺麗にするため） */
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
@@ -66,7 +66,7 @@
       const [isPlaying, setIsPlaying] = useState(false);
       const [isPaused, setIsPaused] = useState(false);
       
-      const CHARS_PER_PAGE = 400; 
+      const CHARS_PER_PAGE = 400; // 1ページあたりの文字数目安
       const pages = [];
       for (let i = 0; i < text.length; i += CHARS_PER_PAGE) {
         pages.push(text.slice(i, i + CHARS_PER_PAGE));
@@ -103,14 +103,18 @@
       const speak = () => {
         if (!window.speechSynthesis) return alert("お使いのブラウザは音声読み上げに対応していません。");
         window.speechSynthesis.cancel();
+        
+        // 現在のページ以降のテキストを読み上げる
         const textToRead = pages.slice(currentPage).join('');
         const utterance = new SpeechSynthesisUtterance(textToRead);
         utterance.lang = 'ja-JP';
         utterance.rate = 1.0;
+        
         utterance.onend = () => {
           setIsPlaying(false);
           setIsPaused(false);
         };
+
         window.speechSynthesis.speak(utterance);
         setIsPlaying(true);
         setIsPaused(false);
@@ -140,6 +144,11 @@
           // 冒頭行（idx===0 または最初のページ）かつ『』で囲まれている場合をタイトルとして判定
           const isTitle = (currentPage === 0 && idx === 0) && trimmed.startsWith('『') && trimmed.endsWith('』');
           
+          // エディターで改行のみ（空行）が入力された場合、HTML上で潰れないように全角スペースを入れて1行分の空きを作る
+          if (paragraph === '') {
+            return <p key={idx} className="leading-loose" style={{ minWidth: '1em', minHeight: '1em' }}>　</p>;
+          }
+          
           const formattedP = paragraph.split(/(……|——)/g).map((part, i) => {
             if (part === '……' || part === '——') {
               return <span key={i} style={{ fontVariantEastAsian: 'vertical' }}>{part}</span>;
@@ -147,20 +156,20 @@
             return part;
           });
           
-          // タイトルの場合は文字を大きく、縦書きの中央（上下中央）に配置するためのスタイルを付与
+          // タイトルの場合は上部から約6文字分下げ、次の行（本文）との間に1行分の余白（左マージン）を設ける
           if (isTitle) {
             return (
               <p 
                 key={idx} 
-                className="text-2xl font-bold mb-8" 
-                style={{ textAlign: 'center', height: '100%' }}
+                className="text-2xl font-bold" 
+                style={{ marginTop: '6em', marginLeft: '2.5em' }}
               >
                 {formattedP}
               </p>
             );
           }
           
-          return <p key={idx} className="mb-4 leading-loose">{formattedP}</p>;
+          return <p key={idx} className="leading-loose">{formattedP}</p>;
         });
       };
 
@@ -197,7 +206,7 @@
                   setText(e.target.value);
                   setCurrentPage(0);
                 }}
-                placeholder="ここに小説のテキストを入力してください。&#13;&#10;一行目を『タイトル』と入力すると、ビューワー上でタイトルとして大きく中央に表示されます。"
+                placeholder="ここに小説のテキストを入力してください。&#13;&#10;一行目を『タイトル』と入力すると、ビューワー上でタイトルとして上部から少し下がり、1行空けて表示されます。"
               />
             </div>
 
