@@ -66,57 +66,115 @@
       const [isPlaying, setIsPlaying] = useState(false);
       const [isPaused, setIsPaused] = useState(false);
       
-      // --- ページ分割のロジック改善 ---
-      const TARGET_CHARS = 400; // 1ページあたりの文字数目安
-      const pages = [];
-      let currentIndex = 0;
+      const [pageSplits, setPageSplits] = useState([]);
+      const viewerRef = useRef(null);
 
-      while (currentIndex < text.length) {
-        let nextIndex = currentIndex + TARGET_CHARS;
+      // --- 動的ページ分割処理（画面サイズにピタリと収める） ---
+      useEffect(() => {
+        let timeoutId = null;
+        
+        const calculatePages = () => {
+          if (!viewerRef.current) return;
+          if (text.length === 0) {
+            setPageSplits([]);
+            return;
+          }
 
-        // まだテキストが続く場合、不自然な切れ方を防ぐためキリの良い場所を探す
-        if (nextIndex < text.length) {
-          // 目安文字数の前後約150文字の範囲で区切りを探す
-          let searchStart = Math.max(currentIndex + 50, nextIndex - 150);
-          let searchEnd = Math.min(text.length, nextIndex + 150);
+          // ビューワー領域のパディング（余白）を取得
+          const style = window.getComputedStyle(viewerRef.current);
+          const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+          const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
           
-          let foundBreak = false;
-          let textToSearch = text.slice(searchStart, searchEnd);
+          // 表示エリアの有効サイズ（ギリギリで切れないよう少し余裕を引く）
+          const availableWidth = viewerRef.current.clientWidth - padX - 16;
+          const availableHeight = viewerRef.current.clientHeight - padY - 16;
           
-          // 1. まずは改行を探す（段落の終わりで切るのが最も綺麗）
-          let breakPos = textToSearch.lastIndexOf('\n');
-          if (breakPos !== -1) {
-            nextIndex = searchStart + breakPos + 1;
-            foundBreak = true;
-          } else {
-            // 2. 改行がなければ、文末（句点やカッコ閉じなど）を探す
-            const punctuations = ['。', '」', '！', '？'];
-            for (let i = searchEnd - 1; i >= searchStart; i--) {
-              if (punctuations.includes(text[i])) {
-                nextIndex = i + 1; // 句読点の直後で切る
-                foundBreak = true;
-                break;
+          const fontSize = 18; // text-lg相当(px)
+          const lineHeight = 36; // leading-loose相当(px)
+          
+          // 画面に収まる最大行数と1行あたりの最大文字数を計算
+          const maxLines = Math.max(1, Math.floor(availableWidth / lineHeight));
+          const maxCharsPerLine = Math.max(10, Math.floor(availableHeight / (fontSize * 1.1))); // tracking分考慮
+          
+          const newPages = [];
+          let currentPageText = "";
+          let currentLineCount = 0;
+          
+          const paragraphs = text.split('\n');
+          
+          for (let i = 0; i < paragraphs.length; i++) {
+            const p = paragraphs[i];
+            const trimmed = p.trim();
+            const isTitle = (i === 0 && trimmed.startsWith('『') && trimmed.endsWith('』'));
+            
+            // 空行（改行のみ）の処理
+            if (p === "") {
+              if (currentLineCount + 1 > maxLines && currentPageText !== "") {
+                newPages.push(currentPageText);
+                currentPageText = "\n";
+                currentLineCount = 1;
+              } else {
+                currentPageText += "\n";
+                currentLineCount += 1;
               }
+              continue;
+            }
+            
+            let charIndex = 0;
+            while (charIndex < p.length) {
+              let chunk = p.slice(charIndex, charIndex + maxCharsPerLine);
+              // タイトル行は文字が大きく余白も付くため約3行分としてカウント
+              let linesCost = isTitle ? 3 : 1;
+              
+              if (currentLineCount + linesCost > maxLines && currentPageText !== "") {
+                newPages.push(currentPageText);
+                currentPageText = "";
+                currentLineCount = 0;
+              }
+              
+              currentPageText += chunk;
+              currentLineCount += linesCost;
+              charIndex += maxCharsPerLine;
+            }
+            
+            // 段落の終わりに改行を追加（最後の段落以外）
+            if (i < paragraphs.length - 1) {
+              currentPageText += '\n';
             }
           }
           
-          // 3. それでも見つからなければ、読点（、）を探す
-          if (!foundBreak) {
-            for (let i = searchEnd - 1; i >= searchStart; i--) {
-              if (text[i] === '、') {
-                nextIndex = i + 1;
-                foundBreak = true;
-                break;
-              }
-            }
+          if (currentPageText) {
+            newPages.push(currentPageText);
           }
-        }
+          
+          setPageSplits(newPages);
+        };
 
-        // 切り出したテキストをページ配列に格納
-        pages.push(text.slice(currentIndex, nextIndex));
-        currentIndex = nextIndex;
-      }
+        // 初期計算を実行
+        calculatePages();
+
+        // 画面リサイズ時に再計算（負荷軽減のためデバウンス処理）
+        const handleResize = () => {
+          clearTimeout(timeoutId);
+          timeoutId = setTimeout(calculatePages, 150);
+        };
+        
+        window.addEventListener('resize', handleResize);
+        return () => {
+          window.removeEventListener('resize', handleResize);
+          clearTimeout(timeoutId);
+        };
+      }, [text]);
+
+      const pages = pageSplits.length > 0 ? pageSplits : [];
       const totalPages = Math.max(1, pages.length);
+
+      // ウィンドウサイズが変わって総ページ数が減った際に、現在のページ番号を補正
+      useEffect(() => {
+        if (currentPage >= totalPages && totalPages > 0) {
+          setCurrentPage(totalPages - 1);
+        }
+      }, [totalPages, currentPage]);
 
       // --- エクスポート機能 ---
       const handleExportWord = () => {
@@ -294,10 +352,13 @@
               </div>
 
               {/* 縦書きプレビュー領域 */}
-              <div className="flex-1 overflow-auto p-8 lg:p-12 text-center no-scrollbar">
+              <div 
+                ref={viewerRef}
+                className="flex-1 overflow-hidden p-6 lg:p-12 text-center"
+              >
                 <div 
                   className={`inline-block vertical-rl text-lg tracking-widest text-left ${isDarkMode ? 'text-gray-300' : 'text-gray-800'}`}
-                  style={{ height: '75vh' }}
+                  style={{ height: '100%', maxWidth: '100%' }}
                 >
                   {text.length === 0 ? (
                     <p className="text-gray-400 mt-10">テキストを入力すると、ここに縦書きでプレビューされます。</p>
