@@ -66,10 +66,55 @@
       const [isPlaying, setIsPlaying] = useState(false);
       const [isPaused, setIsPaused] = useState(false);
       
-      const CHARS_PER_PAGE = 400; // 1ページあたりの文字数目安
+      // --- ページ分割のロジック改善 ---
+      const TARGET_CHARS = 400; // 1ページあたりの文字数目安
       const pages = [];
-      for (let i = 0; i < text.length; i += CHARS_PER_PAGE) {
-        pages.push(text.slice(i, i + CHARS_PER_PAGE));
+      let currentIndex = 0;
+
+      while (currentIndex < text.length) {
+        let nextIndex = currentIndex + TARGET_CHARS;
+
+        // まだテキストが続く場合、不自然な切れ方を防ぐためキリの良い場所を探す
+        if (nextIndex < text.length) {
+          // 目安文字数の前後約150文字の範囲で区切りを探す
+          let searchStart = Math.max(currentIndex + 50, nextIndex - 150);
+          let searchEnd = Math.min(text.length, nextIndex + 150);
+          
+          let foundBreak = false;
+          let textToSearch = text.slice(searchStart, searchEnd);
+          
+          // 1. まずは改行を探す（段落の終わりで切るのが最も綺麗）
+          let breakPos = textToSearch.lastIndexOf('\n');
+          if (breakPos !== -1) {
+            nextIndex = searchStart + breakPos + 1;
+            foundBreak = true;
+          } else {
+            // 2. 改行がなければ、文末（句点やカッコ閉じなど）を探す
+            const punctuations = ['。', '」', '！', '？'];
+            for (let i = searchEnd - 1; i >= searchStart; i--) {
+              if (punctuations.includes(text[i])) {
+                nextIndex = i + 1; // 句読点の直後で切る
+                foundBreak = true;
+                break;
+              }
+            }
+          }
+          
+          // 3. それでも見つからなければ、読点（、）を探す
+          if (!foundBreak) {
+            for (let i = searchEnd - 1; i >= searchStart; i--) {
+              if (text[i] === '、') {
+                nextIndex = i + 1;
+                foundBreak = true;
+                break;
+              }
+            }
+          }
+        }
+
+        // 切り出したテキストをページ配列に格納
+        pages.push(text.slice(currentIndex, nextIndex));
+        currentIndex = nextIndex;
       }
       const totalPages = Math.max(1, pages.length);
 
@@ -265,10 +310,3 @@
           </main>
         </div>
       );
-    };
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<NovelEditor />);
-  </script>
-</body>
-</html>
