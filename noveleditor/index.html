@@ -22,11 +22,7 @@
       -webkit-writing-mode: vertical-rl;
       text-orientation: mixed;
     }
-    .text-combine {
-      text-combine-upright: all;
-      -webkit-text-combine: horizontal;
-    }
-    /* スクロールバーの非表示（縦書き時の横スクロールを綺麗にするため） */
+    /* スクロールバーの完全非表示 */
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
@@ -40,13 +36,13 @@
     }
   </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-100 overflow-hidden">
   <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // --- アイコンコンポーネント (lucide-reactの代替) ---
+    // --- アイコンコンポーネント (lucide-react代替) ---
     const IconPlay = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>;
     const IconPause = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>;
     const IconStop = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>;
@@ -56,7 +52,6 @@
     const IconMoon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>;
     const IconDownload = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
 
-    // 初期テキストを空（ブランク）に設定
     const initialText = ``;
 
     const NovelEditor = () => {
@@ -69,10 +64,9 @@
       const [pageSplits, setPageSplits] = useState([]);
       const viewerRef = useRef(null);
 
-      // --- 動的ページ分割処理（画面サイズにピタリと収める） ---
+      // --- 動的ページ分割（ウィンドウにピッタリ合わせる処理） ---
       useEffect(() => {
         let timeoutId = null;
-        
         const calculatePages = () => {
           if (!viewerRef.current) return;
           if (text.length === 0) {
@@ -80,21 +74,18 @@
             return;
           }
 
-          // ビューワー領域のパディング（余白）を取得
-          const style = window.getComputedStyle(viewerRef.current);
-          const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-          const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+          // 親コンテナの実サイズを取得
+          const container = viewerRef.current;
+          const availableWidth = container.clientWidth;
+          const availableHeight = container.clientHeight;
           
-          // 表示エリアの有効サイズ（ギリギリで切れないよう少し余裕を引く）
-          const availableWidth = viewerRef.current.clientWidth - padX - 16;
-          const availableHeight = viewerRef.current.clientHeight - padY - 16;
+          const fontSize = 18; 
+          const lineHeight = 36; // leading-loose の実高
+          const charHeight = fontSize * 1.15; // 文字間隔（トラッキング）分を考慮
           
-          const fontSize = 18; // text-lg相当(px)
-          const lineHeight = 36; // leading-loose相当(px)
-          
-          // 画面に収まる最大行数と1行あたりの最大文字数を計算
+          // 枠内に収まる最大行数と1行あたりの文字数を計算
           const maxLines = Math.max(1, Math.floor(availableWidth / lineHeight));
-          const maxCharsPerLine = Math.max(10, Math.floor(availableHeight / (fontSize * 1.1))); // tracking分考慮
+          const maxCharsPerLine = Math.max(10, Math.floor(availableHeight / charHeight));
           
           const newPages = [];
           let currentPageText = "";
@@ -107,7 +98,7 @@
             const trimmed = p.trim();
             const isTitle = (i === 0 && trimmed.startsWith('『') && trimmed.endsWith('』'));
             
-            // 空行（改行のみ）の処理
+            // 空行の処理（1行消費）
             if (p === "") {
               if (currentLineCount + 1 > maxLines && currentPageText !== "") {
                 newPages.push(currentPageText);
@@ -123,8 +114,7 @@
             let charIndex = 0;
             while (charIndex < p.length) {
               let chunk = p.slice(charIndex, charIndex + maxCharsPerLine);
-              // タイトル行は文字が大きく余白も付くため約3行分としてカウント
-              let linesCost = isTitle ? 3 : 1;
+              let linesCost = isTitle ? 3 : 1; 
               
               if (currentLineCount + linesCost > maxLines && currentPageText !== "") {
                 newPages.push(currentPageText);
@@ -137,7 +127,6 @@
               charIndex += maxCharsPerLine;
             }
             
-            // 段落の終わりに改行を追加（最後の段落以外）
             if (i < paragraphs.length - 1) {
               currentPageText += '\n';
             }
@@ -150,15 +139,11 @@
           setPageSplits(newPages);
         };
 
-        // 初期計算を実行
         calculatePages();
-
-        // 画面リサイズ時に再計算（負荷軽減のためデバウンス処理）
         const handleResize = () => {
           clearTimeout(timeoutId);
           timeoutId = setTimeout(calculatePages, 150);
         };
-        
         window.addEventListener('resize', handleResize);
         return () => {
           window.removeEventListener('resize', handleResize);
@@ -169,7 +154,6 @@
       const pages = pageSplits.length > 0 ? pageSplits : [];
       const totalPages = Math.max(1, pages.length);
 
-      // ウィンドウサイズが変わって総ページ数が減った際に、現在のページ番号を補正
       useEffect(() => {
         if (currentPage >= totalPages && totalPages > 0) {
           setCurrentPage(totalPages - 1);
@@ -207,7 +191,6 @@
         if (!window.speechSynthesis) return alert("お使いのブラウザは音声読み上げに対応していません。");
         window.speechSynthesis.cancel();
         
-        // 現在のページ以降のテキストを読み上げる
         const textToRead = pages.slice(currentPage).join('');
         const utterance = new SpeechSynthesisUtterance(textToRead);
         utterance.lang = 'ja-JP';
@@ -244,12 +227,10 @@
         if (!content) return null;
         return content.split('\n').map((paragraph, idx) => {
           const trimmed = paragraph.trim();
-          // 冒頭行（idx===0 または最初のページ）かつ『』で囲まれている場合をタイトルとして判定
           const isTitle = (currentPage === 0 && idx === 0) && trimmed.startsWith('『') && trimmed.endsWith('』');
           
-          // エディターで改行のみ（空行）が入力された場合、HTML上で潰れないように全角スペースを入れて1行分の空きを作る
           if (paragraph === '') {
-            return <p key={idx} className="leading-loose" style={{ minWidth: '1em', minHeight: '1em' }}>　</p>;
+            return <p key={idx} className="m-0 leading-loose" style={{ minWidth: '1em', minHeight: '1em' }}> </p>;
           }
           
           const formattedP = paragraph.split(/(……|——)/g).map((part, i) => {
@@ -259,12 +240,11 @@
             return part;
           });
           
-          // タイトルの場合は上部から約6文字分下げ、次の行（本文）との間に1行分の余白（左マージン）を設ける
           if (isTitle) {
             return (
               <p 
                 key={idx} 
-                className="text-2xl font-bold" 
+                className="text-2xl font-bold m-0" 
                 style={{ marginTop: '6em', marginLeft: '2.5em' }}
               >
                 {formattedP}
@@ -272,15 +252,16 @@
             );
           }
           
-          return <p key={idx} className="leading-loose">{formattedP}</p>;
+          // m-0 (マージン0) にすることで、段落間の余白による縦のズレ（はみ出し）を完全に防ぐ
+          return <p key={idx} className="m-0 leading-loose">{formattedP}</p>;
         });
       };
 
       return (
-        <div className={`min-h-screen flex flex-col ${isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-100 text-gray-900'}`}>
+        <div className={`h-screen w-screen flex flex-col overflow-hidden ${isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-100 text-gray-900'}`}>
           
           {/* ヘッダー */}
-          <header className={`p-4 border-b flex justify-between items-center ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+          <header className={`p-4 border-b shrink-0 flex justify-between items-center ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
             <h1 className="text-xl font-bold tracking-wider">小説エディター＆ビューワー</h1>
             <div className="flex gap-2">
               <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-2 rounded ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}>
@@ -307,10 +288,9 @@
                 value={text}
                 onChange={(e) => {
                   setText(e.target.value);
-                  // テキスト変更時は必ず1ページ目に戻る（エラー防止）
                   setCurrentPage(0);
                 }}
-                placeholder={"ここに小説のテキストを入力してください。\n一行目を『タイトル』と入力すると、ビューワー上でタイトルとして上部から少し下がり、1行空けて表示されます。"}
+                placeholder="ここに小説のテキストを入力してください。&#13;&#10;一行目を『タイトル』と入力すると、ビューワー上でタイトルとして上部から少し下がり、1行空けて表示されます。"
               />
             </div>
 
@@ -318,7 +298,7 @@
             <div className={`w-1/2 flex flex-col ${isDarkMode ? 'bg-[#1a1a1a]' : 'bg-[#fdfbf7]'}`}>
               
               {/* コントロールパネル */}
-              <div className={`p-3 flex justify-between items-center border-b ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'}`}>
+              <div className={`p-3 border-b shrink-0 flex justify-between items-center ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'}`}>
                 {/* 読み上げ機能 */}
                 <div className="flex gap-2">
                   {!isPlaying ? (
@@ -351,20 +331,22 @@
                 </div>
               </div>
 
-              {/* 縦書きプレビュー領域 */}
-              <div 
-                ref={viewerRef}
-                className="flex-1 overflow-hidden p-6 lg:p-12 text-center"
-              >
+              {/* 縦書きプレビュー領域（ウィンドウ枠に完全に固定） */}
+              <div className="flex-1 relative overflow-hidden" style={{ minHeight: 0 }}>
                 <div 
-                  className={`inline-block vertical-rl text-lg tracking-widest text-left ${isDarkMode ? 'text-gray-300' : 'text-gray-800'}`}
-                  style={{ height: '100%', maxWidth: '100%' }}
+                  ref={viewerRef} 
+                  className="absolute top-8 bottom-8 left-8 right-8 md:top-12 md:bottom-12 md:left-12 md:right-12 overflow-hidden flex justify-center"
                 >
-                  {text.length === 0 ? (
-                    <p className="text-gray-400 mt-10">テキストを入力すると、ここに縦書きでプレビューされます。</p>
-                  ) : (
-                    formatVerticalText(pages[currentPage] || "")
-                  )}
+                  <div 
+                    className={`vertical-rl text-lg tracking-widest text-left ${isDarkMode ? 'text-gray-300' : 'text-gray-800'}`}
+                    style={{ height: '100%', wordBreak: 'break-all' }}
+                  >
+                    {text.length === 0 ? (
+                      <p className="text-gray-400 mt-10">テキストを入力すると、ここに縦書きでプレビューされます。</p>
+                    ) : (
+                      formatVerticalText(pages[currentPage] || "")
+                    )}
+                  </div>
                 </div>
               </div>
 
