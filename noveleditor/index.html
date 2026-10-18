@@ -56,6 +56,7 @@
     const IconMoon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>;
     const IconDownload = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
 
+    // 初期テキストを空（ブランク）に設定
     const initialText = ``;
 
     const NovelEditor = () => {
@@ -135,12 +136,30 @@
       const formatVerticalText = (content) => {
         if (!content) return null;
         return content.split('\n').map((paragraph, idx) => {
+          const trimmed = paragraph.trim();
+          // 冒頭行（idx===0 または最初のページ）かつ『』で囲まれている場合をタイトルとして判定
+          const isTitle = (currentPage === 0 && idx === 0) && trimmed.startsWith('『') && trimmed.endsWith('』');
+          
           const formattedP = paragraph.split(/(……|——)/g).map((part, i) => {
             if (part === '……' || part === '——') {
               return <span key={i} style={{ fontVariantEastAsian: 'vertical' }}>{part}</span>;
             }
             return part;
           });
+          
+          // タイトルの場合は文字を大きく、縦書きの中央（上下中央）に配置するためのスタイルを付与
+          if (isTitle) {
+            return (
+              <p 
+                key={idx} 
+                className="text-2xl font-bold mb-8" 
+                style={{ textAlign: 'center', height: '100%' }}
+              >
+                {formattedP}
+              </p>
+            );
+          }
+          
           return <p key={idx} className="mb-4 leading-loose">{formattedP}</p>;
         });
       };
@@ -178,7 +197,7 @@
                   setText(e.target.value);
                   setCurrentPage(0);
                 }}
-                placeholder="ここに小説のテキストを入力してください..."
+                placeholder="ここに小説のテキストを入力してください。&#13;&#10;一行目を『タイトル』と入力すると、ビューワー上でタイトルとして大きく中央に表示されます。"
               />
             </div>
 
@@ -219,7 +238,7 @@
                 </div>
               </div>
 
-              {/* 縦書きプレビュー領域（レイアウト修正部分） */}
+              {/* 縦書きプレビュー領域 */}
               <div className="flex-1 overflow-auto p-8 lg:p-12 text-center no-scrollbar">
                 <div 
                   className={`inline-block vertical-rl text-lg tracking-widest text-left ${isDarkMode ? 'text-gray-300' : 'text-gray-800'}`}
