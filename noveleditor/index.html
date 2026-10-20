@@ -22,14 +22,13 @@
       -webkit-writing-mode: vertical-rl;
       text-orientation: mixed;
     }
-    /* はみ出た際のスクロールバーのデザインを控えめにする */
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
+    /* スクロールバーの完全非表示 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
     }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background-color: rgba(156, 163, 175, 0.5);
-      border-radius: 10px;
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
     /* フォント設定 */
     body {
@@ -83,7 +82,7 @@
       const [pageSplits, setPageSplits] = useState([]);
       
       const viewerRef = useRef(null);
-      const isPlayingRef = useRef(false); // 再生状態を非同期内で追跡するためのRef
+      const isPlayingRef = useRef(false);
 
       // --- 初期化・設定保存 ---
       useEffect(() => {
@@ -106,7 +105,6 @@
         localStorage.setItem('speechPitch', speechPitch);
       }, [selectedVoiceURI, speechRate, speechPitch]);
 
-      // ブラウザにインストールされている日本語音声リストを取得
       useEffect(() => {
         const populateVoices = () => {
           const availableVoices = window.speechSynthesis.getVoices();
@@ -124,7 +122,6 @@
         }
       }, []);
 
-      // --- 手動保存（ライブラリへの追加） ---
       const handleSaveNovel = () => {
         if (!text.trim()) return alert('テキストが入力されていません。');
         let title = "無題の小説";
@@ -158,7 +155,7 @@
         }
       };
 
-      // --- 文字切れ防止＆ページ分割計算 ---
+      // --- 文字切れ防止＆ページ分割計算（レイアウト崩れ対策版） ---
       useEffect(() => {
         let timeoutId = null;
         const calculatePages = () => {
@@ -172,11 +169,14 @@
           const availableWidth = container.clientWidth;
           const availableHeight = container.clientHeight;
           
+          // 1行の幅（横幅計算）
           const actualLineHeight = fontSize * lineHeight;
-          const charHeight = fontSize * 1.5; 
+          // 1文字の高さ（安全マージンをさらに大きめに取る）
+          const charHeight = fontSize * 1.55; 
           
-          const maxLines = Math.max(1, Math.floor(availableWidth / actualLineHeight));
-          const maxCharsPerLine = Math.max(1, Math.floor((availableHeight - 40) / charHeight));
+          // コンテナの枠から少し内側で計算する（横幅のはみ出し防止）
+          const maxLines = Math.max(1, Math.floor((availableWidth - 10) / actualLineHeight));
+          const maxCharsPerLine = Math.max(1, Math.floor((availableHeight - 20) / charHeight));
           
           const newPages = [];
           let currentPageText = "";
@@ -286,10 +286,10 @@
         downloadFile(text, `${title}.txt`, 'text/plain');
       };
 
-      // --- スムーズな読み上げ機能 (連動ページめくり対応) ---
+      // --- スムーズな読み上げ機能 ---
       const speak = () => {
         if (!window.speechSynthesis) return alert("お使いのブラウザは音声読み上げに対応していません。");
-        window.speechSynthesis.cancel(); // 既存の読み上げをリセット
+        window.speechSynthesis.cancel();
         
         isPlayingRef.current = true;
         setIsPlaying(true);
@@ -300,15 +300,14 @@
       const readFromCurrentPage = (pageIdx) => {
         if (!isPlayingRef.current) return;
         if (pageIdx >= pages.length) {
-          stop(); // 最終ページまで読み終わったら停止
+          stop();
           return;
         }
 
-        setCurrentPage(pageIdx); // 読み上げるページに画面を切り替え
+        setCurrentPage(pageIdx);
         
         const textToRead = pages[pageIdx];
         if (!textToRead || textToRead.trim() === '') {
-          // 空ページの場合はすぐ次のページへ
           readFromCurrentPage(pageIdx + 1);
           return;
         }
@@ -318,13 +317,11 @@
         utterance.rate = speechRate;
         utterance.pitch = speechPitch;
         
-        // 選択された音声を適用
         const selectedVoice = voices.find(v => v.voiceURI === selectedVoiceURI);
         if (selectedVoice) {
           utterance.voice = selectedVoice;
         }
 
-        // 1ページ読み終わったら自動で次のページへ
         utterance.onend = () => {
           if (isPlayingRef.current) {
             readFromCurrentPage(pageIdx + 1);
@@ -546,10 +543,11 @@
                 </div>
               </div>
 
+              {/* 【修正】overflow-hidden と flex justify-center に完全に戻し、横幅やスクロールの崩れを防止 */}
               <div className="flex-1 relative overflow-hidden" style={{ minHeight: 0 }}>
                 <div 
                   ref={viewerRef} 
-                  className="absolute top-8 bottom-8 left-8 right-8 md:top-12 md:bottom-12 md:left-12 md:right-12 overflow-y-auto overflow-x-hidden flex justify-center custom-scrollbar pb-8"
+                  className="absolute top-8 bottom-8 left-8 right-8 md:top-12 md:bottom-12 md:left-12 md:right-12 overflow-hidden flex justify-center"
                 >
                   <div 
                     className={`vertical-rl tracking-widest text-left ${isDarkMode ? 'text-gray-300' : 'text-gray-800'}`}
