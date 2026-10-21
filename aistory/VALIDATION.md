@@ -1,0 +1,30 @@
+# VALIDATION — v1.5.1
+
+## アニメーション参考機能
+
+- `animators.js` に国内20名・海外20名、計40名を登録。
+- 16種類の表現ジャンルを登録。
+- `index.html` にジャンル、地域、名前検索、候補選択、自由入力、説明欄を追加。
+- HTML内のID重複がないことを確認。
+- `animators.js` が `app.js` より前に読み込まれることを確認。
+- `app.js` と `prompt.js` のJavaScript構文チェックに合格。
+- 制作依頼文で、選択したアニメーター名と一般的な映像特徴が反映されることを確認。
+- 画像・動画生成プロンプトでは固有名を直接コピーせず、一般化した特徴へ変換する指示が出力されることを確認。
+- 小説・文章作品の制作依頼文にはアニメーション参考情報が混入しないことを確認。
+- `node tests/test_animators.js` 合格。
+- `node tests/test_prompt.js` 合格。
+
+## DOCXレンダリング検証（v1.5から継承）
+
+| テンプレート | ページ数 | 結果 |
+|---|---:|---|
+| short-compact.docx | 3 | 合格 |
+| medium-chapter.docx | 5 | 合格 |
+| long-toc-chapter.docx | 6 | 合格 |
+| essay.docx | 4 | 合格 |
+| nonfiction-documentary.docx | 4 | 合格 |
+| column-review.docx | 1 | 合格 |
+| horizontal-general.docx | 3 | 合格 |
+| photo-illustration.docx | 4 | 合格 |
+
+既存 `11point&挿絵.docx` と `12point.docx` を含む10種類のテンプレート構成はv1.5から変更していません。
