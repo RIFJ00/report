@@ -7,7 +7,7 @@ const LIBRARY=(root.TEMPLATE_LIBRARY&&root.TEMPLATE_LIBRARY.length?root.TEMPLATE
 const WORD_TEMPLATES=Object.fromEntries(LIBRARY.map(t=>[t.id,t]));
 function resolveTemplate(d){
  if(d.wordTemplate&&d.wordTemplate.filename)return {...d.wordTemplate};
- return {...(WORD_TEMPLATES[d.wordOutput]||WORD_TEMPLATES.template11||FALLBACK_TEMPLATES[0])};
+ return {...(WORD_TEMPLATES[d.wordOutput]||WORD_TEMPLATES.template12||FALLBACK_TEMPLATES[0])};
 }
 function buildWordSection(d){
  if(d.wordOutput==='none'||d.format==='video') return `

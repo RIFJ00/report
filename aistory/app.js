@@ -6,6 +6,7 @@ let customTemplateSerial=0;
 const customTemplates=[];
 const formats={video:'ショート動画',short:'短編小説',medium:'中編小説',long:'長編小説',article:'記事・コラム・随筆',book:'ノンフィクション書籍'};
 const builtInTemplates=(window.TEMPLATE_LIBRARY||[]).map(t=>({...t,custom:false}));
+const DEFAULT_TEMPLATE_ID='template12';
 function show(id){screens.forEach(s=>$(s).hidden=s!==id);window.scrollTo({top:0,behavior:'smooth'});const head=$(id).querySelector('h1');if(head){head.tabIndex=-1;head.focus({preventScroll:true});}}
 function allTemplates(){return [...builtInTemplates,...customTemplates];}
 function selectedTemplate(){return allTemplates().find(t=>t.id===$('wordOutput').value)||null;}
@@ -34,7 +35,7 @@ function renderTemplateLibrary(){
  }
  const off=document.createElement('button');off.type='button';off.className='template-off'+($('wordOutput').value==='none'?' selected':'');off.setAttribute('aria-pressed',$('wordOutput').value==='none'?'true':'false');off.innerHTML='<strong>Word成果物を作成しない</strong><small>本文・台本だけを作成する場合</small>';off.onclick=()=>chooseTemplate('none');host.append(off);
 }
-function removeCustomTemplate(id){const i=customTemplates.findIndex(t=>t.id===id);if(i<0)return;const [t]=customTemplates.splice(i,1);if(t.objectUrl)URL.revokeObjectURL(t.objectUrl);if($('wordOutput').value===id)$('wordOutput').value=builtInTemplates[0]?.id||'none';$('customTemplateStatus').textContent='セッション登録から削除しました。';renderTemplateLibrary();update();}
+function removeCustomTemplate(id){const i=customTemplates.findIndex(t=>t.id===id);if(i<0)return;const [t]=customTemplates.splice(i,1);if(t.objectUrl)URL.revokeObjectURL(t.objectUrl);if($('wordOutput').value===id)$('wordOutput').value=builtInTemplates.find(t=>t.id===DEFAULT_TEMPLATE_ID)?.id||builtInTemplates[0]?.id||'none';$('customTemplateStatus').textContent='セッション登録から削除しました。';renderTemplateLibrary();update();}
 function addCustomTemplate(){
  const input=$('customTemplateFile'),file=input.files?.[0];
  if(!file){$('customTemplateStatus').textContent='追加するDOCXファイルを選択してください。';input.focus();return;}
@@ -86,7 +87,7 @@ $('start').onclick=()=>{show('settings');update();};$('home').onclick=e=>{e.prev
 ['genre','region'].forEach(id=>$(id).onchange=()=>renderAuthors());$('search').oninput=()=>renderAuthors();
 ['animatorGenre','animatorRegion'].forEach(id=>$(id).onchange=()=>renderAnimators());$('animatorSearch').oninput=()=>renderAnimators();
 $('form').addEventListener('input',e=>{if(!['customTemplateFile'].includes(e.target.id))update();});$('form').addEventListener('change',e=>{if(!['customTemplateFile'].includes(e.target.id))update();});
-$('addCustomTemplate').onclick=addCustomTemplate;$('noWord').onclick=()=>chooseTemplate($('wordOutput').value==='none'?(builtInTemplates[0]?.id||'none'):'none');
+$('addCustomTemplate').onclick=addCustomTemplate;$('noWord').onclick=()=>chooseTemplate($('wordOutput').value==='none'?(builtInTemplates.find(t=>t.id===DEFAULT_TEMPLATE_ID)?.id||builtInTemplates[0]?.id||'none'):'none');
 $('form').onsubmit=e=>{e.preventDefault();if(!validate())return;confirmed=data();fill('reviewSummary',pairs(confirmed,true));show('review');};
 function clearAll(){
  customTemplates.splice(0).forEach(t=>{if(t.objectUrl)URL.revokeObjectURL(t.objectUrl);});
@@ -94,7 +95,7 @@ function clearAll(){
  $('form').reset();
  $('genre').value='';$('region').value='';$('search').value='';
  $('animatorGenre').value='';$('animatorRegion').value='';$('animatorSearch').value='';
- $('wordOutput').value=builtInTemplates[0]?.id||'none';
+ $('wordOutput').value=builtInTemplates.find(t=>t.id===DEFAULT_TEMPLATE_ID)?.id||builtInTemplates[0]?.id||'none';
  $('customTemplateFile').value='';$('customTemplateLabel').value='';$('customTemplateFont').value='';$('customTemplateUse').value='';
  $('customTemplateWriting').selectedIndex=0;$('customTemplateIllustration').selectedIndex=0;
  $('formError').hidden=true;$('formError').textContent='';
