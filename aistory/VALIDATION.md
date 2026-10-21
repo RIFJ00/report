@@ -1,4 +1,4 @@
-# VALIDATION — v1.5.1
+# VALIDATION — v1.5.2
 
 ## アニメーション参考機能
 
@@ -28,3 +28,11 @@
 | photo-illustration.docx | 4 | 合格 |
 
 既存 `11point&挿絵.docx` と `12point.docx` を含む10種類のテンプレート構成はv1.5から変更していません。
+
+
+## v1.5.2 UI defaults / clear-all
+
+- `duration` の先頭選択肢が「約3分」であることを静的テスト。
+- 設定・確認・結果画面に `clear-all` 操作が存在することを静的テスト。
+- `clearAll()` がフォーム、検索条件、追加テンプレート、確認データ、生成依頼文を初期化するコードを確認。
+- 既存の prompt / animator テストを再実行。

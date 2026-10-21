@@ -88,7 +88,21 @@ $('start').onclick=()=>{show('settings');update();};$('home').onclick=e=>{e.prev
 $('form').addEventListener('input',e=>{if(!['customTemplateFile'].includes(e.target.id))update();});$('form').addEventListener('change',e=>{if(!['customTemplateFile'].includes(e.target.id))update();});
 $('addCustomTemplate').onclick=addCustomTemplate;$('noWord').onclick=()=>chooseTemplate($('wordOutput').value==='none'?(builtInTemplates[0]?.id||'none'):'none');
 $('form').onsubmit=e=>{e.preventDefault();if(!validate())return;confirmed=data();fill('reviewSummary',pairs(confirmed,true));show('review');};
-$('reset').onclick=()=>{$('form').reset();$('genre').value='';$('region').value='';$('search').value='';$('animatorGenre').value='';$('animatorRegion').value='';$('animatorSearch').value='';$('wordOutput').value=builtInTemplates[0]?.id||'none';renderAnimators('auto');renderAuthors('a0_0');$('formError').hidden=true;$('customTemplateStatus').textContent='';confirmed=null;};
+function clearAll(){
+ customTemplates.splice(0).forEach(t=>{if(t.objectUrl)URL.revokeObjectURL(t.objectUrl);});
+ customTemplateSerial=0;
+ $('form').reset();
+ $('genre').value='';$('region').value='';$('search').value='';
+ $('animatorGenre').value='';$('animatorRegion').value='';$('animatorSearch').value='';
+ $('wordOutput').value=builtInTemplates[0]?.id||'none';
+ $('customTemplateFile').value='';$('customTemplateLabel').value='';$('customTemplateFont').value='';$('customTemplateUse').value='';
+ $('customTemplateWriting').selectedIndex=0;$('customTemplateIllustration').selectedIndex=0;
+ $('formError').hidden=true;$('formError').textContent='';
+ $('customTemplateStatus').textContent='';$('copyStatus').textContent='';$('output').value='';
+ confirmed=null;
+ renderAnimators('auto');renderAuthors('a0_0');renderTemplateLibrary();update();show('settings');
+}
+document.querySelectorAll('.clear-all').forEach(btn=>btn.addEventListener('click',clearAll));
 $('back').onclick=$('editSettings').onclick=()=>show('settings');
 $('generate').onclick=()=>{if(!confirmed)return;syncTemplateUI(confirmed);$('output').value=window.buildPrompt(confirmed);$('copyStatus').textContent='';show('result');};
 $('copy').onclick=async()=>{try{if(!navigator.clipboard?.writeText)throw Error('clipboard unavailable');await navigator.clipboard.writeText($('output').value);$('copyStatus').textContent='コピーしました。プロジェクトのチャットに貼り付けて送信してください。';}catch(e){$('output').focus();$('output').select();$('copyStatus').textContent='依頼文を選択しました。端末の「コピー」を使ってください。';}};
