@@ -835,6 +835,10 @@ function ctx(){
     contactLevel:esc(preset.contact_level), route:esc(preset.route),
     contactDeptVerified:esc(preset.contact_department_verified)||esc(preset.dept1),
     contactCheckedDate:esc(preset.contact_checked_date),
+    contactRecheckDate:esc(preset.contact_recheck_date),
+    contactRecheckStatus:esc(preset.contact_recheck_status),
+    contactRecheckScope:esc(preset.contact_recheck_scope),
+    contactRecheckSource:esc(preset.contact_recheck_source),
     companyResearch:esc(preset.company_research),
     companyResearchSource:esc(preset.company_research_source)||esc(preset.contact_url)||esc(preset.official_url),
     priorityRank:esc(preset.priority_rank)||"C",
@@ -867,7 +871,6 @@ function contactMemo(c){
 function contactResearchSummary(c){
   const person=[c.person,c.role].filter(Boolean).join(" ／ ") || "公開担当者名は未確認";
   const dept=c.contactDeptVerified||c.dept||"経営企画・政策渉外等（要確認）";
-  const source=c.companyResearchSource||c.contactUrl||c.officialUrl||"情報源未登録";
   const checked=c.contactCheckedDate ? `（確認日 ${c.contactCheckedDate}）` : "";
   return `【選択企業・営業連絡先】
 企業名：${c.company}
@@ -876,15 +879,7 @@ function contactResearchSummary(c){
 担当部署／推奨営業先：${dept}
 公開担当者・役職：${person}
 連絡先確認：${c.contactLevel||"要確認"}${checked}
-
-【企業概要】
-${c.companyResearch||"企業詳細は既存マスタ情報を参照してください。"}
-
-【営業観点】
-${c.priorityReason||`${c.industry}に関する政策・規制・予算の変化を中心に提案。`}
-
-【情報源】
-${source}`;
+公式再確認：${c.contactRecheckStatus||"未実施"}${c.contactRecheckDate ? `（${c.contactRecheckDate}）` : ""}`;
 }
 
 function generate(){
@@ -1168,6 +1163,9 @@ function renderSelectedCompanySidePanel(c){
   $("selectedCompanyContactCheck").textContent=preset
     ? ([preset.contact_level,preset.contact_checked_date ? `確認日 ${preset.contact_checked_date}` : ""].filter(Boolean).join(" ／ ") || "要確認")
     : "—";
+  $("selectedCompanyRecheck").textContent=preset
+    ? ([preset.contact_recheck_status,preset.contact_recheck_date].filter(Boolean).join(" ／ ") || "未実施")
+    : "—";
   $("selectedCompanyResearch").textContent=preset
     ? `${preset.company_research||"企業詳細は既存マスタ情報を参照してください。"}\n\n営業観点：${preset.priority_reason||"—"}\n情報源：${preset.company_research_source||preset.contact_url||preset.official_url||"—"}`
     : "—";
@@ -1204,6 +1202,7 @@ function resetSelectedCompanySidePanel(){
   $("selectedCompanyDept").textContent="—";
   $("selectedCompanyPerson").textContent="—";
   $("selectedCompanyContactCheck").textContent="—";
+  $("selectedCompanyRecheck").textContent="—";
   $("selectedCompanyResearch").textContent="—";
   $("selectedCompanyHistory").textContent="企業を選択すると、利用履歴を表示します。";
   $("selectedMembershipStart").textContent="—";
@@ -1226,13 +1225,7 @@ function render(c){
  $("officialUrlDisplay").value=c.officialUrl||"";
  $("sourceUrlDisplay").value=c.contactUrl||"";
  $("historyDisplay").value=c.planHistory||"";
- $("outContactPhone").textContent=c.contact||"未登録・要確認";
- $("outContactDept").textContent=c.contactDeptVerified||c.dept||"要確認";
- $("outContactPerson").textContent=[c.person,c.role].filter(Boolean).join(" ／ ")||"公開担当者名は未確認";
- $("outContactConfidence").textContent=[c.contactLevel,c.contactCheckedDate ? `確認日 ${c.contactCheckedDate}` : ""].filter(Boolean).join(" ／ ")||"要確認";
- $("outCompanyResearch").textContent=c.companyResearch||"企業詳細は既存マスタ情報を参照してください。";
- $("outPolicyFit").textContent=c.priorityReason||`${c.industry}の政策・規制・予算を中心に提案。`;
- $("outContactSource").textContent=c.companyResearchSource||c.contactUrl||c.officialUrl||"—";
+
  $("statusNotice").textContent = c.salesGroup==="現在利用"
   ? "現在利用中：新規営業対象外。利用促進・テーマ追加・他部署展開の提案として扱ってください。"
   : c.salesGroup==="過去有料利用"
@@ -1331,7 +1324,7 @@ function downloadDocx(){
   paras.push({text:`営業区分：${c.salesGroup}`});
   paras.push({text:`業種：${c.industry}`});
   paras.push({text:""});
-  paras.push({text:"営業連絡先・企業情報",bold:true,size:26});
+  paras.push({text:"営業連絡先",bold:true,size:26});
   for(const line of contactResearchSummary(c).split(/\n/)) paras.push({text:line});
   paras.push({text:""});
   for(const s of sections){
@@ -1372,7 +1365,7 @@ function printPdf(){
   </style></head><body>
   <h1>政策リサーチ 営業アプローチ文面</h1>
   <div class="meta">企業：${xmlEscape(c.company)}<br>営業区分：${xmlEscape(c.salesGroup)}<br>業種：${xmlEscape(c.industry)}</div>
-  <h2>営業連絡先・企業情報</h2><pre>${xmlEscape(contactResearchSummary(c))}</pre>
+  <h2>営業連絡先</h2><pre>${xmlEscape(contactResearchSummary(c))}</pre>
   ${sections.map(s=>`<h2>${xmlEscape(s.title)}</h2><pre>${xmlEscape(s.text)}</pre>`).join("")}
   <script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script>
   </body></html>`;
@@ -1394,6 +1387,8 @@ const COMPANY_EXPORT_FIELDS=[
   ["公開役職・接点","role"],["公開連絡先","contact"],["連絡先種別","contact_type"],["連絡先確認","contact_level"],
   ["企業公式URL","official_url"],["連絡先・根拠URL","contact_url"],["推奨初回接触ルート","route"],
   ["確認済み担当部署／推奨営業先","contact_department_verified"],["連絡先調査日","contact_checked_date"],
+  ["公式再確認日","contact_recheck_date"],["公式再確認状況","contact_recheck_status"],
+  ["公式再確認対象","contact_recheck_scope"],["公式再確認情報源","contact_recheck_source"],
   ["企業詳細調査","company_research"],["企業詳細情報源","company_research_source"],
   ["最初に刺すテーマ","sales_theme"],["直近政策トリガー","policy_trigger"],["15分デモ内容","demo"],
   ["過去プラン・履歴","plan_history"],["販売チャネル","sales_channel"]
