@@ -70,6 +70,7 @@ function init(){
   $("bulkGenerateBtn").addEventListener("click", generateBulkDocuments);
   $("bulkDocxBtn").addEventListener("click", downloadBatchDocx);
   $("bulkPdfBtn").addEventListener("click", printBatchPdf);
+  $("exportBulkSelectedCompaniesBtn").addEventListener("click", exportBulkSelectedCompaniesCsv);
   $("bulkCsvBtn").addEventListener("click", exportBatchCsv);
   $("stampBulkApproachBtn").addEventListener("click", stampBulkApproachToday);
   $("saveProgressBtn").addEventListener("click", saveProgressFromForm);
@@ -1402,6 +1403,17 @@ function companyToCsvRows(list){
   });
   return [header,...rows].map(r=>r.map(csvEscape).join(",")).join("\r\n");
 }
+function exportBulkSelectedCompaniesCsv(){
+  if(APP_MODE!=="bulk") return;
+  if(!BULK_SELECTED.size){ alert("一覧に出力する企業を1社以上選択してください。"); return; }
+  const selected=COMPANY_DATA
+    .filter(c=>BULK_SELECTED.has(c.company))
+    .slice()
+    .sort(compareCompanyPriorityName);
+  const csv="\ufeff"+companyToCsvRows(selected);
+  saveBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),`政策リサーチ_選択企業一覧_${selected.length}社.csv`);
+}
+
 function exportSelectedCsv(){
   if(APP_MODE!=="single"){ alert("1社モードで使用してください。"); return; }
   const c=companyByName($("companyInput").value);
