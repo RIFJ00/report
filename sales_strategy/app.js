@@ -16,6 +16,7 @@ let LAST_BATCH_DOCS = [];
 const PROGRESS_STORAGE_KEY = "rifj_policy_sales_progress_v1";
 const PROGRESS_DB_NAME = "rifj_policy_sales_db_v1";
 const PROGRESS_DB_STORE = "kv";
+const COMPANY_RENAME_MAP = {"KDDI":"KDDI株式会社","TDK":"TDK株式会社","TIS":"TIS株式会社","ソフトバンク":"ソフトバンク株式会社","ダイキン工業":"ダイキン工業株式会社","大日本印刷":"大日本印刷株式会社","富士通":"富士通株式会社","岩谷産業":"岩谷産業株式会社","川崎重工業":"川崎重工業株式会社","日立製作所":"株式会社日立製作所","日鉄ソリューションズ":"日鉄ソリューションズ株式会社","東芝":"株式会社東芝","沖電気工業":"沖電気工業株式会社","関西電力":"関西電力株式会社","ANAホールディングス":"ANAホールディングス株式会社","LIXIL":"株式会社LIXIL","freee":"freee株式会社","インフォマート":"株式会社インフォマート","エムティーアイ":"株式会社エムティーアイ","ジェイティービー":"株式会社ジェイティービー","ジャパンディスプレイ":"株式会社ジャパンディスプレイ","ゼンリン":"株式会社ゼンリン","ソニー生命保険":"ソニー生命保険株式会社","トーエネック":"株式会社トーエネック","ニチイ学館":"株式会社ニチイ学館","パナソニック コネクト":"パナソニック コネクト株式会社","ファーマインド":"株式会社ファーマインド","ベネフィット・ワン":"株式会社ベネフィット・ワン","ホーチキ":"ホーチキ株式会社","ミロク情報サービス":"株式会社ミロク情報サービス","メットライフ生命":"メットライフ生命保険株式会社","ヤマトホールディングス":"ヤマトホールディングス株式会社","リクルート":"株式会社リクルート","ローム":"ローム株式会社","中部電力":"中部電力株式会社","京セラ":"京セラ株式会社","八千代エンジニヤリング":"八千代エンジニヤリング株式会社","共同印刷":"共同印刷株式会社","千葉銀行":"株式会社千葉銀行","博報堂":"株式会社博報堂","大和リース":"大和リース株式会社","大塚商会":"株式会社大塚商会","弥生":"弥生株式会社","日本総合研究所":"株式会社日本総合研究所","日産自動車":"日産自動車株式会社","日立情報通信エンジニアリング":"株式会社日立情報通信エンジニアリング","旭化成":"旭化成株式会社","東海理化":"株式会社東海理化","東芝デジタルソリューションズ":"東芝デジタルソリューションズ株式会社","積水ハウス":"積水ハウス株式会社","積水化学工業":"積水化学工業株式会社","荏原製作所":"株式会社荏原製作所","野村総合研究所":"株式会社野村総合研究所","阪急阪神ホールディングス":"阪急阪神ホールディングス株式会社","電通":"株式会社電通","高砂熱学工業":"高砂熱学工業株式会社","イトーキ":"株式会社イトーキ","エナリス":"株式会社エナリス","エフアンドエム":"株式会社エフアンドエム","エフテック":"株式会社エフテック","エレコム":"エレコム株式会社","セブン＆アイ・ホールディングス":"株式会社セブン＆アイ・ホールディングス","ベクトル":"株式会社ベクトル","前澤工業":"前澤工業株式会社","東京スター銀行":"株式会社東京スター銀行","池田泉州銀行":"株式会社池田泉州銀行","紀伊國屋書店":"株式会社紀伊國屋書店","FCE":"株式会社FCE","GR Japan":"GR Japan株式会社","OpenPolicy":"OpenPolicy株式会社","Spectee":"株式会社Spectee","エス・ピー・ネットワーク":"株式会社エス・ピー・ネットワーク","ジー・サーチ":"株式会社ジー・サーチ","セイノーロジックス":"セイノーロジックス株式会社","トーアミ":"株式会社トーアミ","フルノシステムズ":"株式会社フルノシステムズ","ライトアップ":"株式会社ライトアップ","リブドゥコーポレーション":"株式会社リブドゥコーポレーション","日本医療企画":"株式会社日本医療企画","時評社":"株式会社時評社","緑川化成工業":"緑川化成工業株式会社","若井ホールディングス":"若井ホールディングス株式会社"};
 let PROGRESS_CACHE = (()=>{try{return JSON.parse(localStorage.getItem(PROGRESS_STORAGE_KEY)||"{}")||{};}catch(e){return {};}})();
 let PROGRESS_DB = null;
 let STORAGE_PERSISTED = false;
@@ -198,6 +199,16 @@ function mergeProgressStores(a,b){
   });
   return out;
 }
+function migrateProgressCompanyNames(store){
+  const out={...(store||{})};
+  Object.entries(COMPANY_RENAME_MAP||{}).forEach(([oldName,newName])=>{
+    if(!oldName||!newName||oldName===newName||!out[oldName]) return;
+    if(!out[newName]) out[newName]=out[oldName];
+    else out[newName]=mergeProgressStores({[newName]:out[newName]},{[newName]:out[oldName]})[newName];
+    delete out[oldName];
+  });
+  return out;
+}
 async function initPersistentStorage(){
   updateStorageStatus("端末保存を初期化中…","warn");
   try{
@@ -208,7 +219,7 @@ async function initPersistentStorage(){
 
   try{
     const fromDb=await idbGetProgress();
-    PROGRESS_CACHE=mergeProgressStores(PROGRESS_CACHE,fromDb);
+    PROGRESS_CACHE=migrateProgressCompanyNames(mergeProgressStores(PROGRESS_CACHE,fromDb));
     try{ localStorage.setItem(PROGRESS_STORAGE_KEY,JSON.stringify(PROGRESS_CACHE)); }catch(e){}
     await idbPutProgress(PROGRESS_CACHE);
     renderCompanyDropdown();
@@ -1130,7 +1141,7 @@ ${SIGNATURE}`;
 function usageHistorySummary(preset){
   if(!preset || !preset.company) return "利用履歴はありません。";
   if(preset.membership_state==="現在利用中"){
-    return `会員名簿では現在利用中です。登録日 ${preset.membership_start_date||"不明"} からの利用履歴があり、現在プランは「${preset.membership_current_plan||"不明"}」です。新規営業ではなく、利用促進・テーマ追加・他部署展開を優先します。`;
+    return `会員名簿では現在利用中です。登録日 ${preset.membership_start_date||"不明"} からの利用履歴があり、有料利用を優先した表示プランは「${preset.membership_priority_plan||preset.membership_current_plan||"不明"}」です。新規営業ではなく、利用促進・テーマ追加・他部署展開を優先します。`;
   }
   if(preset.membership_state==="退会・現在未利用"){
     const kind=preset.membership_paid_history ? "過去に有料利用" : (preset.membership_trial_history ? "過去にトライアル利用" : "過去に利用");
@@ -1173,7 +1184,7 @@ function renderSelectedCompanySidePanel(c){
   $("selectedCompanyHistory").textContent=preset ? usageHistorySummary(preset) : "企業を選択すると、利用履歴を表示します。";
   $("selectedMembershipStart").textContent=(preset && preset.membership_start_date) || "—";
   $("selectedMembershipState").textContent=(preset && preset.membership_state) || "—";
-  $("selectedMembershipPlan").textContent=(preset && preset.membership_current_plan) || "—";
+  $("selectedMembershipPlan").textContent=(preset && (preset.membership_priority_plan||preset.membership_current_plan)) || "—";
   $("selectedMembershipRows").textContent=preset && preset.membership_rows
     ? `有効 ${preset.membership_valid_rows||0} / 無効 ${preset.membership_invalid_rows||0}`
     : "—";
@@ -1378,21 +1389,18 @@ function csvEscape(v){
   return `"${s}"`;
 }
 const COMPANY_EXPORT_FIELDS=[
-  ["会員名簿判定","membership_state"],["利用開始日（登録日）","membership_start_date"],["現在プラン","membership_current_plan"],
-  ["会員名簿プラン履歴","membership_plan_history"],["有効件数","membership_valid_rows"],["無効件数","membership_invalid_rows"],["判定根拠","membership_basis"],
-  ["営業優先ランク","priority_rank"],["営業優先スコア","priority_score"],["ランク理由","priority_reason"],
-  ["上場・企業区分","listing_status"],["証券コード","ticker"],["名簿区分","master_segment"],["情報源URL","research_source"],
-  ["企業名","company"],["営業区分","sales_group"],["営業可否","sales_allowed"],["主業種・戦略分野","industry"],
-  ["検索用分野タグ","search_tags"],
-  ["副テーマ","secondary"],["第1営業先部署","dept1"],["第2営業先部署","dept2"],["公開キーパーソン","person"],
-  ["公開役職・接点","role"],["公開連絡先","contact"],["連絡先種別","contact_type"],["連絡先確認","contact_level"],
-  ["企業公式URL","official_url"],["連絡先・根拠URL","contact_url"],["推奨初回接触ルート","route"],
-  ["確認済み担当部署／推奨営業先","contact_department_verified"],["連絡先調査日","contact_checked_date"],
-  ["公式再確認日","contact_recheck_date"],["公式再確認状況","contact_recheck_status"],
-  ["公式再確認対象","contact_recheck_scope"],["公式再確認情報源","contact_recheck_source"],
-  ["企業詳細調査","company_research"],["企業詳細情報源","company_research_source"],
+  ["企業名","company"],["営業優先スコア","priority_score"],["営業優先ランク","priority_rank"],["公開連絡先","contact"],["営業区分","sales_group"],
+  ["主業種・戦略分野","industry"],["検索用分野タグ","search_tags"],["副テーマ","secondary"],
+  ["会員名簿判定","membership_state"],["優先表示プラン（有料優先）","membership_priority_plan"],["現在ステータス上のプラン","membership_current_plan"],
+  ["利用開始日（登録日）","membership_start_date"],["会員名簿プラン履歴（有料優先）","membership_plan_history"],
+  ["有効件数","membership_valid_rows"],["無効件数","membership_invalid_rows"],["判定根拠","membership_basis"],["照合ルール","membership_match_rule"],
+  ["ランク理由","priority_reason"],["営業可否","sales_allowed"],["上場・企業区分","listing_status"],["証券コード","ticker"],["名簿区分","master_segment"],
+  ["第1営業先部署","dept1"],["第2営業先部署","dept2"],["公開キーパーソン","person"],["公開役職・接点","role"],
+  ["連絡先種別","contact_type"],["連絡先確認","contact_level"],["企業公式URL","official_url"],["連絡先・根拠URL","contact_url"],
+  ["推奨初回接触ルート","route"],["確認済み担当部署／推奨営業先","contact_department_verified"],["連絡先調査日","contact_checked_date"],
+  ["公式再確認日","contact_recheck_date"],["公式再確認状況","contact_recheck_status"],["公式再確認対象","contact_recheck_scope"],["公式再確認情報源","contact_recheck_source"],
   ["最初に刺すテーマ","sales_theme"],["直近政策トリガー","policy_trigger"],["15分デモ内容","demo"],
-  ["過去プラン・履歴","plan_history"],["販売チャネル","sales_channel"]
+  ["過去プラン・履歴","plan_history"],["販売チャネル","sales_channel"],["正式法人名確認","official_name_check"],["旧表示名","legacy_company_name"]
 ];
 function companyToCsvRows(list){
   const pHeaders=["初回アプローチ日","最終返信日","オンライン会議日","申込完了日","拒否日","営業メモ・履歴","営業進捗","未了判定","経過日数"];
