@@ -1442,16 +1442,29 @@
 
         function copyText(text, btnElement) {
             navigator.clipboard.writeText(text).then(() => {
-                const originalHTML = btnElement.innerHTML;
+                // 連続クリック対策：元のHTMLが保存されていなければ保存
+                if (!btnElement.dataset.originalHtml) {
+                    btnElement.dataset.originalHtml = btnElement.innerHTML;
+                }
+                
                 btnElement.innerHTML = `<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
                 btnElement.classList.add('bg-green-50', 'border-green-200');
                 
                 showToast("クリップボードにコピーしました");
 
-                setTimeout(() => {
-                    btnElement.innerHTML = originalHTML;
+                // 既存のタイマーがあればリセット
+                if (btnElement.dataset.timeoutId) {
+                    clearTimeout(parseInt(btnElement.dataset.timeoutId));
+                }
+
+                const timeoutId = setTimeout(() => {
+                    btnElement.innerHTML = btnElement.dataset.originalHtml;
                     btnElement.classList.remove('bg-green-50', 'border-green-200');
+                    delete btnElement.dataset.originalHtml;
+                    delete btnElement.dataset.timeoutId;
                 }, 2000);
+                
+                btnElement.dataset.timeoutId = timeoutId;
             }).catch(err => {
                 console.error('コピーに失敗しました', err);
                 showToast("コピーに失敗しました");
@@ -1905,10 +1918,25 @@ ${colorInstruction}
         // --- 共通コピーヘルパー ---
         function copyTextToClipboardWithBtn(text, btnElement, successMsg) {
             navigator.clipboard.writeText(text).then(() => {
-                const originalHTML = btnElement.innerHTML;
+                // 連続クリック対策
+                if (!btnElement.dataset.originalHtml) {
+                    btnElement.dataset.originalHtml = btnElement.innerHTML;
+                }
+                
                 btnElement.innerHTML = `<svg class="w-4 h-4 mr-1.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> コピーしました！`;
                 showToast(successMsg);
-                setTimeout(() => { btnElement.innerHTML = originalHTML; }, 2000);
+                
+                if (btnElement.dataset.timeoutId) {
+                    clearTimeout(parseInt(btnElement.dataset.timeoutId));
+                }
+
+                const timeoutId = setTimeout(() => { 
+                    btnElement.innerHTML = btnElement.dataset.originalHtml; 
+                    delete btnElement.dataset.originalHtml;
+                    delete btnElement.dataset.timeoutId;
+                }, 2000);
+                
+                btnElement.dataset.timeoutId = timeoutId;
             }).catch(err => {
                 console.error('コピーに失敗しました', err);
                 showToast("コピーに失敗しました");
