@@ -10,6 +10,11 @@ Mail s-takamatsu@rifj.jp
 一般社団法人日本みらい研 https://www.rifj.jp/
 政策リサーチのご案内 https://report.rifj.jp/pr/
 ◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇`;
+const LEGACY_CONNECTION_TEXT = `私は以前、永田町で国会議員の政策秘書として長く勤務しており、その当時、御社とも若干のご縁をいただいた記憶がございます。かなり以前のことですので、当時ご対応いただいた方のお名前までは思い出せないのですが、その頃のご縁を思い出しながら、今回改めてご連絡を差し上げました。`;
+
+function hasLegacyConnection(c){ return !!(c && (c.legacyConnection || c.legacy_connection)); }
+function legacyConnectionParagraph(c){ return hasLegacyConnection(c) ? LEGACY_CONNECTION_TEXT : ""; }
+
 
 let BULK_SELECTED = new Set();
 let LAST_BATCH_DOCS = [];
@@ -53,6 +58,7 @@ function init(){
   $("progressModeBtn").addEventListener("click",()=>setAppMode("progress"));
   $("industry").innerHTML = `<option value="">業種／戦略分野を選択</option>` + Object.keys(INDUSTRY_DEFAULTS).map(x=>`<option value="${xmlEscape(x)}">${xmlEscape(x)}</option>`).join("");
   $("companyInput").addEventListener("change", applyCompany);
+  $("legacyConnection").addEventListener("change", generate);
     $("industry").addEventListener("change", applyIndustry);
   $("generateBtn").addEventListener("click", generate);
   $("clearCompanyBtn").addEventListener("click", clearCompanySelection);
@@ -546,7 +552,7 @@ ${dept}で政策動向を担当されるご責任者または実務責任者の�
 【担当者との電話】
 お時間をいただきありがとうございます。最初に、お名前を確認させていただいてもよろしいでしょうか。
 
-日本みらい研では、政府・省庁・国会などの政策情報を収集・整理する法人向けサービス「政策リサーチ」を10年以上運営しております。現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。
+${legacyConnectionParagraph(c) ? legacyConnectionParagraph(c)+"\n\n" : ""}日本みらい研では、政府・省庁・国会などの政策情報を収集・整理する法人向けサービス「政策リサーチ」を10年以上運営しております。現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。
 
 御社では「${theme}」が特に関係すると考えており、一般的なシステムの説明をするより、御社に関係する政府関連資料を2～3件お見せする方が早いと思い、ご連絡をさせていただきました。
 
@@ -779,6 +785,7 @@ function applyCompany(){
   const c=companyByName($("companyInput").value);
   if(!c) return;
   $("companyCustom").value="";
+  $("legacyConnection").checked=!!c.legacy_connection;
   if(!$("industry").value || !companyHasTag(c,$("industry").value)){
     const fallback=companyTags(c)[0]||c.industry;
     if([...$("industry").options].some(o=>o.value===fallback)){
@@ -811,6 +818,7 @@ function applyIndustry(){
     $("sourceUrlDisplay").value="";
     $("historyDisplay").value="";
     $("summaryTags").innerHTML="";
+    $("legacyConnection").checked=false;
   resetSelectedCompanySidePanel();
   }
 
@@ -832,6 +840,7 @@ function ctx(){
   const d=INDUSTRY_DEFAULTS[industry]||INDUSTRY_DEFAULTS["その他・複合"];
   return {
     company,industry,preset,
+    legacyConnection:!!$("legacyConnection").checked,
     salesGroup:esc(preset.sales_group)||"完全新規",
     salesAllowed:esc(preset.sales_allowed)||"新規営業対象",
     dept:esc($("dept").value)||esc(preset.dept1)||d.dept,
@@ -924,7 +933,7 @@ ${contactMemo(c)}`;
 
 最初に、お名前を確認させていただいてもよろしいでしょうか。
 
-日本みらい研では、政府・省庁・国会などの政策情報を収集・整理する法人向けサービス「政策リサーチ」を10年以上運営しております。現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。
+${legacyConnectionParagraph(c) ? legacyConnectionParagraph(c)+"\n\n" : ""}日本みらい研では、政府・省庁・国会などの政策情報を収集・整理する法人向けサービス「政策リサーチ」を10年以上運営しております。現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。
 
 ${honorific(c.company)}では、「${c.theme}」が特に関係すると考えており、一般的なシステムの説明をするより、御社に関係する政府関連資料を2～3件お見せする方が早いと思い、ご連絡をさせていただきました。${c.trigger?`直近では「${c.trigger}」も動いています。`:""}
 
@@ -1229,6 +1238,7 @@ function render(c){
  renderSelectedCompanySidePanel(c);
  const auto=companyByName(c.company)?progressAuto(c.company):{status:"未記録",incomplete:""};
  const tags=[`優先ランク：${c.preset?.priority_rank||"B"}`,`企業：${c.company}`,`営業区分：${c.salesGroup}`,`営業可否：${c.salesAllowed}`,`選択分野：${c.industry}`,`検索分野：${companyTags(c.preset).join("・")}`,`部署：${c.dept}`,`進捗：${auto.status}`];
+ if(c.legacyConnection) tags.push(c.preset?.legacy_connection ? "旧縁：あり（マスタ○）" : "旧縁：あり（手動）");
  if(auto.incomplete) tags.push(`未了：${auto.incomplete}`);
  $("summaryTags").innerHTML=tags.map(t=>`<span class="tag">${t}</span>`).join("");
  $("contactDisplay").value=c.contact||"未登録／要確認";
@@ -1400,7 +1410,8 @@ const COMPANY_EXPORT_FIELDS=[
   ["推奨初回接触ルート","route"],["確認済み担当部署／推奨営業先","contact_department_verified"],["連絡先調査日","contact_checked_date"],
   ["公式再確認日","contact_recheck_date"],["公式再確認状況","contact_recheck_status"],["公式再確認対象","contact_recheck_scope"],["公式再確認情報源","contact_recheck_source"],
   ["最初に刺すテーマ","sales_theme"],["直近政策トリガー","policy_trigger"],["15分デモ内容","demo"],
-  ["過去プラン・履歴","plan_history"],["販売チャネル","sales_channel"],["正式法人名確認","official_name_check"],["旧表示名","legacy_company_name"]
+  ["過去プラン・履歴","plan_history"],["販売チャネル","sales_channel"],["正式法人名確認","official_name_check"],["旧表示名","legacy_company_name"],
+  ["旧縁あり","legacy_connection"],["旧縁判定元","legacy_connection_source"]
 ];
 function companyToCsvRows(list){
   const pHeaders=["初回アプローチ日","最終返信日","オンライン会議日","申込完了日","拒否日","営業メモ・履歴","営業進捗","未了判定","経過日数"];
@@ -1447,6 +1458,7 @@ function clearCompanySelection(){
   if(APP_MODE!=="single") setAppMode("single");
   $("companyInput").value="";
   $("companyCustom").value="";
+  $("legacyConnection").checked=false;
   ["dept","person","role","theme","trigger","demo","contactPerson","callNotes","proposedTimes","confirmedTime","usageStatus","additionalTheme","currentDept","targetDept"].forEach(id=>$(id).value="");
   $("contactDisplay").value="";
   $("contactTypeDisplay").value="";
@@ -1474,6 +1486,7 @@ function resetForm(){
   setAppMode("single");
  ["companyInput","companyCustom","person","role","contactPerson","trigger","callNotes","proposedTimes","confirmedTime","extra","usageStatus","additionalTheme","currentDept","targetDept"].forEach(id=>$(id).value="");
  $("industry").selectedIndex=0; $("stage").selectedIndex=0;
+ $("legacyConnection").checked=false;
  $("dept").value=""; $("theme").value=""; $("demo").value=""; applyIndustry(); generate();
 }
 document.addEventListener("DOMContentLoaded",init);
