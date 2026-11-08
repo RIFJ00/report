@@ -11,15 +11,15 @@ Mail s-takamatsu@rifj.jp
 政策リサーチのご案内 https://report.rifj.jp/pr/
 ◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇`;
 const LEGACY_CONNECTION_TEXT = `私は以前、永田町で国会議員の政策秘書として長く勤務しており、その当時、御社とも若干のご縁をいただいた記憶がございます。かなり以前のことですので、当時ご対応いただいた方のお名前までは思い出せないのですが、その頃のご縁を思い出しながら、今回改めてご連絡を差し上げました。`;
-const LEGACY_CONNECTION_TEXT_NO_SECRETARY = `以前、御社とは若干のご縁をいただいたことがあり、そのご縁を思い出しながら、今回改めてご連絡を差し上げました。かなり以前のことですので、当時ご対応いただいた方のお名前までは思い出せないのですが、改めてご挨拶を兼ねてご連絡しております。`;
-
 function hasLegacyConnection(c){ return !!(c && (c.legacyConnection || c.legacy_connection)); }
-function legacyConnectionParagraph(c){
-  if(!hasLegacyConnection(c)) return "";
-  const omit = c && Object.prototype.hasOwnProperty.call(c,"omitSecretaryExperience")
-    ? !!c.omitSecretaryExperience
-    : (!!document.getElementById("omitSecretaryExperience") && document.getElementById("omitSecretaryExperience").checked);
-  return omit ? LEGACY_CONNECTION_TEXT_NO_SECRETARY : LEGACY_CONNECTION_TEXT;
+function legacyConnectionParagraph(c){ return hasLegacyConnection(c) ? LEGACY_CONNECTION_TEXT : ""; }
+const SALES_SERVICE_INTRO = `私は、長年国会議員の政策秘書を勤めており、その経験を踏まえて開発した、政府・省庁・国会などの政策情報を収集・整理する法人向けサービス「政策リサーチ」を10年以上運営しております。現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。`;
+function salesIntroduction(c){
+  if(hasLegacyConnection(c)) return `${LEGACY_CONNECTION_TEXT}\n\nその経験を踏まえて開発した、政府・省庁・国会などの政策情報を収集・整理する法人向けサービス「政策リサーチ」を10年以上運営しております。現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。`;
+  return SALES_SERVICE_INTRO;
+}
+function salesRelevantMaterials(theme){
+  return `御社では、「${theme}」などが特に政府の関連情報に関係が深いと考えており、\n\n一般的なシステムの説明をするより、御社に関係する政府関連資料を2～3件ご説明できればと思い、`;
 }
 
 
@@ -65,12 +65,7 @@ function init(){
   $("progressModeBtn").addEventListener("click",()=>setAppMode("progress"));
   $("industry").innerHTML = `<option value="">業種／戦略分野を選択</option>` + Object.keys(INDUSTRY_DEFAULTS).map(x=>`<option value="${xmlEscape(x)}">${xmlEscape(x)}</option>`).join("");
   $("companyInput").addEventListener("change", applyCompany);
-  $("legacyConnection").addEventListener("change",()=>{
-    $("omitSecretaryExperience").disabled=!$("legacyConnection").checked;
-    generate();
-  });
-  $("omitSecretaryExperience").addEventListener("change", generate);
-  $("omitSecretaryExperience").disabled=!$("legacyConnection").checked;
+  $("legacyConnection").addEventListener("change",generate);
     $("industry").addEventListener("change", applyIndustry);
   $("generateBtn").addEventListener("click", generate);
   $("clearCompanyBtn").addEventListener("click", clearCompanySelection);
@@ -564,9 +559,9 @@ ${dept}で政策動向を担当されるご責任者または実務責任者の�
 【担当者との電話】
 お時間をいただきありがとうございます。最初に、お名前を確認させていただいてもよろしいでしょうか。
 
-${legacyConnectionParagraph(c) ? legacyConnectionParagraph(c)+"\n\n" : ""}日本みらい研では、政府・省庁・国会などの政策情報を収集・整理する法人向けサービス「政策リサーチ」を10年以上運営しております。現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。
+${salesIntroduction(c)}
 
-御社では「${theme}」が特に関係すると考えており、一般的なシステムの説明をするより、御社に関係する政府関連資料を2～3件お見せする方が早いと思い、ご連絡をさせていただきました。
+${salesRelevantMaterials(theme)}
 
 まずは、本日のお電話を踏まえて、政策リサーチの概要と関連する資料をメールでお送りします。資料をご覧いただいた後に、可能であれば15分程度、オンラインで説明の機会をいただければと思います。メール内容をご確認の上、ご検討の程、よろしくお願いします。
 
@@ -798,8 +793,6 @@ function applyCompany(){
   if(!c) return;
   $("companyCustom").value="";
   $("legacyConnection").checked=!!c.legacy_connection;
-  $("omitSecretaryExperience").checked=true;
-  $("omitSecretaryExperience").disabled=!$("legacyConnection").checked;
   if(!$("industry").value || !companyHasTag(c,$("industry").value)){
     const fallback=companyTags(c)[0]||c.industry;
     if([...$("industry").options].some(o=>o.value===fallback)){
@@ -833,8 +826,6 @@ function applyIndustry(){
     $("historyDisplay").value="";
     $("summaryTags").innerHTML="";
     $("legacyConnection").checked=false;
-    $("omitSecretaryExperience").checked=true;
-    $("omitSecretaryExperience").disabled=true;
   resetSelectedCompanySidePanel();
   }
 
@@ -857,7 +848,6 @@ function ctx(){
   return {
     company,industry,preset,
     legacyConnection:!!$("legacyConnection").checked,
-    omitSecretaryExperience:!!$("omitSecretaryExperience").checked,
     salesGroup:esc(preset.sales_group)||"完全新規",
     salesAllowed:esc(preset.sales_allowed)||"新規営業対象",
     dept:esc($("dept").value)||esc(preset.dept1)||d.dept,
@@ -950,9 +940,9 @@ ${contactMemo(c)}`;
 
 最初に、お名前を確認させていただいてもよろしいでしょうか。
 
-${legacyConnectionParagraph(c) ? legacyConnectionParagraph(c)+"\n\n" : ""}日本みらい研では、政府・省庁・国会などの政策情報を収集・整理する法人向けサービス「政策リサーチ」を10年以上運営しております。現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。
+${salesIntroduction(c)}
 
-${honorific(c.company)}では、「${c.theme}」が特に関係すると考えており、一般的なシステムの説明をするより、御社に関係する政府関連資料を2～3件お見せする方が早いと思い、ご連絡をさせていただきました。${c.trigger?`直近では「${c.trigger}」も動いています。`:""}
+${salesRelevantMaterials(c.theme)}${c.trigger?`直近では「${c.trigger}」も動いています。`:""}
 
 まずは、本日のお電話を踏まえて、政策リサーチの概要と関連する資料をメールでお送りします。資料をご覧いただいた後に、可能であれば15分程度、オンラインで説明の機会をいただければと思います。メール内容をご確認の上、ご検討の程、よろしくお願いします。
 
@@ -1257,7 +1247,6 @@ function render(c){
  const tags=[`優先ランク：${c.preset?.priority_rank||"B"}`,`企業：${c.company}`,`営業区分：${c.salesGroup}`,`営業可否：${c.salesAllowed}`,`選択分野：${c.industry}`,`検索分野：${companyTags(c.preset).join("・")}`,`部署：${c.dept}`,`進捗：${auto.status}`];
  if(c.legacyConnection){
    tags.push(c.preset?.legacy_connection ? "旧縁：あり（マスタ○）" : "旧縁：あり（手動）");
-   if(c.omitSecretaryExperience) tags.push("旧縁トーク：秘書経験には触れない");
  }
  if(auto.incomplete) tags.push(`未了：${auto.incomplete}`);
  $("summaryTags").innerHTML=tags.map(t=>`<span class="tag">${t}</span>`).join("");
@@ -1479,8 +1468,6 @@ function clearCompanySelection(){
   $("companyInput").value="";
   $("companyCustom").value="";
   $("legacyConnection").checked=false;
-  $("omitSecretaryExperience").checked=true;
-  $("omitSecretaryExperience").disabled=true;
   ["dept","person","role","theme","trigger","demo","contactPerson","callNotes","proposedTimes","confirmedTime","usageStatus","additionalTheme","currentDept","targetDept"].forEach(id=>$(id).value="");
   $("contactDisplay").value="";
   $("contactTypeDisplay").value="";
@@ -1509,8 +1496,6 @@ function resetForm(){
  ["companyInput","companyCustom","person","role","contactPerson","trigger","callNotes","proposedTimes","confirmedTime","extra","usageStatus","additionalTheme","currentDept","targetDept"].forEach(id=>$(id).value="");
  $("industry").selectedIndex=0; $("stage").selectedIndex=0;
  $("legacyConnection").checked=false;
- $("omitSecretaryExperience").checked=true;
- $("omitSecretaryExperience").disabled=true;
  $("dept").value=""; $("theme").value=""; $("demo").value=""; applyIndustry(); generate();
 }
 document.addEventListener("DOMContentLoaded",init);
