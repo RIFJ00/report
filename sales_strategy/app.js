@@ -11,9 +11,16 @@ Mail s-takamatsu@rifj.jp
 政策リサーチのご案内 https://report.rifj.jp/pr/
 ◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇`;
 const LEGACY_CONNECTION_TEXT = `私は以前、永田町で国会議員の政策秘書として長く勤務しており、その当時、御社とも若干のご縁をいただいた記憶がございます。かなり以前のことですので、当時ご対応いただいた方のお名前までは思い出せないのですが、その頃のご縁を思い出しながら、今回改めてご連絡を差し上げました。`;
+const LEGACY_CONNECTION_TEXT_NO_SECRETARY = `以前、御社とは若干のご縁をいただいたことがあり、そのご縁を思い出しながら、今回改めてご連絡を差し上げました。かなり以前のことですので、当時ご対応いただいた方のお名前までは思い出せないのですが、改めてご挨拶を兼ねてご連絡しております。`;
 
 function hasLegacyConnection(c){ return !!(c && (c.legacyConnection || c.legacy_connection)); }
-function legacyConnectionParagraph(c){ return hasLegacyConnection(c) ? LEGACY_CONNECTION_TEXT : ""; }
+function legacyConnectionParagraph(c){
+  if(!hasLegacyConnection(c)) return "";
+  const omit = c && Object.prototype.hasOwnProperty.call(c,"omitSecretaryExperience")
+    ? !!c.omitSecretaryExperience
+    : (!!document.getElementById("omitSecretaryExperience") && document.getElementById("omitSecretaryExperience").checked);
+  return omit ? LEGACY_CONNECTION_TEXT_NO_SECRETARY : LEGACY_CONNECTION_TEXT;
+}
 
 
 let BULK_SELECTED = new Set();
@@ -58,7 +65,12 @@ function init(){
   $("progressModeBtn").addEventListener("click",()=>setAppMode("progress"));
   $("industry").innerHTML = `<option value="">業種／戦略分野を選択</option>` + Object.keys(INDUSTRY_DEFAULTS).map(x=>`<option value="${xmlEscape(x)}">${xmlEscape(x)}</option>`).join("");
   $("companyInput").addEventListener("change", applyCompany);
-  $("legacyConnection").addEventListener("change", generate);
+  $("legacyConnection").addEventListener("change",()=>{
+    $("omitSecretaryExperience").disabled=!$("legacyConnection").checked;
+    generate();
+  });
+  $("omitSecretaryExperience").addEventListener("change", generate);
+  $("omitSecretaryExperience").disabled=!$("legacyConnection").checked;
     $("industry").addEventListener("change", applyIndustry);
   $("generateBtn").addEventListener("click", generate);
   $("clearCompanyBtn").addEventListener("click", clearCompanySelection);
@@ -786,6 +798,8 @@ function applyCompany(){
   if(!c) return;
   $("companyCustom").value="";
   $("legacyConnection").checked=!!c.legacy_connection;
+  $("omitSecretaryExperience").checked=true;
+  $("omitSecretaryExperience").disabled=!$("legacyConnection").checked;
   if(!$("industry").value || !companyHasTag(c,$("industry").value)){
     const fallback=companyTags(c)[0]||c.industry;
     if([...$("industry").options].some(o=>o.value===fallback)){
@@ -819,6 +833,8 @@ function applyIndustry(){
     $("historyDisplay").value="";
     $("summaryTags").innerHTML="";
     $("legacyConnection").checked=false;
+    $("omitSecretaryExperience").checked=true;
+    $("omitSecretaryExperience").disabled=true;
   resetSelectedCompanySidePanel();
   }
 
@@ -841,6 +857,7 @@ function ctx(){
   return {
     company,industry,preset,
     legacyConnection:!!$("legacyConnection").checked,
+    omitSecretaryExperience:!!$("omitSecretaryExperience").checked,
     salesGroup:esc(preset.sales_group)||"完全新規",
     salesAllowed:esc(preset.sales_allowed)||"新規営業対象",
     dept:esc($("dept").value)||esc(preset.dept1)||d.dept,
@@ -1238,7 +1255,10 @@ function render(c){
  renderSelectedCompanySidePanel(c);
  const auto=companyByName(c.company)?progressAuto(c.company):{status:"未記録",incomplete:""};
  const tags=[`優先ランク：${c.preset?.priority_rank||"B"}`,`企業：${c.company}`,`営業区分：${c.salesGroup}`,`営業可否：${c.salesAllowed}`,`選択分野：${c.industry}`,`検索分野：${companyTags(c.preset).join("・")}`,`部署：${c.dept}`,`進捗：${auto.status}`];
- if(c.legacyConnection) tags.push(c.preset?.legacy_connection ? "旧縁：あり（マスタ○）" : "旧縁：あり（手動）");
+ if(c.legacyConnection){
+   tags.push(c.preset?.legacy_connection ? "旧縁：あり（マスタ○）" : "旧縁：あり（手動）");
+   if(c.omitSecretaryExperience) tags.push("旧縁トーク：秘書経験には触れない");
+ }
  if(auto.incomplete) tags.push(`未了：${auto.incomplete}`);
  $("summaryTags").innerHTML=tags.map(t=>`<span class="tag">${t}</span>`).join("");
  $("contactDisplay").value=c.contact||"未登録／要確認";
@@ -1459,6 +1479,8 @@ function clearCompanySelection(){
   $("companyInput").value="";
   $("companyCustom").value="";
   $("legacyConnection").checked=false;
+  $("omitSecretaryExperience").checked=true;
+  $("omitSecretaryExperience").disabled=true;
   ["dept","person","role","theme","trigger","demo","contactPerson","callNotes","proposedTimes","confirmedTime","usageStatus","additionalTheme","currentDept","targetDept"].forEach(id=>$(id).value="");
   $("contactDisplay").value="";
   $("contactTypeDisplay").value="";
@@ -1487,6 +1509,8 @@ function resetForm(){
  ["companyInput","companyCustom","person","role","contactPerson","trigger","callNotes","proposedTimes","confirmedTime","extra","usageStatus","additionalTheme","currentDept","targetDept"].forEach(id=>$(id).value="");
  $("industry").selectedIndex=0; $("stage").selectedIndex=0;
  $("legacyConnection").checked=false;
+ $("omitSecretaryExperience").checked=true;
+ $("omitSecretaryExperience").disabled=true;
  $("dept").value=""; $("theme").value=""; $("demo").value=""; applyIndustry(); generate();
 }
 document.addEventListener("DOMContentLoaded",init);
