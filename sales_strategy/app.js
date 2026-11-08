@@ -1188,7 +1188,7 @@ function renderSelectedCompanySidePanel(c){
     ? ([preset.contact_recheck_status,preset.contact_recheck_date].filter(Boolean).join(" ／ ") || "未実施")
     : "—";
   $("selectedCompanyResearch").textContent=preset
-    ? `${preset.company_research||"企業詳細は既存マスタ情報を参照してください。"}\n\n営業観点：${preset.priority_reason||"—"}\n情報源：${preset.company_research_source||preset.contact_url||preset.official_url||"—"}`
+    ? `${preset.company_description||preset.company_research||"企業詳細は既存マスタ情報を参照してください。"}\n\n営業観点：${preset.priority_reason||"—"}\n情報源：${preset.company_research_source||preset.contact_recheck_source||preset.contact_url||preset.official_url||"—"}`
     : "—";
   $("selectedCompanyHistory").textContent=preset ? usageHistorySummary(preset) : "企業を選択すると、利用履歴を表示します。";
   $("selectedMembershipStart").textContent=(preset && preset.membership_start_date) || "—";
@@ -1409,7 +1409,7 @@ const COMPANY_EXPORT_FIELDS=[
   ["連絡先種別","contact_type"],["連絡先確認","contact_level"],["企業公式URL","official_url"],["連絡先・根拠URL","contact_url"],
   ["推奨初回接触ルート","route"],["確認済み担当部署／推奨営業先","contact_department_verified"],["連絡先調査日","contact_checked_date"],
   ["公式再確認日","contact_recheck_date"],["公式再確認状況","contact_recheck_status"],["公式再確認対象","contact_recheck_scope"],["公式再確認情報源","contact_recheck_source"],
-  ["最初に刺すテーマ","sales_theme"],["直近政策トリガー","policy_trigger"],["15分デモ内容","demo"],
+  ["最初に刺すテーマ","sales_theme"],["企業説明","company_description"],["直近政策トリガー","policy_trigger"],["15分デモ内容","demo"],
   ["過去プラン・履歴","plan_history"],["販売チャネル","sales_channel"],["正式法人名確認","official_name_check"],["旧表示名","legacy_company_name"],
   ["旧縁あり","legacy_connection"],["旧縁判定元","legacy_connection_source"]
 ];
