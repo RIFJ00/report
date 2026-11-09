@@ -1,5 +1,33 @@
 
 const $ = id => document.getElementById(id);
+
+// v1.57 compatibility: the original public data.js supplied this map.
+// Build it from the authenticated Firestore company master instead of
+// publishing the private 387-company source dataset in GitHub Pages.
+const COMPANY_DATA = Array.isArray(window.COMPANY_DATA) ? window.COMPANY_DATA : [];
+const INDUSTRY_DEFAULTS = (() => {
+  const names = new Set(["その他・複合"]);
+  COMPANY_DATA.forEach(c => {
+    if (typeof c.industry === "string" && c.industry.trim()) names.add(c.industry.trim());
+    if (Array.isArray(c.search_tags)) c.search_tags.forEach(t => {
+      if (typeof t === "string" && t.trim()) names.add(t.trim());
+    });
+  });
+  const defaults = {};
+  names.forEach(name => {
+    const matching = COMPANY_DATA.filter(c =>
+      c.industry === name || (Array.isArray(c.search_tags) && c.search_tags.includes(name))
+    );
+    const sample = matching.find(c => c.sales_theme || c.demo || c.dept1) || {};
+    defaults[name] = {
+      dept: sample.dept1 || "経営企画・政策渉外等",
+      theme: sample.sales_theme || name,
+      demo: sample.demo || "御社に関連する政府資料を2～3件確認"
+    };
+  });
+  return defaults;
+})();
+
 const SIGNATURE = `◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇
 一般社団法人日本みらい研事務局
 東京都千代田区平河町2-16-6 jeＶビル７F
