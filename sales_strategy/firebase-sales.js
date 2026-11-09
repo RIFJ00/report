@@ -1,6 +1,6 @@
 import {initializeApp} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,setPersistence,browserSessionPersistence} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import {getFirestore,collection,getDocs,doc,setDoc,deleteDoc,onSnapshot,writeBatch} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import {getFirestore,collection,getDocs,doc,setDoc,deleteDoc,onSnapshot,runTransaction} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 const firebaseConfig = {
   apiKey: "AIzaSyCqKP__GE4aOBn58DIeh8Si_i2MtWAWhoU",
   authDomain: "sales-3d63b.firebaseapp.com",
@@ -15,7 +15,7 @@ const auth=getAuth(app),db=getFirestore(app);
 const gate=document.getElementById("rifj-auth-gate"), form=document.getElementById("rifj-login-form");
 const errorEl=document.getElementById("rifj-auth-error"),status=document.getElementById("firebaseStatus");
 const signout=document.getElementById("rifj-signout");
-let stopProgress=null,started=false;
+let stopProgress=null,stopMaster=null,started=false;
 function err(message){errorEl.textContent=message;}
 function setStatus(message){status.textContent=message;}
 function docId(name){return encodeURIComponent(name);}
@@ -41,15 +41,27 @@ async function start(user){
       save:async(company,data)=>setDoc(doc(db,"sales_progress",docId(company)),{...data,company,updated_by:user.uid}),
       remove:async(company)=>deleteDoc(doc(db,"sales_progress",docId(company)))
     };
-    await script("app.js?v=1.64.0-20261109");
+    await script("app.js?v=1.65.0-20261109");
     if(typeof window.applyCloudProgressStore!=="function")throw new Error("営業管理画面の起動に失敗しました。app.js の公開状態を確認してください。");
+    // Admin controls are visible only with a fresh custom claim. Firestore rules enforce permissions.
+    if(token.claims.companyAdmin===true){
+      await script("company-admin.js?v=1.65.0-20261109");
+      if(typeof window.setupCompanyAdmin!=="function")throw new Error("企業管理画面を読み込めませんでした。");
+      window.setupCompanyAdmin({db,user,claims:token.claims,collection,getDocs,doc,runTransaction});
+    }
+    stopMaster=onSnapshot(collection(db,"companies"),snap=>{
+      const latest=snap.docs.map(x=>x.data()).filter(x=>x&&typeof x.company==="string");
+      latest.sort((a,b)=>a.company.localeCompare(b.company,"ja"));
+      window.applyCloudCompanyStore?.(latest);
+      setStatus("共有中：企業マスタ "+latest.length+"社｜"+user.email);
+    },e=>setStatus("企業マスタの同期に失敗："+e.message));
     stopProgress=onSnapshot(collection(db,"sales_progress"), snap=>{
       const result={};
       snap.forEach(d=>{const v=d.data();if(v.company)result[v.company]=v;});
       window.applyCloudProgressStore?.(result);
       setStatus(`Firebase接続中：${companies.length}社｜営業進捗 ${snap.size}件｜${user.email}`);
     },e=>setStatus("進捗の受信に失敗: "+e.message));
-    unlock();document.getElementById("firebaseMigrateLocal").disabled=false;
+    unlock();
   }catch(e){started=false;err("起動できません: "+e.message);setStatus("接続に失敗しました");window.salesCloud=null;lock();}
 }
 form.addEventListener("submit",async e=>{
@@ -60,26 +72,4 @@ form.addEventListener("submit",async e=>{
   catch(e){err("ログインできません。メールアドレス・パスワードとFirebase Authenticationの設定をご確認ください。");}
 });
 signout.addEventListener("click",async()=>{await signOut(auth);location.reload();});
-onAuthStateChanged(auth,user=>{if(user){start(user);}else{stopProgress?.();stopProgress=null;lock();started=false;window.salesCloud=null;}});
-document.getElementById("firebaseMigrateLocal").addEventListener("click",async()=>{
-  if(!auth.currentUser||!window.salesCloud)return;
-  let local={};try{local=JSON.parse(localStorage.getItem("rifj_policy_sales_progress_v1")||"{}");}catch(e){alert("旧版のデータを読み込めません。");return;}
-  const rows=Object.entries(local).filter(([name,v])=>name&&v&&typeof v==="object");
-  if(!rows.length){alert("この端末に旧版の営業履歴はありません。");return;}
-  if(!confirm(`${rows.length}件の旧版営業履歴をFirebaseへ移行します。既存データがある企業は更新日時が新しいものだけを採用します。続行しますか？`))return;
-  try{
-    const snapshot=await getDocs(collection(db,"sales_progress"));
-    const remote=new Map(snapshot.docs.map(d=>[d.id,d.data()]));
-    let count=0;
-    for(let i=0;i<rows.length;i+=200){
-      const batch=writeBatch(db);let n=0;
-      for(const [name,record] of rows.slice(i,i+200)){
-        const id=docId(name),old=remote.get(id);
-        if(old && (Date.parse(old.updated_at)||0)>=(Date.parse(record.updated_at)||0))continue;
-        batch.set(doc(db,"sales_progress",id),{...record,company:name,updated_by:auth.currentUser.uid});n++;count++;
-      }
-      if(n)await batch.commit();
-    }
-    alert(`${count}件をFirebaseへ移行しました。元の端末内データは保管されています。`);
-  }catch(e){alert("移行エラー: "+e.message);}
-});
+onAuthStateChanged(auth,user=>{if(user){start(user);}else{stopProgress?.();stopMaster?.();stopProgress=null;stopMaster=null;lock();started=false;window.salesCloud=null;}});
