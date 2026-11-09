@@ -2656,16 +2656,26 @@ window.setupCompanyAdmin=function(config){
    let created=0,skipped=0,errors=[];
    try{
      const fresh=await freshRows(),known=duplicateIndex(fresh);
+     const queue=[];
      for(const row of pending){
        if(known.has(norm(row.company))){skipped++;continue;}
-       try{
-         await register(row);
-         known.add(norm(row.company));created++;
-       }catch(e){
-         if(String(e.message).includes("既に同じ企業名"))skipped++;
-         else errors.push(row.company+"："+e.message);
-       }
+       // Reserve normalized names inside this import batch before parallel writes.
+       known.add(norm(row.company));queue.push(row);
      }
+     let cursor=0;
+     const workers=Array.from({length:Math.min(5,queue.length)},async()=>{
+       while(cursor<queue.length){
+         const row=queue[cursor++];
+         try{
+           await register(row);created++;
+         }catch(e){
+           if(String(e.message).includes("既に同じ企業名"))skipped++;
+           else errors.push(row.company+"："+e.message);
+         }
+         if((created+skipped+errors.length)%20===0)importMessage("登録処理中："+(created+skipped+errors.length)+"件");
+       }
+     });
+     await Promise.all(workers);
      importMessage("新規登録 "+created+"社／重複スキップ "+skipped+"社／エラー "+errors.length+"社"+(errors.length?"\n"+errors.slice(0,8).join("\n"):""));
      pending=[];
    }catch(e){importMessage("登録中にエラーが発生しました："+e.message);}
