@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>政策リサーチ 営業アプローチ自動作成 v1.59 Firebase</title>
+<link rel="stylesheet" href="styles.css?v=1.59.0-20261109">
+<style>
+body.auth-locked > :not(#rifj-auth-gate){display:none!important}
+#rifj-auth-gate{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#10273f,#245b89);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif}
+#rifj-auth-gate[hidden]{display:none!important}
+.rifj-login{background:white;color:#20334a;border-radius:16px;max-width:420px;width:100%;padding:32px;box-shadow:0 20px 50px #05162977}
+.rifj-login h1{font-size:22px;margin:0 0 8px;color:#17365d}.rifj-login p{font-size:14px;color:#53647c;line-height:1.6}
+.rifj-login label{display:block;font-size:14px;font-weight:700;margin:16px 0 8px}
+.rifj-login input{box-sizing:border-box;width:100%;border-radius:8px;border:1px solid #a6b8cb;padding:12px;font-size:16px}
+.rifj-login button{border:0;border-radius:8px;background:#245b89;color:white;padding:12px;width:100%;margin-top:16px;font-size:16px;font-weight:700;cursor:pointer}
+#rifj-auth-error{min-height:18px;color:#b42318!important}
+#rifj-signout{position:fixed;bottom:14px;right:14px;z-index:100000;background:#17365d;color:white;border:1px solid #fff;border-radius:8px;padding:8px 13px;cursor:pointer;box-shadow:0 3px 12px #0003}
+body.auth-locked #rifj-signout{display:none}
+</style></head>
+<body class="auth-locked">
+<div id="rifj-auth-gate" role="dialog" aria-modal="true" aria-labelledby="rifj-auth-title">
+<form class="rifj-login" id="rifj-login-form">
+<h1 id="rifj-auth-title">政策リサーチ｜営業支援</h1>
+<p>Firebase Authenticationでログインしてください。登録されたメールアドレスとパスワードが必要です。</p>
+<label for="rifj-email">メールアドレス</label><input id="rifj-email" type="email" autocomplete="username" required>
+<label for="rifj-password">パスワード</label><input id="rifj-password" type="password" autocomplete="current-password" required>
+<button id="rifj-login-button" type="submit">ログイン</button>
+<p id="rifj-auth-error" role="alert" aria-live="polite"></p>
+</form></div>
+<button id="rifj-signout" type="button" hidden>ログアウト</button>
+<header>
+<h1>政策リサーチ｜営業アプローチ自動作成 v1.59 Firebase</h1>
+<p>1社・複数企業の文面作成に加え、アプローチ日、オンライン会議、申込完了、拒否、未了案件を一元管理します。</p>
+</header>
+<div class="wrap">
+
+<section class="panel mode-selector">
+  <h2>操作モードを選択</h2>
+  <div class="mode-buttons">
+    <button id="singleModeBtn" class="mode-btn active">企業マスタから1社選択</button>
+    <button id="bulkModeBtn" class="mode-btn secondary">複数企業を絞り込む</button>
+    <button id="progressModeBtn" class="mode-btn secondary">営業進捗一覧</button>
+  </div>
+  <p id="modeDescription" class="help">1社モード：企業マスタから選んだ1社だけの企業情報と文面を表示します。</p>
+</section>
+
+<section class="panel" id="firebaseSyncPanel"><h2>Firebase共有状況</h2>
+<p id="firebaseStatus" role="status">ログイン前</p>
+<p class="help">営業進捗はログイン済みの端末間で共有されます。旧版の端末内進捗は自動上書きしません。</p>
+<button type="button" id="firebaseMigrateLocal" disabled>旧版の端末内進捗をクラウドに移行</button>
+</section><div id="singleModeArea">
+<details class="panel collapsible-panel">
+  <summary><span>1社モード｜企業・条件入力</span><span class="collapse-indicator">開く</span></summary>
+  <div class="collapsible-content">
+
+<div class="company-finder">
+  <h3>会社名から直接探す</h3>
+  <div class="grid">
+    <div>
+      <label>会社名を検索</label>
+      <input id="companySearchText" placeholder="会社名の一部を入力">
+      <div class="mini-note">入力するたびに候補を絞り込みます。</div>
+    </div>
+    <div>
+      <label>会社名一覧プルダウン</label>
+      <select id="companyAllSelect">
+        <option value="">会社名から選択</option>
+      </select>
+      <div class="mini-note">分野を選ばず、会社名から直接選択できます。S → A → B の営業優先ランク順、その中で会社名順です。</div>
+    </div>
+  </div>
+  <div style="margin-top:10px">
+    <label>会社名検索結果一覧</label>
+    <select id="companySearchResults" size="6" class="company-search-results">
+      <option value="">会社名を入力してください</option>
+    </select>
+  </div>
+  <label class="inline-toggle"><input type="checkbox" id="showApproachedCompanies"> アプローチ済み企業も表示</label>
+  <div id="directCompanyNote" class="mini-note">標準では未アプローチ企業だけを検索・表示します。</div>
+</div>
+
+<div class="finder-divider"></div>
+<h3 class="finder-subtitle">分野から絞り込む</h3>
+
+<div class="grid">
+  <div>
+    <label>業種／戦略分野（先に選択）</label>
+    <select id="industry"></select>
+    <div class="mini-note">分野を選ぶと、その分野タグを持つ企業だけが下の企業名プルダウンに表示されます。1社が複数分野に表示される場合があります。</div>
+  </div>
+  <div>
+    <label>企業名（選択分野の企業のみ）</label>
+    <select id="companyInput" disabled>
+      <option value="">先に業種／戦略分野を選択してください</option>
+    </select>
+    <div id="companyListNote" class="mini-note">標準では未アプローチ企業だけを、S → A → B の営業優先ランク順・同ランク内は会社名順で表示します。</div>
+  </div>
+  <div><label>未登録企業名</label><input id="companyCustom" placeholder="マスタ外の場合のみ"></div>
+  <div><label>接触段階</label><select id="stage">
+    <option>初回電話</option><option>電話後メール</option><option>利用者</option><option>15分商談</option><option>10日間トライアル</option>
+    <option>トライアル中間</option><option>クロージング</option><option>保留案件</option><option>見送り後再接触</option>
+  </select></div>
+  <div>
+    <label>旧縁設定</label>
+    <label class="inline-toggle"><input type="checkbox" id="legacyConnection"> 旧縁あり</label>
+    <div class="mini-note">企業マスタA列が○の企業は「旧縁あり」が自動でONになります。旧縁がある場合は国会議員の政策秘書経験を含めてご案内します。</div>
+  </div>
+  <div><label>第1営業先部署</label><input id="dept"></div>
+  <div><label>キーパーソン</label><input id="person"></div>
+  <div><label>役職・所管</label><input id="role"></div>
+  <div><label>電話で確認した担当者名</label><input id="contactPerson" placeholder="例：政策渉外部 ○○様"></div>
+</div>
+<div class="grid2" style="margin-top:12px">
+  <div><label>最初に刺すテーマ</label><textarea id="theme"></textarea></div>
+  <div><label>直近の政策トリガー</label><textarea id="trigger" placeholder="営業直前に最新の政府会議・予算・制度へ更新"></textarea></div>
+  <div><label>電話で聞いた相手の課題・関心</label><textarea id="callNotes" placeholder="例：GXと水素を重点監視。省庁資料の社内共有に時間がかかる。"></textarea></div>
+  <div><label>15分デモで見せる内容</label><textarea id="demo"></textarea></div>
+  <div><label>相手から提示された候補日時</label><textarea id="proposedTimes" placeholder="例：11月5日 10:00、11月6日 14:00、11月7日 16:00"></textarea></div>
+  <div><label>確定する日時</label><input id="confirmedTime" placeholder="例：11月6日（金）14:00"></div>
+  <div><label>追加条件（任意）</label><textarea id="extra"></textarea></div>
+  <div><label>現在の利用状況（既存顧客向け）</label><textarea id="usageStatus" placeholder="例：経営企画2名が利用。検索は多いがレポート閲覧は少ない。"></textarea></div>
+  <div><label>追加テーマ候補</label><textarea id="additionalTheme" placeholder="例：AI規制、経済安全保障、水素、サイバー"></textarea></div>
+  <div><label>現在の利用部署</label><input id="currentDept" placeholder="例：経営企画部"></div>
+  <div><label>展開候補部署</label><input id="targetDept" placeholder="例：事業企画部、法務部、研究開発部"></div>
+</div>
+<div class="actions">
+  <button id="generateBtn">文面を作成</button>
+  <button class="secondary" id="clearCompanyBtn">企業選択をクリア</button>
+  <button class="secondary" id="resetBtn">全入力を初期化</button>
+</div>
+
+  </div>
+</details>
+
+<details class="panel collapsible-panel">
+  <summary><span>選択企業の情報・営業判定</span><span class="collapse-indicator">開く</span></summary>
+  <div class="collapsible-content">
+<div id="statusNotice" class="notice"></div>
+<div id="summaryTags" style="margin-top:10px"></div>
+<div class="grid" style="margin-top:14px">
+  <div><label>公開連絡先</label><input id="contactDisplay" readonly></div>
+  <div><label>連絡先種別／確認</label><input id="contactTypeDisplay" readonly></div>
+  <div><label>推奨初回接触ルート</label><input id="routeDisplay" readonly></div>
+  <div><label>企業公式URL</label><input id="officialUrlDisplay" readonly></div>
+  <div><label>連絡先・根拠URL</label><input id="sourceUrlDisplay" readonly></div>
+  <div><label>過去プラン・履歴</label><input id="historyDisplay" readonly></div>
+</div>
+
+<p class="help">確認済みの公開情報だけを表示します。未確認の電話番号・メールアドレスは推測しません。</p>
+
+  </div>
+</details>
+
+<details class="panel collapsible-panel">
+  <summary><span>営業進捗スタンプ</span><span class="collapse-indicator">開く</span></summary>
+  <div class="collapsible-content">
+<p class="help">企業マスタ登録企業の進捗をブラウザ内に保存します。「最終返信日」は、2週間・1ヶ月の未了自動判定に使用します。</p>
+<div class="progress-date-grid">
+  <div><label>初回アプローチ日</label><div class="date-row"><input type="date" id="progressApproachDate"><button class="secondary stamp-today" data-field="progressApproachDate">本日</button></div></div>
+  <div><label>最終返信日（判定用）</label><div class="date-row"><input type="date" id="progressReplyDate"><button class="secondary stamp-today" data-field="progressReplyDate">本日</button></div></div>
+  <div><label>オンライン会議日</label><div class="date-row"><input type="date" id="progressMeetingDate"><button class="secondary stamp-today" data-field="progressMeetingDate">本日</button></div></div>
+  <div><label>申込完了日</label><div class="date-row"><input type="date" id="progressAppliedDate"><button class="secondary stamp-today" data-field="progressAppliedDate">本日</button></div></div>
+  <div><label>拒否日</label><div class="date-row"><input type="date" id="progressRejectedDate"><button class="secondary stamp-today" data-field="progressRejectedDate">本日</button></div></div>
+</div>
+<div style="margin-top:12px">
+  <label>営業メモ・履歴</label>
+  <textarea id="progressNote" placeholder="例：11/2 電話。担当：○○様。AI政策に関心。資料送付済み。"></textarea>
+</div>
+<div class="progress-storage-box">
+  <strong>端末保存：</strong><span id="storageStatusText">初期化中…</span>
+  <span class="mini-note">同じ端末・同じブラウザで再読み込みしても記録を復元します。</span>
+</div>
+<div class="progress-status-box">
+  <strong>営業進捗：</strong><span id="progressStatusText">未記録</span>
+  &nbsp;／&nbsp;<strong>未了判定：</strong><span id="progressIncompleteText">—</span>
+</div>
+<div class="actions">
+  <button id="saveProgressBtn">進捗を保存</button>
+  <button class="secondary" id="clearProgressBtn">この企業の進捗をクリア</button>
+</div>
+
+  </div>
+</details>
+
+<section class="panel">
+<h2>1社分の出力</h2>
+<div class="grid2">
+  <div>
+    <label>生成した文章の出力</label>
+    <div class="actions">
+      <button class="gold" id="downloadTxtBtn">TXT保存</button>
+      <button class="gold" id="downloadDocxBtn">Word（.docx）保存</button>
+      <button class="gold" id="printPdfBtn">PDF出力</button>
+    </div>
+    <p class="help">PDF出力は、生成文章だけをA4印刷画面で開きます。ブラウザの「PDFとして保存」を選択してください。</p>
+  </div>
+  <div>
+    <label>登録企業データの出力</label>
+    <div class="actions">
+      <button id="exportSelectedCsvBtn">選択企業CSV</button>
+      <button id="exportAllCsvBtn">400社CSV</button>
+      <button id="exportAllJsonBtn">400社JSON</button>
+    </div>
+    <p class="help">CSVはUTF-8 BOM付きで、Excelからそのまま開けます。</p>
+  </div>
+</div>
+</section>
+
+<section class="panel">
+<h2>選択した1社の自動生成結果</h2>
+<div class="result-layout">
+  <div class="results">
+    <div class="card"><h3>代表受付・ファーストコンタクト</h3><div class="body"><textarea id="outReception"></textarea></div></div>
+    <div class="card"><h3>担当者との電話トーク</h3><div class="body"><textarea id="outConnected"></textarea></div></div>
+    <div class="card"><h3>電話後メール＋必要時の再フォロー</h3><div class="body"><textarea id="outEmailFollow"></textarea></div></div>
+    <div class="card"><h3>日時指定の返信メール</h3><div class="body"><textarea id="outScheduleReply"></textarea></div></div>
+    <div class="card"><h3>15分商談トークライン</h3><div class="body"><textarea id="outMeeting"></textarea></div></div>
+    <div class="card"><h3>10日間無料トライアル提案</h3><div class="body"><textarea id="outTrial"></textarea></div></div>
+    <div class="card"><h3>クロージング</h3><div class="body"><textarea id="outClosing"></textarea></div></div>
+    <div class="card"><h3>既存顧客：利用促進</h3><div class="body"><textarea id="outUsage"></textarea></div></div>
+    <div class="card"><h3>既存顧客：テーマ追加</h3><div class="body"><textarea id="outThemeAdd"></textarea></div></div>
+    <div class="card"><h3>既存顧客：他部署展開</h3><div class="body"><textarea id="outDeptExpand"></textarea></div></div>
+  </div>
+
+  <aside class="selected-company-panel" id="selectedCompanyPanel">
+    <div class="selected-company-kicker">選択企業</div>
+    <h3 id="selectedCompanyName">企業を選択してください</h3>
+
+    <div class="selected-company-badges">
+      <span class="company-badge rank-badge" id="selectedCompanyRank">—</span>
+      <span class="company-badge usage-badge" id="selectedCompanyUsage">—</span>
+    </div>
+
+    <div class="company-info-row">
+      <span>主分野</span>
+      <strong id="selectedCompanyIndustry">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>検索分野</span>
+      <strong id="selectedCompanyTags">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>営業進捗</span>
+      <strong id="selectedCompanyProgress">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>代表電話／公開窓口</span>
+      <strong id="selectedCompanyPhone">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>担当部署／推奨営業先</span>
+      <strong id="selectedCompanyDept">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>公開担当者・役職</span>
+      <strong id="selectedCompanyPerson">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>連絡先確認</span>
+      <strong id="selectedCompanyContactCheck">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>公式再確認</span>
+      <strong id="selectedCompanyRecheck">—</strong>
+    </div>
+
+    <div class="company-history-box compact">
+      <div class="company-history-title">企業概要・営業観点</div>
+      <div id="selectedCompanyResearch" class="company-history-text">—</div>
+    </div>
+
+    <div class="company-history-box membership-detail-box">
+      <div class="company-history-title">会員名簿による利用判定</div>
+      <div class="membership-detail-grid">
+        <div><span>利用開始日</span><strong id="selectedMembershipStart">—</strong></div>
+        <div><span>現在の判定</span><strong id="selectedMembershipState">—</strong></div>
+        <div><span>優先表示プラン（有料優先）</span><strong id="selectedMembershipPlan">—</strong></div>
+        <div><span>登録データ</span><strong id="selectedMembershipRows">—</strong></div>
+      </div>
+      <div id="selectedMembershipBasis" class="membership-basis">—</div>
+    </div>
+
+    <div class="company-history-box">
+      <div class="company-history-title">政策リサーチの利用履歴</div>
+      <div id="selectedCompanyHistory" class="company-history-text">企業を選択すると、利用履歴を表示します。</div>
+    </div>
+
+    <div class="company-history-box compact">
+      <div class="company-history-title">過去プラン・登録履歴</div>
+      <div id="selectedCompanyPlanHistory" class="company-history-text">—</div>
+    </div>
+
+    <div class="company-history-box compact">
+      <div class="company-history-title">ランク理由</div>
+      <div id="selectedCompanyRankReason" class="company-history-text">—</div>
+    </div>
+  </aside>
+</div>
+</section>
+</div>
+
+<div id="bulkModeArea" style="display:none">
+<section class="panel">
+<h2>複数企業モード｜業種・利用状況で絞り込み</h2>
+<p class="help">業種・利用状況を複数選択して対象企業を抽出し、その中から送付対象を複数チェックします。1社モードの企業情報・文面欄は表示しません。</p>
+<div class="grid" style="margin-bottom:14px">
+  <div>
+    <label>一括生成の接触段階</label>
+    <select id="bulkStage">
+      <option>初回電話</option><option>電話後メール</option><option>利用者</option>
+      <option>15分商談</option><option>10日間トライアル</option>
+      <option>トライアル中間</option><option>クロージング</option>
+      <option>保留案件</option><option>見送り後再接触</option>
+    </select>
+  </div>
+</div>
+
+<div class="filter-block">
+  <label>業種（複数選択可）</label>
+  <div id="industryFilters" class="check-grid"></div>
+</div>
+
+<div class="filter-block" style="margin-top:12px">
+  <label>利用状況（複数選択可）</label>
+  <div id="usageFilters" class="check-grid"></div>
+  <label class="inline-toggle" style="margin-top:8px"><input type="checkbox" id="excludeApproachedBulk" checked> アプローチ済み企業を除外</label>
+  <div class="mini-note">再フォロー等でアプローチ済み企業を選ぶ場合はOFFにしてください。</div>
+</div>
+
+<div class="actions">
+  <button id="applyBulkFilterBtn">条件で企業を表示</button>
+  <button class="secondary" id="selectVisibleBtn">表示中を全選択</button>
+  <button class="secondary" id="clearBulkSelectionBtn">企業選択を全解除</button>
+  <button class="secondary" id="clearBulkFiltersBtn">絞り込み条件をクリア</button>
+  <button id="stampBulkApproachBtn">選択企業を本日アプローチ済みにする</button>
+</div>
+
+<div class="bulk-summary">
+  <strong>表示企業：</strong><span id="visibleCompanyCount">0</span>社
+  &nbsp;／&nbsp;<strong>選択企業：</strong><span id="selectedCompanyCount">0</span>社
+</div>
+
+<div id="bulkCompanyList" class="company-check-list"></div>
+
+<div class="grid2" style="margin-top:14px">
+  <div>
+    <label>一括文面の共通テーマ（任意）</label>
+    <textarea id="bulkCommonTheme" placeholder="空欄なら各社の登録テーマを使用。例：AI規制、GX、経済安全保障"></textarea>
+  </div>
+  <div>
+    <label>一括文面の共通補足（任意）</label>
+    <textarea id="bulkCommonNote" placeholder="例：11月の政策レポートと直近会議資料をご案内したい"></textarea>
+  </div>
+</div>
+
+<div class="actions">
+  <button class="gold" id="bulkGenerateBtn">選択企業の文面を一括生成</button>
+  <button class="gold" id="bulkDocxBtn">一括Word保存</button>
+  <button class="gold" id="bulkPdfBtn">一括PDF出力</button>
+  <button id="exportBulkSelectedCompaniesBtn">選択企業一覧CSV</button>
+  <button id="bulkCsvBtn">一括送付準備CSV</button>
+</div>
+<p class="help">「選択企業一覧CSV」は、チェックした企業の会社情報・連絡先・利用状況・営業進捗を一覧で出力します。文面を生成する前でも利用できます。</p>
+<div id="bulkWarning" class="notice" style="margin-top:10px;display:none"></div>
+<textarea id="bulkOutput" style="min-height:360px;margin-top:12px" placeholder="一括生成した文面がここに表示されます。"></textarea>
+</section>
+
+</div>
+
+
+<div id="progressModeArea" style="display:none">
+<section class="panel">
+<h2>営業進捗一覧</h2>
+<p class="help">アプローチ済み、現在利用中、未了（2週間／1ヶ月）、オンライン会議、申込完了、拒否を一覧表示できます。未了判定は画面を開くたびに自動更新します。</p>
+<div class="grid">
+  <div>
+    <label>表示対象</label>
+    <select id="progressViewFilter">
+      <option value="all">全件</option>
+      <option value="approached">アプローチ済み</option>
+      <option value="current">現在利用中</option>
+      <option value="incomplete">未了のみ</option>
+      <option value="incomplete14">未了（2週間）</option>
+      <option value="incomplete30">未了（1ヶ月）</option>
+      <option value="meeting">オンライン会議予定・済</option>
+      <option value="applied">申込完了</option>
+      <option value="rejected">拒否</option>
+    </select>
+  </div>
+  <div>
+    <label>企業名検索</label>
+    <input id="progressSearch" placeholder="企業名の一部を入力">
+  </div>
+</div>
+
+<div class="kpi-grid" style="margin-top:14px">
+  <div class="kpi-card"><span>アプローチ済み</span><strong id="kpiApproached">0</strong></div>
+  <div class="kpi-card"><span>現在利用中</span><strong id="kpiCurrent">0</strong></div>
+  <div class="kpi-card"><span>未了 2週間</span><strong id="kpiIncomplete14">0</strong></div>
+  <div class="kpi-card"><span>未了 1ヶ月</span><strong id="kpiIncomplete30">0</strong></div>
+  <div class="kpi-card"><span>申込完了</span><strong id="kpiApplied">0</strong></div>
+  <div class="kpi-card"><span>拒否</span><strong id="kpiRejected">0</strong></div>
+</div>
+
+<div class="actions">
+  <button id="refreshProgressBtn">一覧を更新</button>
+  <button id="exportVisibleProgressBtn">表示中CSV</button>
+  <button id="exportApproachedBtn">アプローチ済みCSV</button>
+  <button id="exportCurrentUsersBtn">現在利用中CSV</button>
+  <button id="exportIncompleteBtn">未了CSV</button>
+  <button id="exportProgressJsonBtn">進捗JSONバックアップ</button>
+  <button id="importProgressJsonBtn">進捗JSONを復元</button>
+  <input type="file" id="importProgressJsonFile" accept=".json,application/json" style="display:none">
+</div>
+
+<div class="progress-table-wrap">
+<table class="progress-table">
+<thead><tr>
+<th>ランク</th><th>企業名</th><th>業種</th><th>利用状況</th><th>アプローチ日</th><th>最終返信</th>
+<th>オンライン会議</th><th>申込完了</th><th>拒否</th><th>営業メモ・履歴</th><th>営業進捗</th><th>未了判定</th><th>経過日数</th>
+</tr></thead>
+<tbody id="progressTableBody"></tbody>
+</table>
+</div>
+<div class="bulk-summary"><strong>表示件数：</strong><span id="progressVisibleCount">0</span>社</div>
+</section>
+</div>
+
+</div>
+<footer>一般社団法人日本みらい研｜政策リサーチ 営業支援</footer>
+
+<script type="module" src="firebase-sales.js?v=1.59.0-20261109"></script></body></html>
