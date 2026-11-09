@@ -109,6 +109,7 @@ function init(){
   $("exportAllCsvBtn").addEventListener("click", exportAllCsv);
   $("exportAllJsonBtn").addEventListener("click", exportAllJson);
   $("applyBulkFilterBtn").addEventListener("click", renderBulkCompanies);
+  ["industryFilters","usageFilters"].forEach(id=>$(id).addEventListener("change", renderBulkCompanies));
   $("excludeApproachedBulk").addEventListener("change", renderBulkCompanies);
   $("selectVisibleBtn").addEventListener("click", selectVisibleCompanies);
   $("clearBulkSelectionBtn").addEventListener("click", clearBulkSelection);
@@ -262,6 +263,39 @@ function applyCloudProgressStore(store){
   if(c && document.activeElement?.id!=="progressNote") loadProgressIntoForm(c.company);
 }
 window.applyCloudProgressStore=applyCloudProgressStore;
+
+function applyCloudCompanyStore(records){
+  if(!Array.isArray(records)) return;
+  const currentCompany=$("companyInput")?.value||"";
+  const selectedIndustry=$("industry")?.value||"";
+  COMPANY_DATA.splice(0,COMPANY_DATA.length,...records);
+  COMPANY_DATA.forEach(c=>{
+    [c.industry,...(Array.isArray(c.search_tags)?c.search_tags:[])].forEach(name=>{
+      if(typeof name!=="string" || !name.trim() || INDUSTRY_DEFAULTS[name])return;
+      INDUSTRY_DEFAULTS[name]={
+        dept:c.dept1||"経営企画・政策渉外等",
+        theme:c.sales_theme||name,
+        demo:c.demo||"御社に関連する政府資料を2～3件確認"
+      };
+    });
+  });
+  const selected=$("industry");
+  selected.innerHTML='<option value="">業種／戦略分野を選択</option>'+Object.keys(INDUSTRY_DEFAULTS).map(x=>'<option value="'+xmlEscape(x)+'">'+xmlEscape(x)+'</option>').join("");
+  selected.value=selectedIndustry;
+  renderBulkFilters();
+  renderCompanyDropdown();
+  renderDirectCompanyControls();
+  if(currentCompany && COMPANY_DATA.some(c=>c.company===currentCompany)){
+    // Refresh the company side panel, but do not overwrite active sales-talk editing fields.
+    const preset=companyByName(currentCompany);
+    if(APP_MODE==="single") renderSelectedCompanySidePanel({company:currentCompany,preset});
+  }
+  if(APP_MODE==="bulk") renderBulkCompanies();
+  if(APP_MODE==="progress") renderProgressList();
+  window.refreshCompanyAdmin?.();
+}
+window.applyCloudCompanyStore=applyCloudCompanyStore;
+
 function getProgress(company){
   const store=loadProgressStore();
   return store[company]||{approach_date:"",reply_date:"",meeting_date:"",applied_date:"",rejected_date:"",note:"",updated_at:""};
@@ -501,9 +535,7 @@ function renderBulkFilters(){
     const count=COMPANY_DATA.filter(c=>usageStatus(c)===x).length;
     return '<label><input type="checkbox" value="'+x+'" '+(selectedStatus.has(x)?"checked":"")+'> '+x+' <span class="bulk-filter-count">('+count+')</span></label>';
   }).join("");
-  ["industryFilters","usageFilters"].forEach(id=>{
-    $(id).addEventListener("change",renderBulkCompanies);
-  });
+  // Change listeners are registered once in init() to avoid duplicates after master refresh.
 }
 function filteredBulkCompanies(){
   const inds=selectedValues("industryFilters"),sts=selectedValues("usageFilters");
