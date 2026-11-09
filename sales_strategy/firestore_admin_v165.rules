@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function salesUser() {
+      return request.auth != null && request.auth.token.salesAccess == true;
+    }
+    function companyAdmin() {
+      return salesUser() && request.auth.token.companyAdmin == true;
+    }
+    function validCompany() {
+      return request.resource.data.keys().hasAll(['company'])
+        && request.resource.data.company is string
+        && request.resource.data.company.size() > 0
+        && request.resource.data.company.size() <= 300;
+    }
+    match /companies/{companyId} {
+      allow read: if salesUser();
+      allow create: if companyAdmin() && validCompany();
+      // Keep document identity stable. Renaming needs a distinct create/delete workflow.
+      allow update: if companyAdmin() && validCompany()
+        && request.resource.data.company == resource.data.company;
+      allow delete: if companyAdmin();
+    }
+    match /sales_progress/{progressId} {
+      allow read: if salesUser();
+      allow create, update: if salesUser()
+        && request.resource.data.company is string
+        && request.resource.data.company.size() > 0
+        && request.resource.data.company.size() <= 300
+        && request.resource.data.keys().hasOnly([
+          'company','approach_date','reply_date','meeting_date','applied_date',
+          'rejected_date','note','updated_at','updated_by'
+        ])
+        && request.resource.data.updated_by == request.auth.uid
+        && request.resource.data.updated_at is string
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 20000
+        && request.resource.data.approach_date is string
+        && request.resource.data.reply_date is string
+        && request.resource.data.meeting_date is string
+        && request.resource.data.applied_date is string
+        && request.resource.data.rejected_date is string;
+      allow delete: if salesUser();
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
