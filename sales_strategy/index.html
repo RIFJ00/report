@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>政策リサーチ 営業アプローチ自動作成 v1.69</title>
+<title>政策リサーチ 営業アプローチ自動作成 v1.70</title>
 <style>
 
 :root{
@@ -358,7 +358,7 @@ footer{padding:20px;text-align:center;color:#78889a;font-size:12px}
 #progressModeArea>.panel>.grid>div{min-width:0}
 @media(max-width:620px){#progressModeArea>.panel>.grid{grid-template-columns:1fr}}
 
-/* v1.69: consistent height of the company-master dropdown and company-name input */
+/* v1.70: consistent height of the company-master dropdown and company-name input */
 #adminCompanySelect,#adminCompanyName{
   box-sizing:border-box;
   width:100%;
@@ -383,6 +383,22 @@ footer{padding:20px;text-align:center;color:#78889a;font-size:12px}
 .growth-subtitle{font-size:13px;font-weight:750;color:#17365D;margin:0 0 8px}
 .growth-subfilters .check-grid{background:white}
 .growth-subfilters .mini-note{margin-top:9px;color:#526b83}
+
+/* v1.70: enlarge each generated sales script into an accessible modal */
+.results .card{position:relative}
+.results .card h3{padding-right:85px}
+.talk-zoom-trigger{position:absolute;right:12px;top:10px;padding:5px 11px;font-size:12px;background:#e8eef5;color:var(--navy);border:1px solid #cad7e3}
+.results .card .body textarea{cursor:zoom-in}
+.talk-modal[hidden]{display:none!important}
+.talk-modal{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:clamp(10px,3vw,34px);background:rgba(11,28,49,.76)}
+.talk-modal-dialog{width:min(1120px,100%);max-height:94dvh;display:flex;flex-direction:column;background:#fff;border-radius:13px;box-shadow:0 18px 65px rgba(0,0,0,.3);overflow:hidden}
+.talk-modal-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 20px;border-bottom:1px solid var(--line)}
+.talk-modal-header h2{font-size:clamp(18px,2.2vw,25px);margin:0;color:var(--navy)}
+.talk-modal-editor{display:block;flex:1;min-height:min(63dvh,650px);width:calc(100% - 40px);margin:18px 20px;font-size:clamp(16px,1.5vw,20px);line-height:1.85;padding:16px;white-space:pre-wrap;resize:vertical}
+.talk-modal-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid var(--line)}
+.talk-modal-status{color:var(--muted);font-size:12px;margin-right:auto}
+body.talk-modal-open{overflow:hidden}
+@media(max-width:650px){.talk-modal-dialog{max-height:96dvh}.talk-modal-editor{width:calc(100% - 24px);margin:12px;min-height:53dvh}.talk-modal-actions{padding:12px}}
 </style>
 <style>
 body.auth-locked > :not(#rifj-auth-gate){display:none!important}
@@ -409,7 +425,7 @@ body.auth-locked #rifj-signout{display:none}
 </form></div>
 <button id="rifj-signout" type="button" hidden>ログアウト</button>
 <header>
-<h1>政策リサーチ｜営業アプローチ自動作成 v1.69</h1>
+<h1>政策リサーチ｜営業アプローチ自動作成 v1.70</h1>
 <p>1社・複数企業の文面作成に加え、アプローチ日、オンライン会議、申込完了、拒否、未了案件を一元管理。</p>
 </header>
 <div class="wrap">
@@ -869,6 +885,22 @@ body.auth-locked #rifj-signout{display:none}
 
 </div>
 <footer>一般社団法人日本みらい研｜政策リサーチ 営業支援</footer>
+<div id="talkZoomModal" class="talk-modal" hidden role="presentation">
+  <div class="talk-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="talkZoomTitle">
+    <div class="talk-modal-header">
+      <h2 id="talkZoomTitle">営業トークの拡大表示</h2>
+      <button id="talkZoomCloseTop" type="button" class="secondary" aria-label="拡大表示を閉じる">× 閉じる</button>
+    </div>
+    <textarea id="talkZoomEditor" class="talk-modal-editor" spellcheck="false" aria-label="営業トーク本文"></textarea>
+    <div class="talk-modal-actions">
+      <span id="talkZoomStatus" class="talk-modal-status" role="status"></span>
+      <button id="talkZoomCopy" type="button" class="secondary">全文をコピー</button>
+      <button id="talkZoomSave" type="button">変更を反映して閉じる</button>
+      <button id="talkZoomCancel" type="button" class="secondary">閉じる</button>
+    </div>
+  </div>
+</div>
+
 
 <script type="text/plain" id="rifj-inline-sales-app">
 
@@ -2855,6 +2887,84 @@ window.setupCompanyAdmin=function(config){
 };
 })();
 </script>
+
+<script>
+/* v1.70 Sales script zoom: all 10 one-company generated cards.
+   The canonical inline textarea remains the source for existing Word/PDF outputs. */
+(function(){
+ "use strict";
+ const modal=document.getElementById("talkZoomModal");
+ const editor=document.getElementById("talkZoomEditor");
+ const title=document.getElementById("talkZoomTitle");
+ const status=document.getElementById("talkZoomStatus");
+ const results=document.querySelector("#singleModeArea .results");
+ let source=null,previousFocus=null;
+ if(!modal||!results)return;
+ function open(field){
+   if(!field||!field.matches('textarea[id^="out"]'))return;
+   source=field;
+   previousFocus=document.activeElement;
+   title.textContent=field.closest(".card")?.querySelector("h3")?.textContent?.trim()||"営業トーク";
+   editor.value=field.value;
+   status.textContent="拡大表示中。編集内容は「変更を反映して閉じる」で元の文面に反映します。";
+   modal.hidden=false;
+   document.body.classList.add("talk-modal-open");
+   editor.focus();
+   editor.setSelectionRange(0,0);
+ }
+ function close(save){
+   if(!source)return;
+   if(save){
+     source.value=editor.value;
+     source.dispatchEvent(new Event("input",{bubbles:true}));
+     source.dispatchEvent(new Event("change",{bubbles:true}));
+   }
+   modal.hidden=true;
+   document.body.classList.remove("talk-modal-open");
+   (previousFocus&&previousFocus.isConnected?previousFocus:source)?.focus({preventScroll:true});
+   source=null;
+ }
+ results.querySelectorAll(".card").forEach(card=>{
+   const field=card.querySelector('textarea[id^="out"]');
+   const heading=card.querySelector("h3");
+   if(!field||!heading)return;
+   field.setAttribute("title","クリックしてトークを拡大表示");
+   field.setAttribute("aria-label",heading.textContent.trim()+"（クリックで拡大）");
+   const button=document.createElement("button");
+   button.type="button";
+   button.className="talk-zoom-trigger";
+   button.textContent="拡大表示";
+   button.setAttribute("aria-label",heading.textContent.trim()+"を拡大表示");
+   button.addEventListener("click",()=>open(field));
+   card.appendChild(button);
+   // Click to zoom; editing remains possible in the larger modal.
+   field.addEventListener("click",()=>open(field));
+ });
+ document.getElementById("talkZoomCloseTop").addEventListener("click",()=>close(false));
+ document.getElementById("talkZoomCancel").addEventListener("click",()=>close(false));
+ document.getElementById("talkZoomSave").addEventListener("click",()=>close(true));
+ document.getElementById("talkZoomCopy").addEventListener("click",async()=>{
+   try{
+     await navigator.clipboard.writeText(editor.value);
+     status.textContent="全文をコピーしました。";
+   }catch(e){
+     editor.focus();editor.select();
+     status.textContent="本文を選択しました。⌘C（WindowsはCtrl+C）でコピーしてください。";
+   }
+ });
+ modal.addEventListener("click",e=>{if(e.target===modal)close(false);});
+ modal.addEventListener("keydown",e=>{
+   if(e.key==="Escape"){e.preventDefault();close(false);return;}
+   if(e.key==="Tab"){
+     const elements=[...modal.querySelectorAll("button,textarea")].filter(el=>!el.disabled);
+     const first=elements[0],last=elements[elements.length-1];
+     if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+     else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+   }
+ });
+})();
+</script>
+
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,setPersistence,browserSessionPersistence} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
