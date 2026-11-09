@@ -456,41 +456,78 @@ function usageStatus(c){
 function selectedValues(containerId){
   return [...document.querySelectorAll(`#${containerId} input[type="checkbox"]:checked`)].map(x=>x.value);
 }
+// 大分類は複数企業モード専用。企業マスタの細分類や検索タグは変更しない。
+const BULK_SECTOR_GROUPS = [
+  {name:"IT・ソフトウェア・通信",pattern:/IT|ICT|情報通信|情報技術|通信|ソフトウェア|システム|クラウド|データセンター|DX|SIer|SaaS|インターネット|ネットワーク|サイバー|デジタル|電子決済/iu},
+  {name:"半導体・電機・電子部品",pattern:/半導体|電子部品|電機|電気機器|電子機器|電気設備|ディスプレイ|精密機器|光通信|光学|センサ|プリント基板/iu},
+  {name:"自動車・輸送機器",pattern:/自動車|自動運転|車載|自動車部品|モビリティ|二輪|輸送機器|航空機|航空宇宙|造船|船舶|鉄道車両|EV|電池車/iu},
+  {name:"機械・設備・ロボット",pattern:/産業機械|機械|ロボット|FA|工作機械|製造装置|プラント|設備|ポンプ|空調|精密減速機|エンジニアリング|産業用/iu},
+  {name:"素材・化学・鉄鋼・非鉄",pattern:/化学|素材|材料|鉄鋼|非鉄|金属|ガラス|繊維|樹脂|セメント|ゴム|製紙|紙パルプ|機能材|レアアース|鉱業/iu},
+  {name:"医療・医薬・介護・バイオ",pattern:/医療|医薬|製薬|ヘルスケア|介護|福祉|病院|バイオ|創薬|医療機器|生命科学|臨床/iu},
+  {name:"エネルギー・電力・資源",pattern:/エネルギー|電力|電気事業|石油|ガス|燃料|再生可能|再エネ|原子力|水素|蓄電|資源開発|鉱山/iu},
+  {name:"建設・住宅・不動産",pattern:/建設|建築|住宅|不動産|ゼネコン|デベロッパー|マンション|土木|建材|都市開発|都市インフラ|設備工事/iu},
+  {name:"金融・銀行・保険・証券",pattern:/金融|銀行|証券|保険|信託|資産運用|投資|リース|クレジット|フィンテック|FinTech/iu},
+  {name:"商社・卸売・小売",pattern:/商社|卸売|小売|百貨店|スーパー|コンビニ|ドラッグストア|専門店|EC|流通|商業|販売/iu},
+  {name:"食品・農林水産・外食",pattern:/食品|食料|飲料|農業|農林|水産|畜産|外食|レストラン|農産|食品加工|酒類|給食/iu},
+  {name:"物流・運輸・観光",pattern:/物流|運輸|運送|配送|航空|旅客|鉄道|海運|倉庫|宅配|観光|旅行|ホテル|宿泊|交通/iu},
+  {name:"広告・メディア・コンテンツ",pattern:/広告|メディア|放送|出版|印刷|エンタメ|コンテンツ|ゲーム|音楽|映像|IPビジネス|新聞|マーケティング/iu},
+  {name:"コンサル・調査・専門サービス",pattern:/コンサル|調査|研究|シンクタンク|法律|会計|監査|士業|人材|派遣|BPO|アウトソーシング|専門サービス/iu},
+  {name:"環境・リサイクル・水",pattern:/環境|リサイクル|廃棄物|水処理|水道|上下水|資源循環|脱炭素|カーボン|GX|気候変動/iu},
+  {name:"公共・インフラ・防災",pattern:/公共|自治体|行政|公益|インフラ|防災|防衛|安全保障|道路|港湾|社会基盤|インフラ保守/iu},
+  {name:"その他・複合事業",pattern:null}
+];
+// 「主要業種＋検索タグ」で大分類を求める。複数分野に該当する企業は複数の分類で検索可能。
+function bulkCompanySectorNames(c){
+  const source=[c.industry, ...(Array.isArray(c.search_tags)?c.search_tags:[])].filter(Boolean).join("・");
+  const hits=BULK_SECTOR_GROUPS.filter(g=>g.pattern && g.pattern.test(source)).map(g=>g.name);
+  return hits.length ? hits : ["その他・複合事業"];
+}
 function renderBulkFilters(){
-  const inds=[...new Set(COMPANY_DATA.map(c=>c.industry).filter(Boolean))].sort();
-  $("industryFilters").innerHTML=inds.map(x=>`<label><input type="checkbox" value="${xmlEscape(x)}">${xmlEscape(x)}</label>`).join("");
-  const statuses=["現在利用中","利用後退会","トライアルのみ","完全新規"];
-  $("usageFilters").innerHTML=statuses.map(x=>`<label><input type="checkbox" value="${x}">${x}</label>`).join("");
+  const selected=new Set(selectedValues("industryFilters"));
+  $("industryFilters").innerHTML=BULK_SECTOR_GROUPS.map(g=>{
+    const count=COMPANY_DATA.filter(c=>bulkCompanySectorNames(c).includes(g.name)).length;
+    return '<label><input type="checkbox" value="'+xmlEscape(g.name)+'" '+(selected.has(g.name)?"checked":"")+'> '+xmlEscape(g.name)+' <span class="bulk-filter-count">('+count+')</span></label>';
+  }).join("");
+  const selectedStatus=new Set(selectedValues("usageFilters"));
+  const statuses=["現在利用中","利用後退会","トライアルのみ","完全新規","その他"];
+  $("usageFilters").innerHTML=statuses.map(x=>{
+    const count=COMPANY_DATA.filter(c=>usageStatus(c)===x).length;
+    return '<label><input type="checkbox" value="'+x+'" '+(selectedStatus.has(x)?"checked":"")+'> '+x+' <span class="bulk-filter-count">('+count+')</span></label>';
+  }).join("");
+  ["industryFilters","usageFilters"].forEach(id=>{
+    $(id).addEventListener("change",renderBulkCompanies);
+  });
 }
 function filteredBulkCompanies(){
-  const inds=selectedValues("industryFilters"), sts=selectedValues("usageFilters");
-  const excludeApproached=$("excludeApproachedBulk") ? $("excludeApproachedBulk").checked : true;
-  if(!inds.length && !sts.length) return [];
+  const inds=selectedValues("industryFilters"),sts=selectedValues("usageFilters");
+  const excludeApproached=$("excludeApproachedBulk")?.checked===true;
+  // 未選択は「全業種」「全利用状況」。どちらかだけ選んでも絞り込める。
   return COMPANY_DATA.filter(c=>{
-    const indOk=!inds.length || inds.some(ind=>companyHasTag(c,ind));
+    const indOk=!inds.length || inds.some(ind=>bulkCompanySectorNames(c).includes(ind));
     const stOk=!sts.length || sts.includes(usageStatus(c));
     const approachOk=!excludeApproached || !getProgress(c.company).approach_date;
     return indOk && stOk && approachOk;
-  });
+  }).sort(compareCompanyPriorityName);
 }
 function renderBulkCompanies(){
   if(APP_MODE!=="bulk") return;
   const list=filteredBulkCompanies();
   $("visibleCompanyCount").textContent=list.length;
   if(!list.length){
-    $("bulkCompanyList").innerHTML='<div class="help" style="padding:12px">業種または利用状況を1つ以上選び、「条件で企業を表示」を押してください。</div>';
+    $("bulkCompanyList").innerHTML='<div class="help" style="padding:12px">該当する企業がありません。条件または「アプローチ済み企業を除外」を確認してください。</div>';
     $("selectedCompanyCount").textContent=BULK_SELECTED.size;
     return;
   }
   $("bulkCompanyList").innerHTML=list.map(c=>{
     const checked=BULK_SELECTED.has(c.company)?"checked":"";
     const contact=c.contact||"連絡先未確認";
+    const sector=bulkCompanySectorNames(c).join("・");
     const p=getProgress(c.company);
     const approachMark=p.approach_date ? ` ／ アプローチ済 ${p.approach_date}` : "";
     return `<label class="company-check-item">
       <input class="bulk-company-check" type="checkbox" value="${xmlEscape(c.company)}" ${checked}>
       <span><strong>[${xmlEscape(c.priority_rank||"B")}] ${xmlEscape(c.company)}</strong>
-      <div class="meta">${xmlEscape(companyTags(c).join("・"))} ／ ${usageStatus(c)} ／ ${xmlEscape(contact)}${xmlEscape(approachMark)}</div></span>
+      <div class="meta">${xmlEscape(sector)} ／ ${xmlEscape(usageStatus(c))} ／ ${xmlEscape(contact)}${xmlEscape(approachMark)}</div></span>
     </label>`;
   }).join("");
   document.querySelectorAll(".bulk-company-check").forEach(el=>el.addEventListener("change",()=>{
