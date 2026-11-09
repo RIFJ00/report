@@ -48,6 +48,7 @@ function tags(v){
 function bool(v){return v===true || v===1 || /^(true|1|yes|はい|有|あり|○|〇)$/iu.test(String(v||"").trim());}
 function fieldValue(v,k){
  if(k==="search_tags")return tags(v);
+ if(k==="sales_group")return ({"現在利用中":"現在利用","利用後退会":"過去有料利用"}[String(v).trim()]||v);
  if(k==="legacy_connection")return bool(v);
  if(["priority_score","membership_valid_rows","membership_invalid_rows"].includes(k) && v!==""){
    const n=Number(v);return Number.isFinite(n)?n:v;
@@ -70,6 +71,7 @@ function toRecord(row){
  if(!obj.sales_group)obj.sales_group="完全新規";
  if(!obj.priority_rank)obj.priority_rank="B";
  if(!obj.search_tags)obj.search_tags=[];
+ if(!Array.isArray(obj.search_tags))obj.search_tags=tags(obj.search_tags);
  return obj;
 }
 function parseCsv(txt){
