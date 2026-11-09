@@ -438,11 +438,14 @@ function renderProgressList(){
   $("progressTableBody").innerHTML=rows.map(r=>{
     const cls=r.auto.incomplete==="未了（1ヶ月）"?"incomplete30":r.auto.incomplete==="未了（2週間）"?"incomplete14":r.progress.applied_date?"applied":r.progress.rejected_date?"rejected":"";
     return `<tr class="${cls}">
-      <td>${xmlEscape(r.rank)}</td><td>${xmlEscape(r.company)}</td><td>${xmlEscape(r.industry)}</td><td>${xmlEscape(r.usage)}</td>
+      <td title="${xmlEscape(r.rank)}">${xmlEscape(r.rank)}</td>
+      <td title="${xmlEscape(r.company)}">${xmlEscape(r.company)}</td>
+      <td title="${xmlEscape(r.industry)}">${xmlEscape(r.industry)}</td>
+      <td title="${xmlEscape(r.usage)}">${xmlEscape(r.usage)}</td>
       <td>${r.progress.approach_date||""}</td><td>${r.progress.reply_date||""}</td><td>${r.progress.meeting_date||""}</td>
       <td>${r.progress.applied_date||""}</td><td>${r.progress.rejected_date||""}</td>
-      <td>${xmlEscape(r.progress.note||"")}</td>
-      <td>${xmlEscape(r.auto.status)}</td><td>${xmlEscape(r.auto.incomplete||"")}</td><td>${r.auto.elapsed}</td>
+      <td title="${xmlEscape(r.progress.note||"")}">${xmlEscape(r.progress.note||"")}</td>
+      <td title="${xmlEscape(r.auto.status)}">${xmlEscape(r.auto.status)}</td><td title="${xmlEscape(r.auto.incomplete||"")}">${xmlEscape(r.auto.incomplete||"")}</td><td>${r.auto.elapsed}</td>
     </tr>`;
   }).join("");
 }
