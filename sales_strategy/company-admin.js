@@ -103,7 +103,7 @@ window.setupCompanyAdmin=function(config){
  const {db,user,claims,collection,getDocs,doc,runTransaction}=config;
  const panel=$("companyAdminPanel");
  if(!panel)return;
- panel.hidden=false;
+ // Panel visibility is controlled by the fourth operation mode, not by login.
  const allowed=claims.companyAdmin===true;
  $("companyAdminControls").disabled=!allowed;
  $("companyAdminAccessNotice").textContent=allowed
