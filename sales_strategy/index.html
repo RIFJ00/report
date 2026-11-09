@@ -976,7 +976,13 @@ function init(){
   $("exportAllCsvBtn").addEventListener("click", exportAllCsv);
   $("exportAllJsonBtn").addEventListener("click", exportAllJson);
   $("applyBulkFilterBtn").addEventListener("click", renderBulkCompanies);
-  ["industryFilters","usageFilters"].forEach(id=>$(id).addEventListener("change", renderBulkCompanies));
+  $("industryFilters").addEventListener("change",()=>{
+    updateBulkSubcategoryFilters();
+    renderBulkCompanies();
+  });
+  ["usageFilters","aiSemiconductorSubOptions","digitalCyberSubOptions"].forEach(id=>
+    $(id).addEventListener("change",renderBulkCompanies)
+  );
   $("excludeApproachedBulk").addEventListener("change", renderBulkCompanies);
   $("selectVisibleBtn").addEventListener("click", selectVisibleCompanies);
   $("clearBulkSelectionBtn").addEventListener("click", clearBulkSelection);
@@ -1398,6 +1404,55 @@ function bulkCompanySectorNames(c){
   const text=[c.industry, ...tags, c.sales_theme, c.secondary, c.policy_trigger].filter(v=>typeof v==="string").join("・");
   return BULK_SECTOR_GROUPS.filter(g=>g.pattern.test(text)).map(g=>g.name);
 }
+// These optional second-level filters refine two of the 17 strategic sectors.
+// The parent sector determines eligibility, then a selected subcategory narrows it.
+// A company may match several subcategories. No company master data is changed.
+const BULK_SUBCATEGORY_GROUPS = {
+  "AI・半導体": [
+    {name:"生成AI・基盤モデル",pattern:/生成AI|生成系AI|大規模言語モデル|LLM|基盤モデル|AIモデル|AIエージェント|自然言語処理|生成人工知能/iu},
+    {name:"フィジカルAI・ロボット",pattern:/フィジカルAI|ロボット|ロボティクス|協働ロボット|産業用ロボット|自律制御|自律走行|AI制御|ロボット制御|ロボットハンド|精密減速機|自動化設備/iu},
+    {name:"AI基盤・計算インフラ",pattern:/AIインフラ|AI基盤|AIデータセンター|データセンター|GPU|AIサーバー|AI半導体|HPC|高性能計算|アクセラレータ|計算資源|AI向け電力|液冷/iu},
+    {name:"半導体製造装置・材料",pattern:/半導体製造装置|半導体装置|半導体材料|半導体部材|露光|成膜|エッチング|洗浄装置|検査装置|フォトレジスト|シリコンウェハ|半導体製造プロセス|CMP|先端パッケージ材料/iu},
+    {name:"半導体設計・製造・実装",pattern:/半導体設計|半導体製造|半導体生産|ファウンドリ|ロジック半導体|メモリ半導体|半導体実装|先端パッケージ|チップレット|半導体チップ|集積回路|ASIC|SoC|パワー半導体|半導体デバイス/iu}
+  ],
+  "デジタル・サイバーセキュリティ": [
+    {name:"サイバー防御・脅威対策",pattern:/サイバー攻撃|サイバー防御|サイバー対策|脅威検知|脆弱性|SOC|CSIRT|EDR|XDR|SIEM|マルウェア|ランサムウェア|セキュリティ監視|インシデント対応/iu},
+    {name:"認証・ID管理・ゼロトラスト",pattern:/ゼロトラスト|本人認証|多要素認証|二要素認証|ID管理|アクセス管理|IAM|認証基盤|生体認証|電子署名|PKI|FIDO|SSO|特権ID/iu},
+    {name:"クラウド・データ基盤",pattern:/クラウド|データセンター|データ基盤|データレイク|データウェアハウス|クラウド基盤|AWS|Azure|GCP|IaaS|PaaS|クラウドネイティブ|データ連携基盤/iu},
+    {name:"業務DX・ソフトウェア",pattern:/業務DX|行政DX|企業DX|デジタル変革|業務システム|基幹システム|ERP|SaaS|ソフトウェア|業務アプリ|業務自動化|RPA|システム開発|デジタル化|ITサービス/iu},
+    {name:"データ利活用・デジタルサービス",pattern:/データ利活用|データ分析|データ活用|データ流通|デジタルサービス|電子決済|キャッシュレス|デジタルID|デジタルプラットフォーム|API連携|スマートシティ|データガバナンス|データマーケット/iu}
+  ]
+};
+function bulkCompanyKeywords(c){
+  return [c.industry,...(Array.isArray(c.search_tags)?c.search_tags:[]),c.sales_theme,c.secondary,c.policy_trigger,c.demo]
+    .filter(v=>typeof v==="string").join("・");
+}
+function bulkCompanySubcategoryNames(c,parent){
+  if(!bulkCompanySectorNames(c).includes(parent))return [];
+  const corpus=bulkCompanyKeywords(c);
+  return (BULK_SUBCATEGORY_GROUPS[parent]||[]).filter(x=>x.pattern.test(corpus)).map(x=>x.name);
+}
+function activeBulkSubcategories(parent){
+  const id=parent==="AI・半導体"?"aiSemiconductorSubOptions":"digitalCyberSubOptions";
+  return selectedValues(id);
+}
+function updateBulkSubcategoryFilters(){
+  const parents=new Set(selectedValues("industryFilters"));
+  const display={
+    "AI・半導体":["aiSemiconductorSubFilter","aiSemiconductorSubOptions"],
+    "デジタル・サイバーセキュリティ":["digitalCyberSubFilter","digitalCyberSubOptions"]
+  };
+  $("growthSubFilters").hidden=![...parents].some(x=>BULK_SUBCATEGORY_GROUPS[x]);
+  for(const [parent,[container,options]] of Object.entries(display)){
+    const open=parents.has(parent);
+    $(container).hidden=!open;
+    const values=new Set(selectedValues(options));
+    $(options).innerHTML=BULK_SUBCATEGORY_GROUPS[parent].map(group=>{
+      const count=COMPANY_DATA.filter(c=>bulkCompanySubcategoryNames(c,parent).includes(group.name)).length;
+      return '<label><input type="checkbox" value="'+xmlEscape(group.name)+'" '+(open&&values.has(group.name)?"checked":"")+'> '+xmlEscape(group.name)+' <span class="bulk-filter-count">('+count+')</span></label>';
+    }).join("");
+  }
+}
 function renderBulkFilters(){
   const selected=new Set(selectedValues("industryFilters"));
   $("industryFilters").innerHTML=BULK_SECTOR_GROUPS.map(g=>{
@@ -1410,6 +1465,7 @@ function renderBulkFilters(){
     const count=COMPANY_DATA.filter(c=>usageStatus(c)===x).length;
     return '<label><input type="checkbox" value="'+x+'" '+(selectedStatus.has(x)?"checked":"")+'> '+x+' <span class="bulk-filter-count">('+count+')</span></label>';
   }).join("");
+  updateBulkSubcategoryFilters();
   // Change listeners are registered once in init() to avoid duplicates after master refresh.
 }
 function filteredBulkCompanies(){
@@ -1417,7 +1473,12 @@ function filteredBulkCompanies(){
   const excludeApproached=$("excludeApproachedBulk")?.checked===true;
   // 未選択は「全業種」「全利用状況」。どちらかだけ選んでも絞り込める。
   return COMPANY_DATA.filter(c=>{
-    const indOk=!inds.length || inds.some(ind=>bulkCompanySectorNames(c).includes(ind));
+    const matchedParents=bulkCompanySectorNames(c);
+    const indOk=!inds.length || inds.some(parent=>{
+      if(!matchedParents.includes(parent))return false;
+      const selectedSub=BULK_SUBCATEGORY_GROUPS[parent]?activeBulkSubcategories(parent):[];
+      return !selectedSub.length || selectedSub.some(sub=>bulkCompanySubcategoryNames(c,parent).includes(sub));
+    });
     const stOk=!sts.length || sts.includes(usageStatus(c));
     const approachOk=!excludeApproached || !getProgress(c.company).approach_date;
     return indOk && stOk && approachOk;
@@ -1461,7 +1522,8 @@ function clearBulkSelection(){
 }
 function clearBulkFilters(){
   if(APP_MODE!=="bulk") return;
-  document.querySelectorAll("#industryFilters input,#usageFilters input").forEach(x=>x.checked=false);
+  document.querySelectorAll("#industryFilters input,#usageFilters input,#aiSemiconductorSubOptions input,#digitalCyberSubOptions input").forEach(x=>x.checked=false);
+  updateBulkSubcategoryFilters();
   BULK_SELECTED.clear(); LAST_BATCH_DOCS=[]; $("bulkOutput").value="";
   renderBulkCompanies();
 }
