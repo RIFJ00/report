@@ -1,0 +1,2808 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>政策リサーチ 営業アプローチ自動作成 v1.66</title>
+<style>
+
+:root{
+  --navy:#17365D; --blue:#245B89; --light:#eef5fb; --line:#d8e2ec;
+  --gold:#b97813; --yellow:#fff4cf; --green:#2e7d68; --text:#1d2835; --muted:#647386;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;background:#f5f7fa;color:var(--text)}
+header{background:linear-gradient(120deg,#0f243e,#245b89);color:#fff;padding:22px 28px}
+header h1{margin:0 0 5px;font-size:25px} header p{margin:0;opacity:.9}
+.wrap{max-width:1440px;margin:0 auto;padding:20px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:0 2px 8px rgba(20,50,80,.06)}
+.panel h2{font-size:19px;margin:0 0 14px;color:var(--navy)}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+label{font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px}
+input,select,textarea{width:100%;border:1px solid #bfcddd;border-radius:7px;padding:9px 10px;font:inherit;background:#fff}
+textarea{min-height:72px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid #8eb5d8;border-color:#6c9bc6}
+.help{font-size:12px;color:var(--muted);margin-top:6px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+button{border:0;border-radius:7px;padding:9px 14px;background:var(--navy);color:#fff;font-weight:700;cursor:pointer}
+button.secondary{background:#e8eef5;color:var(--navy);border:1px solid #cad7e3}
+button.gold{background:var(--gold)}
+.results{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.card h3{margin:0;background:var(--navy);color:#fff;padding:11px 14px;font-size:15px}
+.card .body{padding:12px}
+.card textarea{min-height:240px;border:0;background:#f9fbfd;line-height:1.65}
+.card .tools{padding:8px 12px 12px;display:flex;gap:7px}
+.tag{display:inline-block;border-radius:14px;background:var(--light);color:var(--navy);padding:4px 9px;font-size:12px;margin:2px 4px 2px 0}
+.notice{background:var(--yellow);border:1px solid #efd784;border-radius:8px;padding:10px 12px;font-size:13px}
+.small{font-size:12px;color:var(--muted)}
+footer{padding:20px;text-align:center;color:#78889a;font-size:12px}
+@media(max-width:980px){.grid{grid-template-columns:1fr 1fr}.results,.grid2{grid-template-columns:1fr}}
+@media(max-width:620px){.grid{grid-template-columns:1fr}.wrap{padding:10px}header{padding:18px}}
+
+.check-grid{display:flex;flex-wrap:wrap;gap:7px 14px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fafcfe}
+.check-grid label{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--text);margin:0}
+.check-grid input{width:auto}
+.company-check-list{max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff;margin-top:10px;display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:5px 10px}
+.company-check-item{display:flex;align-items:flex-start;gap:7px;padding:7px;border-bottom:1px solid #edf1f5;font-size:12px}
+.company-check-item input{width:auto;margin-top:2px}
+.company-check-item .meta{color:var(--muted);font-size:11px;margin-top:2px}
+.bulk-summary{margin-top:10px;padding:8px 10px;background:var(--light);border-radius:7px;color:var(--navy)}
+@media(max-width:980px){.company-check-list{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.company-check-list{grid-template-columns:1fr}}
+
+.mode-selector{position:sticky;top:0;z-index:20}
+.mode-buttons{display:flex;gap:10px;flex-wrap:wrap}
+.mode-btn{min-width:240px}
+.mode-btn.active{background:#17365D;color:#fff;border:1px solid #17365D}
+#singleModeArea,#bulkModeArea{transition:opacity .15s ease}
+.single-selected-banner{margin:0 0 12px;padding:9px 12px;border-radius:8px;background:#eef5fb;color:#17365D;font-weight:700}
+
+.progress-date-grid{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:12px}
+.date-row{display:flex;gap:7px;align-items:center}.date-row input{flex:1}.date-row button{width:auto;white-space:nowrap}
+.progress-status-box{margin-top:14px;padding:10px 12px;background:#eef5fb;border:1px solid #d8e2ec;border-radius:8px;color:#17365D}
+.kpi-grid{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(126px,1fr);grid-template-columns:none;gap:8px;overflow-x:auto;scrollbar-width:thin;padding-bottom:5px}
+.kpi-grid .kpi-card{min-width:0}
+.kpi-grid .kpi-card span{white-space:nowrap;font-size:11px}
+@media(max-width:1050px){.kpi-grid{grid-auto-columns:minmax(130px,1fr)}}
+#companyAdminPanel .grid2>div{min-width:0}
+#companyAdminPanel[hidden]{display:none!important}
+#adminImportResult{white-space:pre-wrap;line-height:1.6}
+#adminCompanyStatus{white-space:pre-wrap}
+.kpi-card{padding:12px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.kpi-card span{display:block;color:var(--muted);font-size:11px}.kpi-card strong{display:block;font-size:23px;color:var(--navy);margin-top:4px}
+.progress-table-wrap{overflow:auto;max-height:620px;border:1px solid var(--line);border-radius:8px;margin-top:12px}
+.progress-table{width:100%;border-collapse:collapse;min-width:1250px;background:#fff;font-size:12px}
+.progress-table th{position:sticky;top:0;background:#17365D;color:#fff;padding:8px;text-align:left;z-index:2}
+.progress-table td{padding:7px 8px;border-bottom:1px solid #e9edf1;vertical-align:top}
+.progress-table tr.incomplete30 td{background:#fff0f0}.progress-table tr.incomplete14 td{background:#fff9e6}
+.progress-table tr.applied td{background:#f3fbef}.progress-table tr.rejected td{color:#666}
+@media(max-width:980px){.progress-date-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.progress-date-grid{grid-template-columns:1fr}}
+
+.inline-toggle{display:flex;align-items:center;gap:7px;margin-top:7px;font-size:12px;font-weight:600;color:var(--navy)}
+.inline-toggle input{width:auto;margin:0}
+.mini-note{margin-top:4px;font-size:11px;color:var(--muted)}
+.approached-mark{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:10px;background:#e7e6e6;color:#666;font-size:10px;font-weight:700}
+
+.progress-storage-box{margin-top:10px;padding:9px 11px;border:1px solid #cdd9e5;border-radius:8px;background:#f8fbfe;color:#17365D}
+.progress-storage-box .mini-note{margin-left:8px}
+.storage-ok{color:#375623;font-weight:700}
+.storage-warn{color:#9C6500;font-weight:700}
+.storage-error{color:#9C0006;font-weight:700}
+
+.company-finder{padding:14px;border:1px solid #d6e1ec;border-radius:10px;background:#f8fbfe;margin-bottom:14px}
+.company-finder h3,.finder-subtitle{margin:0 0 10px;color:#17365D;font-size:15px}
+.finder-divider{height:1px;background:#d8e2ec;margin:16px 0}
+.company-search-results{width:100%;min-height:150px}
+.company-search-results option{padding:5px 7px}
+
+.collapsible-panel{padding:0;overflow:hidden}
+.collapsible-panel > summary{
+  list-style:none;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:16px 18px;
+  font-size:18px;
+  font-weight:700;
+  color:var(--navy);
+  user-select:none;
+}
+.collapsible-panel > summary::-webkit-details-marker{display:none}
+.collapsible-panel > summary::before{
+  content:"▶";
+  font-size:12px;
+  margin-right:2px;
+  transition:transform .15s ease;
+}
+.collapsible-panel[open] > summary::before{transform:rotate(90deg)}
+.collapsible-panel > summary:hover{background:#f7fafc}
+.collapsible-panel .collapse-indicator{
+  margin-left:auto;
+  font-size:11px;
+  font-weight:700;
+  color:var(--muted);
+  padding:3px 8px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:#fff;
+}
+.collapsible-panel[open] .collapse-indicator{font-size:0}
+.collapsible-panel[open] .collapse-indicator::after{
+  content:"閉じる";
+  font-size:11px;
+}
+.collapsible-content{
+  padding:0 18px 18px;
+  border-top:1px solid var(--line);
+}
+
+.rank-s{font-weight:800;color:#17365D}
+.rank-a{font-weight:700;color:#365F91}
+.rank-b{font-weight:600;color:#666}
+
+.result-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 330px;
+  gap:16px;
+  align-items:start;
+}
+.selected-company-panel{
+  position:sticky;
+  top:14px;
+  background:#f8fbfe;
+  border:1px solid #cdd9e5;
+  border-radius:12px;
+  padding:16px;
+  box-shadow:0 2px 8px rgba(20,50,80,.06);
+}
+.selected-company-kicker{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.08em;
+  color:var(--muted);
+  margin-bottom:5px;
+}
+.selected-company-panel h3{
+  margin:0 0 10px;
+  color:var(--navy);
+  font-size:20px;
+  line-height:1.35;
+  word-break:break-word;
+}
+.selected-company-badges{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-bottom:13px;
+}
+.company-badge{
+  display:inline-flex;
+  align-items:center;
+  min-height:26px;
+  padding:3px 9px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:800;
+  border:1px solid #cdd9e5;
+  background:#fff;
+  color:#17365D;
+}
+.rank-badge.rank-s{background:#d9eaf7;color:#17365D;border-color:#9fc5e8}
+.rank-badge.rank-a{background:#e2f0d9;color:#375623;border-color:#a9d18e}
+.rank-badge.rank-b{background:#fff2cc;color:#7f6000;border-color:#ffd966}
+.usage-badge{background:#fff}
+.company-info-row{
+  padding:9px 0;
+  border-top:1px solid #dbe5ee;
+}
+.company-info-row span{
+  display:block;
+  font-size:10px;
+  font-weight:700;
+  color:var(--muted);
+  margin-bottom:3px;
+}
+.company-info-row strong{
+  display:block;
+  color:#17365D;
+  font-size:12px;
+  line-height:1.55;
+}
+.company-history-box{
+  margin-top:12px;
+  padding:11px;
+  background:#fff;
+  border:1px solid #dbe5ee;
+  border-radius:9px;
+}
+.company-history-box.compact{margin-top:8px}
+.company-history-title{
+  font-size:11px;
+  font-weight:800;
+  color:#17365D;
+  margin-bottom:6px;
+}
+.company-history-text{
+  font-size:12px;
+  color:#334e68;
+  line-height:1.65;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+@media(max-width:1180px){
+  .result-layout{grid-template-columns:1fr}
+  .selected-company-panel{position:relative;top:auto;grid-row:1}
+}
+
+.membership-detail-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px 10px;
+}
+.membership-detail-grid div{
+  padding:7px 8px;
+  border:1px solid #e3eaf0;
+  border-radius:7px;
+  background:#fbfdff;
+}
+.membership-detail-grid span{
+  display:block;
+  font-size:9px;
+  font-weight:700;
+  color:var(--muted);
+  margin-bottom:3px;
+}
+.membership-detail-grid strong{
+  display:block;
+  font-size:11px;
+  line-height:1.4;
+  color:#17365D;
+}
+.membership-basis{
+  margin-top:8px;
+  font-size:10px;
+  line-height:1.5;
+  color:#66788a;
+}
+
+.rank-badge.rank-c{background:#eef1f4;color:#44515c;border-color:#c7d0d8}
+.contact-research-card{border-top:4px solid #17365D}
+.contact-research-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px 12px;
+}
+.contact-research-grid > div{
+  border:1px solid #dbe5ee;
+  border-radius:8px;
+  padding:9px 10px;
+  background:#f8fbfe;
+}
+.contact-research-grid > div.wide{grid-column:1 / -1}
+.contact-research-grid span{
+  display:block;
+  font-size:10px;
+  color:var(--muted);
+  font-weight:700;
+  margin-bottom:4px;
+}
+.contact-research-grid strong,
+.contact-research-grid div div{
+  color:#17365D;
+  font-size:12px;
+  line-height:1.6;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+@media(max-width:760px){
+  .contact-research-grid{grid-template-columns:1fr}
+  .contact-research-grid > div.wide{grid-column:auto}
+}
+
+.progress-actions{display:flex;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;gap:8px;padding-bottom:6px;scrollbar-width:thin}
+.progress-actions button{flex:0 0 auto}
+
+/* v1.66: align the two direct company-search controls */
+.company-finder>.grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+.company-finder>.grid>div{min-width:0}
+#companySearchText,#companyAllSelect{height:46px;min-height:46px;box-sizing:border-box;font-size:16px;line-height:24px}
+#companyAllSelect{padding-top:9px;padding-bottom:9px}
+.company-finder>.grid .mini-note{min-height:36px;line-height:1.5}
+@media(max-width:760px){.company-finder>.grid{grid-template-columns:1fr}.company-finder>.grid .mini-note{min-height:0}}
+/* v1.66: reserve more width for status/dates, and ellipsize long classifications */
+.progress-table-wrap{overflow-x:auto}
+.progress-table{table-layout:fixed;width:100%;min-width:1480px;font-size:12px}
+.progress-table th{white-space:nowrap;word-break:keep-all;padding:9px 6px;font-size:11px}
+.progress-table td{padding:9px 6px;word-break:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.progress-table th:nth-child(1),.progress-table td:nth-child(1){width:48px}
+.progress-table th:nth-child(2),.progress-table td:nth-child(2){width:200px}
+.progress-table th:nth-child(3),.progress-table td:nth-child(3){width:244px}
+.progress-table th:nth-child(4),.progress-table td:nth-child(4){width:100px}
+.progress-table th:nth-child(5),.progress-table td:nth-child(5){width:92px}
+.progress-table th:nth-child(6),.progress-table td:nth-child(6){width:92px}
+.progress-table th:nth-child(7),.progress-table td:nth-child(7){width:92px}
+.progress-table th:nth-child(8),.progress-table td:nth-child(8){width:92px}
+.progress-table th:nth-child(9),.progress-table td:nth-child(9){width:92px}
+.progress-table th:nth-child(10),.progress-table td:nth-child(10){width:155px}
+.progress-table th:nth-child(11),.progress-table td:nth-child(11){width:100px}
+.progress-table th:nth-child(12),.progress-table td:nth-child(12){width:88px}
+.progress-table th:nth-child(13),.progress-table td:nth-child(13){width:70px}
+.progress-table td:nth-child(3),.progress-table td:nth-child(10){cursor:help}
+#companyAdminControls{border:0;padding:0;margin:0;min-width:0;width:100%}
+#companyAdminControls[disabled]{opacity:.54}
+.admin-access-notice{padding:9px 12px;border-radius:8px;background:#eef5fb;border:1px solid #d8e2ec}
+#companyAdminPanel{scroll-margin-top:15px}
+
+</style>
+<style>
+body.auth-locked > :not(#rifj-auth-gate){display:none!important}
+#rifj-auth-gate{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#10273f,#245b89);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif}
+#rifj-auth-gate[hidden]{display:none!important}
+.rifj-login{background:white;color:#20334a;border-radius:16px;max-width:420px;width:100%;padding:32px;box-shadow:0 20px 50px #05162977}
+.rifj-login h1{font-size:22px;margin:0 0 8px;color:#17365d}.rifj-login p{font-size:14px;color:#53647c;line-height:1.6}
+.rifj-login label{display:block;font-size:14px;font-weight:700;margin:16px 0 8px}
+.rifj-login input{box-sizing:border-box;width:100%;border-radius:8px;border:1px solid #a6b8cb;padding:12px;font-size:16px}
+.rifj-login button{border:0;border-radius:8px;background:#245b89;color:white;padding:12px;width:100%;margin-top:16px;font-size:16px;font-weight:700;cursor:pointer}
+#rifj-auth-error{min-height:18px;color:#b42318!important}
+#rifj-signout{position:fixed;bottom:14px;right:14px;z-index:100000;background:#17365d;color:white;border:1px solid #fff;border-radius:8px;padding:8px 13px;cursor:pointer;box-shadow:0 3px 12px #0003}
+body.auth-locked #rifj-signout{display:none}
+</style></head>
+<body class="auth-locked">
+<div id="rifj-auth-gate" role="dialog" aria-modal="true" aria-labelledby="rifj-auth-title">
+<form class="rifj-login" id="rifj-login-form">
+<h1 id="rifj-auth-title">政策リサーチ｜営業支援</h1>
+<p>Firebase Authenticationでログインしてください。登録されたメールアドレスとパスワードが必要です。</p>
+<label for="rifj-email">メールアドレス</label><input id="rifj-email" type="email" autocomplete="username" required>
+<label for="rifj-password">パスワード</label><input id="rifj-password" type="password" autocomplete="current-password" required>
+<button id="rifj-login-button" type="submit">ログイン</button>
+<p id="rifj-auth-error" role="alert" aria-live="polite"></p>
+</form></div>
+<button id="rifj-signout" type="button" hidden>ログアウト</button>
+<header>
+<h1>政策リサーチ｜営業アプローチ自動作成 v1.65</h1>
+<p>1社・複数企業の文面作成に加え、アプローチ日、オンライン会議、申込完了、拒否、未了案件を一元管理。</p>
+</header>
+<div class="wrap">
+
+<section class="panel mode-selector">
+  <h2>操作モードを選択</h2>
+  <div class="mode-buttons">
+    <button id="singleModeBtn" class="mode-btn active">企業マスタから1社選択</button>
+    <button id="bulkModeBtn" class="mode-btn secondary">複数企業を絞り込む</button>
+    <button id="progressModeBtn" class="mode-btn secondary">営業進捗一覧</button>
+  </div>
+  <p id="modeDescription" class="help">1社モード：企業マスタから選んだ1社だけの企業情報と文面を表示します。</p>
+</section>
+
+<section class="panel" id="firebaseSyncPanel"><h2>共有状況</h2>
+<p id="firebaseStatus" role="status">ログイン前</p>
+<p class="help">企業マスタと営業進捗を認証済み端末間で共有します。</p>
+</section><section class="panel" id="companyAdminPanel">
+<h2>企業マスタ管理（管理者専用）</h2>
+<p class="help">登録・修正・削除、CSV・Excel・JSON一括インポートに対応。重複候補は自動で除外し、登録済み企業は無断で上書きしません。</p>
+<p class="help admin-access-notice" id="companyAdminAccessNotice" role="status">管理者権限が未設定です。閲覧のみ可能です。Firebase Authentication の companyAdmin=true と管理者用 Firestore ルールを設定後、再ログインすると編集できます。</p>
+<fieldset id="companyAdminControls" disabled>
+<div class="grid2">
+  <div>
+    <label for="adminCompanySelect">登録済み企業（修正・削除する企業を選択）</label>
+    <select id="adminCompanySelect"><option value="">新規企業を登録</option></select>
+  </div>
+  <div>
+    <label for="adminCompanyName">企業名（必須）</label>
+    <input id="adminCompanyName" maxlength="300" placeholder="正式な法人名">
+  </div>
+  <div><label for="adminIndustry">業種・戦略分野（要点）</label><input id="adminIndustry"></div>
+  <div><label for="adminSalesTheme">最初に刺すテーマ（要点）</label><input id="adminSalesTheme"></div>
+  <div><label for="adminDemo">15分デモで見せる内容</label><textarea id="adminDemo"></textarea></div>
+  <div><label for="adminDescription">企業説明（詳細）</label><textarea id="adminDescription"></textarea></div>
+  <div><label for="adminContact">代表電話・公開窓口</label><input id="adminContact"></div>
+  <div><label for="adminDepartment">推奨営業先部署</label><input id="adminDepartment"></div>
+  <div><label for="adminTags">関連分野タグ（読点・カンマ区切り）</label><textarea id="adminTags"></textarea></div>
+  <div>
+    <label for="adminSalesGroup">利用状況</label>
+    <select id="adminSalesGroup">
+      <option value="完全新規">完全新規</option>
+      <option value="現在利用">現在利用中</option>
+      <option value="過去有料利用">利用後退会</option>
+      <option value="トライアルのみ">トライアルのみ</option>
+    </select>
+    <label class="inline-toggle"><input id="adminLegacy" type="checkbox"> 旧縁あり</label>
+  </div>
+</div>
+<div class="actions">
+  <button type="button" id="adminCompanySave">企業を登録・更新</button>
+  <button type="button" class="secondary" id="adminCompanyNew">新規入力</button>
+  <button type="button" id="adminCompanyDelete" class="secondary">選択企業を削除</button>
+</div>
+<div class="filter-block" style="margin-top:16px">
+  <h3>企業データの一括追加</h3>
+  <p class="help">CSV（UTF-8）・Excel（.xlsx/.xls）・JSON。Excelは読込時に外部のExcel解析ライブラリを使用します。既存の387社と照合し、新規のみ追加します。</p>
+  <input id="adminImportFile" type="file" accept=".csv,.json,.xlsx,.xls" aria-label="企業マスタファイル">
+  <div class="actions"><button type="button" id="adminImportPreview">重複チェック・追加候補を確認</button><button type="button" id="adminImportCommit" disabled>新規企業だけを登録</button></div>
+  <div id="adminImportResult" class="help" role="status" aria-live="polite"></div>
+</div>
+<p id="adminCompanyStatus" class="help" role="status" aria-live="polite"></p>
+</fieldset>
+</section>
+<div id="singleModeArea">
+<details class="panel collapsible-panel">
+  <summary><span>1社モード｜企業・条件入力</span><span class="collapse-indicator">開く</span></summary>
+  <div class="collapsible-content">
+
+<div class="company-finder">
+  <h3>会社名から直接探す</h3>
+  <div class="grid">
+    <div>
+      <label>会社名を検索</label>
+      <input id="companySearchText" placeholder="会社名の一部を入力">
+      <div class="mini-note">入力するたびに候補を絞り込みます。</div>
+    </div>
+    <div>
+      <label>会社名一覧プルダウン</label>
+      <select id="companyAllSelect">
+        <option value="">会社名から選択</option>
+      </select>
+      <div class="mini-note">分野を選ばず、会社名から直接選択できます。S → A → B の営業優先ランク順、その中で会社名順です。</div>
+    </div>
+  </div>
+  <div style="margin-top:10px">
+    <label>会社名検索結果一覧</label>
+    <select id="companySearchResults" size="6" class="company-search-results">
+      <option value="">会社名を入力してください</option>
+    </select>
+  </div>
+  <label class="inline-toggle"><input type="checkbox" id="showApproachedCompanies"> アプローチ済み企業も表示</label>
+  <div id="directCompanyNote" class="mini-note">標準では未アプローチ企業だけを検索・表示します。</div>
+</div>
+
+<div class="finder-divider"></div>
+<h3 class="finder-subtitle">分野から絞り込む</h3>
+
+<div class="grid">
+  <div>
+    <label>業種／戦略分野（先に選択）</label>
+    <select id="industry"></select>
+    <div class="mini-note">分野を選ぶと、その分野タグを持つ企業だけが下の企業名プルダウンに表示されます。1社が複数分野に表示される場合があります。</div>
+  </div>
+  <div>
+    <label>企業名（選択分野の企業のみ）</label>
+    <select id="companyInput" disabled>
+      <option value="">先に業種／戦略分野を選択してください</option>
+    </select>
+    <div id="companyListNote" class="mini-note">標準では未アプローチ企業だけを、S → A → B の営業優先ランク順・同ランク内は会社名順で表示します。</div>
+  </div>
+  <div><label>未登録企業名</label><input id="companyCustom" placeholder="マスタ外の場合のみ"></div>
+  <div><label>接触段階</label><select id="stage">
+    <option>初回電話</option><option>電話後メール</option><option>利用者</option><option>15分商談</option><option>10日間トライアル</option>
+    <option>トライアル中間</option><option>クロージング</option><option>保留案件</option><option>見送り後再接触</option>
+  </select></div>
+  <div>
+    <label>旧縁設定</label>
+    <label class="inline-toggle"><input type="checkbox" id="legacyConnection"> 旧縁あり</label>
+    <div class="mini-note">企業マスタA列が○の企業は「旧縁あり」が自動でONになります。旧縁がある場合は国会議員の政策秘書経験を含めてご案内します。</div>
+  </div>
+  <div><label>第1営業先部署</label><input id="dept"></div>
+  <div><label>キーパーソン</label><input id="person"></div>
+  <div><label>役職・所管</label><input id="role"></div>
+  <div><label>電話で確認した担当者名</label><input id="contactPerson" placeholder="例：政策渉外部 ○○様"></div>
+</div>
+<div class="grid2" style="margin-top:12px">
+  <div><label>最初に刺すテーマ</label><textarea id="theme"></textarea></div>
+  <div><label>直近の政策トリガー</label><textarea id="trigger" placeholder="営業直前に最新の政府会議・予算・制度へ更新"></textarea></div>
+  <div><label>電話で聞いた相手の課題・関心</label><textarea id="callNotes" placeholder="例：GXと水素を重点監視。省庁資料の社内共有に時間がかかる。"></textarea></div>
+  <div><label>15分デモで見せる内容</label><textarea id="demo"></textarea></div>
+  <div><label>相手から提示された候補日時</label><textarea id="proposedTimes" placeholder="例：11月5日 10:00、11月6日 14:00、11月7日 16:00"></textarea></div>
+  <div><label>確定する日時</label><input id="confirmedTime" placeholder="例：11月6日（金）14:00"></div>
+  <div><label>追加条件（任意）</label><textarea id="extra"></textarea></div>
+  <div><label>現在の利用状況（既存顧客向け）</label><textarea id="usageStatus" placeholder="例：経営企画2名が利用。検索は多いがレポート閲覧は少ない。"></textarea></div>
+  <div><label>追加テーマ候補</label><textarea id="additionalTheme" placeholder="例：AI規制、経済安全保障、水素、サイバー"></textarea></div>
+  <div><label>現在の利用部署</label><input id="currentDept" placeholder="例：経営企画部"></div>
+  <div><label>展開候補部署</label><input id="targetDept" placeholder="例：事業企画部、法務部、研究開発部"></div>
+</div>
+<div class="actions">
+  <button id="generateBtn">文面を作成</button>
+  <button class="secondary" id="clearCompanyBtn">企業選択をクリア</button>
+  <button class="secondary" id="resetBtn">全入力を初期化</button>
+</div>
+
+  </div>
+</details>
+
+<details class="panel collapsible-panel">
+  <summary><span>選択企業の情報・営業判定</span><span class="collapse-indicator">開く</span></summary>
+  <div class="collapsible-content">
+<div id="statusNotice" class="notice"></div>
+<div id="summaryTags" style="margin-top:10px"></div>
+<div class="grid" style="margin-top:14px">
+  <div><label>公開連絡先</label><input id="contactDisplay" readonly></div>
+  <div><label>連絡先種別／確認</label><input id="contactTypeDisplay" readonly></div>
+  <div><label>推奨初回接触ルート</label><input id="routeDisplay" readonly></div>
+  <div><label>企業公式URL</label><input id="officialUrlDisplay" readonly></div>
+  <div><label>連絡先・根拠URL</label><input id="sourceUrlDisplay" readonly></div>
+  <div><label>過去プラン・履歴</label><input id="historyDisplay" readonly></div>
+</div>
+
+<p class="help">確認済みの公開情報だけを表示します。未確認の電話番号・メールアドレスは推測しません。</p>
+
+  </div>
+</details>
+
+<details class="panel collapsible-panel">
+  <summary><span>営業進捗スタンプ</span><span class="collapse-indicator">開く</span></summary>
+  <div class="collapsible-content">
+<p class="help">企業マスタ登録企業の進捗をブラウザ内に保存します。「最終返信日」は、2週間・1ヶ月の未了自動判定に使用します。</p>
+<div class="progress-date-grid">
+  <div><label>初回アプローチ日</label><div class="date-row"><input type="date" id="progressApproachDate"><button class="secondary stamp-today" data-field="progressApproachDate">本日</button></div></div>
+  <div><label>最終返信日（判定用）</label><div class="date-row"><input type="date" id="progressReplyDate"><button class="secondary stamp-today" data-field="progressReplyDate">本日</button></div></div>
+  <div><label>オンライン会議日</label><div class="date-row"><input type="date" id="progressMeetingDate"><button class="secondary stamp-today" data-field="progressMeetingDate">本日</button></div></div>
+  <div><label>申込完了日</label><div class="date-row"><input type="date" id="progressAppliedDate"><button class="secondary stamp-today" data-field="progressAppliedDate">本日</button></div></div>
+  <div><label>拒否日</label><div class="date-row"><input type="date" id="progressRejectedDate"><button class="secondary stamp-today" data-field="progressRejectedDate">本日</button></div></div>
+</div>
+<div style="margin-top:12px">
+  <label>営業メモ・履歴</label>
+  <textarea id="progressNote" placeholder="例：11/2 電話。担当：○○様。AI政策に関心。資料送付済み。"></textarea>
+</div>
+<div class="progress-storage-box">
+  <strong>端末保存：</strong><span id="storageStatusText">初期化中…</span>
+  <span class="mini-note">同じ端末・同じブラウザで再読み込みしても記録を復元します。</span>
+</div>
+<div class="progress-status-box">
+  <strong>営業進捗：</strong><span id="progressStatusText">未記録</span>
+  &nbsp;／&nbsp;<strong>未了判定：</strong><span id="progressIncompleteText">—</span>
+</div>
+<div class="actions">
+  <button id="saveProgressBtn">進捗を保存</button>
+  <button class="secondary" id="clearProgressBtn">この企業の進捗をクリア</button>
+</div>
+
+  </div>
+</details>
+
+<section class="panel">
+<h2>1社分の出力</h2>
+<div class="grid2">
+  <div>
+    <label>生成した文章の出力</label>
+    <div class="actions">
+      <button class="gold" id="downloadTxtBtn">TXT保存</button>
+      <button class="gold" id="downloadDocxBtn">Word（.docx）保存</button>
+      <button class="gold" id="printPdfBtn">PDF出力</button>
+    </div>
+    <p class="help">PDF出力は、生成文章だけをA4印刷画面で開きます。ブラウザの「PDFとして保存」を選択してください。</p>
+  </div>
+  <div>
+    <label>登録企業データの出力</label>
+    <div class="actions">
+      <button id="exportSelectedCsvBtn">選択企業CSV</button>
+      <button id="exportAllCsvBtn">400社CSV</button>
+      <button id="exportAllJsonBtn">400社JSON</button>
+    </div>
+    <p class="help">CSVはUTF-8 BOM付きで、Excelからそのまま開けます。</p>
+  </div>
+</div>
+</section>
+
+<section class="panel">
+<h2>選択した1社の自動生成結果</h2>
+<div class="result-layout">
+  <div class="results">
+    <div class="card"><h3>代表受付・ファーストコンタクト</h3><div class="body"><textarea id="outReception"></textarea></div></div>
+    <div class="card"><h3>担当者との電話トーク</h3><div class="body"><textarea id="outConnected"></textarea></div></div>
+    <div class="card"><h3>電話後メール＋必要時の再フォロー</h3><div class="body"><textarea id="outEmailFollow"></textarea></div></div>
+    <div class="card"><h3>日時指定の返信メール</h3><div class="body"><textarea id="outScheduleReply"></textarea></div></div>
+    <div class="card"><h3>15分商談トークライン</h3><div class="body"><textarea id="outMeeting"></textarea></div></div>
+    <div class="card"><h3>10日間無料トライアル提案</h3><div class="body"><textarea id="outTrial"></textarea></div></div>
+    <div class="card"><h3>クロージング</h3><div class="body"><textarea id="outClosing"></textarea></div></div>
+    <div class="card"><h3>既存顧客：利用促進</h3><div class="body"><textarea id="outUsage"></textarea></div></div>
+    <div class="card"><h3>既存顧客：テーマ追加</h3><div class="body"><textarea id="outThemeAdd"></textarea></div></div>
+    <div class="card"><h3>既存顧客：他部署展開</h3><div class="body"><textarea id="outDeptExpand"></textarea></div></div>
+  </div>
+
+  <aside class="selected-company-panel" id="selectedCompanyPanel">
+    <div class="selected-company-kicker">選択企業</div>
+    <h3 id="selectedCompanyName">企業を選択してください</h3>
+
+    <div class="selected-company-badges">
+      <span class="company-badge rank-badge" id="selectedCompanyRank">—</span>
+      <span class="company-badge usage-badge" id="selectedCompanyUsage">—</span>
+    </div>
+
+    <div class="company-info-row">
+      <span>主分野</span>
+      <strong id="selectedCompanyIndustry">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>検索分野</span>
+      <strong id="selectedCompanyTags">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>営業進捗</span>
+      <strong id="selectedCompanyProgress">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>代表電話／公開窓口</span>
+      <strong id="selectedCompanyPhone">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>担当部署／推奨営業先</span>
+      <strong id="selectedCompanyDept">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>公開担当者・役職</span>
+      <strong id="selectedCompanyPerson">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>連絡先確認</span>
+      <strong id="selectedCompanyContactCheck">—</strong>
+    </div>
+    <div class="company-info-row">
+      <span>公式再確認</span>
+      <strong id="selectedCompanyRecheck">—</strong>
+    </div>
+
+    <div class="company-history-box compact">
+      <div class="company-history-title">企業概要・営業観点</div>
+      <div id="selectedCompanyResearch" class="company-history-text">—</div>
+    </div>
+
+    <div class="company-history-box membership-detail-box">
+      <div class="company-history-title">会員名簿による利用判定</div>
+      <div class="membership-detail-grid">
+        <div><span>利用開始日</span><strong id="selectedMembershipStart">—</strong></div>
+        <div><span>現在の判定</span><strong id="selectedMembershipState">—</strong></div>
+        <div><span>優先表示プラン（有料優先）</span><strong id="selectedMembershipPlan">—</strong></div>
+        <div><span>登録データ</span><strong id="selectedMembershipRows">—</strong></div>
+      </div>
+      <div id="selectedMembershipBasis" class="membership-basis">—</div>
+    </div>
+
+    <div class="company-history-box">
+      <div class="company-history-title">政策リサーチの利用履歴</div>
+      <div id="selectedCompanyHistory" class="company-history-text">企業を選択すると、利用履歴を表示します。</div>
+    </div>
+
+    <div class="company-history-box compact">
+      <div class="company-history-title">過去プラン・登録履歴</div>
+      <div id="selectedCompanyPlanHistory" class="company-history-text">—</div>
+    </div>
+
+    <div class="company-history-box compact">
+      <div class="company-history-title">ランク理由</div>
+      <div id="selectedCompanyRankReason" class="company-history-text">—</div>
+    </div>
+  </aside>
+</div>
+</section>
+</div>
+
+<div id="bulkModeArea" style="display:none">
+<section class="panel">
+<h2>複数企業モード｜成長戦略17分野・利用状況で絞り込み</h2>
+<p class="help">日本成長戦略の重点17分野を複数選択して対象企業を抽出します。未選択の場合は全分野・全利用状況です。1社モードの企業情報・文面欄は表示しません。</p>
+<div class="grid" style="margin-bottom:14px">
+  <div>
+    <label>一括生成の接触段階</label>
+    <select id="bulkStage">
+      <option>初回電話</option><option>電話後メール</option><option>利用者</option>
+      <option>15分商談</option><option>10日間トライアル</option>
+      <option>トライアル中間</option><option>クロージング</option>
+      <option>保留案件</option><option>見送り後再接触</option>
+    </select>
+  </div>
+</div>
+
+<div class="filter-block">
+  <label>日本成長戦略の重点17分野（複数選択可）</label>
+  <div id="industryFilters" class="check-grid"></div>
+</div>
+
+<div class="filter-block" style="margin-top:12px">
+  <label>利用状況（複数選択可）</label>
+  <div id="usageFilters" class="check-grid"></div>
+  <label class="inline-toggle" style="margin-top:8px"><input type="checkbox" id="excludeApproachedBulk"> アプローチ済み企業を除外</label>
+  <div class="mini-note">再フォロー等でアプローチ済み企業を選ぶ場合はOFFにしてください。</div>
+</div>
+
+<div class="actions">
+  <button id="applyBulkFilterBtn">条件で企業を表示</button>
+  <button class="secondary" id="selectVisibleBtn">表示中を全選択</button>
+  <button class="secondary" id="clearBulkSelectionBtn">企業選択を全解除</button>
+  <button class="secondary" id="clearBulkFiltersBtn">絞り込み条件をクリア</button>
+  <button id="stampBulkApproachBtn">選択企業を本日アプローチ済みにする</button>
+</div>
+
+<div class="bulk-summary">
+  <strong>表示企業：</strong><span id="visibleCompanyCount">0</span>社
+  &nbsp;／&nbsp;<strong>選択企業：</strong><span id="selectedCompanyCount">0</span>社
+</div>
+
+<div id="bulkCompanyList" class="company-check-list"></div>
+
+<div class="grid2" style="margin-top:14px">
+  <div>
+    <label>一括文面の共通テーマ（任意）</label>
+    <textarea id="bulkCommonTheme" placeholder="空欄なら各社の登録テーマを使用。例：AI規制、GX、経済安全保障"></textarea>
+  </div>
+  <div>
+    <label>一括文面の共通補足（任意）</label>
+    <textarea id="bulkCommonNote" placeholder="例：11月の政策レポートと直近会議資料をご案内したい"></textarea>
+  </div>
+</div>
+
+<div class="actions">
+  <button class="gold" id="bulkGenerateBtn">選択企業の文面を一括生成</button>
+  <button class="gold" id="bulkDocxBtn">一括Word保存</button>
+  <button class="gold" id="bulkPdfBtn">一括PDF出力</button>
+  <button id="exportBulkSelectedCompaniesBtn">選択企業一覧CSV</button>
+  <button id="bulkCsvBtn">一括送付準備CSV</button>
+</div>
+<p class="help">「選択企業一覧CSV」は、チェックした企業の会社情報・連絡先・利用状況・営業進捗を一覧で出力します。文面を生成する前でも利用できます。</p>
+<div id="bulkWarning" class="notice" style="margin-top:10px;display:none"></div>
+<textarea id="bulkOutput" style="min-height:360px;margin-top:12px" placeholder="一括生成した文面がここに表示されます。"></textarea>
+</section>
+
+</div>
+
+
+<div id="progressModeArea" style="display:none">
+<section class="panel">
+<h2>営業進捗一覧</h2>
+<p class="help">アプローチ済み、現在利用中、利用後退会、未了（2週間／1ヶ月）、オンライン会議、申込完了、拒否を一覧表示できます。未了判定は画面を開くたびに自動更新します。</p>
+<div class="grid">
+  <div>
+    <label>表示対象</label>
+    <select id="progressViewFilter">
+      <option value="all">全件</option>
+      <option value="approached">アプローチ済み</option>
+      <option value="current">現在利用中</option>
+      <option value="withdrawn">利用後退会</option>
+      <option value="incomplete">未了のみ</option>
+      <option value="incomplete14">未了（2週間）</option>
+      <option value="incomplete30">未了（1ヶ月）</option>
+      <option value="meeting">オンライン会議予定・済</option>
+      <option value="applied">申込完了</option>
+      <option value="rejected">拒否</option>
+    </select>
+  </div>
+  <div>
+    <label>企業名検索</label>
+    <input id="progressSearch" placeholder="企業名の一部を入力">
+  </div>
+</div>
+
+<div class="kpi-grid" style="margin-top:14px">
+  <div class="kpi-card"><span>アプローチ済み</span><strong id="kpiApproached">0</strong></div>
+  <div class="kpi-card"><span>現在利用中</span><strong id="kpiCurrent">0</strong></div>
+  <div class="kpi-card"><span>利用後退会</span><strong id="kpiWithdrawn">0</strong></div>
+  <div class="kpi-card"><span>未了 2週間</span><strong id="kpiIncomplete14">0</strong></div>
+  <div class="kpi-card"><span>未了 1ヶ月</span><strong id="kpiIncomplete30">0</strong></div>
+  <div class="kpi-card"><span>申込完了</span><strong id="kpiApplied">0</strong></div>
+  <div class="kpi-card"><span>拒否</span><strong id="kpiRejected">0</strong></div>
+</div>
+
+<div class="actions progress-actions">
+  <button id="refreshProgressBtn">一覧を更新</button>
+  <button id="exportVisibleProgressBtn">表示中CSV</button>
+  <button id="exportApproachedBtn">アプローチ済みCSV</button>
+  <button id="exportCurrentUsersBtn">現在利用中CSV</button>
+  <button id="exportWithdrawnBtn">利用後退会CSV</button>
+  <button id="exportIncompleteBtn">未了CSV</button>
+  <button id="exportProgressJsonBtn">進捗JSONバックアップ</button>
+  <button id="importProgressJsonBtn">進捗JSONを復元</button>
+  <input type="file" id="importProgressJsonFile" accept=".json,application/json" style="display:none">
+</div>
+
+<div class="progress-table-wrap">
+<table class="progress-table">
+<thead><tr>
+<th title="営業優先ランク">優先</th><th>企業名</th><th title="業種・戦略分野">関連分野</th><th title="利用状況">利用区分</th><th title="初回アプローチ日">接触日</th><th title="最終返信日">返信日</th>
+<th title="オンライン会議日">会議日</th><th title="申込完了日">申込日</th><th title="拒否日">拒否日</th><th title="営業メモ・履歴">営業メモ</th><th title="営業進捗">進捗</th><th title="未了判定">未了</th><th title="経過日数">経過日</th>
+</tr></thead>
+<tbody id="progressTableBody"></tbody>
+</table>
+</div>
+<div class="bulk-summary"><strong>表示件数：</strong><span id="progressVisibleCount">0</span>社</div>
+</section>
+</div>
+
+</div>
+<footer>一般社団法人日本みらい研｜政策リサーチ 営業支援</footer>
+
+<script type="text/plain" id="rifj-inline-sales-app">
+
+const $ = id => document.getElementById(id);
+
+// v1.57 compatibility: the original public data.js supplied this map.
+// Build it from the authenticated Firestore company master instead of
+// publishing the private 387-company source dataset in GitHub Pages.
+const COMPANY_DATA = Array.isArray(window.COMPANY_DATA) ? window.COMPANY_DATA : [];
+const INDUSTRY_DEFAULTS = (() => {
+  const names = new Set(["その他・複合"]);
+  COMPANY_DATA.forEach(c => {
+    if (typeof c.industry === "string" && c.industry.trim()) names.add(c.industry.trim());
+    if (Array.isArray(c.search_tags)) c.search_tags.forEach(t => {
+      if (typeof t === "string" && t.trim()) names.add(t.trim());
+    });
+  });
+  const defaults = {};
+  names.forEach(name => {
+    const matching = COMPANY_DATA.filter(c =>
+      c.industry === name || (Array.isArray(c.search_tags) && c.search_tags.includes(name))
+    );
+    const sample = matching.find(c => c.sales_theme || c.demo || c.dept1) || {};
+    defaults[name] = {
+      dept: sample.dept1 || "経営企画・政策渉外等",
+      theme: sample.sales_theme || name,
+      demo: sample.demo || "御社に関連する政府資料を2～3件確認"
+    };
+  });
+  return defaults;
+})();
+
+const SIGNATURE = `◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇
+一般社団法人日本みらい研事務局
+東京都千代田区平河町2-16-6 jeＶビル７F
+代表理事　高松重雄
+TEL 03(5215)6071　FAX 03(5215)6072
+Mail s-takamatsu@rifj.jp
+
+一般社団法人日本みらい研 https://www.rifj.jp/
+政策リサーチのご案内 https://report.rifj.jp/pr/
+◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇◇`;
+const LEGACY_CONNECTION_TEXT = `私は以前、永田町で国会議員の政策秘書として長く勤務しており、その当時、御社とも若干のご縁をいただいた記憶がございます。かなり以前のことですので、当時ご対応いただいた方のお名前までは思い出せないのですが、その頃のご縁を思い出しながら、今回改めてご連絡を差し上げました。`;
+function hasLegacyConnection(c){ return !!(c && (c.legacyConnection || c.legacy_connection)); }
+function legacyConnectionParagraph(c){ return hasLegacyConnection(c) ? LEGACY_CONNECTION_TEXT : ""; }
+const SALES_SERVICE_INTRO = `私は、長年国会議員の政策秘書を勤めており、その経験を踏まえて開発した、政府・省庁・国会などの政策情報を収集・整理する法人向けサービス「政策リサーチ」を10年以上運営しております。現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。`;
+const LEGACY_SERVICE_INTRO = `現在は、その経験を踏まえて開発した、政府・省庁・国会などの政策情報を収集・整理する法人向けサービス「政策リサーチ」を10年以上運営しております。現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。`;
+function salesIntroduction(c){
+  if(hasLegacyConnection(c)) return `${LEGACY_CONNECTION_TEXT}\n\n${LEGACY_SERVICE_INTRO}`;
+  return SALES_SERVICE_INTRO;
+}
+function salesRelevantMaterials(theme){
+  return `御社では、「${theme}」に関連する事業などが、政府や省庁の情報に関係が深いと考え、一般的なシステムの説明というより、御社に関係する政府関連資料を2～3件ご説明できればと思い、ご連絡をさせていただきました。また、他に関心の深い分野などがあれば教えてもらえますか。`;
+}
+
+
+let BULK_SELECTED = new Set();
+let LAST_BATCH_DOCS = [];
+const PROGRESS_STORAGE_KEY = "rifj_policy_sales_progress_v1";
+const PROGRESS_DB_NAME = "rifj_policy_sales_db_v1";
+const PROGRESS_DB_STORE = "kv";
+const COMPANY_RENAME_MAP = {"KDDI":"KDDI株式会社","TDK":"TDK株式会社","TIS":"TIS株式会社","ソフトバンク":"ソフトバンク株式会社","ダイキン工業":"ダイキン工業株式会社","大日本印刷":"大日本印刷株式会社","富士通":"富士通株式会社","岩谷産業":"岩谷産業株式会社","川崎重工業":"川崎重工業株式会社","日立製作所":"株式会社日立製作所","日鉄ソリューションズ":"日鉄ソリューションズ株式会社","東芝":"株式会社東芝","沖電気工業":"沖電気工業株式会社","関西電力":"関西電力株式会社","ANAホールディングス":"ANAホールディングス株式会社","LIXIL":"株式会社LIXIL","freee":"freee株式会社","インフォマート":"株式会社インフォマート","エムティーアイ":"株式会社エムティーアイ","ジェイティービー":"株式会社ジェイティービー","ジャパンディスプレイ":"株式会社ジャパンディスプレイ","ゼンリン":"株式会社ゼンリン","ソニー生命保険":"ソニー生命保険株式会社","トーエネック":"株式会社トーエネック","ニチイ学館":"株式会社ニチイ学館","パナソニック コネクト":"パナソニック コネクト株式会社","ファーマインド":"株式会社ファーマインド","ベネフィット・ワン":"株式会社ベネフィット・ワン","ホーチキ":"ホーチキ株式会社","ミロク情報サービス":"株式会社ミロク情報サービス","メットライフ生命":"メットライフ生命保険株式会社","ヤマトホールディングス":"ヤマトホールディングス株式会社","リクルート":"株式会社リクルート","ローム":"ローム株式会社","中部電力":"中部電力株式会社","京セラ":"京セラ株式会社","八千代エンジニヤリング":"八千代エンジニヤリング株式会社","共同印刷":"共同印刷株式会社","千葉銀行":"株式会社千葉銀行","博報堂":"株式会社博報堂","大和リース":"大和リース株式会社","大塚商会":"株式会社大塚商会","弥生":"弥生株式会社","日本総合研究所":"株式会社日本総合研究所","日産自動車":"日産自動車株式会社","日立情報通信エンジニアリング":"株式会社日立情報通信エンジニアリング","旭化成":"旭化成株式会社","東海理化":"株式会社東海理化","東芝デジタルソリューションズ":"東芝デジタルソリューションズ株式会社","積水ハウス":"積水ハウス株式会社","積水化学工業":"積水化学工業株式会社","荏原製作所":"株式会社荏原製作所","野村総合研究所":"株式会社野村総合研究所","阪急阪神ホールディングス":"阪急阪神ホールディングス株式会社","電通":"株式会社電通","高砂熱学工業":"高砂熱学工業株式会社","イトーキ":"株式会社イトーキ","エナリス":"株式会社エナリス","エフアンドエム":"株式会社エフアンドエム","エフテック":"株式会社エフテック","エレコム":"エレコム株式会社","セブン＆アイ・ホールディングス":"株式会社セブン＆アイ・ホールディングス","ベクトル":"株式会社ベクトル","前澤工業":"前澤工業株式会社","東京スター銀行":"株式会社東京スター銀行","池田泉州銀行":"株式会社池田泉州銀行","紀伊國屋書店":"株式会社紀伊國屋書店","FCE":"株式会社FCE","GR Japan":"GR Japan株式会社","OpenPolicy":"OpenPolicy株式会社","Spectee":"株式会社Spectee","エス・ピー・ネットワーク":"株式会社エス・ピー・ネットワーク","ジー・サーチ":"株式会社ジー・サーチ","セイノーロジックス":"セイノーロジックス株式会社","トーアミ":"株式会社トーアミ","フルノシステムズ":"株式会社フルノシステムズ","ライトアップ":"株式会社ライトアップ","リブドゥコーポレーション":"株式会社リブドゥコーポレーション","日本医療企画":"株式会社日本医療企画","時評社":"株式会社時評社","緑川化成工業":"緑川化成工業株式会社","若井ホールディングス":"若井ホールディングス株式会社","NTTデータグループ":"株式会社NTTデータグループ","パナソニック ホールディングス":"パナソニック ホールディングス株式会社","株式会社　NTTデータ経営研究所":"株式会社NTTデータ経営研究所","ENEOSホールディングス":"ENEOSホールディングス株式会社","IHI":"株式会社IHI","INPEX":"株式会社INPEX","JERA":"株式会社JERA","NEC":"日本電気株式会社","NIPPON EXPRESSホールディングス":"NIPPON EXPRESSホールディングス株式会社","NTTドコモ":"株式会社NTTドコモ","NTT西日本":"NTT西日本株式会社","Rapidus":"Rapidus株式会社","SCREENホールディングス":"株式会社SCREENホールディングス","UBE三菱セメント":"UBE三菱セメント株式会社","みずほフィナンシャルグループ":"株式会社みずほフィナンシャルグループ","みずほ銀行":"株式会社みずほ銀行","アドバンテスト":"株式会社アドバンテスト","インターネットイニシアティブ":"株式会社インターネットイニシアティブ","キオクシアホールディングス":"キオクシアホールディングス株式会社","ジェーシービー":"株式会社ジェーシービー","ジョンソン・エンド・ジョンソン":"ジョンソン・エンド・ジョンソン株式会社","ソニーグループ":"ソニーグループ株式会社","デンソー":"株式会社デンソー","トヨタ自動車":"トヨタ自動車株式会社","ファナック":"ファナック株式会社","フジクラ":"株式会社フジクラ","ルネサスエレクトロニクス":"ルネサス エレクトロニクス株式会社","レノバ":"株式会社レノバ","三井住友トラストグループ":"三井住友トラストグループ株式会社","三井住友フィナンシャルグループ":"株式会社三井住友フィナンシャルグループ","三井物産":"三井物産株式会社","三菱UFJフィナンシャル・グループ":"株式会社三菱UFJフィナンシャル・グループ","三菱商事":"三菱商事株式会社","三菱重工業":"三菱重工業株式会社","三菱電機":"三菱電機株式会社","中外製薬":"中外製薬株式会社","丸紅":"丸紅株式会社","伊藤忠商事":"伊藤忠商事株式会社","住友商事":"住友商事株式会社","住友金属鉱山":"住友金属鉱山株式会社","住友電気工業":"住友電気工業株式会社","信越化学工業":"信越化学工業株式会社","古河電気工業":"古河電気工業株式会社","大阪ガス":"大阪ガス株式会社","富士電機":"富士電機株式会社","日揮ホールディングス":"日揮ホールディングス株式会社","日本製鉄":"日本製鉄株式会社","本田技研工業":"本田技研工業株式会社","村田製作所":"株式会社村田製作所","東京エレクトロン":"東京エレクトロン株式会社","東京ガス":"東京ガス株式会社","東京海上ホールディングス":"東京海上ホールディングス株式会社","東京電力ホールディングス":"東京電力ホールディングス株式会社","武田薬品工業":"武田薬品工業株式会社","第一三共":"第一三共株式会社","AGC":"AGC株式会社","DOWAホールディングス":"DOWAホールディングス株式会社","HOYA":"HOYA株式会社","JFEホールディングス":"JFEホールディングス株式会社","KADOKAWA":"株式会社KADOKAWA","LINEヤフー":"LINEヤフー株式会社","MODEC":"三井海洋開発株式会社","MS&ADインシュアランスグループホールディングス":"ＭＳ＆ＡＤインシュアランスグループホールディングス株式会社","NTN":"NTN株式会社","NTTアーバンソリューションズ総合研究所":"株式会社NTTアーバンソリューションズ総合研究所","SCSK":"SCSK株式会社","SHIFT":"株式会社SHIFT","SMC":"SMC株式会社","SOMPOホールディングス":"ＳＯＭＰＯホールディングス株式会社","SUBARU":"株式会社SUBARU","SUMCO":"株式会社SUMCO","T&Dホールディングス":"株式会社T&Dホールディングス","TOPPANホールディングス":"TOPPANホールディングス株式会社","TOTO":"TOTO株式会社","UBE":"UBE株式会社","あおぞら銀行":"株式会社あおぞら銀行","いすゞ自動車":"いすゞ自動車株式会社","しずおかフィナンシャルグループ":"株式会社しずおかフィナンシャルグループ","ふくおかフィナンシャルグループ":"株式会社ふくおかフィナンシャルグループ","りそなホールディングス":"株式会社りそなホールディングス","アステラス製薬":"アステラス製薬株式会社","アマダ":"株式会社アマダ","アルプスアルパイン":"アルプスアルパイン株式会社","イビデン":"イビデン株式会社","エムスリー":"エムスリー株式会社","エーザイ":"エーザイ株式会社","オムロン":"オムロン株式会社","オリンパス":"オリンパス株式会社","オークマ":"オークマ株式会社","カナデビア":"カナデビア株式会社","カネカ":"株式会社カネカ","カメイ":"カメイ株式会社","キヤノン":"キヤノン株式会社","キユーピー":"キユーピー株式会社","キリンホールディングス":"キリンホールディングス株式会社","キーエンス":"株式会社キーエンス","クボタ":"株式会社クボタ","クラレ":"株式会社クラレ","クレディセゾン":"株式会社クレディセゾン","コマツ":"株式会社小松製作所","コムシスホールディングス":"コムシスホールディングス株式会社","ジェイテクト":"株式会社ジェイテクト","ジャパン マリンユナイテッド":"ジャパン マリンユナイテッド株式会社","スカパーJSATホールディングス":"スカパーJSAT株式会社","スズキ":"スズキ株式会社","セイコーエプソン":"セイコーエプソン株式会社","セコム":"セコム株式会社","ソシオネクスト":"株式会社ソシオネクスト","テルモ":"テルモ株式会社","ディスコ":"株式会社ディスコ","デンカ":"デンカ株式会社","トクヤマ":"株式会社トクヤマ","トレンドマイクロ":"トレンドマイクロ株式会社","ニコン":"株式会社ニコン","ニチレイ":"株式会社ニチレイ","ニッスイ":"株式会社ニッスイ","ブリヂストン":"株式会社ブリヂストン","ベネッセコーポレーション":"株式会社ベネッセコーポレーション","ボストンコンサルティンググループ":"ボストン・コンサルティング・グループ合同会社","マツダ":"マツダ株式会社","ミネベアミツミ":"ミネベアミツミ株式会社","メルカリ":"株式会社メルカリ","ヤマハ発動機":"ヤマハ発動機株式会社","リコー":"株式会社リコー","レゾナック・ホールディングス":"株式会社レゾナック・ホールディングス","レーザーテック":"レーザーテック株式会社","三井E&S":"株式会社三井E&S","三井化学":"三井化学株式会社","三井金属":"三井金属株式会社","三菱ケミカルグループ":"三菱ケミカルグループ株式会社","三菱マテリアル":"三菱マテリアル株式会社","三菱自動車工業":"三菱自動車工業株式会社","上組":"株式会社上組","五洋建設":"五洋建設株式会社","今治造船":"今治造船株式会社","住友ファーマ":"住友ファーマ株式会社","住友化学":"住友化学株式会社","住友重機械工業":"住友重機械工業株式会社","出光興産":"出光興産株式会社","協和キリン":"協和キリン株式会社","双日":"双日株式会社","名村造船所":"株式会社名村造船所","味の素":"味の素株式会社","商船三井":"株式会社商船三井","大和ハウス工業":"大和ハウス工業株式会社","大和証券グループ本社":"株式会社大和証券グループ本社","大塚ホールディングス":"大塚ホールディングス株式会社","大島造船所":"株式会社大島造船所","大成建設":"大成建設株式会社","大林組":"株式会社大林組","太平洋セメント":"太平洋セメント株式会社","太陽誘電":"太陽誘電株式会社","安川電機":"株式会社安川電機","富士フイルムホールディングス":"富士フイルムホールディングス株式会社","山九":"山九株式会社","島津製作所":"株式会社島津製作所","川崎汽船":"川崎汽船株式会社","帝人":"帝人株式会社","新明和工業":"新明和工業株式会社","新来島どっく":"株式会社新来島どっく","日本ガイシ":"NGK株式会社","日本取引所グループ":"株式会社日本取引所グループ","日本精工":"日本精工株式会社","日本航空":"日本航空株式会社","日本製鋼所":"株式会社日本製鋼所","日本郵政":"日本郵政株式会社","日本郵船":"日本郵船株式会社","日本電気硝子":"日本電気硝子株式会社","日東電工":"日東電工株式会社","日産化学":"日産化学株式会社","日立建機":"日立建機株式会社","明治ホールディングス":"明治ホールディングス株式会社","東ソー":"東ソー株式会社","東レ":"東レ株式会社","東洋エンジニアリング":"東洋エンジニアリング株式会社","東海カーボン":"東海カーボン株式会社","楽天グループ":"楽天グループ株式会社","横河電機":"横河電機株式会社","横浜ゴム":"横浜ゴム株式会社","横浜フィナンシャルグループ":"株式会社横浜フィナンシャルグループ","浜松ホトニクス":"浜松ホトニクス株式会社","清水建設":"清水建設株式会社","王子ホールディングス":"王子ホールディングス株式会社","神戸製鋼所":"株式会社神戸製鋼所","第一ライフグループ":"株式会社第一ライフグループ","船井総研ホールディングス":"株式会社船井総研ホールディングス","花王":"花王株式会社","豊田通商":"豊田通商株式会社","野村ホールディングス":"野村ホールディングス株式会社","長谷工コーポレーション":"株式会社長谷工コーポレーション","鹿島建設":"鹿島建設株式会社","アサヒグループホールディングス":"アサヒグループホールディングス株式会社","アフラック":"アフラック生命保険株式会社","イオン":"イオン株式会社","オリエンタルランド":"株式会社オリエンタルランド","カプコン":"株式会社カプコン","キッコーマン":"キッコーマン株式会社","コナミグループ":"コナミグループ株式会社","サイバーエージェント":"株式会社サイバーエージェント","ディー・エヌ・エー":"株式会社ディー・エヌ・エー","ニトリホールディングス":"株式会社ニトリホールディングス","ネクソン":"株式会社ネクソン","バンダイナムコホールディングス":"株式会社バンダイナムコホールディングス","パン・パシフィック・インターナショナルホールディングス":"株式会社パン・パシフィック・インターナショナルホールディングス","ファーストリテイリング":"株式会社ファーストリテイリング","ベイカレント":"株式会社ベイカレント","リクルートホールディングス":"株式会社リクルートホールディングス","三井不動産":"三井不動産株式会社","三菱地所":"三菱地所株式会社","三越伊勢丹ホールディングス":"株式会社三越伊勢丹ホールディングス","京成電鉄":"京成電鉄株式会社","京王電鉄":"京王電鉄株式会社","任天堂":"任天堂株式会社","住友不動産":"住友不動産株式会社","共同通信社":"一般社団法人共同通信社","小田急電鉄":"小田急電鉄株式会社","広済堂ホールディングス":"株式会社広済堂ホールディングス","日本たばこ産業":"日本たばこ産業株式会社","日本ハム":"日本ハム株式会社","日清製粉グループ本社":"株式会社日清製粉グループ本社","日邦産業":"日邦産業株式会社","東京建物":"東京建物株式会社","東宝":"東宝株式会社","東急":"東急株式会社","東急不動産ホールディングス":"東急不動産ホールディングス株式会社","東日本旅客鉄道":"東日本旅客鉄道株式会社","東武鉄道":"東武鉄道株式会社","東海旅客鉄道":"東海旅客鉄道株式会社","滋賀銀行":"株式会社滋賀銀行","良品計画":"株式会社良品計画","西日本旅客鉄道":"西日本旅客鉄道株式会社","資生堂":"株式会社資生堂","電通グループ":"株式会社電通グループ","九州経済研究所":"株式会社九州経済研究所","MS&ADインシュアランスグループホールディングス株式会社":"ＭＳ＆ＡＤインシュアランスグループホールディングス株式会社","SOMPOホールディングス株式会社":"ＳＯＭＰＯホールディングス株式会社","T&Dホールディングス株式会社":"株式会社T&Dホールディングス","ボストン コンサルティング グループ合同会社":"ボストン・コンサルティング・グループ合同会社"};
+let PROGRESS_CACHE = {};
+let PROGRESS_DB = null;
+let STORAGE_PERSISTED = false;
+let noteSaveTimer = null;
+
+function esc(s){ return (s??"").toString().trim(); }
+function honorific(s){ return s ? s.replace(/様$/,"")+"様" : "御社"; }
+function companyByName(name){ return COMPANY_DATA.find(c=>c.company===name) || null; }
+function companyTags(c){
+  if(!c) return [];
+  if(Array.isArray(c.search_tags) && c.search_tags.length) return c.search_tags;
+  return c.industry ? [c.industry] : ["その他・複合"];
+}
+function companyHasTag(c,tag){ return !!tag && companyTags(c).includes(tag); }
+
+let APP_MODE = "single";
+
+function init(){
+  if(!Array.isArray(window.COMPANY_DATA) || !window.COMPANY_DATA.length){
+    throw new Error("企業マスタが未読込です。Firebase接続と読み込み状態を確認してください。");
+  }
+  renderCompanyDropdown();
+  renderDirectCompanyControls();
+  $("showApproachedCompanies").addEventListener("change", ()=>{
+    renderCompanyDropdown();
+    renderDirectCompanyControls();
+  });
+  $("companySearchText").addEventListener("input", renderDirectCompanyControls);
+  $("companySearchResults").addEventListener("change", ()=>{
+    if($("companySearchResults").value) selectCompanyDirect($("companySearchResults").value);
+  });
+  $("companyAllSelect").addEventListener("change", ()=>{
+    if($("companyAllSelect").value) selectCompanyDirect($("companyAllSelect").value);
+  });
+  $("singleModeBtn").addEventListener("click",()=>setAppMode("single"));
+  $("bulkModeBtn").addEventListener("click",()=>setAppMode("bulk"));
+  $("progressModeBtn").addEventListener("click",()=>setAppMode("progress"));
+  $("industry").innerHTML = `<option value="">業種／戦略分野を選択</option>` + Object.keys(INDUSTRY_DEFAULTS).map(x=>`<option value="${xmlEscape(x)}">${xmlEscape(x)}</option>`).join("");
+  $("companyInput").addEventListener("change", applyCompany);
+  $("legacyConnection").addEventListener("change",generate);
+    $("industry").addEventListener("change", applyIndustry);
+  $("generateBtn").addEventListener("click", generate);
+  $("clearCompanyBtn").addEventListener("click", clearCompanySelection);
+  $("resetBtn").addEventListener("click", resetForm);
+  $("downloadTxtBtn").addEventListener("click", downloadAll);
+  $("downloadDocxBtn").addEventListener("click", downloadDocx);
+  $("printPdfBtn").addEventListener("click", printPdf);
+  $("exportSelectedCsvBtn").addEventListener("click", exportSelectedCsv);
+  $("exportAllCsvBtn").addEventListener("click", exportAllCsv);
+  $("exportAllJsonBtn").addEventListener("click", exportAllJson);
+  $("applyBulkFilterBtn").addEventListener("click", renderBulkCompanies);
+  ["industryFilters","usageFilters"].forEach(id=>$(id).addEventListener("change", renderBulkCompanies));
+  $("excludeApproachedBulk").addEventListener("change", renderBulkCompanies);
+  $("selectVisibleBtn").addEventListener("click", selectVisibleCompanies);
+  $("clearBulkSelectionBtn").addEventListener("click", clearBulkSelection);
+  $("clearBulkFiltersBtn").addEventListener("click", clearBulkFilters);
+  $("bulkGenerateBtn").addEventListener("click", generateBulkDocuments);
+  $("bulkDocxBtn").addEventListener("click", downloadBatchDocx);
+  $("bulkPdfBtn").addEventListener("click", printBatchPdf);
+  $("exportBulkSelectedCompaniesBtn").addEventListener("click", exportBulkSelectedCompaniesCsv);
+  $("bulkCsvBtn").addEventListener("click", exportBatchCsv);
+  $("stampBulkApproachBtn").addEventListener("click", stampBulkApproachToday);
+  $("saveProgressBtn").addEventListener("click", saveProgressFromForm);
+  $("clearProgressBtn").addEventListener("click", clearCurrentProgress);
+  document.querySelectorAll(".stamp-today").forEach(btn=>btn.addEventListener("click",()=>stampToday(btn.dataset.field)));
+  $("progressViewFilter").addEventListener("change", renderProgressList);
+  $("progressSearch").addEventListener("input", renderProgressList);
+  $("refreshProgressBtn").addEventListener("click", renderProgressList);
+  $("exportVisibleProgressBtn").addEventListener("click",()=>exportProgressCsv(filteredProgressRows(),"政策リサーチ_営業進捗_表示中.csv"));
+  $("exportApproachedBtn").addEventListener("click",()=>exportProgressCsv(progressRows().filter(r=>r.progress.approach_date),"政策リサーチ_アプローチ済み一覧.csv"));
+  $("exportCurrentUsersBtn").addEventListener("click",()=>exportProgressCsv(progressRows().filter(r=>r.usage==="現在利用中"),"政策リサーチ_現在利用中企業一覧.csv"));
+  $("exportWithdrawnBtn").addEventListener("click",()=>exportProgressCsv(progressRows().filter(r=>r.usage==="利用後退会"),"政策リサーチ_利用後退会企業一覧.csv"));
+  $("exportIncompleteBtn").addEventListener("click",()=>exportProgressCsv(progressRows().filter(r=>r.auto.incomplete),"政策リサーチ_未了一覧.csv"));
+  $("exportProgressJsonBtn").addEventListener("click", exportProgressJson);
+  $("importProgressJsonBtn").addEventListener("click",()=>$("importProgressJsonFile").click());
+  $("importProgressJsonFile").addEventListener("change", importProgressJson);
+  ["progressApproachDate","progressReplyDate","progressMeetingDate","progressAppliedDate","progressRejectedDate"].forEach(id=>{
+    $(id).addEventListener("change",()=>{ if(companyByName($("companyInput").value)) saveProgressFromForm(true); });
+  });
+  $("progressNote").addEventListener("input",()=>{
+    clearTimeout(noteSaveTimer);
+    noteSaveTimer=setTimeout(()=>{ if(companyByName($("companyInput").value)) saveProgressFromForm(true); },500);
+  });
+  initPersistentStorage();
+  renderBulkFilters();
+  applyIndustry(); generate();
+  setAppMode("single");
+}
+
+
+
+function setAppMode(mode){
+  APP_MODE=mode;
+  const single=mode==="single", bulk=mode==="bulk", progress=mode==="progress";
+  $("singleModeArea").style.display=single?"block":"none";
+  $("bulkModeArea").style.display=bulk?"block":"none";
+  $("progressModeArea").style.display=progress?"block":"none";
+
+  [["singleModeBtn",single],["bulkModeBtn",bulk],["progressModeBtn",progress]].forEach(([id,on])=>{
+    $(id).classList.toggle("active",on);
+    $(id).classList.toggle("secondary",!on);
+  });
+
+  $("modeDescription").textContent=single
+    ? "1社モード：企業マスタから選んだ1社だけの企業情報・営業進捗・文面を表示します。"
+    : bulk
+    ? "複数企業モード：業種・利用状況で絞り込み、複数社の文面作成とアプローチ日一括記録ができます。"
+    : "営業進捗一覧：アプローチ済み、現在利用中、利用後退会、未了、オンライン会議、申込完了、拒否を一覧表示・出力します。";
+
+  if(single){
+    $("bulkOutput").value="";
+    renderCompanyDropdown();
+    renderDirectCompanyControls();
+  }else if(bulk){
+    renderBulkCompanies();
+  }else{
+    renderProgressList();
+  }
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+
+function loadProgressStore(){
+  return PROGRESS_CACHE||{};
+}
+function saveProgressStore(store){
+  PROGRESS_CACHE=store||{};
+}
+function updateStorageStatus(message,type="ok"){
+  const el=$("storageStatusText");
+  if(!el) return;
+  el.textContent=message;
+  el.classList.remove("storage-ok","storage-warn","storage-error");
+  el.classList.add(type==="error"?"storage-error":type==="warn"?"storage-warn":"storage-ok");
+}
+function openProgressDB(){
+  return new Promise((resolve,reject)=>{
+    if(PROGRESS_DB){ resolve(PROGRESS_DB); return; }
+    if(!("indexedDB" in window)){ reject(new Error("IndexedDB unsupported")); return; }
+    const req=indexedDB.open(PROGRESS_DB_NAME,1);
+    req.onupgradeneeded=()=>{
+      const db=req.result;
+      if(!db.objectStoreNames.contains(PROGRESS_DB_STORE)) db.createObjectStore(PROGRESS_DB_STORE);
+    };
+    req.onsuccess=()=>{ PROGRESS_DB=req.result; resolve(PROGRESS_DB); };
+    req.onerror=()=>reject(req.error||new Error("IndexedDB open failed"));
+  });
+}
+async function idbPutProgress(store){
+  try{
+    const db=await openProgressDB();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(PROGRESS_DB_STORE,"readwrite");
+      tx.objectStore(PROGRESS_DB_STORE).put(store,"progress");
+      tx.oncomplete=resolve;
+      tx.onerror=()=>reject(tx.error);
+    });
+    updateStorageStatus(STORAGE_PERSISTED?"端末に永続保存済み":"端末に保存済み");
+  }catch(e){
+    updateStorageStatus("localStorageには保存済み（IndexedDBは利用不可）","warn");
+  }
+}
+async function idbGetProgress(){
+  const db=await openProgressDB();
+  return await new Promise((resolve,reject)=>{
+    const tx=db.transaction(PROGRESS_DB_STORE,"readonly");
+    const req=tx.objectStore(PROGRESS_DB_STORE).get("progress");
+    req.onsuccess=()=>resolve(req.result||{});
+    req.onerror=()=>reject(req.error);
+  });
+}
+function mergeProgressStores(a,b){
+  const out={...(a||{})};
+  Object.entries(b||{}).forEach(([company,rec])=>{
+    const old=out[company];
+    if(!old){out[company]=rec;return;}
+    const ot=Date.parse(old.updated_at||"1970-01-01")||0;
+    const nt=Date.parse(rec.updated_at||"1970-01-01")||0;
+    out[company]=nt>=ot?{...old,...rec}:{...rec,...old};
+  });
+  return out;
+}
+function migrateProgressCompanyNames(store){
+  const out={...(store||{})};
+  Object.entries(COMPANY_RENAME_MAP||{}).forEach(([oldName,newName])=>{
+    if(!oldName||!newName||oldName===newName||!out[oldName]) return;
+    if(!out[newName]) out[newName]=out[oldName];
+    else out[newName]=mergeProgressStores({[newName]:out[newName]},{[newName]:out[oldName]})[newName];
+    delete out[oldName];
+  });
+  return out;
+}
+async function initPersistentStorage(){
+  updateStorageStatus("Firebaseで同期中…", "warn");
+}
+function applyCloudProgressStore(store){
+  PROGRESS_CACHE=migrateProgressCompanyNames(store||{});
+  updateStorageStatus("Firebaseに同期済み（端末間共有）", "ok");
+  renderCompanyDropdown();renderDirectCompanyControls();
+  if(APP_MODE==="progress") renderProgressList();
+  const c=companyByName($("companyInput").value);
+  // Do not overwrite user's unsaved typing while editing; onSnapshot is not used to overwrite form.
+  if(c && document.activeElement?.id!=="progressNote") loadProgressIntoForm(c.company);
+}
+window.applyCloudProgressStore=applyCloudProgressStore;
+
+function applyCloudCompanyStore(records){
+  if(!Array.isArray(records)) return;
+  const currentCompany=$("companyInput")?.value||"";
+  const selectedIndustry=$("industry")?.value||"";
+  COMPANY_DATA.splice(0,COMPANY_DATA.length,...records);
+  COMPANY_DATA.forEach(c=>{
+    [c.industry,...(Array.isArray(c.search_tags)?c.search_tags:[])].forEach(name=>{
+      if(typeof name!=="string" || !name.trim() || INDUSTRY_DEFAULTS[name])return;
+      INDUSTRY_DEFAULTS[name]={
+        dept:c.dept1||"経営企画・政策渉外等",
+        theme:c.sales_theme||name,
+        demo:c.demo||"御社に関連する政府資料を2～3件確認"
+      };
+    });
+  });
+  const selected=$("industry");
+  selected.innerHTML='<option value="">業種／戦略分野を選択</option>'+Object.keys(INDUSTRY_DEFAULTS).map(x=>'<option value="'+xmlEscape(x)+'">'+xmlEscape(x)+'</option>').join("");
+  selected.value=selectedIndustry;
+  renderBulkFilters();
+  renderCompanyDropdown();
+  renderDirectCompanyControls();
+  if(currentCompany && COMPANY_DATA.some(c=>c.company===currentCompany)){
+    // Refresh the company side panel, but do not overwrite active sales-talk editing fields.
+    const preset=companyByName(currentCompany);
+    if(APP_MODE==="single") renderSelectedCompanySidePanel({company:currentCompany,preset});
+  }
+  if(APP_MODE==="bulk") renderBulkCompanies();
+  if(APP_MODE==="progress") renderProgressList();
+  window.refreshCompanyAdmin?.();
+}
+window.applyCloudCompanyStore=applyCloudCompanyStore;
+
+function getProgress(company){
+  const store=loadProgressStore();
+  return store[company]||{approach_date:"",reply_date:"",meeting_date:"",applied_date:"",rejected_date:"",note:"",updated_at:""};
+}
+function setProgress(company,data){
+  if(!company) return;
+  const before=getProgress(company);
+  const record={...before,...data,updated_at:new Date().toISOString()};
+  PROGRESS_CACHE[company]=record;
+  if(window.salesCloud) window.salesCloud.save(company,record).catch(e=>updateStorageStatus("Firebase保存失敗: "+e.message,"error"));
+  else updateStorageStatus("Firebaseに接続されていません","error");
+}
+function deleteProgress(company){
+  delete PROGRESS_CACHE[company];
+  if(window.salesCloud) window.salesCloud.remove(company).catch(e=>updateStorageStatus("Firebase削除失敗: "+e.message,"error"));
+}
+function todayISO(){
+  const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function dateToLocal(s){
+  if(!s) return null;
+  const p=s.split("-").map(Number); return new Date(p[0],p[1]-1,p[2]);
+}
+function daysSince(s){
+  const d=dateToLocal(s); if(!d) return "";
+  const t=dateToLocal(todayISO()); return Math.floor((t-d)/86400000);
+}
+function progressAuto(company){
+  const p=getProgress(company);
+  let status="未アプローチ";
+  if(p.applied_date) status="申込完了";
+  else if(p.rejected_date) status="拒否";
+  else if(p.meeting_date){
+    const md=dateToLocal(p.meeting_date), td=dateToLocal(todayISO());
+    status=md&&md>td?"オンライン会議予定":"オンライン会議済";
+  }else if(p.reply_date) status="返信あり";
+  else if(p.approach_date) status="アプローチ済み（返信待ち）";
+
+  let incomplete="";
+  const elapsed=daysSince(p.approach_date);
+  if(p.approach_date && !p.reply_date && !p.meeting_date && !p.applied_date && !p.rejected_date){
+    if(elapsed>=30) incomplete="未了（1ヶ月）";
+    else if(elapsed>=14) incomplete="未了（2週間）";
+  }
+  return {status,incomplete,elapsed:elapsed===""?"":elapsed};
+}
+function stampToday(fieldId){
+  if(!companyByName($("companyInput").value)){alert("企業マスタから企業を選択してください。");return;}
+  $(fieldId).value=todayISO(); saveProgressFromForm();
+}
+function loadProgressIntoForm(company){
+  const p=getProgress(company);
+  $("progressApproachDate").value=p.approach_date||"";
+  $("progressReplyDate").value=p.reply_date||"";
+  $("progressMeetingDate").value=p.meeting_date||"";
+  $("progressAppliedDate").value=p.applied_date||"";
+  $("progressRejectedDate").value=p.rejected_date||"";
+  $("progressNote").value=p.note||"";
+  renderCurrentProgressStatus();
+}
+function saveProgressFromForm(silent=false){
+  const c=companyByName($("companyInput").value);
+  if(!c){alert("進捗を保存するには企業マスタから企業を選択してください。");return;}
+  const data={
+    approach_date:$("progressApproachDate").value,
+    reply_date:$("progressReplyDate").value,
+    meeting_date:$("progressMeetingDate").value,
+    applied_date:$("progressAppliedDate").value,
+    rejected_date:$("progressRejectedDate").value,
+    note:$("progressNote").value||""
+  };
+  if(data.applied_date) data.rejected_date="";
+  else if(data.rejected_date) data.applied_date="";
+  setProgress(c.company,data);
+  $("progressAppliedDate").value=data.applied_date;
+  $("progressRejectedDate").value=data.rejected_date;
+  renderCurrentProgressStatus();
+  renderCompanyDropdown();
+  renderDirectCompanyControls();
+  render(c);
+  if(!silent) updateStorageStatus("Firebaseに保存処理中…", "warn");
+}
+function clearCurrentProgress(){
+  const c=companyByName($("companyInput").value);
+  if(!c){alert("企業マスタから企業を選択してください。");return;}
+  if(!confirm(`${c.company} の営業進捗記録をクリアしますか？`)) return;
+  deleteProgress(c.company); loadProgressIntoForm(c.company); renderCompanyDropdown(); renderDirectCompanyControls(); render(c);
+}
+function renderCurrentProgressStatus(){
+  const c=companyByName($("companyInput").value);
+  if(!c){$("progressStatusText").textContent="未記録";$("progressIncompleteText").textContent="—";return;}
+  const a=progressAuto(c.company);
+  $("progressStatusText").textContent=a.status;
+  $("progressIncompleteText").textContent=a.incomplete||"—";
+}
+function stampBulkApproachToday(){
+  if(APP_MODE!=="bulk") return;
+  if(!BULK_SELECTED.size){alert("対象企業を1社以上選択してください。");return;}
+  const today=todayISO();
+  BULK_SELECTED.forEach(name=>setProgress(name,{approach_date:today}));
+  alert(`${BULK_SELECTED.size}社に初回アプローチ日 ${today} を記録しました。`);
+  renderCompanyDropdown();
+  renderDirectCompanyControls();
+  renderBulkCompanies();
+}
+function progressRows(){
+  return COMPANY_DATA.map(c=>{
+    const p=getProgress(c.company), auto=progressAuto(c.company);
+    return {company:c.company,rank:c.priority_rank||"B",industry:companyTags(c).join("・"),usage:usageStatus(c),contact:c.contact||"",progress:p,auto};
+  });
+}
+function filteredProgressRows(){
+  const mode=$("progressViewFilter").value, q=($("progressSearch").value||"").trim().toLowerCase();
+  return progressRows().filter(r=>{
+    if(q && !r.company.toLowerCase().includes(q)) return false;
+    if(mode==="approached") return !!r.progress.approach_date;
+    if(mode==="current") return r.usage==="現在利用中";
+    if(mode==="withdrawn") return r.usage==="利用後退会";
+    if(mode==="incomplete") return !!r.auto.incomplete;
+    if(mode==="incomplete14") return r.auto.incomplete==="未了（2週間）";
+    if(mode==="incomplete30") return r.auto.incomplete==="未了（1ヶ月）";
+    if(mode==="meeting") return !!r.progress.meeting_date;
+    if(mode==="applied") return !!r.progress.applied_date;
+    if(mode==="rejected") return !!r.progress.rejected_date;
+    return true;
+  });
+}
+function renderProgressList(){
+  if(APP_MODE!=="progress") return;
+  const all=progressRows(), rows=filteredProgressRows();
+  $("kpiApproached").textContent=all.filter(r=>r.progress.approach_date).length;
+  $("kpiCurrent").textContent=all.filter(r=>r.usage==="現在利用中").length;
+  $("kpiWithdrawn").textContent=all.filter(r=>r.usage==="利用後退会").length;
+  $("kpiIncomplete14").textContent=all.filter(r=>r.auto.incomplete==="未了（2週間）").length;
+  $("kpiIncomplete30").textContent=all.filter(r=>r.auto.incomplete==="未了（1ヶ月）").length;
+  $("kpiApplied").textContent=all.filter(r=>r.progress.applied_date).length;
+  $("kpiRejected").textContent=all.filter(r=>r.progress.rejected_date).length;
+  $("progressVisibleCount").textContent=rows.length;
+  $("progressTableBody").innerHTML=rows.map(r=>{
+    const cls=r.auto.incomplete==="未了（1ヶ月）"?"incomplete30":r.auto.incomplete==="未了（2週間）"?"incomplete14":r.progress.applied_date?"applied":r.progress.rejected_date?"rejected":"";
+    return `<tr class="${cls}">
+      <td title="${xmlEscape(r.rank)}">${xmlEscape(r.rank)}</td>
+      <td title="${xmlEscape(r.company)}">${xmlEscape(r.company)}</td>
+      <td title="${xmlEscape(r.industry)}">${xmlEscape(r.industry)}</td>
+      <td title="${xmlEscape(r.usage)}">${xmlEscape(r.usage)}</td>
+      <td>${r.progress.approach_date||""}</td><td>${r.progress.reply_date||""}</td><td>${r.progress.meeting_date||""}</td>
+      <td>${r.progress.applied_date||""}</td><td>${r.progress.rejected_date||""}</td>
+      <td title="${xmlEscape(r.progress.note||"")}">${xmlEscape(r.progress.note||"")}</td>
+      <td title="${xmlEscape(r.auto.status)}">${xmlEscape(r.auto.status)}</td><td title="${xmlEscape(r.auto.incomplete||"")}">${xmlEscape(r.auto.incomplete||"")}</td><td>${r.auto.elapsed}</td>
+    </tr>`;
+  }).join("");
+}
+function progressCsvRows(rows){
+  const header=["優先ランク","企業名","主業種・戦略分野","利用状況","公開連絡先","初回アプローチ日","最終返信日","オンライン会議日","申込完了日","拒否日","営業メモ・履歴","営業進捗","未了判定","経過日数"];
+  const vals=rows.map(r=>[r.rank,r.company,r.industry,r.usage,r.contact,r.progress.approach_date,r.progress.reply_date,r.progress.meeting_date,r.progress.applied_date,r.progress.rejected_date,r.progress.note||"",r.auto.status,r.auto.incomplete,r.auto.elapsed]);
+  return [header,...vals];
+}
+function exportProgressCsv(rows,filename){
+  const csv="\ufeff"+progressCsvRows(rows).map(r=>r.map(csvEscape).join(",")).join("\r\n");
+  saveBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),filename);
+}
+function exportProgressJson(){
+  const payload={exported_at:new Date().toISOString(),progress:loadProgressStore()};
+  saveBlob(new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"}),"政策リサーチ_営業進捗バックアップ.json");
+}
+async function importProgressJson(ev){
+  const file=ev.target.files && ev.target.files[0];
+  if(!file) return;
+  try{
+    const text=await file.text();
+    const obj=JSON.parse(text);
+    const incoming=(obj && obj.progress) ? obj.progress : obj;
+    if(!incoming || typeof incoming!=="object" || Array.isArray(incoming)) throw new Error("形式が不正です");
+    PROGRESS_CACHE=mergeProgressStores(PROGRESS_CACHE,incoming);
+    saveProgressStore(PROGRESS_CACHE);
+    renderCompanyDropdown();
+    renderDirectCompanyControls();
+    if(APP_MODE==="progress") renderProgressList();
+    const selected=companyByName($("companyInput").value);
+    if(selected) loadProgressIntoForm(selected.company);
+    updateStorageStatus("バックアップを復元し、端末に保存しました");
+    alert("営業進捗バックアップを復元しました。");
+  }catch(e){
+    alert("JSONバックアップを復元できませんでした。ファイル内容をご確認ください。");
+  }finally{
+    ev.target.value="";
+  }
+}
+
+function usageStatus(c){
+  if(c.sales_group==="現在利用") return "現在利用中";
+  if(c.sales_group==="過去有料利用") return "利用後退会";
+  if(c.sales_group==="トライアルのみ") return "トライアルのみ";
+  if(c.sales_group==="完全新規") return "完全新規";
+  return "その他";
+}
+function selectedValues(containerId){
+  return [...document.querySelectorAll(`#${containerId} input[type="checkbox"]:checked`)].map(x=>x.value);
+}
+// 大分類は複数企業モード専用。企業マスタの細分類や検索タグは変更しない。
+// 日本成長戦略（2026年7月21日閣議決定）本文の掲載順で17戦略分野を表示。
+// 企業マスタの詳細分類は変更せず、企業ごとの既存タグ・テーマから複数該当を判定する。
+// 官民投資ロードマップとの対応用。業種コードのような相互排他的分類ではない。
+const BULK_SECTOR_GROUPS = [
+  {name:"AI・半導体",pattern:/AI(?!S)|人工知能|機械学習|深層学習|生成AI|フィジカルAI|半導体|半導体製造|半導体装置|チップ|GPU|HPC|先端ロジック|メモリ半導体/iu},
+  {name:"デジタル・サイバーセキュリティ",pattern:/デジタル|DX|ソフトウェア|クラウド|データセンター|サイバー|セキュリティ|情報システム|ITサービス|ICTサービス|ゼロトラスト|暗号|SaaS|データ基盤|ITインフラ/iu},
+  {name:"情報通信",pattern:/情報通信|電気通信|通信網|通信設備|通信機器|無線|光通信|光ファイバ|ネットワーク|5G|6G|基地局|通信衛星|ブロードバンド|次世代通信|通信インフラ/iu},
+  {name:"量子",pattern:/量子|量子計算|量子コンピュータ|量子暗号|量子通信|量子センシング/iu},
+  {name:"防衛産業",pattern:/防衛|防衛装備|軍事|安全保障装備|ミサイル|レーダー|艦艇|戦闘機|防衛機器|軍民両用|デュアルユース/iu},
+  {name:"航空・宇宙",pattern:/航空機|航空宇宙|宇宙|衛星|ロケット|宇宙輸送|航空エンジン|機体製造|ドローン|無人航空機|空飛ぶクルマ/iu},
+  {name:"海洋",pattern:/海洋|海底|海域|海洋資源|海洋開発|海洋調査|深海|海底ケーブル|海洋エネルギー|海洋観測|洋上プラットフォーム/iu},
+  {name:"造船",pattern:/造船|船舶建造|船舶修繕|船舶エンジン|船舶用機器|海事産業|船舶設計/iu},
+  {name:"マテリアル（重要鉱物・部素材）",pattern:/マテリアル|重要鉱物|レアアース|レアメタル|部素材|素材|材料|化学品|化学素材|非鉄|鉄鋼|金属|合金|樹脂|炭素繊維|セラミック|機能性材料|半導体材料|磁石|電池材料/iu},
+  {name:"合成生物学・バイオ",pattern:/合成生物|バイオ|バイオものづくり|発酵|ゲノム|遺伝子|細胞培養|微生物|バイオ製造|バイオマス/iu},
+  {name:"創薬・先端医療",pattern:/創薬|医薬|製薬|医療|ヘルスケア|再生医療|先端医療|治療|臨床|医療機器|診断|医薬品|抗体|細胞治療/iu},
+  {name:"資源・エネルギー安全保障・GX",pattern:/資源|エネルギー|GX|脱炭素|カーボン|石油|天然ガス|電力|再エネ|再生可能|洋上風力|水素|蓄電|CCUS|省エネ|LNG|地熱|燃料/iu},
+  {name:"フュージョンエネルギー",pattern:/フュージョン|核融合|核融合炉|プラズマ加熱|トカマク/iu},
+  {name:"防災・国土強靱化",pattern:/防災|国土強靱|国土強靭|減災|防洪|治水|耐震|インフラ老朽化|災害|復旧|洪水|地震|レジリエンス|社会インフラ|インフラ維持|老朽インフラ/iu},
+  {name:"港湾ロジスティクス",pattern:/港湾|港運|港湾物流|港湾荷役|物流|ロジスティクス|海運物流|コンテナ|倉庫|物流拠点|港湾設備|自動搬送|サプライチェーン輸送/iu},
+  {name:"フードテック",pattern:/フードテック|食品|食料|食農|農業|農産|植物工場|スマート農業|アグリテック|食品加工|食品製造|代替タンパク|水産養殖|水産加工|畜産|培養肉/iu},
+  {name:"コンテンツ",pattern:/コンテンツ|ゲーム|アニメ|漫画|マンガ|映画|映像制作|音楽制作|出版|IPビジネス|エンターテインメント|クリエイティブ|放送|メディア/iu}
+];
+// 詳細業種および精査済みの政策キーワードを材料にする。
+// 一般的な会社名だけでは分類しない。曖昧なケースは無理に17分野へ割り振らない。
+function bulkCompanySectorNames(c){
+  const tags=Array.isArray(c.search_tags)?c.search_tags:[];
+  const text=[c.industry, ...tags, c.sales_theme, c.secondary, c.policy_trigger].filter(v=>typeof v==="string").join("・");
+  return BULK_SECTOR_GROUPS.filter(g=>g.pattern.test(text)).map(g=>g.name);
+}
+function renderBulkFilters(){
+  const selected=new Set(selectedValues("industryFilters"));
+  $("industryFilters").innerHTML=BULK_SECTOR_GROUPS.map(g=>{
+    const count=COMPANY_DATA.filter(c=>bulkCompanySectorNames(c).includes(g.name)).length;
+    return '<label><input type="checkbox" value="'+xmlEscape(g.name)+'" '+(selected.has(g.name)?"checked":"")+'> '+xmlEscape(g.name)+' <span class="bulk-filter-count">('+count+')</span></label>';
+  }).join("");
+  const selectedStatus=new Set(selectedValues("usageFilters"));
+  const statuses=["現在利用中","利用後退会","トライアルのみ","完全新規","その他"];
+  $("usageFilters").innerHTML=statuses.map(x=>{
+    const count=COMPANY_DATA.filter(c=>usageStatus(c)===x).length;
+    return '<label><input type="checkbox" value="'+x+'" '+(selectedStatus.has(x)?"checked":"")+'> '+x+' <span class="bulk-filter-count">('+count+')</span></label>';
+  }).join("");
+  // Change listeners are registered once in init() to avoid duplicates after master refresh.
+}
+function filteredBulkCompanies(){
+  const inds=selectedValues("industryFilters"),sts=selectedValues("usageFilters");
+  const excludeApproached=$("excludeApproachedBulk")?.checked===true;
+  // 未選択は「全業種」「全利用状況」。どちらかだけ選んでも絞り込める。
+  return COMPANY_DATA.filter(c=>{
+    const indOk=!inds.length || inds.some(ind=>bulkCompanySectorNames(c).includes(ind));
+    const stOk=!sts.length || sts.includes(usageStatus(c));
+    const approachOk=!excludeApproached || !getProgress(c.company).approach_date;
+    return indOk && stOk && approachOk;
+  }).sort(compareCompanyPriorityName);
+}
+function renderBulkCompanies(){
+  if(APP_MODE!=="bulk") return;
+  const list=filteredBulkCompanies();
+  $("visibleCompanyCount").textContent=list.length;
+  if(!list.length){
+    $("bulkCompanyList").innerHTML='<div class="help" style="padding:12px">該当する企業がありません。条件または「アプローチ済み企業を除外」を確認してください。</div>';
+    $("selectedCompanyCount").textContent=BULK_SELECTED.size;
+    return;
+  }
+  $("bulkCompanyList").innerHTML=list.map(c=>{
+    const checked=BULK_SELECTED.has(c.company)?"checked":"";
+    const contact=c.contact||"連絡先未確認";
+    const sector=bulkCompanySectorNames(c).join("・");
+    const p=getProgress(c.company);
+    const approachMark=p.approach_date ? ` ／ アプローチ済 ${p.approach_date}` : "";
+    return `<label class="company-check-item">
+      <input class="bulk-company-check" type="checkbox" value="${xmlEscape(c.company)}" ${checked}>
+      <span><strong>[${xmlEscape(c.priority_rank||"B")}] ${xmlEscape(c.company)}</strong>
+      <div class="meta">${xmlEscape(sector)} ／ ${xmlEscape(usageStatus(c))} ／ ${xmlEscape(contact)}${xmlEscape(approachMark)}</div></span>
+    </label>`;
+  }).join("");
+  document.querySelectorAll(".bulk-company-check").forEach(el=>el.addEventListener("change",()=>{
+    if(el.checked) BULK_SELECTED.add(el.value); else BULK_SELECTED.delete(el.value);
+    $("selectedCompanyCount").textContent=BULK_SELECTED.size;
+  }));
+  $("selectedCompanyCount").textContent=BULK_SELECTED.size;
+}
+function selectVisibleCompanies(){
+  if(APP_MODE!=="bulk") return;
+  filteredBulkCompanies().forEach(c=>BULK_SELECTED.add(c.company));
+  renderBulkCompanies();
+}
+function clearBulkSelection(){
+  if(APP_MODE!=="bulk") return;
+  BULK_SELECTED.clear(); renderBulkCompanies(); $("bulkOutput").value=""; LAST_BATCH_DOCS=[];
+}
+function clearBulkFilters(){
+  if(APP_MODE!=="bulk") return;
+  document.querySelectorAll("#industryFilters input,#usageFilters input").forEach(x=>x.checked=false);
+  BULK_SELECTED.clear(); LAST_BATCH_DOCS=[]; $("bulkOutput").value="";
+  renderBulkCompanies();
+}
+function batchOpening(c){
+  const st=usageStatus(c);
+  if(st==="現在利用中") return "いつも政策リサーチをご利用いただき、ありがとうございます。";
+  if(st==="利用後退会") return "以前、政策リサーチをご利用いただき、ありがとうございました。";
+  if(st==="トライアルのみ") return "以前、政策リサーチをお試しいただき、ありがとうございました。";
+  return "突然のご連絡失礼いたします。一般社団法人日本みらい研の髙松と申します。";
+}
+function batchSubject(c,stage,theme){
+  const st=usageStatus(c);
+  if(stage==="利用者"){
+    if(st==="現在利用中") return `【政策リサーチ】ご利用状況と「${theme}」の最新政策について`;
+    if(st==="利用後退会") return `【政策リサーチ】以前のご利用御礼と「${theme}」の最新動向`;
+    if(st==="トライアルのみ") return `【政策リサーチ】以前のトライアル御礼と「${theme}」の最新動向`;
+  }
+  if(stage==="電話後メール") return `【先ほどのお電話の件】${c.company}様の「${theme}」に関する政策資料`;
+  if(stage==="15分商談") return `【政策リサーチ】${c.company}様向け15分デモのご案内`;
+  if(stage==="10日間トライアル") return `【政策リサーチ】10日間無料トライアルのご案内`;
+  return `【政策リサーチ】${c.company}様に関係する「${theme}」の政策情報`;
+}
+function batchBody(c,stage,theme,note){
+  const st=usageStatus(c), trigger=c.policy_trigger||"直近の政府会議・予算・制度動向";
+  const dept=c.dept1||"政策渉外・経営企画等のご担当部門";
+  const demo=c.demo||"関連する政府会議・予算・制度資料を横断してご説明";
+  if(stage==="利用者"){
+    if(st==="現在利用中"){
+      return `${batchOpening(c)}
+
+現在、御社では政策リサーチをご利用いただいておりますが、最近の「${theme}」に関する政策動向も踏まえ、より活用いただける余地があるのではと思いご連絡しました。
+
+直近では「${trigger}」も動いています。検索だけでなく、当日解説、週2回の政策レポート、アラート等を組み合わせることで、情報収集から社内共有まで効率化できます。
+
+15分ほど、現在のご利用状況を伺いながら、①利用促進、②関連テーマの追加、③他部署での活用、のいずれが有効か整理してご案内できます。${note?`\n\n${note}`:""}
+
+${SIGNATURE}`;
+    }
+    if(st==="利用後退会"){
+      return `${batchOpening(c)}
+
+その後、政策リサーチは当日解説、AI解析、週2回の政策レポート等を拡充しています。また、御社に関係する「${theme}」でも新しい政策動向が続いています。
+
+直近の「${trigger}」を含め、現在のサービスでどのように把握できるか、15分程度で改めてご説明できます。以前ご利用いただいた時点との違いも含めてご覧いただければと思います。${note?`\n\n${note}`:""}
+
+${SIGNATURE}`;
+    }
+    if(st==="トライアルのみ"){
+      return `${batchOpening(c)}
+
+現在は、当日解説、AI解析、政策レポートなどを拡充しており、以前お試しいただいた時点からサービス内容も進化しています。
+
+特に「${theme}」では「${trigger}」など新しい動きがあり、御社に関係する資料を使って15分程度で現在の活用方法をご説明できます。${note?`\n\n${note}`:""}
+
+${SIGNATURE}`;
+    }
+    return `【注意】${c.company}は完全新規のため、「利用者」接触段階は通常適しません。\n\n${batchOpening(c)}\n\n「${theme}」に関係する政策動向について、${dept}のご担当者様へご案内したくご連絡しました。\n\n${SIGNATURE}`;
+  }
+  if(stage==="初回電話"){
+    return `【代表受付・ファーストコンタクト】
+突然のお電話で失礼いたします。一般社団法人日本みらい研の髙松と申します。
+御社の「${theme}」との関係が深いことから、政府関連情報の有効な活用方法についてお話しいたしたくご連絡しました。
+${dept}で政策動向を担当されるご責任者または実務責任者の方にご案内したく、おつなぎいただけますでしょうか。
+
+【担当者との電話】
+お時間をいただきありがとうございます。最初に、お名前を確認させていただいてもよろしいでしょうか。
+
+${salesIntroduction(c)}
+
+${salesRelevantMaterials(theme)}
+
+それでは、本日のお電話を踏まえて、政策リサーチの概要と関連する資料を作成し、このあとメールでお送りします。資料をご覧いただいた後に、可能であれば15分程度、オンラインで説明の機会をいただければと思います。メール内容をご確認の上、ご検討の程、よろしくお願いします。
+
+最後に、メールの送り先として、部署名・お名前とメールアドレスを教えていただけますでしょうか。
+
+【電話後メール】
+${batchOpening(c)}
+先ほどはお電話でお時間をいただき、ありがとうございました。
+御社に関係する「${theme}」について、「${trigger}」を含む政府会議・予算・制度資料を横断して確認できます。
+15分ほどで「${demo}」という形で実際の資料を2～3件ご説明できます。${note?`\n\n${note}`:""}
+
+${SIGNATURE}`;
+  }
+  if(stage==="10日間トライアル"){
+    return `${batchOpening(c)}
+御社の「${theme}」から3～5テーマに絞り、10日間無料で政策リサーチを実際にお使いいただけます。
+必要情報を拾えるか、情報収集時間が減るか、社内共有に使えるかの3点をご確認いただければ十分です。${note?`\n\n${note}`:""}
+
+${SIGNATURE}`;
+  }
+  if(stage==="15分商談"){
+    return `${batchOpening(c)}
+御社に関係する「${theme}」について、15分で実際の政府資料を使ってご説明します。
+「${demo}」という流れで、政策形成段階から情報を追える点をご覧いただきます。${note?`\n\n${note}`:""}
+
+${SIGNATURE}`;
+  }
+  return `${batchOpening(c)}
+御社に関係する「${theme}」について、直近の「${trigger}」を含む政策情報をご案内します。
+必要に応じて15分程度で実際の資料をご説明できます。${note?`\n\n${note}`:""}
+
+${SIGNATURE}`;
+}
+function generateBulkDocuments(){
+  if(APP_MODE!=="bulk") return;
+  if(!BULK_SELECTED.size){ alert("対象企業を1社以上選択してください。"); return; }
+  const stage=$("bulkStage").value, commonTheme=esc($("bulkCommonTheme").value), note=esc($("bulkCommonNote").value);
+  const companies=COMPANY_DATA.filter(c=>BULK_SELECTED.has(c.company));
+  LAST_BATCH_DOCS=companies.map(c=>{
+    const theme=commonTheme||c.sales_theme||c.secondary||c.industry||"政府政策・予算・制度動向";
+    return {company:c.company,status:usageStatus(c),industry:c.industry||"",contact:c.contact||"",subject:batchSubject(c,stage,theme),body:batchBody(c,stage,theme,note)};
+  });
+  const newCompanies=LAST_BATCH_DOCS.filter(d=>d.status==="完全新規").length;
+  if(stage==="利用者" && newCompanies){
+    $("bulkWarning").style.display="block";
+    $("bulkWarning").textContent=`「利用者」段階ですが、完全新規企業が${newCompanies}社含まれています。該当文面には注意表示を入れています。`;
+  }else{
+    $("bulkWarning").style.display="none";
+  }
+  $("bulkOutput").value=LAST_BATCH_DOCS.map(d=>`＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+【${d.company}】 ${d.status} ／ ${d.industry}
+件名：${d.subject}
+
+${d.body}`).join("\n\n");
+}
+function exportBatchCsv(){
+  if(APP_MODE!=="bulk") return;
+  if(!LAST_BATCH_DOCS.length) generateBulkDocuments();
+  if(!LAST_BATCH_DOCS.length) return;
+  const rows=[["企業名","利用状況","業種","公開連絡先","件名","本文"],...LAST_BATCH_DOCS.map(d=>[d.company,d.status,d.industry,d.contact,d.subject,d.body])];
+  const csv="\ufeff"+rows.map(r=>r.map(csvEscape).join(",")).join("\r\n");
+  saveBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),`政策リサーチ_一括送付準備_${LAST_BATCH_DOCS.length}社.csv`);
+}
+function downloadBatchDocx(){
+  if(APP_MODE!=="bulk") return;
+  if(!LAST_BATCH_DOCS.length) generateBulkDocuments();
+  if(!LAST_BATCH_DOCS.length) return;
+  const paras=[];
+  paras.push({text:"政策リサーチ 一括送付文面",bold:true,size:32});
+  paras.push({text:`対象企業：${LAST_BATCH_DOCS.length}社`});
+  LAST_BATCH_DOCS.forEach((d,i)=>{
+    if(i>0) paras.push({pageBreak:true});
+    paras.push({text:d.company,bold:true,size:28});
+    paras.push({text:`利用状況：${d.status}　業種：${d.industry}`});
+    paras.push({text:`件名：${d.subject}`,bold:true});
+    d.body.split(/\n/).forEach(line=>paras.push({text:line}));
+  });
+  const body=paras.map(p=>{
+    if(p.pageBreak) return `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
+    const rpr=(p.bold||p.size)?`<w:rPr>${p.bold?'<w:b/>':''}${p.size?`<w:sz w:val="${p.size}"/><w:szCs w:val="${p.size}"/>`:''}<w:rFonts w:eastAsia="Yu Gothic" w:ascii="Arial"/></w:rPr>`:'<w:rPr><w:rFonts w:eastAsia="Yu Gothic" w:ascii="Arial"/></w:rPr>';
+    return `<w:p><w:r>${rpr}<w:t xml:space="preserve">${xmlEscape(p.text||"")}</w:t></w:r></w:p>`;
+  }).join("");
+  const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr></w:body></w:document>`;
+  const files=[
+    {name:"[Content_Types].xml",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`},
+    {name:"_rels/.rels",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`},
+    {name:"word/document.xml",data:documentXml}
+  ];
+  saveBlob(new Blob([makeZip(files)],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}),`政策リサーチ_一括文面_${LAST_BATCH_DOCS.length}社.docx`);
+}
+function printBatchPdf(){
+  if(APP_MODE!=="bulk") return;
+  if(!LAST_BATCH_DOCS.length) generateBulkDocuments();
+  if(!LAST_BATCH_DOCS.length) return;
+  const win=window.open("","_blank");
+  if(!win){ alert("ポップアップを許可してください。"); return; }
+  const html=`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>政策リサーチ 一括送付文面</title>
+  <style>@page{size:A4;margin:18mm}body{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;color:#222;line-height:1.65;font-size:10.5pt}
+  h1{font-size:18pt;color:#17365D}.company{page-break-before:always}.company:first-of-type{page-break-before:auto}h2{font-size:15pt;color:#17365D;border-bottom:2px solid #17365D}pre{white-space:pre-wrap;font-family:inherit}</style>
+  </head><body><h1>政策リサーチ 一括送付文面（${LAST_BATCH_DOCS.length}社）</h1>
+  ${LAST_BATCH_DOCS.map(d=>`<section class="company"><h2>${xmlEscape(d.company)}</h2><p>利用状況：${xmlEscape(d.status)} ／ 業種：${xmlEscape(d.industry)}</p><p><strong>件名：${xmlEscape(d.subject)}</strong></p><pre>${xmlEscape(d.body)}</pre></section>`).join("")}
+  <script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script></body></html>`;
+  win.document.open();win.document.write(html);win.document.close();
+}
+
+
+
+
+function salesPriorityRank(c){
+  const order={"S":1,"A":2,"B":3,"C":4};
+  return order[c && c.priority_rank] || 9;
+}
+const COMPANY_NAME_COLLATOR = new Intl.Collator("ja",{
+  usage:"sort",
+  sensitivity:"base",
+  numeric:true,
+  ignorePunctuation:true
+});
+function compareCompanyPriorityName(a,b){
+  const pd=salesPriorityRank(a)-salesPriorityRank(b);
+  if(pd!==0) return pd;
+  return COMPANY_NAME_COLLATOR.compare(a.company||"",b.company||"");
+}
+
+function normalizeCompanySearch(s){
+  return (s||"").normalize("NFKC").toLowerCase().replace(/\s+/g,"");
+}
+function directCompanyRows(){
+  const showApproached=$("showApproachedCompanies") && $("showApproachedCompanies").checked;
+  return COMPANY_DATA
+    .filter(c=>showApproached || !getProgress(c.company).approach_date)
+    .slice()
+    .sort(compareCompanyPriorityName);
+}
+function companyOptionText(c){
+  const p=getProgress(c.company);
+  const base=`[${c.priority_rank||"B"}] ${c.company}`;
+  return p.approach_date ? `${base}（アプローチ済 ${p.approach_date}）` : base;
+}
+function renderDirectCompanyControls(){
+  const allSelect=$("companyAllSelect");
+  const resultSelect=$("companySearchResults");
+  if(!allSelect || !resultSelect) return;
+
+  const rows=directCompanyRows();
+  const current=companyByName($("companyInput").value);
+  const currentName=current ? current.company : "";
+
+  allSelect.innerHTML='<option value="">会社名から選択</option>' +
+    rows.map(c=>`<option value="${xmlEscape(c.company)}">${xmlEscape(companyOptionText(c))}</option>`).join("");
+  if(rows.some(c=>c.company===currentName)) allSelect.value=currentName;
+
+  const q=normalizeCompanySearch($("companySearchText").value);
+  const matched=q ? rows.filter(c=>normalizeCompanySearch(c.company).includes(q)) : rows;
+  resultSelect.innerHTML = matched.length
+    ? matched.map(c=>`<option value="${xmlEscape(c.company)}">${xmlEscape(companyOptionText(c))}</option>`).join("")
+    : '<option value="">該当する企業がありません</option>';
+  if(matched.some(c=>c.company===currentName)) resultSelect.value=currentName;
+
+  const approachedCount=COMPANY_DATA.filter(c=>getProgress(c.company).approach_date).length;
+  $("directCompanyNote").textContent =
+    `${q ? `検索結果 ${matched.length}社` : `一覧 ${rows.length}社`}。` +
+    ($("showApproachedCompanies").checked
+      ? `アプローチ済み ${approachedCount}社も表示しています。`
+      : `アプローチ済み ${approachedCount}社は除外しています。`);
+}
+function selectCompanyDirect(name){
+  const c=companyByName(name);
+  if(!c) return;
+
+  const currentTag=$("industry").value;
+  const tag=(currentTag && companyHasTag(c,currentTag))
+    ? currentTag
+    : (companyTags(c)[0] || c.industry || "");
+
+  if(tag && [...$("industry").options].some(o=>o.value===tag)){
+    $("industry").value=tag;
+  }
+
+  renderCompanyDropdown();
+  $("companyInput").value=c.company;
+  $("companyAllSelect").value=c.company;
+  renderDirectCompanyControls();
+  $("companySearchResults").value=c.company;
+  applyCompany();
+}
+
+function renderCompanyDropdown(){
+  const select=$("companyInput");
+  const selectedIndustry=$("industry").value;
+  const showApproached=$("showApproachedCompanies") && $("showApproachedCompanies").checked;
+  const current=select.value;
+
+  if(!selectedIndustry){
+    select.innerHTML='<option value="">先に業種／戦略分野を選択してください</option>';
+    select.disabled=true;
+    $("companyListNote").textContent="業種／戦略分野を選ぶと、その分野の企業だけを表示します。";
+    return;
+  }
+
+  const rows=COMPANY_DATA.filter(c=>
+    companyHasTag(c,selectedIndustry) &&
+    (showApproached || !getProgress(c.company).approach_date)
+  ).slice().sort(compareCompanyPriorityName);
+
+  select.disabled=false;
+  select.innerHTML='<option value="">企業を選択してください</option>' + rows.map(c=>{
+    const p=getProgress(c.company);
+    const text=p.approach_date
+      ? `${c.company}（アプローチ済 ${p.approach_date}）`
+      : c.company;
+    return `<option value="${xmlEscape(c.company)}">${xmlEscape(text)}</option>`;
+  }).join("");
+
+  if(rows.some(c=>c.company===current)) select.value=current;
+
+  const approachedInIndustry=COMPANY_DATA.filter(c=>
+    companyHasTag(c,selectedIndustry) && getProgress(c.company).approach_date
+  ).length;
+
+  $("companyListNote").textContent=showApproached
+    ? `${selectedIndustry}：${rows.length}社を表示。アプローチ済みは社名の後ろに日付を表示します。`
+    : `${selectedIndustry}：未アプローチ ${rows.length}社を表示。アプローチ済み ${approachedInIndustry}社は除外しています。`;
+}
+
+function applyCompany(){
+  if(APP_MODE!=="single") setAppMode("single");
+  const c=companyByName($("companyInput").value);
+  if(!c) return;
+  $("companyCustom").value="";
+  $("legacyConnection").checked=!!c.legacy_connection;
+  if(!$("industry").value || !companyHasTag(c,$("industry").value)){
+    const fallback=companyTags(c)[0]||c.industry;
+    if([...$("industry").options].some(o=>o.value===fallback)){
+      $("industry").value=fallback; renderCompanyDropdown(); $("companyInput").value=c.company;
+    }
+  }
+  $("dept").value=c.dept1||"";
+  $("person").value=c.person||"";
+  $("role").value=c.role||"";
+  $("theme").value=c.sales_theme||"";
+  $("trigger").value=c.policy_trigger||"";
+  $("demo").value=c.demo||"";
+  loadProgressIntoForm(c.company);
+  if($("companyAllSelect")) $("companyAllSelect").value=c.company;
+  if($("companySearchResults")) $("companySearchResults").value=c.company;
+  generate();
+}
+function applyIndustry(){
+  const selectedIndustry=$("industry").value;
+  const current=companyByName($("companyInput").value);
+
+  if(current && !companyHasTag(current,selectedIndustry)){
+    $("companyInput").value="";
+    $("companyCustom").value="";
+    ["dept","person","role","theme","trigger","demo"].forEach(id=>$(id).value="");
+    $("contactDisplay").value="";
+    $("contactTypeDisplay").value="";
+    $("routeDisplay").value="";
+    $("officialUrlDisplay").value="";
+    $("sourceUrlDisplay").value="";
+    $("historyDisplay").value="";
+    $("summaryTags").innerHTML="";
+    $("legacyConnection").checked=false;
+  resetSelectedCompanySidePanel();
+  }
+
+  renderCompanyDropdown();
+
+  const d=INDUSTRY_DEFAULTS[selectedIndustry];
+  if(!d) return;
+  if(!companyByName($("companyInput").value)){
+    $("dept").value=d.dept||"";
+    $("theme").value=d.theme||"";
+    $("demo").value=d.demo||"";
+  }
+}
+
+function ctx(){
+  const preset=companyByName($("companyInput").value)||{};
+  const company=esc($("companyCustom").value)||esc(preset.company)||"対象企業";
+  const industry=esc($("industry").value)||esc(preset.industry)||"その他・複合";
+  const d=INDUSTRY_DEFAULTS[industry]||INDUSTRY_DEFAULTS["その他・複合"];
+  return {
+    company,industry,preset,
+    legacyConnection:!!$("legacyConnection").checked,
+    salesGroup:esc(preset.sales_group)||"完全新規",
+    salesAllowed:esc(preset.sales_allowed)||"新規営業対象",
+    dept:esc($("dept").value)||esc(preset.dept1)||d.dept,
+    person:esc($("person").value)||esc(preset.person),
+    role:esc($("role").value)||esc(preset.role),
+    theme:esc($("theme").value)||esc(preset.sales_theme)||d.theme,
+    trigger:esc($("trigger").value)||esc(preset.policy_trigger),
+    demo:esc($("demo").value)||esc(preset.demo)||d.demo,
+    contactPerson:esc($("contactPerson").value),
+    callNotes:esc($("callNotes").value),
+    proposedTimes:esc($("proposedTimes").value), confirmedTime:esc($("confirmedTime").value),
+    contact:esc(preset.contact), contactType:esc(preset.contact_type),
+    contactLevel:esc(preset.contact_level), route:esc(preset.route),
+    contactDeptVerified:esc(preset.contact_department_verified)||esc(preset.dept1),
+    contactCheckedDate:esc(preset.contact_checked_date),
+    contactRecheckDate:esc(preset.contact_recheck_date),
+    contactRecheckStatus:esc(preset.contact_recheck_status),
+    contactRecheckScope:esc(preset.contact_recheck_scope),
+    contactRecheckSource:esc(preset.contact_recheck_source),
+    companyResearch:esc(preset.company_research),
+    companyResearchSource:esc(preset.company_research_source)||esc(preset.contact_url)||esc(preset.official_url),
+    priorityRank:esc(preset.priority_rank)||"C",
+    priorityReason:esc(preset.priority_reason),
+    officialUrl:esc(preset.official_url), contactUrl:esc(preset.contact_url),
+    planHistory:esc(preset.plan_history), salesChannel:esc(preset.sales_channel),
+    usageStatus:esc($("usageStatus").value), additionalTheme:esc($("additionalTheme").value),
+    currentDept:esc($("currentDept").value), targetDept:esc($("targetDept").value)
+  };
+}
+
+function opening(c){
+  if(c.salesGroup==="過去有料利用"){
+    return `以前「政策リサーチ」をご利用いただいた経緯があり、その後のサービス拡充と、御社に関係する「${c.theme}」の政策動向について改めてご案内したくご連絡しました。`;
+  }
+  if(c.salesGroup==="トライアルのみ"){
+    return `以前「政策リサーチ」をお試しいただいた経緯があり、現在は当時から機能・解説コンテンツを拡充しております。御社に関係する「${c.theme}」の動きもあり、改めてご案内したくご連絡しました。`;
+  }
+  if(c.salesGroup==="現在利用"){
+    return `御社は現在「政策リサーチ」をご利用中です。新規営業ではなく、利用テーマの追加や社内展開のご相談として扱います。`;
+  }
+  return `日本みらい研では、政府・省庁・国会などの政策情報を収集・整理する法人向けサービス「政策リサーチ」を10年以上運営しております。現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。`;
+}
+
+function contactMemo(c){
+  if(c.contact) return `公開連絡先：${c.contact}\n推奨ルート：${c.route||c.dept}`;
+  return `公開連絡先：未確認\n推奨ルート：${c.route||"公式サイト／代表窓口から"+c.dept+"へ取次ぎ依頼"}`;
+}
+
+function contactResearchSummary(c){
+  const person=[c.person,c.role].filter(Boolean).join(" ／ ") || "公開担当者名は未確認";
+  const dept=c.contactDeptVerified||c.dept||"経営企画・政策渉外等（要確認）";
+  const checked=c.contactCheckedDate ? `（確認日 ${c.contactCheckedDate}）` : "";
+  return `【選択企業・営業連絡先】
+企業名：${c.company}
+営業優先ランク：${c.priorityRank}
+代表電話／公開窓口：${c.contact||"未登録・要確認"}
+担当部署／推奨営業先：${dept}
+公開担当者・役職：${person}
+連絡先確認：${c.contactLevel||"要確認"}${checked}
+公式再確認：${c.contactRecheckStatus||"未実施"}${c.contactRecheckDate ? `（${c.contactRecheckDate}）` : ""}`;
+}
+
+function generate(){
+  const c=ctx();
+  const isUserStage = $("stage").value==="利用者";
+  const tr=c.trigger||"直近の政府会議・予算・制度動向";
+  const cp=c.contactPerson ? c.contactPerson+" " : "ご担当者様";
+  const notes=c.callNotes ? `お電話では「${c.callNotes}」と伺いました。` : "お電話で伺った御社の関心テーマを踏まえ、";
+  const blocked=c.salesGroup==="現在利用";
+
+  $("outReception").value = blocked ?
+`【既存顧客】${c.company}様は現在利用中です。新規営業電話は行わず、利用状況確認・テーマ追加・他部署展開の連絡として扱ってください。
+
+${contactMemo(c)}` :
+`突然のお電話で失礼いたします。一般社団法人日本みらい研の髙松と申します。
+
+${opening(c)}
+
+${honorific(c.company)}の場合、特に「${c.theme}」との関係が深いことから、政府関連情報の有効な活用方法についてお話しいたしたくご連絡しました。${c.trigger?`
+
+直近では「${c.trigger}」も動いています。`:""}
+
+${c.dept}で政府政策・予算・制度動向を担当されるご責任者、もしくは実務責任者の方に一度ご案内したいのですが、おつなぎいただけますでしょうか。
+
+【連絡先メモ】
+${contactMemo(c)}`;
+
+  $("outConnected").value =
+`お時間をいただきありがとうございます。日本みらい研の代表理事をしている髙松と申します。
+
+最初に、お名前を確認させていただいてもよろしいでしょうか。
+
+${salesIntroduction(c)}
+
+${salesRelevantMaterials(c.theme)}
+
+それでは、本日のお電話を踏まえて、政策リサーチの概要と関連する資料を作成し、このあとメールでお送りします。資料をご覧いただいた後に、可能であれば15分程度、オンラインで説明の機会をいただければと思います。メール内容をご確認の上、ご検討の程、よろしくお願いします。
+
+最後に、メールの送り先として、部署名・お名前とメールアドレスを教えていただけますでしょうか。`;
+
+  const subject=c.salesGroup==="過去有料利用" ?
+    `【政策リサーチ】以前のご利用御礼と、${c.theme}に関する最新政策のご案内` :
+    c.salesGroup==="トライアルのみ" ?
+    `【政策リサーチ】以前のトライアル御礼と、${c.theme}に関するご案内` :
+    `【先ほどのお電話の件】${c.company}様の${c.theme}に関する政策資料のご案内`;
+
+  $("outEmailFollow").value =
+`【電話後に送るメール】
+
+件名：${subject}
+
+${c.contactPerson ? c.contactPerson+"様" : "ご担当者様"}
+
+先ほどはお電話でお時間をいただき、ありがとうございました。
+${notes}
+
+御社の「${c.theme}」に関係する政府会議・予算・制度などに関して簡単にまとめた資料を添付にてお送りします。こちらは、政策リサーチ上で確認できる資料をベースに作成したものです。政策リサーチのサービス内容は、以下のURLをご参照ください。
+
+https://report.rifj.jp/pr/
+
+その上で、可能であれば15分程度のオンラインでの説明の機会をいただければと思います。
+
+ご都合のよい日時がございましたら、ご連絡いただければ幸いです。日時はできれば2、3候補を挙げていただければ幸いです。お手数をおかけしますが、よろしくお願いします。
+
+${SIGNATURE}
+
+────────────────────────
+【返信・反応がない場合：2～3営業日後の再フォロー電話】
+
+「先日お電話でお話しし、${c.theme}に関する資料をお送りした日本みらい研の髙松です。資料はご覧いただけましたでしょうか。お電話でお話ししたように、可能であれば15分程度、オンラインでご説明できればと思っています。ご都合のよい日時を2、3候補いただければ、その中で調整いたします。」`;
+
+  $("outScheduleReply").value =
+`件名：Re: 【政策リサーチ】オンライン説明の日程について
+
+${c.contactPerson ? c.contactPerson+"様" : "ご担当者様"}
+
+ご返信ありがとうございます。
+
+${c.proposedTimes ? `ご提示いただいた候補日時（${c.proposedTimes}）の中から、` : "ご提示いただいた候補日時の中から、"}${c.confirmedTime ? `「${c.confirmedTime}」でお願いできればと思います。` : "【確定日時を入力してください】でお願いできればと思います。"}
+
+当日は15分程度、オンラインでご説明させていただきます。
+
+Zoom URL：
+https://us06web.zoom.us/j/81782664122?pwd=YXRmUnBjdEZPbGpST2pPSmFrakI2dz09
+
+それでは、当日はどうぞよろしくお願いいたします。
+
+${SIGNATURE}`;
+
+  $("outMeeting").value =
+`【0:00–1:30｜実績・位置づけ】
+「本日はありがとうございます。政策リサーチは10年以上運営しており、現在、大手企業だけでも150社前後に継続的に利用いただいており、大手企業に限っても累計400社超のご利用実績があります。政策リサーチでは、このような企業の皆様が、政府関連情報を探したり分析をする際にご活用いただいております。」
+
+【1:30–3:00｜先日のお電話内容を確認】
+「先日のお電話では、${c.callNotes||"御社で現在追っておられる政策テーマや情報収集の状況"}についてお話を伺いました。今日は、その点に関係する政策情報を実際の資料でご覧いただきます。」
+
+【3:00–5:00｜なぜ御社に関係するのか】
+「御社では『${c.theme}』が特に関係すると考えています。政策は、発表された後に知るのではなく、審議会や予算要求、制度設計の段階から把握できると、事業計画や投資判断、規制対応の準備を早く始めることができます。」
+
+【5:00–9:00｜御社に関係する“今動いている政策”を実資料で確認】
+「ここからは、御社に直接関係する資料を3つの視点で見てみます。
+1つ目は『何を政府が課題と認識しているか』。
+2つ目は『どの省庁・会議で同じ方向の議論が進んでいるか』。
+3つ目は『予算・制度として実際に何が動き始めているか』です。」
+
+${c.demo ? `まず「${c.demo}」という流れで、複数省庁・会議体・予算・制度を横断して確認します。` : "複数省庁・会議体・予算・制度を同じテーマで横断して確認します。"}
+
+「ポイントは、1件の資料を読むことではなく、バラバラに出てくる政策情報をつなげて『政府がどちらへ動いているのか』を早い段階で掴むことです。」
+
+【9:00–11:30｜“御社にとって何が変わるか”まで落とし込む】
+「この動きが進んだ場合、御社では、①新しい事業機会、②規制や対応負担、③予算・補助制度、④競合や取引先への影響のうち、どこが一番大きそうでしょうか。」
+
+「政策リサーチでは、資料を探して終わりではなく、この政策変化が自社に何を意味するのかを考える材料まで短時間で揃えることを目的にしています。」
+
+※ 相手の回答に応じて、その場で関連資料・当日解説・政策レポートを見せる。
+
+【11:30–13:00｜社内で“使える情報”にする】
+「政策情報は、担当者が見つけても、経営や事業部門へ共有できなければ活用されません。政策リサーチでは、原資料、要点、解説を一緒に確認できるため、経営企画、事業部門、法務・規制対応、研究開発などへ共有する際の下準備を短縮できます。」
+
+【13:00–14:15｜10日間で御社自身に検証していただく】
+「ここまでの説明だけで判断いただく必要はありません。御社で本当に追いたいテーマを3～5件だけ決めていただき、10日間、実際の政策情報でお試しください。
+
+確認いただきたいのは、
+①必要な情報を早く拾えるか
+②調査・整理時間を減らせるか
+③社内の判断材料として使えるか
+の3点です。」
+
+【14:15–15:00｜次の一歩を具体化】
+「もし御社で試すとすれば、最初に追うべきテーマは何がよいでしょうか。今日ご覧いただいた『${c.theme}』を含め、3～5件を一緒に決めて、10日間の無料トライアルから確認していただくのが一番分かりやすいと思います。いかがでしょうか。」`;
+
+  $("outTrial").value =
+`御社の関心テーマを3～5件に絞り、10日間無料で実際にお使いいただくのが一番分かりやすいと思います。
+
+候補は「${c.theme}」です。
+
+確認いただくのは、
+1. 必要な政策情報を見落とさず拾えるか
+2. 情報収集・整理の時間が減るか
+3. 社内共有に使いやすいか
+の3点です。
+
+検索、閲覧、当日解説、アラート、週2回の政策レポートなど、通常サービスをそのままご確認いただけます。`;
+
+  $("outClosing").value =
+`10日間のご利用を踏まえ、御社では「${c.theme}」の情報収集と社内共有に活用余地があると考えています。
+
+正式導入をご検討いただく場合、次の4点を確認させてください。
+1. 最初に利用する部署
+2. 必要なID数
+3. 導入希望時期
+4. 社内の決裁フロー
+
+保留の場合は、価格を急いで調整するのではなく、次に検討しやすい予算時期または政策イベントを決め、その時点で改めてご連絡します。`;
+
+
+  $("outUsage").value =
+`【電話】
+いつも政策リサーチをご利用いただきありがとうございます。日本みらい研の髙松です。
+
+${c.usageStatus ? `現在は「${c.usageStatus}」というご利用状況と伺っています。` : "現在のご利用状況を確認し、より活用いただける余地があるのではと思いご連絡しました。"}
+
+御社で重点的に追っている「${c.theme}」に合わせて、検索だけでなく、当日解説、週2回の政策レポート、アラートなどを組み合わせると、さらに効率よくご利用いただけます。
+
+${c.trigger ? `ちょうど「${c.trigger}」も動いていますので、` : ""}御社の実際のテーマを使って15分ほど活用方法を整理してご案内できます。
+
+【メール】
+件名：【政策リサーチ】ご利用状況の確認と活用方法のご案内
+
+いつも政策リサーチをご利用いただき、ありがとうございます。
+
+${c.usageStatus ? `現在のご利用状況として「${c.usageStatus}」と伺っております。` : "現在のご利用状況を踏まえ、より効率的にご活用いただける方法をご案内したくご連絡しました。"}
+
+特に「${c.theme}」については、検索に加えて当日解説、政策レポート、アラートを組み合わせることで、情報収集から社内共有までの負担を減らせます。
+
+${c.trigger ? `直近の「${c.trigger}」も含め、` : ""}御社向けに15分程度で具体的な使い方をご説明できます。必要であれば、現在の業務に合わせて設定も一緒に確認いたします。
+
+${SIGNATURE}`;
+
+  $("outThemeAdd").value =
+`【電話】
+いつも政策リサーチをご利用いただきありがとうございます。
+
+現在追っていただいている「${c.theme}」に加えて、${c.additionalTheme ? `「${c.additionalTheme}」` : "新たな関連テーマ"}も御社事業との関係が深くなっていると考えています。
+
+${c.trigger ? `直近では「${c.trigger}」も動いており、` : ""}既存テーマと新しいテーマを一緒に追うことで、政策のつながりが見えやすくなります。
+
+まず関連資料を2～3件だけお見せし、追加監視する価値があるかご確認いただければと思います。
+
+【メール】
+件名：【政策リサーチ】追加でご覧いただきたい${c.additionalTheme ? `「${c.additionalTheme}」` : "政策テーマ"}について
+
+いつも政策リサーチをご利用いただき、ありがとうございます。
+
+現在ご利用いただいている「${c.theme}」に関連して、${c.additionalTheme ? `「${c.additionalTheme}」` : "新しい政策テーマ"}でも御社事業に関係する動きが増えています。
+
+${c.trigger ? `特に「${c.trigger}」は関連性が高く、` : ""}政策リサーチ上で既存テーマと横断して追うことで、政策の背景や今後の方向性を把握しやすくなります。
+
+まず2～3件の資料をご覧いただき、継続的に監視するテーマとして追加する価値があるか、一緒に確認できればと思います。
+
+${SIGNATURE}`;
+
+  $("outDeptExpand").value =
+`【電話】
+いつも政策リサーチをご利用いただきありがとうございます。
+
+現在${c.currentDept ? `「${c.currentDept}」` : "現在のご利用部署"}でお使いいただいていますが、「${c.theme}」は${c.targetDept ? `「${c.targetDept}」` : "他の関連部署"}にも関係が深いと考えています。
+
+新しいサービスを別途導入するというより、すでに御社で使っている政策情報基盤を社内で共有する形です。
+
+${c.targetDept ? `「${c.targetDept}」` : "候補部署"}向けに、その部署に関係する実際の政策資料を2～3件だけ使い、10分程度でご説明できます。まず現在のご担当者様からご紹介いただく形がよいと思います。
+
+【メール】
+件名：【政策リサーチ】${c.targetDept ? `「${c.targetDept}」` : "他部署"}での活用について
+
+いつも政策リサーチをご利用いただき、ありがとうございます。
+
+現在${c.currentDept ? `「${c.currentDept}」` : "現在のご利用部署"}でご利用いただいている政策リサーチについて、「${c.theme}」は${c.targetDept ? `「${c.targetDept}」` : "他の関連部署"}でも活用余地があると考えています。
+
+新たな情報サービスを追加するのではなく、既に御社で利用している政策情報基盤を、必要な部署へ広げる考え方です。
+
+候補部署に関係する政策資料を2～3件だけ使い、10分程度でご説明できます。もし適切なご担当者様がいらっしゃれば、ご紹介いただけますと幸いです。
+
+${SIGNATURE}`;
+
+
+  if(isUserStage){
+    const st = c.salesGroup==="現在利用" ? "現在利用中" : c.salesGroup==="過去有料利用" ? "利用後退会" : c.salesGroup==="トライアルのみ" ? "トライアルのみ" : "完全新規";
+    if(st==="現在利用中"){
+      $("outConnected").value=`いつも政策リサーチをご利用いただきありがとうございます。現在のご利用状況と、最近重点的に追っておられる政策テーマを確認したくご連絡しました。\n\n「${c.theme}」に関連する最新動向も踏まえ、利用促進、テーマ追加、他部署展開のうち、御社で有効な使い方を15分ほどで整理してご案内できます。`;
+      $("outEmailFollow").value=`件名：【政策リサーチ】ご利用状況と「${c.theme}」の最新政策について\n\nいつも政策リサーチをご利用いただき、ありがとうございます。\n\n現在のご利用状況を踏まえ、より活用いただける方法をご案内したくご連絡しました。特に「${c.theme}」については、当日解説、政策レポート、アラート等を組み合わせることで、情報収集から社内共有まで効率化できます。\n\n15分ほど、現在のご利用状況を伺いながら、利用促進・テーマ追加・他部署展開の可能性を整理してご案内できます。\n\n${SIGNATURE}`;
+    }else if(st==="利用後退会"){
+      $("outConnected").value=`以前、政策リサーチをご利用いただきありがとうございました。その後、当日解説、AI解析、週2回の政策レポート等を拡充しています。\n\n御社に関係する「${c.theme}」でも新しい政策動向が続いており、以前のご利用時点との違いを15分ほどでご説明できます。`;
+      $("outEmailFollow").value=`件名：【政策リサーチ】以前のご利用御礼と「${c.theme}」の最新動向\n\n以前、政策リサーチをご利用いただき、ありがとうございました。\n\nその後、サービス内容を拡充しており、現在は当日解説、AI解析、週2回の政策レポート等もご利用いただけます。\n\n御社に関係する「${c.theme}」の最新政策を使って、以前との違いを15分程度でご説明できます。\n\n${SIGNATURE}`;
+    }else if(st==="トライアルのみ"){
+      $("outConnected").value=`以前、政策リサーチをお試しいただきありがとうございました。現在は当時から機能・解説コンテンツを拡充しています。\n\n「${c.theme}」の直近政策を使って、現在のサービスを15分ほどで改めてご覧いただけます。`;
+      $("outEmailFollow").value=`件名：【政策リサーチ】以前のトライアル御礼と「${c.theme}」の最新動向\n\n以前、政策リサーチをお試しいただき、ありがとうございました。\n\n現在は当日解説、AI解析、政策レポート等を拡充しています。「${c.theme}」の最近の政策動向を使って、現在のサービスを15分程度で改めてご説明できます。\n\n${SIGNATURE}`;
+    }else{
+      $("outConnected").value=`【注意】この企業は完全新規のため、「利用者」接触段階は通常適しません。初回電話または電話後メールをご利用ください。`;
+      $("outEmailFollow").value=`【注意】この企業は完全新規です。「利用者」向け文面ではなく、新規営業文面を使用してください。`;
+    }
+  }
+
+  render(c);
+}
+
+function usageHistorySummary(preset){
+  if(!preset || !preset.company) return "利用履歴はありません。";
+  if(preset.membership_state==="現在利用中"){
+    return `会員名簿では現在利用中です。登録日 ${preset.membership_start_date||"不明"} からの利用履歴があり、有料利用を優先した表示プランは「${preset.membership_priority_plan||preset.membership_current_plan||"不明"}」です。新規営業ではなく、利用促進・テーマ追加・他部署展開を優先します。`;
+  }
+  if(preset.membership_state==="退会・現在未利用"){
+    const kind=preset.membership_paid_history ? "過去に有料利用" : (preset.membership_trial_history ? "過去にトライアル利用" : "過去に利用");
+    return `会員名簿では現在は利用していません。${kind}の履歴があり、初回登録日は ${preset.membership_start_date||"不明"} です。再アプローチでは、当時との機能差分と現在の政策テーマを軸に提案します。`;
+  }
+  const st=usageStatus(preset);
+  if(st==="現在利用中") return "現在、政策リサーチをご利用中です。新規営業ではなく、利用促進・テーマ追加・他部署展開の対象です。";
+  if(st==="利用後退会") return "過去に政策リサーチを有料利用した履歴があります。再アプローチでは、当時との機能差分と現在の政策テーマを軸に提案します。";
+  if(st==="トライアルのみ") return "過去に政策リサーチのトライアル利用履歴があります。現在の機能拡充と新しい政策テーマを軸に再提案します。";
+  return "政策リサーチの利用履歴は確認されていません。完全新規の営業対象です。";
+}
+function renderSelectedCompanySidePanel(c){
+  const preset=c && c.preset ? c.preset : companyByName(c && c.company ? c.company : "") || null;
+  const name=(c && c.company) || (preset && preset.company) || "企業を選択してください";
+  const rank=(preset && preset.priority_rank) || "B";
+  const usage=preset ? usageStatus(preset) : "—";
+  const auto=preset ? progressAuto(preset.company) : {status:"未記録"};
+
+  $("selectedCompanyName").textContent=name;
+  $("selectedCompanyRank").textContent=preset ? `${rank}ランク` : "—";
+  $("selectedCompanyRank").className=`company-badge rank-badge rank-${rank.toLowerCase()}`;
+  $("selectedCompanyUsage").textContent=usage;
+  $("selectedCompanyIndustry").textContent=(preset && preset.industry) || (c && c.industry) || "—";
+  $("selectedCompanyTags").textContent=preset ? companyTags(preset).join("・") : "—";
+  $("selectedCompanyProgress").textContent=auto.status || "未記録";
+  $("selectedCompanyPhone").textContent=(preset && preset.contact) || "未登録・要確認";
+  $("selectedCompanyDept").textContent=(preset && (preset.contact_department_verified||preset.dept1)) || "要確認";
+  $("selectedCompanyPerson").textContent=preset
+    ? ([preset.person,preset.role].filter(Boolean).join(" ／ ") || "公開担当者名は未確認")
+    : "—";
+  $("selectedCompanyContactCheck").textContent=preset
+    ? ([preset.contact_level,preset.contact_checked_date ? `確認日 ${preset.contact_checked_date}` : ""].filter(Boolean).join(" ／ ") || "要確認")
+    : "—";
+  $("selectedCompanyRecheck").textContent=preset
+    ? ([preset.contact_recheck_status,preset.contact_recheck_date].filter(Boolean).join(" ／ ") || "未実施")
+    : "—";
+  $("selectedCompanyResearch").textContent=preset
+    ? `${preset.company_description||preset.company_research||"企業詳細は既存マスタ情報を参照してください。"}\n\n営業観点：${preset.priority_reason||"—"}\n情報源：${preset.company_research_source||preset.contact_recheck_source||preset.contact_url||preset.official_url||"—"}`
+    : "—";
+  $("selectedCompanyHistory").textContent=preset ? usageHistorySummary(preset) : "企業を選択すると、利用履歴を表示します。";
+  $("selectedMembershipStart").textContent=(preset && preset.membership_start_date) || "—";
+  $("selectedMembershipState").textContent=(preset && preset.membership_state) || "—";
+  $("selectedMembershipPlan").textContent=(preset && (preset.membership_priority_plan||preset.membership_current_plan)) || "—";
+  $("selectedMembershipRows").textContent=preset && preset.membership_rows
+    ? `有効 ${preset.membership_valid_rows||0} / 無効 ${preset.membership_invalid_rows||0}`
+    : "—";
+  $("selectedMembershipBasis").textContent=(preset && preset.membership_basis)
+    ? `${preset.membership_basis}。登録日を利用開始日として判定。`
+    : "会員名簿の一致データはありません。";
+
+  const history=(preset && preset.membership_plan_history)
+    ? `会員名簿プラン履歴：${preset.membership_plan_history}${preset.membership_related_history ? "\n関連・旧名履歴：\n"+preset.membership_related_history : ""}`
+    : ((preset && preset.plan_history) ? preset.plan_history : "");
+  const merged=(preset && preset.legacy_history_source) ? `\n旧登録名・部門：${preset.legacy_history_source}` : "";
+  $("selectedCompanyPlanHistory").textContent=history ? `${history}${merged}` : (merged.trim() || "具体的な過去プラン・登録履歴は未登録です。");
+
+  $("selectedCompanyRankReason").textContent=(preset && preset.priority_reason) || "—";
+}
+
+
+function resetSelectedCompanySidePanel(){
+  $("selectedCompanyName").textContent="企業を選択してください";
+  $("selectedCompanyRank").textContent="—";
+  $("selectedCompanyRank").className="company-badge rank-badge";
+  $("selectedCompanyUsage").textContent="—";
+  $("selectedCompanyIndustry").textContent="—";
+  $("selectedCompanyTags").textContent="—";
+  $("selectedCompanyProgress").textContent="—";
+  $("selectedCompanyPhone").textContent="—";
+  $("selectedCompanyDept").textContent="—";
+  $("selectedCompanyPerson").textContent="—";
+  $("selectedCompanyContactCheck").textContent="—";
+  $("selectedCompanyRecheck").textContent="—";
+  $("selectedCompanyResearch").textContent="—";
+  $("selectedCompanyHistory").textContent="企業を選択すると、利用履歴を表示します。";
+  $("selectedMembershipStart").textContent="—";
+  $("selectedMembershipState").textContent="—";
+  $("selectedMembershipPlan").textContent="—";
+  $("selectedMembershipRows").textContent="—";
+  $("selectedMembershipBasis").textContent="—";
+  $("selectedCompanyPlanHistory").textContent="—";
+  $("selectedCompanyRankReason").textContent="—";
+}
+function render(c){
+ renderSelectedCompanySidePanel(c);
+ const auto=companyByName(c.company)?progressAuto(c.company):{status:"未記録",incomplete:""};
+ const tags=[`優先ランク：${c.preset?.priority_rank||"B"}`,`企業：${c.company}`,`営業区分：${c.salesGroup}`,`営業可否：${c.salesAllowed}`,`選択分野：${c.industry}`,`検索分野：${companyTags(c.preset).join("・")}`,`部署：${c.dept}`,`進捗：${auto.status}`];
+ if(c.legacyConnection){
+   tags.push(c.preset?.legacy_connection ? "旧縁：あり（マスタ○）" : "旧縁：あり（手動）");
+ }
+ if(auto.incomplete) tags.push(`未了：${auto.incomplete}`);
+ $("summaryTags").innerHTML=tags.map(t=>`<span class="tag">${t}</span>`).join("");
+ $("contactDisplay").value=c.contact||"未登録／要確認";
+ $("contactTypeDisplay").value=[c.contactType,c.contactLevel].filter(Boolean).join("／")||"未確認";
+ $("routeDisplay").value=c.route||"公式サイト／代表窓口を確認";
+ $("officialUrlDisplay").value=c.officialUrl||"";
+ $("sourceUrlDisplay").value=c.contactUrl||"";
+ $("historyDisplay").value=c.planHistory||"";
+
+ $("statusNotice").textContent = c.salesGroup==="現在利用"
+  ? "現在利用中：新規営業対象外。利用促進・テーマ追加・他部署展開の提案として扱ってください。"
+  : c.salesGroup==="過去有料利用"
+  ? "過去有料利用：完全新規ではなく、以前の利用実績を踏まえた再アプローチ文を生成します。"
+  : c.salesGroup==="トライアルのみ"
+  ? "過去トライアル：以前試した経緯を踏まえ、現在の機能拡充と新しい政策テーマから再提案します。"
+  : "完全新規：電話で一次接触し、会話内容を反映したメールを同日送付する基本フローです。";
+}
+
+function outputSections(){
+  const ids=[
+    ["代表受付・ファーストコンタクト","outReception"],
+    ["担当者との電話トーク","outConnected"],
+    ["電話後メール＋必要時の再フォロー","outEmailFollow"],
+    ["日時指定の返信メール","outScheduleReply"],
+    ["15分商談トークライン","outMeeting"],
+    ["10日間無料トライアル提案","outTrial"],
+    ["クロージング","outClosing"],
+    ["既存顧客：利用促進","outUsage"],
+    ["既存顧客：テーマ追加","outThemeAdd"],
+    ["既存顧客：他部署展開","outDeptExpand"]
+  ];
+  return ids.map(([title,id])=>({title,text:$(id).value||""}));
+}
+
+function fullOutputText(){
+  const c=ctx();
+  const head=`政策リサーチ 営業アプローチ文面\n企業：${c.company}\n営業区分：${c.salesGroup}\n業種：${c.industry}\n\n`;
+  return head + contactResearchSummary(c) + "\n\n" + outputSections().map(s=>`■ ${s.title}\n${s.text}`).join("\n\n");
+}
+
+function saveBlob(blob, filename){
+  const a=document.createElement("a");
+  const url=URL.createObjectURL(blob);
+  a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),500);
+}
+
+function xmlEscape(s){
+  return (s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
+}
+
+// Minimal ZIP writer (STORE/no compression) used to create a true .docx file offline.
+function crc32(bytes){
+  let table=crc32.table;
+  if(!table){
+    table=[];
+    for(let n=0;n<256;n++){
+      let c=n;
+      for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);
+      table[n]=c>>>0;
+    }
+    crc32.table=table;
+  }
+  let crc=0^(-1);
+  for(let i=0;i<bytes.length;i++) crc=(crc>>>8)^table[(crc^bytes[i])&0xFF];
+  return (crc^(-1))>>>0;
+}
+function u16(n){ return new Uint8Array([n&255,(n>>>8)&255]); }
+function u32(n){ return new Uint8Array([n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255]); }
+function concatArrays(arrays){
+  const len=arrays.reduce((a,b)=>a+b.length,0), out=new Uint8Array(len);
+  let p=0; arrays.forEach(a=>{out.set(a,p);p+=a.length;}); return out;
+}
+function makeZip(files){
+  const enc=new TextEncoder(), locals=[], centrals=[];
+  let offset=0;
+  for(const f of files){
+    const name=enc.encode(f.name), data=(f.data instanceof Uint8Array)?f.data:enc.encode(f.data), crc=crc32(data);
+    const local=concatArrays([
+      u32(0x04034b50),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),
+      u16(name.length),u16(0),name,data
+    ]);
+    locals.push(local);
+    const central=concatArrays([
+      u32(0x02014b50),u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),
+      u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset),name
+    ]);
+    centrals.push(central); offset+=local.length;
+  }
+  const centralData=concatArrays(centrals);
+  const end=concatArrays([
+    u32(0x06054b50),u16(0),u16(0),u16(files.length),u16(files.length),
+    u32(centralData.length),u32(offset),u16(0)
+  ]);
+  return concatArrays([...locals,centralData,end]);
+}
+
+function downloadDocx(){
+  if(APP_MODE!=="single"){ alert("1社モードで使用してください。"); return; }
+  const c=ctx();
+  const sections=outputSections();
+  const paras=[];
+  paras.push({text:"政策リサーチ 営業アプローチ文面",bold:true,size:32});
+  paras.push({text:`企業：${c.company}`});
+  paras.push({text:`営業区分：${c.salesGroup}`});
+  paras.push({text:`業種：${c.industry}`});
+  paras.push({text:""});
+  paras.push({text:"営業連絡先",bold:true,size:26});
+  for(const line of contactResearchSummary(c).split(/\n/)) paras.push({text:line});
+  paras.push({text:""});
+  for(const s of sections){
+    paras.push({text:s.title,bold:true,size:26});
+    for(const line of s.text.split(/\n/)) paras.push({text:line});
+    paras.push({text:""});
+  }
+  const body=paras.map(p=>{
+    const rpr=(p.bold||p.size)?`<w:rPr>${p.bold?'<w:b/>':''}${p.size?`<w:sz w:val="${p.size}"/><w:szCs w:val="${p.size}"/>`:''}<w:rFonts w:eastAsia="Yu Gothic" w:ascii="Arial"/></w:rPr>`:'<w:rPr><w:rFonts w:eastAsia="Yu Gothic" w:ascii="Arial"/></w:rPr>';
+    return `<w:p><w:r>${rpr}<w:t xml:space="preserve">${xmlEscape(p.text)}</w:t></w:r></w:p>`;
+  }).join("");
+  const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:body>${body}
+<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr>
+</w:body></w:document>`;
+  const files=[
+    {name:"[Content_Types].xml",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`},
+    {name:"_rels/.rels",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`},
+    {name:"word/document.xml",data:documentXml}
+  ];
+  const zip=makeZip(files);
+  saveBlob(new Blob([zip],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}),`政策リサーチ_営業文面_${c.company}.docx`);
+}
+
+function printPdf(){
+  if(APP_MODE!=="single"){ alert("1社モードで使用してください。"); return; }
+  const c=ctx(), sections=outputSections();
+  const win=window.open("","_blank");
+  if(!win){ alert("ポップアップがブロックされています。ブラウザでポップアップを許可してください。"); return; }
+  const html=`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>政策リサーチ 営業文面 ${xmlEscape(c.company)}</title>
+  <style>
+  @page{size:A4;margin:18mm} body{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;color:#222;line-height:1.65;font-size:10.5pt}
+  h1{font-size:18pt;color:#17365D;border-bottom:2px solid #17365D;padding-bottom:6px}
+  h2{font-size:13pt;color:#17365D;margin-top:20px;border-left:4px solid #245B89;padding-left:8px}
+  .meta{background:#eef5fb;padding:10px 12px;border:1px solid #d8e2ec}
+  pre{white-space:pre-wrap;font-family:inherit;margin:6px 0 16px}
+  </style></head><body>
+  <h1>政策リサーチ 営業アプローチ文面</h1>
+  <div class="meta">企業：${xmlEscape(c.company)}<br>営業区分：${xmlEscape(c.salesGroup)}<br>業種：${xmlEscape(c.industry)}</div>
+  <h2>営業連絡先</h2><pre>${xmlEscape(contactResearchSummary(c))}</pre>
+  ${sections.map(s=>`<h2>${xmlEscape(s.title)}</h2><pre>${xmlEscape(s.text)}</pre>`).join("")}
+  <script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script>
+  </body></html>`;
+  win.document.open(); win.document.write(html); win.document.close();
+}
+
+function csvEscape(v){
+  const s=(v??"").toString().replace(/"/g,'""');
+  return `"${s}"`;
+}
+const COMPANY_EXPORT_FIELDS=[
+  ["企業名","company"],["営業優先スコア","priority_score"],["営業優先ランク","priority_rank"],["公開連絡先","contact"],["営業区分","sales_group"],
+  ["主業種・戦略分野","industry"],["検索用分野タグ","search_tags"],["副テーマ","secondary"],
+  ["会員名簿判定","membership_state"],["優先表示プラン（有料優先）","membership_priority_plan"],["現在ステータス上のプラン","membership_current_plan"],
+  ["利用開始日（登録日）","membership_start_date"],["会員名簿プラン履歴（有料優先）","membership_plan_history"],
+  ["有効件数","membership_valid_rows"],["無効件数","membership_invalid_rows"],["判定根拠","membership_basis"],["照合ルール","membership_match_rule"],
+  ["ランク理由","priority_reason"],["営業可否","sales_allowed"],["上場・企業区分","listing_status"],["証券コード","ticker"],["名簿区分","master_segment"],
+  ["第1営業先部署","dept1"],["第2営業先部署","dept2"],["公開キーパーソン","person"],["公開役職・接点","role"],
+  ["連絡先種別","contact_type"],["連絡先確認","contact_level"],["企業公式URL","official_url"],["連絡先・根拠URL","contact_url"],
+  ["推奨初回接触ルート","route"],["確認済み担当部署／推奨営業先","contact_department_verified"],["連絡先調査日","contact_checked_date"],
+  ["公式再確認日","contact_recheck_date"],["公式再確認状況","contact_recheck_status"],["公式再確認対象","contact_recheck_scope"],["公式再確認情報源","contact_recheck_source"],
+  ["最初に刺すテーマ","sales_theme"],["企業説明","company_description"],["直近政策トリガー","policy_trigger"],["15分デモ内容","demo"],
+  ["過去プラン・履歴","plan_history"],["販売チャネル","sales_channel"],["正式法人名確認","official_name_check"],["旧表示名","legacy_company_name"],
+  ["旧縁あり","legacy_connection"],["旧縁判定元","legacy_connection_source"]
+];
+function companyToCsvRows(list){
+  const pHeaders=["初回アプローチ日","最終返信日","オンライン会議日","申込完了日","拒否日","営業メモ・履歴","営業進捗","未了判定","経過日数"];
+  const header=[...COMPANY_EXPORT_FIELDS.map(x=>x[0]),...pHeaders];
+  const rows=list.map(c=>{
+    const p=getProgress(c.company), a=progressAuto(c.company);
+    return [...COMPANY_EXPORT_FIELDS.map(x=>Array.isArray(c[x[1]])?c[x[1]].join("｜"):(c[x[1]]??"")),p.approach_date,p.reply_date,p.meeting_date,p.applied_date,p.rejected_date,p.note||"",a.status,a.incomplete,a.elapsed];
+  });
+  return [header,...rows].map(r=>r.map(csvEscape).join(",")).join("\r\n");
+}
+function exportBulkSelectedCompaniesCsv(){
+  if(APP_MODE!=="bulk") return;
+  if(!BULK_SELECTED.size){ alert("一覧に出力する企業を1社以上選択してください。"); return; }
+  const selected=COMPANY_DATA
+    .filter(c=>BULK_SELECTED.has(c.company))
+    .slice()
+    .sort(compareCompanyPriorityName);
+  const csv="\ufeff"+companyToCsvRows(selected);
+  saveBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),`政策リサーチ_選択企業一覧_${selected.length}社.csv`);
+}
+
+function exportSelectedCsv(){
+  if(APP_MODE!=="single"){ alert("1社モードで使用してください。"); return; }
+  const c=companyByName($("companyInput").value);
+  if(!c){ alert("登録企業を1社選択してください。"); return; }
+  const csv="\ufeff"+companyToCsvRows([c]);
+  saveBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),`政策リサーチ_企業データ_${c.company}.csv`);
+}
+function exportAllCsv(){
+  const csv="\ufeff"+companyToCsvRows(COMPANY_DATA);
+  saveBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),`政策リサーチ_企業マスタ_${COMPANY_DATA.length}社.csv`);
+}
+function exportAllJson(){
+  const merged=COMPANY_DATA.map(c=>({...c,progress:getProgress(c.company),auto_progress:progressAuto(c.company)}));
+  saveBlob(new Blob([JSON.stringify(merged,null,2)],{type:"application/json;charset=utf-8"}),`政策リサーチ_企業マスタ_${COMPANY_DATA.length}社.json`);
+}
+
+function clearCompanySelection(){
+  resetSelectedCompanySidePanel();
+  if($("companyAllSelect")) $("companyAllSelect").value="";
+  if($("companySearchResults")) $("companySearchResults").value="";
+  if($("companySearchText")) $("companySearchText").value="";
+
+  if(APP_MODE!=="single") setAppMode("single");
+  $("companyInput").value="";
+  $("companyCustom").value="";
+  $("legacyConnection").checked=false;
+  ["dept","person","role","theme","trigger","demo","contactPerson","callNotes","proposedTimes","confirmedTime","usageStatus","additionalTheme","currentDept","targetDept"].forEach(id=>$(id).value="");
+  $("contactDisplay").value="";
+  $("contactTypeDisplay").value="";
+  $("routeDisplay").value="";
+  $("officialUrlDisplay").value="";
+  $("sourceUrlDisplay").value="";
+  $("historyDisplay").value="";
+  ["progressApproachDate","progressReplyDate","progressMeetingDate","progressAppliedDate","progressRejectedDate"].forEach(id=>$(id).value="");
+  $("progressNote").value="";
+  renderCurrentProgressStatus();
+  $("statusNotice").textContent="企業選択をクリアしました。新しい企業名を入力してください。";
+  $("summaryTags").innerHTML="";
+  document.querySelectorAll(".results textarea").forEach(el=>el.value="");
+  renderCompanyDropdown();
+  $("companyInput").focus();
+}
+
+function downloadAll(){
+  if(APP_MODE!=="single"){ alert("1社モードで使用してください。"); return; }
+  const c=ctx();
+  const text=fullOutputText();
+  saveBlob(new Blob([text],{type:"text/plain;charset=utf-8"}),`政策リサーチ_営業文面_${c.company}.txt`);
+}
+function resetForm(){
+  setAppMode("single");
+ ["companyInput","companyCustom","person","role","contactPerson","trigger","callNotes","proposedTimes","confirmedTime","extra","usageStatus","additionalTheme","currentDept","targetDept"].forEach(id=>$(id).value="");
+ $("industry").selectedIndex=0; $("stage").selectedIndex=0;
+ $("legacyConnection").checked=false;
+ $("dept").value=""; $("theme").value=""; $("demo").value=""; applyIndustry(); generate();
+}
+if(document.readyState === "loading") document.addEventListener("DOMContentLoaded",init);
+else init();
+
+
+
+</script>
+<script type="text/plain" id="rifj-inline-company-admin">
+// Company master administration for an authenticated custom-claim companyAdmin user.
+// This script contains no company data, secrets, or privileged credentials.
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const FIELDS=[
+ ["企業名","company"],["営業優先スコア","priority_score"],["営業優先ランク","priority_rank"],
+ ["公開連絡先","contact"],["会社の電話番号","contact"],["営業区分","sales_group"],
+ ["主業種・戦略分野","industry"],["業種・戦略分野","industry"],
+ ["検索用分野タグ","search_tags"],["副テーマ","secondary"],
+ ["会員名簿判定","membership_state"],["優先表示プラン（有料優先）","membership_priority_plan"],
+ ["現在ステータス上のプラン","membership_current_plan"],["利用開始日（登録日）","membership_start_date"],
+ ["会員名簿プラン履歴（有料優先）","membership_plan_history"],
+ ["有効件数","membership_valid_rows"],["無効件数","membership_invalid_rows"],
+ ["判定根拠","membership_basis"],["照合ルール","membership_match_rule"],
+ ["ランク理由","priority_reason"],["営業可否","sales_allowed"],
+ ["上場・企業区分","listing_status"],["証券コード","ticker"],["名簿区分","master_segment"],
+ ["第1営業先部署","dept1"],["第2営業先部署","dept2"],["公開キーパーソン","person"],
+ ["公開役職・接点","role"],["連絡先種別","contact_type"],["連絡先確認","contact_level"],
+ ["企業公式URL","official_url"],["連絡先・根拠URL","contact_url"],
+ ["推奨初回接触ルート","route"],["確認済み担当部署／推奨営業先","contact_department_verified"],
+ ["連絡先調査日","contact_checked_date"],["公式再確認日","contact_recheck_date"],
+ ["公式再確認状況","contact_recheck_status"],["公式再確認対象","contact_recheck_scope"],
+ ["公式再確認情報源","contact_recheck_source"],
+ ["最初に刺すテーマ","sales_theme"],["企業説明","company_description"],
+ ["直近政策トリガー","policy_trigger"],["15分デモ内容","demo"],
+ ["15分デモで見せる内容","demo"],
+ ["過去プラン・履歴","plan_history"],["販売チャネル","sales_channel"],
+ ["正式法人名確認","official_name_check"],["旧表示名","legacy_company_name"],
+ ["旧縁あり","legacy_connection"],["旧縁判定元","legacy_connection_source"]
+];
+const MAP=Object.fromEntries(FIELDS);
+const VALID_FIELDS=new Set(FIELDS.map(x=>x[1]));
+const norm=s=>String(s||"").normalize("NFKC").toLowerCase()
+ .replace(/（[^）]*）|\([^)]*\)/g,"")
+ .replace(/^(株式会社|有限会社|合同会社|一般社団法人|一般財団法人|公益社団法人|公益財団法人)/g,"")
+ .replace(/(株式会社|有限会社|合同会社)$/g,"")
+ .replace(/[\s\u3000・.,，。、－‐―ー_\-()（）]/g,"");
+const docID=name=>encodeURIComponent(name);
+function aliases(c){
+ return [c.company,c.legacy_company_name].filter(Boolean).map(norm).filter(Boolean);
+}
+function tags(v){
+ if(Array.isArray(v))return v.map(x=>String(x).trim()).filter(Boolean);
+ if(!v)return [];
+ return String(v).split(/[、,，;；|｜\r\n]+/u).map(x=>x.trim()).filter(Boolean);
+}
+function bool(v){return v===true || v===1 || /^(true|1|yes|はい|有|あり|○|〇)$/iu.test(String(v||"").trim());}
+function fieldValue(v,k){
+ if(k==="search_tags")return tags(v);
+ if(k==="sales_group")return ({"現在利用中":"現在利用","利用後退会":"過去有料利用"}[String(v).trim()]||v);
+ if(k==="legacy_connection")return bool(v);
+ if(["priority_score","membership_valid_rows","membership_invalid_rows"].includes(k) && v!==""){
+   const n=Number(v);return Number.isFinite(n)?n:v;
+ }
+ return typeof v==="string"?v.trim():v;
+}
+function toRecord(row){
+ if(!row || typeof row!=="object" || Array.isArray(row))return null;
+ const obj={};
+ for(const [k,v] of Object.entries(row)){
+   const key=MAP[k]||k;
+   // Disallow importing shared progress records as company master fields.
+   if(["progress","auto_progress","initial_contact_date","updated_by","updated_at"].includes(key))continue;
+   if(!VALID_FIELDS.has(key) && !/^[a-z][a-z0-9_]*$/i.test(key))continue;
+   if(key==="company" && obj.company)continue;
+   if(v!==undefined && v!==null)obj[key]=fieldValue(v,key);
+ }
+ obj.company=String(obj.company||"").trim();
+ if(!obj.company || obj.company.length>300 || !norm(obj.company))return null;
+ if(!obj.sales_group)obj.sales_group="完全新規";
+ if(!obj.priority_rank)obj.priority_rank="B";
+ if(!obj.search_tags)obj.search_tags=[];
+ if(!Array.isArray(obj.search_tags))obj.search_tags=tags(obj.search_tags);
+ return obj;
+}
+function parseCsv(txt){
+ const rows=[];let row=[],cell="",quoted=false;
+ const text=String(txt||"").replace(/^\uFEFF/,"");
+ for(let i=0;i<text.length;i++){
+  const ch=text[i];
+  if(quoted){
+   if(ch==='"' && text[i+1]==='"'){cell+='"';i++;}
+   else if(ch==='"')quoted=false;
+   else cell+=ch;
+  }else if(ch==='"'){quoted=true;}
+  else if(ch===','){row.push(cell);cell="";}
+  else if(ch==='\n'||ch==='\r'){
+   if(ch==='\r'&&text[i+1]==='\n')i++;
+   row.push(cell);cell="";
+   if(row.some(v=>String(v).trim()))rows.push(row);
+   row=[];
+  }else cell+=ch;
+ }
+ if(quoted)throw Error("CSVの引用符が閉じていません。");
+ if(cell||row.length){row.push(cell);rows.push(row);}
+ if(rows.length<2)throw Error("CSVに見出し行とデータ行がありません。");
+ return rows.slice(1).map(row=>Object.fromEntries(rows[0].map((key,i)=>[String(key||"").trim(),row[i]??""])));
+}
+function message(s){$("adminCompanyStatus").textContent=s;}
+function importMessage(s){$("adminImportResult").textContent=s;}
+window.setupCompanyAdmin=function(config){
+ const {db,user,claims,collection,getDocs,doc,runTransaction}=config;
+ const panel=$("companyAdminPanel");
+ if(!panel)return;
+ panel.hidden=false;
+ const allowed=claims.companyAdmin===true;
+ $("companyAdminControls").disabled=!allowed;
+ $("companyAdminAccessNotice").textContent=allowed
+  ? "管理者としてログイン中です。企業の登録・修正・削除およびファイル取込が利用できます。"
+  : "管理者権限が未設定です。下の入力欄は操作できません。Firebaseの companyAdmin=true と管理者用Firestoreルールを設定し、再ログインしてください。";
+ $("companyAdminAccessNotice").hidden=false;
+ let currentName="",pending=[],busy=false;
+ const companies=()=>Array.isArray(window.COMPANY_DATA)?window.COMPANY_DATA:[];
+ const duplicateIndex=(rows,ignore="")=>{
+   const keys=new Set();
+   for(const c of rows)if(c.company!==ignore)for(const alias of aliases(c))keys.add(alias);
+   return keys;
+ };
+ const inputs={
+   company:"adminCompanyName",industry:"adminIndustry",sales_theme:"adminSalesTheme",
+   demo:"adminDemo",company_description:"adminDescription",contact:"adminContact",
+   dept1:"adminDepartment",search_tags:"adminTags",sales_group:"adminSalesGroup",
+   legacy_connection:"adminLegacy"
+ };
+ function collect(){
+   const out={};
+   for(const [key,id] of Object.entries(inputs)){
+     const el=$(id);
+     out[key]=key==="legacy_connection"?el.checked:key==="search_tags"?tags(el.value):el.value.trim();
+   }
+   out.company=String(out.company||"").trim();
+   if(!out.company || out.company.length>300 || !norm(out.company))throw Error("有効な企業名（300文字以内）を入力してください。");
+   if(out.contact.length>1000 || out.company_description.length>30000 || out.demo.length>20000)throw Error("入力内容が長すぎます。");
+   return out;
+ }
+ function newForm(){
+   currentName="";$("adminCompanySelect").value="";
+   for(const [key,id] of Object.entries(inputs)){
+     if(key==="legacy_connection")$(id).checked=false;
+     else if(key==="sales_group")$(id).value="完全新規";
+     else $(id).value="";
+   }
+   $("adminCompanyName").readOnly=false;
+   message("新規企業の入力画面です。");
+ }
+ function loadForm(name){
+   const c=companies().find(x=>x.company===name);
+   if(!c){newForm();return;}
+   currentName=name;
+   for(const [key,id] of Object.entries(inputs)){
+     if(key==="legacy_connection")$(id).checked=!!c[key];
+     else if(key==="search_tags")$(id).value=tags(c[key]).join("、");
+     else $(id).value=c[key]??(key==="sales_group"?"完全新規":"");
+   }
+   $("adminCompanyName").readOnly=true;
+   message("既存レコードの編集です。企業名は識別IDのため固定です。名称変更は新規登録・旧名の削除として実施してください。");
+ }
+ function refreshAdmin(){
+   const sel=$("adminCompanySelect"),value=currentName||sel.value;
+   sel.innerHTML='<option value="">新規企業を登録</option>';
+   const frag=document.createDocumentFragment();
+   companies().slice().sort((a,b)=>a.company.localeCompare(b.company,"ja")).forEach(c=>{
+     const o=document.createElement("option");o.value=c.company;o.textContent=c.company;frag.appendChild(o);
+   });
+   sel.appendChild(frag);
+   if(value && companies().some(c=>c.company===value))sel.value=value;
+ }
+ window.refreshCompanyAdmin=refreshAdmin;
+ refreshAdmin();
+ if(!allowed){message("管理者権限がないため閲覧専用です。");return;}
+ $("adminCompanySelect").addEventListener("change",e=>{if(e.target.value)loadForm(e.target.value);else newForm();});
+ $("adminCompanyNew").addEventListener("click",newForm);
+ async function freshRows(){
+   const snapshot=await getDocs(collection(db,"companies"));
+   return snapshot.docs.map(x=>x.data()).filter(c=>c&&c.company);
+ }
+ async function register(row,skipDupCheck=false){
+   const ref=doc(db,"companies",docID(row.company));
+   await runTransaction(db,async tx=>{
+     const snap=await tx.get(ref);
+     if(snap.exists())throw Error("既に同じ企業名のレコードがあります。");
+     tx.set(ref,row);
+   });
+ }
+ $("adminCompanySave").addEventListener("click",async()=>{
+   if(busy)return;
+   busy=true;$("adminCompanySave").disabled=true;
+   try{
+     const incoming=collect();
+     const rows=await freshRows();
+     const exists=rows.find(c=>c.company===currentName);
+     if(currentName&&!exists)throw Error("対象の企業が見つかりません。最新データを読み込み直してください。");
+     const duplicates=duplicateIndex(rows,currentName);
+     if(duplicates.has(norm(incoming.company)))throw Error("既存企業との重複候補です。追加・更新を取り消しました。");
+     if(!currentName){
+       const record={...incoming,priority_rank:"B",sales_allowed:"新規営業対象"};
+       await register(record);
+       currentName=incoming.company;
+       $("adminCompanyName").readOnly=true;
+       message("企業を新規登録しました。別端末にも反映されます。");
+     }else{
+       const ref=doc(db,"companies",docID(currentName));
+       await runTransaction(db,async tx=>{
+         const snap=await tx.get(ref);
+         if(!snap.exists())throw Error("企業が既に削除されています。");
+         tx.set(ref,{...snap.data(),...incoming,company:currentName});
+       });
+       message("企業情報を更新しました。旧来の詳細項目は保持しています。");
+     }
+     $("adminImportCommit").disabled=true;pending=[];
+   }catch(e){message("登録・更新失敗：" +e.message);}
+   finally{busy=false;$("adminCompanySave").disabled=false;}
+ });
+ $("adminCompanyDelete").addEventListener("click",async()=>{
+   if(!currentName){message("削除する企業を先に選択してください。");return;}
+   if(busy)return;
+   const name=currentName;
+   if(!confirm(name+" を企業マスタから削除しますか？\n営業進捗履歴は削除せず保持されます。"))return;
+   busy=true;$("adminCompanyDelete").disabled=true;
+   try{
+     const ref=doc(db,"companies",docID(name));
+     await runTransaction(db,async tx=>{
+       const snap=await tx.get(ref);
+       if(!snap.exists())throw Error("対象の企業は既に削除されています。");
+       tx.delete(ref);
+     });
+     newForm();message(name+" を削除しました。営業進捗履歴は保持されます。");
+   }catch(e){message("削除失敗："+e.message);}
+   finally{busy=false;$("adminCompanyDelete").disabled=false;}
+ });
+ async function readFile(file){
+   const lower=file.name.toLowerCase();
+   if(lower.endsWith(".json")){
+     const parsed=JSON.parse(await file.text());
+     const rows=Array.isArray(parsed)?parsed:(parsed&&Array.isArray(parsed.companies)?parsed.companies:null);
+     if(!rows)throw Error("JSONは企業オブジェクトの配列、または companies 配列が必要です。");
+     return rows;
+   }
+   if(lower.endsWith(".csv"))return parseCsv(await file.text());
+   if(lower.endsWith(".xlsx")||lower.endsWith(".xls")){
+     const XLSX=await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+     const wb=XLSX.read(new Uint8Array(await file.arrayBuffer()),{type:"array"});
+     const sheet=wb.Sheets[wb.SheetNames[0]];
+     if(!sheet)throw Error("Excelの最初のシートが見つかりません。");
+     return XLSX.utils.sheet_to_json(sheet,{defval:"",raw:false});
+   }
+   throw Error("CSV・Excel（.xlsx/.xls）・JSONを選択してください。");
+ }
+ async function preview(){
+   pending=[];$("adminImportCommit").disabled=true;
+   const file=$("adminImportFile").files[0];
+   if(!file)throw Error("取り込むファイルを選択してください。");
+   if(file.size>15*1024*1024)throw Error("15MB以下のファイルを選択してください。");
+   const source=await readFile(file);
+   const existing=await freshRows();
+   const known=duplicateIndex(existing);
+   let dup=0,invalid=0;
+   const additions=[];
+   for(const raw of source){
+     const row=toRecord(raw);
+     if(!row){invalid++;continue;}
+     const key=norm(row.company);
+     if(known.has(key)){dup++;continue;}
+     known.add(key);additions.push(row);
+   }
+   pending=additions;
+   importMessage("読込 "+source.length+"社／登録済みと重複またはファイル内重複 "+dup+"社／企業名不備 "+invalid+"社／新規登録候補 "+additions.length+"社\n新規候補："+additions.slice(0,8).map(x=>x.company).join("、")+(additions.length>8?" ほか":""));
+   $("adminImportCommit").disabled=additions.length===0;
+ }
+ $("adminImportPreview").addEventListener("click",async()=>{
+   try{await preview();}
+   catch(e){pending=[];$("adminImportCommit").disabled=true;importMessage("確認できません："+e.message);}
+ });
+ $("adminImportFile").addEventListener("change",()=>{pending=[];$("adminImportCommit").disabled=true;importMessage("ファイルが変更されました。再度、重複チェックを実行してください。");});
+ $("adminImportCommit").addEventListener("click",async()=>{
+   if(busy||!pending.length)return;
+   if(!confirm(pending.length+"社を新規登録しますか？既存企業は上書きしません。"))return;
+   busy=true;$("adminImportCommit").disabled=true;
+   let created=0,skipped=0,errors=[];
+   try{
+     const fresh=await freshRows(),known=duplicateIndex(fresh);
+     const queue=[];
+     for(const row of pending){
+       if(known.has(norm(row.company))){skipped++;continue;}
+       // Reserve normalized names inside this import batch before parallel writes.
+       known.add(norm(row.company));queue.push(row);
+     }
+     let cursor=0;
+     const workers=Array.from({length:Math.min(5,queue.length)},async()=>{
+       while(cursor<queue.length){
+         const row=queue[cursor++];
+         try{
+           await register(row);created++;
+         }catch(e){
+           if(String(e.message).includes("既に同じ企業名"))skipped++;
+           else errors.push(row.company+"："+e.message);
+         }
+         if((created+skipped+errors.length)%20===0)importMessage("登録処理中："+(created+skipped+errors.length)+"件");
+       }
+     });
+     await Promise.all(workers);
+     importMessage("新規登録 "+created+"社／重複スキップ "+skipped+"社／エラー "+errors.length+"社"+(errors.length?"\n"+errors.slice(0,8).join("\n"):""));
+     pending=[];
+   }catch(e){importMessage("登録中にエラーが発生しました："+e.message);}
+   finally{busy=false;}
+ });
+ message("管理者としてログインしています。個別登録と重複確認付き一括登録を利用できます。");
+};
+})();
+</script>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,setPersistence,browserSessionPersistence} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import {getFirestore,collection,getDocs,doc,setDoc,deleteDoc,onSnapshot,runTransaction} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyCqKP__GE4aOBn58DIeh8Si_i2MtWAWhoU",
+  authDomain: "sales-3d63b.firebaseapp.com",
+  projectId: "sales-3d63b",
+  storageBucket: "sales-3d63b.firebasestorage.app",
+  messagingSenderId: "52523493312",
+  appId: "1:52523493312:web:1cff0726b58bf8b7b60a25",
+  measurementId: "G-MYYS0S2KSC"
+};
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app),db=getFirestore(app);
+const gate=document.getElementById("rifj-auth-gate"), form=document.getElementById("rifj-login-form");
+const errorEl=document.getElementById("rifj-auth-error"),status=document.getElementById("firebaseStatus");
+const signout=document.getElementById("rifj-signout");
+let stopProgress=null,stopMaster=null,started=false;
+function err(message){errorEl.textContent=message;}
+function setStatus(message){status.textContent=message;}
+function docId(name){return encodeURIComponent(name);}
+async function script(src){const id=src.includes("company-admin.js")?"rifj-inline-company-admin":"rifj-inline-sales-app";const code=document.getElementById(id)?.textContent;if(!code)throw new Error("画面コードを読み込めません："+id);const s=document.createElement("script");s.textContent=code;document.body.appendChild(s);}
+function unlock(){document.body.classList.remove("auth-locked");gate.hidden=true;signout.hidden=false;}
+function lock(){document.body.classList.add("auth-locked");gate.hidden=false;signout.hidden=true;}
+async function start(user){
+  if(started)return;started=true;
+  try{
+    err("");setStatus("企業マスタを読み込んでいます…");
+    const token=await user.getIdTokenResult();
+    if(token.claims.salesAccess!==true) throw new Error("営業管理への利用権限がありません。管理者にアクセス許可を依頼してください。");
+    const snapshot=await getDocs(collection(db,"companies"));
+    const companies=snapshot.docs.map(x=>x.data()).sort((a,b)=>(a.company||"").localeCompare(b.company||"","ja"));
+    if(!companies.length) throw new Error("企業マスタが未登録です。管理者用インポートを先に実行してください。");
+    // Keep the original 1-company / bulk / sales-talk UI, backed by Firestore.
+    // Install the cloud adapter BEFORE starting app.js so its initial handlers
+    // cannot mistake the page for a local-only/offline version.
+    const valid=companies.filter(c=>typeof c.company==="string" && c.company.trim());
+    if(valid.length!==companies.length)throw new Error("企業マスタに企業名のないレコードがあります。");
+    window.COMPANY_DATA=valid;
+    window.salesCloud={
+      save:async(company,data)=>setDoc(doc(db,"sales_progress",docId(company)),{...data,company,updated_by:user.uid}),
+      remove:async(company)=>deleteDoc(doc(db,"sales_progress",docId(company)))
+    };
+    await script("app.js?v=1.66.0-20261109");
+    if(typeof window.applyCloudProgressStore!=="function")throw new Error("営業管理画面の起動に失敗しました。app.js の公開状態を確認してください。");
+    // The panel is visible in read-only mode until companyAdmin is granted.
+    // Firestore security rules (not merely the disabled UI) enforce mutations.
+    await script("company-admin.js?v=1.66.0-20261109");
+    if(typeof window.setupCompanyAdmin!=="function")throw new Error("企業管理画面を読み込めませんでした。");
+    window.setupCompanyAdmin({db,user,claims:token.claims,collection,getDocs,doc,runTransaction});
+    stopMaster=onSnapshot(collection(db,"companies"),snap=>{
+      const latest=snap.docs.map(x=>x.data()).filter(x=>x&&typeof x.company==="string");
+      latest.sort((a,b)=>a.company.localeCompare(b.company,"ja"));
+      window.applyCloudCompanyStore?.(latest);
+      setStatus("共有中：企業マスタ "+latest.length+"社｜"+user.email);
+    },e=>setStatus("企業マスタの同期に失敗："+e.message));
+    stopProgress=onSnapshot(collection(db,"sales_progress"), snap=>{
+      const result={};
+      snap.forEach(d=>{const v=d.data();if(v.company)result[v.company]=v;});
+      window.applyCloudProgressStore?.(result);
+      setStatus(`Firebase接続中：${companies.length}社｜営業進捗 ${snap.size}件｜${user.email}`);
+    },e=>setStatus("進捗の受信に失敗: "+e.message));
+    unlock();
+  }catch(e){started=false;err("起動できません: "+e.message);setStatus("接続に失敗しました");window.salesCloud=null;lock();}
+}
+form.addEventListener("submit",async e=>{
+  e.preventDefault();err("");
+  const email=document.getElementById("rifj-email").value.trim();
+  const password=document.getElementById("rifj-password").value;
+  try{await setPersistence(auth,browserSessionPersistence);await signInWithEmailAndPassword(auth,email,password);document.getElementById("rifj-password").value="";}
+  catch(e){err("ログインできません。メールアドレス・パスワードとFirebase Authenticationの設定をご確認ください。");}
+});
+signout.addEventListener("click",async()=>{await signOut(auth);location.reload();});
+onAuthStateChanged(auth,user=>{if(user){start(user);}else{stopProgress?.();stopMaster?.();stopProgress=null;stopMaster=null;lock();started=false;window.salesCloud=null;}});
+
+</script></body></html>
