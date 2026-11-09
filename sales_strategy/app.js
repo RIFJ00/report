@@ -128,6 +128,7 @@ function init(){
   $("exportVisibleProgressBtn").addEventListener("click",()=>exportProgressCsv(filteredProgressRows(),"政策リサーチ_営業進捗_表示中.csv"));
   $("exportApproachedBtn").addEventListener("click",()=>exportProgressCsv(progressRows().filter(r=>r.progress.approach_date),"政策リサーチ_アプローチ済み一覧.csv"));
   $("exportCurrentUsersBtn").addEventListener("click",()=>exportProgressCsv(progressRows().filter(r=>r.usage==="現在利用中"),"政策リサーチ_現在利用中企業一覧.csv"));
+  $("exportWithdrawnBtn").addEventListener("click",()=>exportProgressCsv(progressRows().filter(r=>r.usage==="利用後退会"),"政策リサーチ_利用後退会企業一覧.csv"));
   $("exportIncompleteBtn").addEventListener("click",()=>exportProgressCsv(progressRows().filter(r=>r.auto.incomplete),"政策リサーチ_未了一覧.csv"));
   $("exportProgressJsonBtn").addEventListener("click", exportProgressJson);
   $("importProgressJsonBtn").addEventListener("click",()=>$("importProgressJsonFile").click());
@@ -163,7 +164,7 @@ function setAppMode(mode){
     ? "1社モード：企業マスタから選んだ1社だけの企業情報・営業進捗・文面を表示します。"
     : bulk
     ? "複数企業モード：業種・利用状況で絞り込み、複数社の文面作成とアプローチ日一括記録ができます。"
-    : "営業進捗一覧：アプローチ済み、現在利用中、未了、オンライン会議、申込完了、拒否を一覧表示・出力します。";
+    : "営業進捗一覧：アプローチ済み、現在利用中、利用後退会、未了、オンライン会議、申込完了、拒否を一覧表示・出力します。";
 
   if(single){
     $("bulkOutput").value="";
@@ -379,6 +380,7 @@ function filteredProgressRows(){
     if(q && !r.company.toLowerCase().includes(q)) return false;
     if(mode==="approached") return !!r.progress.approach_date;
     if(mode==="current") return r.usage==="現在利用中";
+    if(mode==="withdrawn") return r.usage==="利用後退会";
     if(mode==="incomplete") return !!r.auto.incomplete;
     if(mode==="incomplete14") return r.auto.incomplete==="未了（2週間）";
     if(mode==="incomplete30") return r.auto.incomplete==="未了（1ヶ月）";
@@ -393,6 +395,7 @@ function renderProgressList(){
   const all=progressRows(), rows=filteredProgressRows();
   $("kpiApproached").textContent=all.filter(r=>r.progress.approach_date).length;
   $("kpiCurrent").textContent=all.filter(r=>r.usage==="現在利用中").length;
+  $("kpiWithdrawn").textContent=all.filter(r=>r.usage==="利用後退会").length;
   $("kpiIncomplete14").textContent=all.filter(r=>r.auto.incomplete==="未了（2週間）").length;
   $("kpiIncomplete30").textContent=all.filter(r=>r.auto.incomplete==="未了（1ヶ月）").length;
   $("kpiApplied").textContent=all.filter(r=>r.progress.applied_date).length;
