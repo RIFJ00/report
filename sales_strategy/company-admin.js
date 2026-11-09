@@ -102,8 +102,14 @@ function importMessage(s){$("adminImportResult").textContent=s;}
 window.setupCompanyAdmin=function(config){
  const {db,user,claims,collection,getDocs,doc,runTransaction}=config;
  const panel=$("companyAdminPanel");
- if(!panel || claims.companyAdmin!==true)return;
+ if(!panel)return;
  panel.hidden=false;
+ const allowed=claims.companyAdmin===true;
+ $("companyAdminControls").disabled=!allowed;
+ $("companyAdminAccessNotice").textContent=allowed
+  ? "管理者としてログイン中です。企業の登録・修正・削除およびファイル取込が利用できます。"
+  : "管理者権限が未設定です。下の入力欄は操作できません。Firebaseの companyAdmin=true と管理者用Firestoreルールを設定し、再ログインしてください。";
+ $("companyAdminAccessNotice").hidden=false;
  let currentName="",pending=[],busy=false;
  const companies=()=>Array.isArray(window.COMPANY_DATA)?window.COMPANY_DATA:[];
  const duplicateIndex=(rows,ignore="")=>{
@@ -162,6 +168,7 @@ window.setupCompanyAdmin=function(config){
  }
  window.refreshCompanyAdmin=refreshAdmin;
  refreshAdmin();
+ if(!allowed){message("管理者権限がないため閲覧専用です。");return;}
  $("adminCompanySelect").addEventListener("change",e=>{if(e.target.value)loadForm(e.target.value);else newForm();});
  $("adminCompanyNew").addEventListener("click",newForm);
  async function freshRows(){
