@@ -31,12 +31,18 @@ async function start(user){
     const snapshot=await getDocs(collection(db,"companies"));
     const companies=snapshot.docs.map(x=>x.data()).sort((a,b)=>(a.company||"").localeCompare(b.company||"","ja"));
     if(!companies.length) throw new Error("企業マスタが未登録です。管理者用インポートを先に実行してください。");
-    window.COMPANY_DATA=companies;
-    await script("app.js?v=1.59.0-20261109");
+    // Keep the original 1-company / bulk / sales-talk UI, backed by Firestore.
+    // Install the cloud adapter BEFORE starting app.js so its initial handlers
+    // cannot mistake the page for a local-only/offline version.
+    const valid=companies.filter(c=>typeof c.company==="string" && c.company.trim());
+    if(valid.length!==companies.length)throw new Error("企業マスタに企業名のないレコードがあります。");
+    window.COMPANY_DATA=valid;
     window.salesCloud={
       save:async(company,data)=>setDoc(doc(db,"sales_progress",docId(company)),{...data,company,updated_by:user.uid}),
       remove:async(company)=>deleteDoc(doc(db,"sales_progress",docId(company)))
     };
+    await script("app.js?v=1.60.0-20261109");
+    if(typeof window.applyCloudProgressStore!=="function")throw new Error("営業管理画面の起動に失敗しました。app.js の公開状態を確認してください。");
     stopProgress=onSnapshot(collection(db,"sales_progress"), snap=>{
       const result={};
       snap.forEach(d=>{const v=d.data();if(v.company)result[v.company]=v;});
@@ -44,7 +50,7 @@ async function start(user){
       setStatus(`Firebase接続中：${companies.length}社｜営業進捗 ${snap.size}件｜${user.email}`);
     },e=>setStatus("進捗の受信に失敗: "+e.message));
     unlock();document.getElementById("firebaseMigrateLocal").disabled=false;
-  }catch(e){started=false;err("起動できません: "+e.message);setStatus("接続に失敗しました");lock();}
+  }catch(e){started=false;err("起動できません: "+e.message);setStatus("接続に失敗しました");window.salesCloud=null;lock();}
 }
 form.addEventListener("submit",async e=>{
   e.preventDefault();err("");

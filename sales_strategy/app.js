@@ -48,6 +48,9 @@ function companyHasTag(c,tag){ return !!tag && companyTags(c).includes(tag); }
 let APP_MODE = "single";
 
 function init(){
+  if(!Array.isArray(window.COMPANY_DATA) || !window.COMPANY_DATA.length){
+    throw new Error("企業マスタが未読込です。Firebase接続と読み込み状態を確認してください。");
+  }
   renderCompanyDropdown();
   renderDirectCompanyControls();
   $("showApproachedCompanies").addEventListener("change", ()=>{
