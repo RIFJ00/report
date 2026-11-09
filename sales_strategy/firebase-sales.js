@@ -41,14 +41,13 @@ async function start(user){
       save:async(company,data)=>setDoc(doc(db,"sales_progress",docId(company)),{...data,company,updated_by:user.uid}),
       remove:async(company)=>deleteDoc(doc(db,"sales_progress",docId(company)))
     };
-    await script("app.js?v=1.65.0-20261109");
+    await script("app.js?v=1.66.0-20261109");
     if(typeof window.applyCloudProgressStore!=="function")throw new Error("営業管理画面の起動に失敗しました。app.js の公開状態を確認してください。");
-    // Admin controls are visible only with a fresh custom claim. Firestore rules enforce permissions.
-    if(token.claims.companyAdmin===true){
-      await script("company-admin.js?v=1.65.0-20261109");
-      if(typeof window.setupCompanyAdmin!=="function")throw new Error("企業管理画面を読み込めませんでした。");
-      window.setupCompanyAdmin({db,user,claims:token.claims,collection,getDocs,doc,runTransaction});
-    }
+    // The panel is visible in read-only mode until companyAdmin is granted.
+    // Firestore security rules (not merely the disabled UI) enforce mutations.
+    await script("company-admin.js?v=1.66.0-20261109");
+    if(typeof window.setupCompanyAdmin!=="function")throw new Error("企業管理画面を読み込めませんでした。");
+    window.setupCompanyAdmin({db,user,claims:token.claims,collection,getDocs,doc,runTransaction});
     stopMaster=onSnapshot(collection(db,"companies"),snap=>{
       const latest=snap.docs.map(x=>x.data()).filter(x=>x&&typeof x.company==="string");
       latest.sort((a,b)=>a.company.localeCompare(b.company,"ja"));
