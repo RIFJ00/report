@@ -95,6 +95,7 @@ function init(){
   $("singleModeBtn").addEventListener("click",()=>setAppMode("single"));
   $("bulkModeBtn").addEventListener("click",()=>setAppMode("bulk"));
   $("progressModeBtn").addEventListener("click",()=>setAppMode("progress"));
+  $("adminModeBtn").addEventListener("click",()=>setAppMode("admin"));
   $("industry").innerHTML = `<option value="">業種／戦略分野を選択</option>` + Object.keys(INDUSTRY_DEFAULTS).map(x=>`<option value="${xmlEscape(x)}">${xmlEscape(x)}</option>`).join("");
   $("companyInput").addEventListener("change", applyCompany);
   $("legacyConnection").addEventListener("change",generate);
@@ -150,22 +151,28 @@ function init(){
 
 
 function setAppMode(mode){
+  if(!["single","bulk","progress","admin"].includes(mode)) mode="single";
   APP_MODE=mode;
-  const single=mode==="single", bulk=mode==="bulk", progress=mode==="progress";
+  const single=mode==="single", bulk=mode==="bulk", progress=mode==="progress", admin=mode==="admin";
   $("singleModeArea").style.display=single?"block":"none";
   $("bulkModeArea").style.display=bulk?"block":"none";
   $("progressModeArea").style.display=progress?"block":"none";
+  $("companyAdminPanel").hidden=!admin;
+  $("adminModeBtn").setAttribute("aria-expanded",String(admin));
 
-  [["singleModeBtn",single],["bulkModeBtn",bulk],["progressModeBtn",progress]].forEach(([id,on])=>{
+  [["singleModeBtn",single],["bulkModeBtn",bulk],["progressModeBtn",progress],["adminModeBtn",admin]].forEach(([id,on])=>{
     $(id).classList.toggle("active",on);
     $(id).classList.toggle("secondary",!on);
+    $(id).setAttribute("aria-pressed",String(on));
   });
 
   $("modeDescription").textContent=single
     ? "1社モード：企業マスタから選んだ1社だけの企業情報・営業進捗・文面を表示します。"
     : bulk
-    ? "複数企業モード：業種・利用状況で絞り込み、複数社の文面作成とアプローチ日一括記録ができます。"
-    : "営業進捗一覧：アプローチ済み、現在利用中、利用後退会、未了、オンライン会議、申込完了、拒否を一覧表示・出力します。";
+    ? "複数企業モード：成長戦略17分野・利用状況で絞り込み、複数社の文面作成とアプローチ日一括記録ができます。"
+    : progress
+    ? "営業進捗一覧：アプローチ済み、現在利用中、利用後退会、未了、オンライン会議、申込完了、拒否を一覧表示・出力します。"
+    : "企業マスタ管理：個別登録・修正・削除とExcel・CSV・JSONの一括取込。管理者権限が必要です。";
 
   if(single){
     $("bulkOutput").value="";
@@ -173,12 +180,11 @@ function setAppMode(mode){
     renderDirectCompanyControls();
   }else if(bulk){
     renderBulkCompanies();
-  }else{
+  }else if(progress){
     renderProgressList();
   }
   window.scrollTo({top:0,behavior:"smooth"});
 }
-
 
 function loadProgressStore(){
   return PROGRESS_CACHE||{};
