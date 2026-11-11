@@ -446,6 +446,7 @@ body.auth-locked #rifj-signout{display:none}
 <p class="help">企業マスタと営業進捗を認証済み端末間で共有します。</p>
 </section><section class="panel" id="companyAdminPanel" hidden>
 <h2>企業マスタ管理（管理者専用）</h2>
+ <p class="help" id="sales-master-version">一括修正対応 v1.101（2026-11-12）</p>
 <p class="help">登録・修正・削除、CSV・Excel・JSON一括インポートに対応。重複候補は自動で除外し、登録済み企業は無断で上書きしません。</p>
 <p class="help admin-access-notice" id="companyAdminAccessNotice" role="status">管理者権限が未設定です。閲覧のみ可能です。Firebase Authentication の companyAdmin=true と管理者用 Firestore ルールを設定後、再ログインすると編集できます。</p>
 <fieldset id="companyAdminControls" disabled>
@@ -2991,7 +2992,6 @@ window.setupCompanyAdmin=function(config){
 </script>
 
 <script type="module">
-import {setupCompanyBulkUpdate} from "./company-bulk-update.js";
 import {initializeApp} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,setPersistence,browserSessionPersistence} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import {getFirestore,collection,getDocs,doc,setDoc,deleteDoc,onSnapshot,runTransaction} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
@@ -3042,7 +3042,14 @@ async function start(user){
     await script("company-admin.js?v=1.67.0-20261109");
     if(typeof window.setupCompanyAdmin!=="function")throw new Error("企業管理画面を読み込めませんでした。");
     window.setupCompanyAdmin({db,user,claims:token.claims,collection,getDocs,doc,runTransaction});
-    setupCompanyBulkUpdate({db,claims:token.claims});
+    try {
+      const bulkModule=await import("./company-bulk-update.js?v=1.101-20261112");
+      bulkModule.setupCompanyBulkUpdate({db,claims:token.claims});
+    } catch (bulkError) {
+      console.error("一括更新機能の読込に失敗しました。通常画面は利用できます。",bulkError);
+      const place=document.getElementById("adminImportResult");
+      if(place)place.textContent="一括修正機能の読込に失敗しました。ページを再読み込みしてください。";
+    }
     stopMaster=onSnapshot(collection(db,"companies"),snap=>{
       const latest=snap.docs.map(x=>x.data()).filter(x=>x&&typeof x.company==="string");
       latest.sort((a,b)=>a.company.localeCompare(b.company,"ja"));
