@@ -20,7 +20,7 @@ const FIELDS={
 "販売チャネル":"sales_channel","正式法人名確認":"official_name_check",
 "旧表示名":"legacy_company_name","旧縁あり":"legacy_connection",
 "旧縁判定元":"legacy_connection_source"};
-const VALID=new Set([...Object.values(FIELDS),"firebase_company_id"]);
+const VALID=new Set([...Object.values(FIELDS),"firebase_company_id","department_verification_status","sales_contact_approved","contact_status","source_master_version","master_verification"]);
 const DENY=new Set(["progress","auto_progress","initial_contact_date","updated_by","updated_at","created_at","営業進捗","初回アプローチ日","最終返信日","オンライン会議日","申込完了日","拒否日","営業メモ・履歴"]);
 const norm=s=>String(s||"").normalize("NFKC").toLowerCase().replace(/^(株式会社|有限会社|合同会社)/,"").replace(/(株式会社|有限会社|合同会社)$/,"").replace(/[\s\u3000・.,，。、－‐―ー_\-()（）]/g,"");
 const sid=s=>/^C\d{6}$/.test(String(s||""))?String(s):"";
@@ -49,7 +49,7 @@ async function readFile(file){
   const data=JSON.parse(await file.text());
   const rows=Array.isArray(data)?data:(data.records||data.companies);
   if(!Array.isArray(rows))throw Error("JSONにrecordsまたはcompanies配列が必要です");
-  return rows.map(x=>{const v=x.master||x.data||x;return convert({...v,company:x.company||v.company||v["企業名"],firebase_company_id:x.companyId||v.firebase_company_id||v["固定企業ID"]});});
+  return rows.map(x=>{const v=x.master||x.data||x;return convert({...x.webView_v157,...v,company:x.name||x.company||v.company||v["企業名"],firebase_company_id:x.companyId||v.firebase_company_id||v["固定企業ID"],master_verification:x.verification});});
  }
  if(n.endsWith(".xlsx")||n.endsWith(".xls")){
   const XLSX=await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
@@ -101,9 +101,11 @@ export function setupCompanyBulkUpdate({db,claims}){
    if(matches.size>1){issues.push(row.company+"：IDと社名の照合先が複数");continue;}
    const old=[...matches.values()][0];
    if(old&&norm(old.data.company)!==n){issues.push(row.company+"：固定IDの会社名が不一致");continue;}
+   if(old&&id&&sid(old.data.firebase_company_id)&&sid(old.data.firebase_company_id)!==id){issues.push(row.company+"：既存の固定企業IDと不一致");continue;}
    if(!old&&!id){issues.push(row.company+"：新規には固定IDが必要");continue;}
    if(!old&&ids.has(id)){issues.push(row.company+"：ID競合");continue;}
    const changes={};
+   if(old&&id&&!sid(old.data.firebase_company_id))changes.firebase_company_id=id;
    for(const [k,v] of Object.entries(row)){
     if(["company","firebase_company_id"].includes(k)||v===""||v===null)continue;
     if(k==="import_master_fields"){
