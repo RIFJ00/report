@@ -100,12 +100,20 @@ export function setupCompanyBulkUpdate({db,claims}){
    for(const x of [...(id?[ids.get(id),...(byId.get(id)||[])]:[]),...(byName.get(n)||[])].filter(Boolean))matches.set(x.id,x);
    if(matches.size>1){issues.push(row.company+"：IDと社名の照合先が複数");continue;}
    const old=[...matches.values()][0];
-   if(old&&norm(old.data.company)!==n){issues.push(row.company+"：固定IDの会社名が不一致");continue;}
+   // Permit a company rename only when the import carries the same nonempty stable ID.
+   const renaming=Boolean(old&&norm(old.data.company)!==n);
+   if(renaming&&(!id||!((old.id===id)||(sid(old.data.firebase_company_id)===id)))){
+     issues.push(row.company+"：社名変更の固定企業IDを照合できません");continue;
+   }
    if(old&&id&&sid(old.data.firebase_company_id)&&sid(old.data.firebase_company_id)!==id){issues.push(row.company+"：既存の固定企業IDと不一致");continue;}
    if(!old&&!id){issues.push(row.company+"：新規には固定IDが必要");continue;}
    if(!old&&ids.has(id)){issues.push(row.company+"：ID競合");continue;}
    const changes={};
    if(old&&id&&!sid(old.data.firebase_company_id))changes.firebase_company_id=id;
+   if(renaming){
+     changes.company=row.company;
+     changes.previous_company_names=Array.from(new Set([...(Array.isArray(old.data.previous_company_names)?old.data.previous_company_names:[]),old.data.company]));
+   }
    for(const [k,v] of Object.entries(row)){
     if(["company","firebase_company_id"].includes(k)||v===""||v===null)continue;
     if(k==="import_master_fields"){
@@ -115,7 +123,10 @@ export function setupCompanyBulkUpdate({db,claims}){
     }else if(diff(v,old?.data?.[k]))changes[k]=v;
    }
    if(!old)jobs.push({type:"new",id,name:row.company,data:{...changes,company:row.company,firebase_company_id:id},count:Object.keys(changes).length});
-   else if(Object.keys(changes).length)jobs.push({type:"update",id:old.id,name:row.company,data:changes,count:Object.keys(changes).length});
+   else if(Object.keys(changes).length)jobs.push({
+     type:"update",id:old.id,name:row.company,oldName:old.data.company,
+     rename:renaming,data:changes,count:Object.keys(changes).length
+   });
   }
   return {jobs,issues,total:rows.length,file:f.name};
  }
@@ -124,6 +135,7 @@ export function setupCompanyBulkUpdate({db,claims}){
   try{
    pending=await preview();const p=pending,updates=p.jobs.filter(x=>x.type==="update"),news=p.jobs.filter(x=>x.type==="new");
    output.textContent="読込 "+p.total+"社／更新 "+updates.length+"社／新規 "+news.length+"社／スキップ・保留 "+(p.total-p.jobs.length)+"社\n"+
+    "社名変更："+updates.filter(x=>x.rename).map(x=>x.oldName+" → "+x.name+"（"+x.id+"）").join("、")+"\n"+
     "差分例："+updates.slice(0,12).map(x=>x.name+" "+x.count+"項目").join("、")+"\n"+
     (p.issues.length?"要確認："+p.issues.slice(0,20).join("／"):"");
    commit.disabled=p.jobs.length===0;
@@ -133,7 +145,12 @@ export function setupCompanyBulkUpdate({db,claims}){
  commit.addEventListener("click",async()=>{
   if(busy||!pending)return;
   const jobs=pending.jobs;
-  if(!confirm(jobs.length+"社の差分をFirestoreへ登録しますか？\n営業進捗は変更しません。"))return;
+  const renamed=jobs.filter(j=>j.rename);
+  const renameText=renamed.map(j=>j.oldName+" → "+j.name+"（"+j.id+"）").join("\n");
+  if(!confirm(jobs.length+"社の差分をFirestoreへ登録しますか？\n"+(
+    renamed.length?"社名変更 "+renamed.length+"件:\n"+renameText+"\n営業進捗の紐付け先も同時に更新します。":
+    "営業進捗は変更しません。"
+  )))return;
   busy=true;commit.disabled=true;let count=0,errors=[];
   for(const job of jobs){
    try{
@@ -144,7 +161,17 @@ export function setupCompanyBulkUpdate({db,claims}){
       if(s.exists())throw Error("既に登録されています");
       tx.set(ref,job.data);
      }else{
-      if(!s.exists()||norm(s.data().company)!==norm(job.name))throw Error("登録後に企業が変更・削除されました");
+      if(!s.exists())throw Error("企業が既に削除されました");
+      const expected=job.rename?job.oldName:job.name;
+      if(norm(s.data().company)!==norm(expected))throw Error("確認後に企業名が変更されました");
+      if(job.rename){
+        const oldProgress=doc(db,"sales_progress",encodeURIComponent(job.oldName));
+        const newProgress=doc(db,"sales_progress",encodeURIComponent(job.name));
+        const a=await tx.get(oldProgress);
+        const b=await tx.get(newProgress);
+        if(a.exists()&&b.exists())throw Error("旧社名と新社名の双方に営業進捗があるため自動統合を保留");
+        if(a.exists()){tx.set(newProgress,{...a.data(),company:job.name});tx.delete(oldProgress);}
+      }
       tx.update(ref,job.data);
      }
     });count++;
