@@ -2768,9 +2768,15 @@ window.setupCompanyAdmin=function(config){
  if(!allowed){message("管理者権限がないため閲覧専用です。");return;}
  $("adminCompanySelect").addEventListener("change",e=>{if(e.target.value)loadForm(e.target.value);else newForm();});
  $("adminCompanyNew").addEventListener("click",newForm);
- async function freshRows(){
+ async function freshDocs(){
    const snapshot=await getDocs(collection(db,"companies"));
-   return snapshot.docs.map(x=>x.data()).filter(c=>c&&c.company);
+   return snapshot.docs.map(x=>({id:x.id,data:x.data()})).filter(c=>c.data&&c.data.company);
+ }
+ async function freshRows(){return (await freshDocs()).map(x=>x.data);}
+ async function refForCompany(name){
+   const candidates=(await freshDocs()).filter(x=>x.data.company===name);
+   if(candidates.length!==1)throw Error("企業の登録先が重複または不明です。");
+   return doc(db,"companies",candidates[0].id);
  }
  async function register(row,skipDupCheck=false){
    const ref=doc(db,"companies",docID(row.company));
@@ -2797,7 +2803,7 @@ window.setupCompanyAdmin=function(config){
        $("adminCompanyName").readOnly=true;
        message("企業を新規登録しました。別端末にも反映されます。");
      }else{
-       const ref=doc(db,"companies",docID(currentName));
+       const ref=await refForCompany(currentName);
        await runTransaction(db,async tx=>{
          const snap=await tx.get(ref);
          if(!snap.exists())throw Error("企業が既に削除されています。");
@@ -2816,7 +2822,7 @@ window.setupCompanyAdmin=function(config){
    if(!confirm(name+" を企業マスタから削除しますか？\n営業進捗履歴は削除せず保持されます。"))return;
    busy=true;$("adminCompanyDelete").disabled=true;
    try{
-     const ref=doc(db,"companies",docID(name));
+     const ref=await refForCompany(name);
      await runTransaction(db,async tx=>{
        const snap=await tx.get(ref);
        if(!snap.exists())throw Error("対象の企業は既に削除されています。");
