@@ -1,5 +1,5 @@
 <!-- Chosen Palette: Slate Blue & Warm Gray -->
-<!-- Application Structure Plan: Single-page React application for Prime Minister X posts viewer. Strictly fixed header and search control panel with date range filter (start and end date), with an independent inner scrolling container starting from the post count display bar down to the list, pagination, and footer. Date format normalizer guarantees 100% accurate date filtering and dynamically derives the latest data update date from all registered posts in Firestore. Persistent items per page setting in localStorage. Dynamic date styling (Today: Red Bold, Yesterday: Red, 2 Days Ago: Light Red). Category dropdown sorted alphabetically (A-Z). Dynamic sorting options added for Category (A-Z) and Evaluation (Star count descending). -->
+<!-- Application Structure Plan: Single-page React application for Prime Minister X posts viewer. Strictly fixed header and search control panel with date range filter (start and end date), with an independent inner scrolling container starting from the post count display bar down to the list, pagination, and footer. Date format normalizer guarantees 100% accurate date filtering and dynamically derives the latest data update date from all registered posts in Firestore. Persistent items per page setting in localStorage. Dynamic date styling (Today: Red Bold, Yesterday: Red, 2 Days Ago: Light Red). Category dropdown sorted alphabetically (A-Z). Default multi-level sorting orders by Date (newest first), then Category, then Title. -->
 <!-- Visualization & Content Choices: Dynamic card view grid, date range pickers (Start Date & End Date), pagination with selectable items per page (15/30/100, default 30), sticky search/filter panel, status badges, X tweet embed modal, access timestamps, dynamic date highlight. NO SVG graphics used. NO Mermaid JS used. -->
 <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
 <!DOCTYPE html>
@@ -228,31 +228,43 @@
           return matchCategory && matchEvaluation && matchDate && matchKeyword;
         })
         .sort((a, b) => {
+          const normDateA = normalizeDate(a.date);
+          const normDateB = normalizeDate(b.date);
+
           if (sortOrder === 'date-desc') {
-            const dateA = new Date(normalizeDate(a.date) || a.date);
-            const dateB = new Date(normalizeDate(b.date) || b.date);
-            return dateB - dateA;
+            // 1. 日付最新が上（降順）
+            if (normDateB !== normDateA) {
+              return normDateB.localeCompare(normDateA);
+            }
+            // 2. 区分順（昇順）
+            const catCmp = (a.category || '').localeCompare(b.category || '', 'ja');
+            if (catCmp !== 0) {
+              return catCmp;
+            }
+            // 3. タイトル順（昇順）
+            return (a.title || '').localeCompare(b.title || '', 'ja');
           } else if (sortOrder === 'date-asc') {
-            const dateA = new Date(normalizeDate(a.date) || a.date);
-            const dateB = new Date(normalizeDate(b.date) || b.date);
-            return dateA - dateB;
+            if (normDateA !== normDateB) {
+              return normDateA.localeCompare(normDateB);
+            }
+            const catCmp = (a.category || '').localeCompare(b.category || '', 'ja');
+            if (catCmp !== 0) {
+              return catCmp;
+            }
+            return (a.title || '').localeCompare(b.title || '', 'ja');
           } else if (sortOrder === 'category-asc') {
-            const catA = a.category || '';
-            const catB = b.category || '';
-            const cmp = catA.localeCompare(catB, 'ja');
-            if (cmp !== 0) return cmp;
-            // 区分が同じ場合は新しい日付順
-            const dateA = new Date(normalizeDate(a.date) || a.date);
-            const dateB = new Date(normalizeDate(b.date) || b.date);
-            return dateB - dateA;
+            const catCmp = (a.category || '').localeCompare(b.category || '', 'ja');
+            if (catCmp !== 0) return catCmp;
+            if (normDateB !== normDateA) return normDateB.localeCompare(normDateA);
+            return (a.title || '').localeCompare(b.title || '', 'ja');
           } else if (sortOrder === 'evaluation-desc') {
             const starA = getStarCount(a.evaluation);
             const starB = getStarCount(b.evaluation);
             if (starB !== starA) return starB - starA;
-            // 評価が同じ場合は新しい日付順
-            const dateA = new Date(normalizeDate(a.date) || a.date);
-            const dateB = new Date(normalizeDate(b.date) || b.date);
-            return dateB - dateA;
+            if (normDateB !== normDateA) return normDateB.localeCompare(normDateA);
+            const catCmp = (a.category || '').localeCompare(b.category || '', 'ja');
+            if (catCmp !== 0) return catCmp;
+            return (a.title || '').localeCompare(b.title || '', 'ja');
           }
           return 0;
         });
@@ -418,9 +430,9 @@
                   <select 
                     value={sortOrder}
                     onChange={(e) => setSortOrder(e.target.value)}
-                    className="w-full sm:w-[135px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border font-medium"
+                    className="w-full sm:w-[155px] border border-gray-300 rounded-md px-3 h-[34px] focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm shadow-sm transition-shadow box-border font-medium"
                   >
-                    <option value="date-desc">新しい日時順</option>
+                    <option value="date-desc">新着・区分・タイトル順</option>
                     <option value="date-asc">古い日時順</option>
                     <option value="category-asc">区分順 (A〜Z)</option>
                     <option value="evaluation-desc">評価順 (★多)</option>
@@ -744,5 +756,6 @@
     .catch(error => console.error('IPアドレスの取得に失敗しました', error));
 </script>
 <!-- ↑↑↑ Firebase トラッキングコード終了 ↑↑↑ -->
+  
 </body>
 </html>
