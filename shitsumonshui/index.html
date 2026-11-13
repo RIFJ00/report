@@ -113,7 +113,7 @@
            <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
         </div>
 
-        <div class="relative min-w-[160px]">
+        <div class="relative min-w-[180px]">
            <i data-lucide="layout-dashboard" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none"></i>
            <select id="category-select" class="w-full pl-9 pr-8 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer disabled:bg-slate-50 disabled:cursor-not-allowed" disabled>
              <option value="all">全ての分野</option>
@@ -191,7 +191,7 @@
                 </label>
                 <label class="flex items-center">
                   <input type="radio" name="upload-mode" value="append" class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300">
-                  <span class="ml-2 text-sm text-slate-700">追加登録 <span class="text-xs text-slate-400">（この回次の既存データに追加）</span></span>
+                  <span class="ml-2 text-sm text-slate-700">追加登録 <span class="text-xs text-slate-400">（この回次の既存データに追加・同一IDはスキップ）</span></span>
                 </label>
               </div>
             </div>
@@ -332,10 +332,24 @@
           <p>内閣は、質問主意書を受け取った日から原則として7日以内に書面（答弁書）で答弁しなければなりません。政府の公式な見解や事実関係を引き出す重要な手段として活用されています。</p>
         </section>
 
+        <!-- 活用シーンの解説 -->
+        <section class="bg-amber-50 p-4 rounded-lg border border-amber-100 mb-2">
+          <h3 class="text-base font-bold text-slate-800 mb-2 flex items-center gap-2">
+            <i data-lucide="lightbulb" class="w-4 h-4 text-amber-500"></i>
+            どのような時に利用するのか
+          </h3>
+          <ul class="list-disc list-inside space-y-1.5">
+            <li><strong>政府の公式見解を知りたい時：</strong>特定の政策や社会問題に対する政府の現在のスタンスや見通しを確認できます。</li>
+            <li><strong>特定の議員の活動を調べたい時：</strong>どの議員がどのような問題意識を持って質問を行っているか、実績を把握できます。</li>
+            <li><strong>過去の議論を振り返りたい時：</strong>特定の回次や分野に絞って、過去にどのような答弁がなされたかをリサーチできます。</li>
+            <li><strong>ニュースや報道の背景を確認したい時：</strong>報道されたトピックについて、国会での詳細なやり取りや事実関係を確認できます。</li>
+          </ul>
+        </section>
+
         <section>
           <h3 class="text-base font-bold text-slate-800 mb-2 border-l-4 border-blue-500 pl-2">1. キーワード検索・絞り込み</h3>
           <p>画面中央の検索バーから、質問のタイトルや提出者、内容のキーワードで検索が可能です。スペース区切りで複数のキーワードを指定できます。</p>
-          <p class="mt-1">また、その下のプルダウンメニューから、「国会回次」「院（衆議院・参議院）」「分野」による絞り込みが可能です。</p>
+          <p class="mt-1">また、その下のプルダウンメニューから、「国会回次」「院（衆議院・参議院）」「分野」による絞り込みが可能です。分野は「大分類」による部分一致検索にも対応しています。</p>
         </section>
         <section>
           <h3 class="text-base font-bold text-slate-800 mb-2 border-l-4 border-blue-500 pl-2">2. 表示の切り替え</h3>
@@ -392,7 +406,7 @@
       viewMode: "table"
     };
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    async function initApp() {
       lucide.createIcons();
       renderLoading();
       setupEventListeners();
@@ -404,7 +418,13 @@
       }
       
       await refreshAllData();
-    });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+      initApp();
+    }
 
     // --- データ取得ロジック ---
     async function refreshAllData() {
@@ -786,20 +806,35 @@
     // --- UI/表示関連 ---
 
     function initFilterOptions() {
-      const cats = new Set(ALL_DATA.map(d => d.category).filter(Boolean));
-      const sortedCats = Array.from(cats).sort((a, b) => {
+      const rawCats = Array.from(new Set(ALL_DATA.map(d => d.category).filter(Boolean))).sort((a, b) => {
         if (a === "その他" || a === "その他・不明") return 1;
         if (b === "その他" || b === "その他・不明") return -1;
         return a.localeCompare(b, "ja");
       });
-      const catSelect = document.getElementById('category-select');
-      catSelect.innerHTML = '<option value="all">全ての分野</option>';
-      sortedCats.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat;
-        option.textContent = cat;
-        catSelect.appendChild(option);
+
+      // 最初の「・」までの大分類を抽出してソート
+      const majorCatsSet = new Set();
+      rawCats.forEach(c => {
+        if (c.includes('・')) {
+          majorCatsSet.add(c.split('・')[0]);
+        }
       });
+      const majorCats = Array.from(majorCatsSet).sort((a, b) => a.localeCompare(b, "ja"));
+      const subCats = rawCats.filter(c => !majorCatsSet.has(c));
+
+      const catSelect = document.getElementById('category-select');
+      let optionsHtml = '<option value="all">全ての分野</option>';
+      if (majorCats.length > 0) {
+        optionsHtml += '<optgroup label="大分類">';
+        optionsHtml += majorCats.map(c => `<option value="${c}">${c}（全般）</option>`).join('');
+        optionsHtml += '</optgroup>';
+        optionsHtml += '<optgroup label="詳細分野">';
+        optionsHtml += subCats.map(c => `<option value="${c}">${c}</option>`).join('');
+        optionsHtml += '</optgroup>';
+      } else {
+        optionsHtml += rawCats.map(c => `<option value="${c}">${c}</option>`).join('');
+      }
+      catSelect.innerHTML = optionsHtml;
 
       const sessionSelect = document.getElementById('session-select');
       const sessionSelectHeader = document.getElementById('session-select-header');
@@ -891,7 +926,8 @@
         
         const matchesText = searchKeywords.length === 0 || searchKeywords.every(keyword => targetText.includes(keyword));
         const matchesHouse = state.selectedHouse === "all" || item.house === state.selectedHouse;
-        const matchesCategory = state.selectedCategory === "all" || item.category === state.selectedCategory;
+        // 分野は部分一致で検索（大分類対応）
+        const matchesCategory = state.selectedCategory === "all" || (item.category && item.category.includes(state.selectedCategory));
         const matchesSession = state.selectedSession === "all" || String(item._session_id) === String(state.selectedSession);
         
         return matchesText && matchesHouse && matchesCategory && matchesSession;
@@ -1150,17 +1186,27 @@
           const answeredBadge = isAnswered ? '<span class="text-red-600 font-bold ml-2 whitespace-nowrap">（答弁済み）</span>' : '';
           return `
           <tr class="hover:bg-blue-50/50 transition-colors border-b border-slate-100 last:border-0 group">
-            <td class="p-4 align-top">
-              <div class="text-xs text-slate-400 mb-1">${item._session_name || ''}</div>
+            <td class="p-4 align-top w-32 min-w-[128px]">
+              <div class="text-xs text-slate-400 mb-1 truncate" title="${item._session_name || ''}">${item._session_name || ''}</div>
               <span class="inline-block px-2 py-1 rounded bg-slate-100 text-slate-600 text-xs font-mono font-bold whitespace-nowrap">${item.id || item.number || '-'}</span>
             </td>
-            <td class="p-4 align-top text-sm"><div class="font-medium text-slate-700">${item.house || '-'}</div><div class="text-slate-500 text-xs mt-1 whitespace-nowrap">${formatQuestioner(item.questioner)}</div></td>
-            <td class="p-4 align-top"><div class="font-bold text-blue-700 mb-1 cursor-pointer hover:underline" ${getClickAttr(item)}>${item.title || 'タイトルなし'}${answeredBadge}</div><div class="text-sm text-slate-600 line-clamp-2">${item.answer_point_summary || item.question_point || "要約なし"}</div></td>
-            <td class="p-4 align-top hidden md:table-cell">${item.category ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">${item.category}</span>` : ''}</td>
-            <td class="p-4 align-top text-center"><button ${getClickAttr(item)} class="text-slate-400 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-100" title="詳細を表示"><i data-lucide="external-link" class="w-5 h-5"></i></button></td>
+            <td class="p-4 align-top text-sm w-44 min-w-[176px]">
+              <div class="font-medium text-slate-700">${item.house || '-'}</div>
+              <div class="text-slate-500 text-xs mt-1 whitespace-nowrap">${formatQuestioner(item.questioner)}</div>
+            </td>
+            <td class="p-4 align-top">
+              <div class="font-bold text-blue-700 mb-1 cursor-pointer hover:underline" ${getClickAttr(item)}>${item.title || 'タイトルなし'}${answeredBadge}</div>
+              <div class="text-sm text-slate-600 line-clamp-2">${item.answer_point_summary || item.question_point || "要約なし"}</div>
+            </td>
+            <td class="p-4 align-top hidden md:table-cell w-36 min-w-[144px]">
+              ${item.category ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 truncate max-w-full" title="${item.category}">${item.category}</span>` : ''}
+            </td>
+            <td class="p-4 align-top text-center w-16">
+              <button ${getClickAttr(item)} class="text-slate-400 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-100" title="詳細を表示"><i data-lucide="external-link" class="w-5 h-5"></i></button>
+            </td>
           </tr>`;
         }).join('');
-        container.innerHTML = `<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider"><th class="p-4 w-24">ID/回次</th><th class="p-4 w-32 whitespace-nowrap sort-header group" onclick="handleSort('house_questioner')"><div class="flex items-center gap-1">院 / 提出者 ${getSortIcon('house_questioner')}</div></th><th class="p-4 sort-header group" onclick="handleSort('title')"><div class="flex items-center gap-1">件名 / 概要 ${getSortIcon('title')}</div></th><th class="p-4 w-32 hidden md:table-cell sort-header group" onclick="handleSort('category')"><div class="flex items-center gap-1">分野 ${getSortIcon('category')}</div></th><th class="p-4 w-16 text-center">操作</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+        container.innerHTML = `<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left border-collapse table-fixed"><thead><tr class="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider"><th class="p-4 w-32">ID / 回次</th><th class="p-4 w-44 whitespace-nowrap sort-header group" onclick="handleSort('house_questioner')"><div class="flex items-center gap-1">院 / 提出者 ${getSortIcon('house_questioner')}</div></th><th class="p-4 sort-header group" onclick="handleSort('title')"><div class="flex items-center gap-1">件名 / 概要 ${getSortIcon('title')}</div></th><th class="p-4 w-36 hidden md:table-cell sort-header group" onclick="handleSort('category')"><div class="flex items-center gap-1">分野 ${getSortIcon('category')}</div></th><th class="p-4 w-16 text-center">操作</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
       } else {
         const cards = data.map(item => {
           const isAnswered = !!(item.a_html_url || item.a_pdf_url || item.answer_point_summary || item.answer_point);
