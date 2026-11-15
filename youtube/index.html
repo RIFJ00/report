@@ -366,11 +366,25 @@
         const silentFetchAndSave = async (pid, key) => {
             let oldV = await loadFromFirebase(pid), newV = [];
             
+            // タイムアウト付きfetchヘルパー（応答がないプロキシでフリーズするのを防ぐ）
+            const fetchWithTimeout = async (url, options = {}, timeout = 8000) => {
+                const controller = new AbortController();
+                const id = setTimeout(() => controller.abort(), timeout);
+                try {
+                    const response = await fetch(url, { ...options, signal: controller.signal });
+                    clearTimeout(id);
+                    return response;
+                } catch (e) {
+                    clearTimeout(id);
+                    throw e;
+                }
+            };
+
             // 1. YouTube Data API v3 での取得（APIキーがある場合）
             const fetchA = async () => {
                 let vs = [], token = '';
                 while (true) {
-                    const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${pid}&key=${key}&pageToken=${token}`);
+                    const r = await fetchWithTimeout(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${pid}&key=${key}&pageToken=${token}`, {}, 10000);
                     if (!r.ok) {
                         const err = await r.json().catch(() => ({}));
                         throw new Error(err.error?.message || "API取得エラー");
@@ -392,19 +406,20 @@
             const fetchR = async () => {
                 const rssUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${pid}`;
                 const proxies = [
-                    `https://api.allorigins.win/raw?url=`,
-                    `https://corsproxy.io/?`,
-                    `https://api.codetabs.com/v1/proxy/?quest=`
+                    { url: `https://api.allorigins.win/get?url=`, isJson: true },
+                    { url: `https://api.allorigins.win/raw?url=`, isJson: false },
+                    { url: `https://corsproxy.io/?`, isJson: false },
+                    { url: `https://api.codetabs.com/v1/proxy/?quest=`, isJson: false }
                 ];
                 let xml = null;
-                for (const proxy of proxies) {
+                for (const p of proxies) {
                     try {
-                        const r = await fetch(proxy + encodeURIComponent(rssUrl));
+                        const r = await fetchWithTimeout(p.url + encodeURIComponent(rssUrl));
                         if (r.ok) {
-                            const text = await r.text();
+                            const text = p.isJson ? (await r.json()).contents : await r.text();
                             if (text && text.includes('<feed')) { xml = text; break; }
                         }
-                    } catch (e) { console.warn("RSS Proxy failed:", proxy); }
+                    } catch (e) { console.warn("RSS Proxy failed:", p.url); }
                 }
                 if (!xml) throw new Error("RSS取得失敗");
                 const docX = new DOMParser().parseFromString(xml, "text/xml");
@@ -434,7 +449,7 @@
                 let html = null;
                 for (const p of proxies) {
                     try {
-                        const r = await fetch(p.url + encodeURIComponent(targetUrl));
+                        const r = await fetchWithTimeout(p.url + encodeURIComponent(targetUrl));
                         if (r.ok) {
                             const content = p.isJson ? (await r.json()).contents : await r.text();
                             if (content && content.includes('ytInitialData')) { html = content; break; }
@@ -485,7 +500,7 @@
                     try { newV = await fetchS(); } 
                     catch (e2) { 
                         console.error("すべての取得ルートが失敗しました:", e2);
-                        showToast(key ? `取得失敗: ${errorDetail}` : "取得失敗: 限定公開リストや制限環境では「API・データ設定」からYouTube APIキーを設定してください。", true);
+                        showToast(key ? `API取得失敗(${errorDetail})。プロキシ経由もブロックされました。` : "取得失敗: 外部アクセスが制限されています。「API・データ設定」からYouTube APIキーを設定してください。", true);
                     }
                 }
             }
@@ -618,6 +633,24 @@
                 renderPlaylist();
             });
 
+            // API・データ設定のパスワード保護を復元
+            let authSource = null;
+            const apiSettingsDetails = document.getElementById('apiSettingsDetails');
+            const apiSettingsSummary = apiSettingsDetails.querySelector('summary');
+            apiSettingsSummary.addEventListener('click', (e) => {
+                if (!isAuthenticated) {
+                    e.preventDefault();
+                    authSource = 'settings';
+                    document.getElementById('adminPasswordInput').value = '';
+                    document.getElementById('passwordError').classList.add('hidden');
+                    document.getElementById('passwordModal').classList.remove('hidden');
+                    setTimeout(() => {
+                        document.getElementById('passwordModal').classList.remove('opacity-0');
+                        document.getElementById('adminPasswordInput').focus();
+                    }, 10);
+                }
+            });
+
             let updateClick = 0;
             document.getElementById('startBtn').addEventListener('click', async () => {
                 if (isAuthenticated) { 
@@ -637,21 +670,42 @@
                     const msg = document.getElementById('updateBtnMsg'); msg.classList.remove('hidden'); setTimeout(() => msg.classList.remove('opacity-0'), 10);
                     setTimeout(() => { msg.classList.add('opacity-0'); setTimeout(() => msg.classList.add('hidden'), 300); }, 5000); updateClick++;
                 } else {
+                    authSource = 'updateBtn';
                     document.getElementById('adminPasswordInput').value = '';
+                    document.getElementById('passwordError').classList.add('hidden');
                     document.getElementById('passwordModal').classList.remove('hidden');
-                    setTimeout(() => document.getElementById('passwordModal').classList.remove('opacity-0'), 10);
+                    setTimeout(() => {
+                        document.getElementById('passwordModal').classList.remove('opacity-0');
+                        document.getElementById('adminPasswordInput').focus();
+                    }, 10);
                 }
             });
 
-            document.getElementById('submitPasswordBtn').addEventListener('click', () => {
+            document.getElementById('cancelPasswordBtn').addEventListener('click', () => {
+                document.getElementById('passwordModal').classList.add('opacity-0');
+                setTimeout(() => document.getElementById('passwordModal').classList.add('hidden'), 300);
+            });
+
+            const handleAdminAuth = () => {
                 if (document.getElementById('adminPasswordInput').value === 'youtube') {
                     isAuthenticated = true; document.getElementById('passwordModal').classList.add('opacity-0');
                     setTimeout(() => document.getElementById('passwordModal').classList.add('hidden'), 300);
                     document.getElementById('adminHelpSection').classList.remove('hidden');
                     const cog = document.querySelector('.fas.fa-cog'); if(cog) { cog.classList.replace('fa-cog', 'fa-unlock'); cog.classList.add('text-blue-500'); }
-                    showToast("管理者認証に成功しました。");
+                    if (authSource === 'settings') {
+                        showToast("管理者認証に成功しました。");
+                        setTimeout(() => apiSettingsDetails.setAttribute('open', ''), 200);
+                    } else if (authSource === 'updateBtn') {
+                        showToast("管理者認証に成功しました。更新を開始します。");
+                        document.getElementById('startBtn').click();
+                    } else {
+                        showToast("管理者認証に成功しました。");
+                    }
                 } else document.getElementById('passwordError').classList.remove('hidden');
-            });
+            };
+
+            document.getElementById('submitPasswordBtn').addEventListener('click', handleAdminAuth);
+            document.getElementById('adminPasswordInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAdminAuth(); });
 
             document.getElementById('sortSelect').addEventListener('change', e => { currentSort = e.target.value; sortVideoList(); renderPlaylist(); });
             document.getElementById('refreshBtn').addEventListener('click', () => { currentSort = 'date-desc'; document.getElementById('sortSelect').value = 'date-desc'; sortVideoList(); renderPlaylist(); });
@@ -681,56 +735,5 @@
         });
     </script>
     <script src="https://www.youtube.com/iframe_api"></script>
-
-    <!-- ↓↓↓ Firebase トラッキングコード開始 ↓↓↓ -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyBCab1xgIJreW-f44r6CqR6PVNcENXR2io",
-    authDomain: "access-log-a2cf5.firebaseapp.com",
-    projectId: "access-log-a2cf5",
-    storageBucket: "access-log-a2cf5.firebasestorage.app",
-    messagingSenderId: "274810287422",
-    appId: "1:274810287422:web:7b382816c7e4e12d54686f"
-  };
-
-  const app = initializeApp(firebaseConfig, 'loggerApp');
-  const db = getFirestore(app);
-  const auth = getAuth(app);
-  const targetAppId = 'my-website'; 
-
-  // ★変更点: IPアドレスを取得するAPIを呼び出してから、データを送信します
-  fetch('https://api.ipify.org?format=json')
-    .then(response => response.json())
-    .then(data => {
-      const logData = {
-        timestamp: new Date().toISOString(),
-        url: window.location.href,
-        host: window.location.hostname,
-        path: window.location.pathname,
-        referrer: document.referrer,
-        userAgent: navigator.userAgent,
-        ip: data.ip, // ★取得したIPアドレスを追加
-        status: 200, 
-        method: 'GET',
-        id: Math.random().toString(36).substr(2, 9)
-      };
-
-      signInAnonymously(auth).then((userCredential) => {
-        const logsRef = collection(db, 'artifacts', targetAppId, 'public', 'data', 'access_logs');
-        addDoc(logsRef, logData)
-          .then(() => console.log("アクセスログ送信完了"))
-          .catch((e) => console.error("ログ送信エラー", e));
-      }).catch((error) => {
-        console.error("認証エラー", error);
-      });
-    })
-    .catch(error => console.error('IPアドレスの取得に失敗しました', error));
-</script>
-<!-- ↑↑↑ Firebase トラッキングコード終了 ↑↑↑ -->
-    
 </body>
 </html>
