@@ -355,16 +355,32 @@
 
         const loadFromFirebase = async (pid) => {
             try {
+                // ルールが「allow read: if true;」なので、認証(user)を待たずに即座にFirebaseから読み込む
                 const snap = await getDoc(doc(db, 'artifacts', envAppId, 'public', 'data', 'playlists', pid));
                 if (snap.exists()) {
                     const d = snap.data();
                     if (d && Array.isArray(d.videos)) {
                         const v = d.videos.map(i => ({ ...i, pubDate: new Date(i.pubDate || Date.now()) }));
                         v.updatedAt = d.updatedAt;
+                        try { localStorage.setItem(`yt_cache_${pid}`, JSON.stringify(d)); } catch(e){}
                         return v;
                     }
                 }
-            } catch (e) { console.error("Firebase Load Error:", e); } return null;
+            } catch (e) { console.error("Firebase Load Error:", e); }
+            
+            // Firebaseにデータがない、またはオフライン時はローカルキャッシュから復元
+            try {
+                const cached = localStorage.getItem(`yt_cache_${pid}`);
+                if (cached) {
+                    const d = JSON.parse(cached);
+                    if (d && Array.isArray(d.videos)) {
+                        const v = d.videos.map(i => ({ ...i, pubDate: new Date(i.pubDate || Date.now()) }));
+                        v.updatedAt = d.updatedAt;
+                        return v;
+                    }
+                }
+            } catch (e) {}
+            return null;
         };
 
         const silentFetchAndSave = async (pid, key, forceOverwrite = false) => {
@@ -566,7 +582,7 @@
                 
                 const up = changed ? Date.now() : (oldV?.updatedAt || Date.now());
                 if (changed || forceOverwrite) {
-                    await setDoc(doc(db, 'artifacts', envAppId, 'public', 'data', 'playlists', pid), { 
+                    const saveData = { 
                         videos: finalV.map(v => ({ 
                             id: v.id, 
                             title: v.title, 
@@ -576,7 +592,24 @@
                             isEstimated: !!v.isEstimated 
                         })), 
                         updatedAt: up 
-                    });
+                    };
+                    // ローカルストレージに保存
+                    try { localStorage.setItem(`yt_cache_${pid}`, JSON.stringify(saveData)); } catch(e){}
+                    // Firebaseへクラウド保存 (allow write: if request.auth != null;)
+                    if (!user) {
+                        await initAuth(); // 未認証ならここで認証を試みる
+                    }
+                    if (user) {
+                        try {
+                            await setDoc(doc(db, 'artifacts', envAppId, 'public', 'data', 'playlists', pid), saveData);
+                            console.log("Firebase保存成功:", pid);
+                        } catch (fbErr) { 
+                            console.error("Firebase save error:", fbErr);
+                            showToast("クラウド(Firebase)への保存に失敗しました: " + fbErr.message, true);
+                        }
+                    } else {
+                        showToast("認証が完了していないため、この端末のみに保存されました。", true);
+                    }
                 }
                 return changed || forceOverwrite;
             }
@@ -590,30 +623,32 @@
             const savedKey = localStorage.getItem('yt_auto_api_key') || "";
             document.getElementById('apiKey').value = savedKey;
             
-            let retry = 0; while (!user && retry < 25) { await new Promise(r => setTimeout(r, 200)); retry++; }
-            if (!user) {
-                showToast("データベースへの接続がタイムアウトしました。再読み込みしてください。", true);
-                return;
-            }
-
+            // 認証完了を待たずに即座にFirebaseからデータを読み込む（allow read: if true のため可能）
             const pid = document.querySelector('input[name="playlistSelect"]:checked').value;
             videoList = await loadFromFirebase(pid);
             
-            // Firebaseにデータがない（または空になっている）場合は、自動的にYouTubeから初回取得を試みる
+            // Firebaseにもローカルにもデータがない場合のみ、YouTubeから直接取得を試みる
             if (!videoList || videoList.length === 0) {
-                showToast("保存データがないため、YouTubeからリストを取得しています...");
+                showToast("動画リストを取得しています...");
                 await silentFetchAndSave(pid, savedKey);
                 videoList = (await loadFromFirebase(pid)) || [];
             }
 
             if (videoList.length > 0) { 
-                sortVideoList(); updateCurrentVideoInfo(); 
+                sortVideoList(); updateCurrentVideoInfo(); renderPlaylist();
                 const waitYT = setInterval(() => { if(window.YT && YT.Player) { initPlayer(); clearInterval(waitYT); } }, 500);
             } else {
                 renderPlaylist();
+                document.getElementById('currentTitle').textContent = "動画を取得できませんでした";
+                document.getElementById('currentDescription').innerHTML = '<span class="text-red-500">データの取得に失敗しました。右上の「API・データ設定」からYouTube APIキーを設定して「更新」を押してください。</span>';
             }
+            
+            // 両方のボタンの日付表示を即座に更新
             const pids = ["PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_", "PL6FZHPPVKyXEIY8f5r6qP2wBitWD6Nc_2"];
-            for (const p of pids) { const v = await loadFromFirebase(p); updateDateUI(p, v); }
+            for (const p of pids) { 
+                const v = await loadFromFirebase(p); 
+                updateDateUI(p, v); 
+            }
         };
 
         document.addEventListener('DOMContentLoaded', () => {
