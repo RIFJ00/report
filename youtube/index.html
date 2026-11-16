@@ -408,14 +408,15 @@
                     const r = await fetchWithTimeout(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${pid}&key=${key}&pageToken=${token}`, {}, 12000);
                     if (!r.ok) {
                         const err = await r.json().catch(() => ({}));
-                        throw new Error(err.error?.message || "API取得エラー");
+                        const msg = err.error?.message || `HTTP ${r.status}`;
+                        throw new Error(msg);
                     }
                     const d = await r.json();
                     d.items.forEach(i => vs.push({ 
                         id: i.snippet.resourceId.videoId, 
                         title: i.snippet.title, 
                         description: i.snippet.description || "", 
-                        thumbnail: i.snippet.thumbnails?.medium?.url || i.snippet.thumbnails?.default?.url || `https://i.ytimg.com/vi/${i.snippet.resourceId.videoId}/mqdefault.jpg`, 
+                        thumbnail: `https://i.ytimg.com/vi/${i.snippet.resourceId.videoId}/mqdefault.jpg`, 
                         pubDate: new Date(i.contentDetails?.videoPublishedAt || i.snippet.publishedAt) 
                     }));
                     token = d.nextPageToken; if (!token) break;
@@ -543,7 +544,7 @@
             let errorDetail = "";
             if (key) {
                 try { newV = await fetchA(); } 
-                catch (e) { console.warn(e); errorDetail = e.message; }
+                catch (e) { console.warn("API Error:", e); errorDetail = e.message; }
             }
             if (newV.length === 0) {
                 try { newV = await fetchR(); } 
@@ -551,7 +552,12 @@
                     try { newV = await fetchS(); } 
                     catch (e2) { 
                         console.error("すべての取得ルートが失敗しました:", e2);
-                        showToast(key ? `API取得失敗(${errorDetail})。プロキシ経由もブロックされました。` : "取得失敗: YouTube側の制限により自動取得がブロックされています。「API・データ設定」からYouTube APIキーを設定してください。", true);
+                        const label = pid === "PL6FZHPPVKyXFXEJTbul2NaCUsWPYJBZC_" ? "【会議等】" : "【レポート】";
+                        if (key) {
+                            showToast(`${label} API取得エラー: ${errorDetail}（APIキーや制限設定を確認してください）`, true);
+                        } else {
+                            showToast(`${label} 取得失敗: 限定公開リスト等のためAPIキーが必要です。「API・データ設定」から設定してください。`, true);
+                        }
                     }
                 }
             }
@@ -582,12 +588,12 @@
                 
                 const up = changed ? Date.now() : (oldV?.updatedAt || Date.now());
                 if (changed || forceOverwrite) {
+                    // Firebaseの1MB上限対策として、動画IDから復元可能なthumbnailURL等は省いて保存容量を軽量化
                     const saveData = { 
                         videos: finalV.map(v => ({ 
                             id: v.id, 
                             title: v.title, 
-                            description: v.description ? v.description.substring(0, 250) : "", 
-                            thumbnail: v.thumbnail || "", 
+                            description: v.description ? v.description.substring(0, 200) : "", 
                             pubDate: v.pubDate.getTime(), 
                             isEstimated: !!v.isEstimated 
                         })), 
@@ -605,7 +611,7 @@
                             console.log("Firebase保存成功:", pid);
                         } catch (fbErr) { 
                             console.error("Firebase save error:", fbErr);
-                            showToast("クラウド(Firebase)への保存に失敗しました: " + fbErr.message, true);
+                            showToast("クラウド保存エラー: " + fbErr.message, true);
                         }
                     } else {
                         showToast("認証が完了していないため、この端末のみに保存されました。", true);
