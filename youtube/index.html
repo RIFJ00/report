@@ -170,7 +170,18 @@
                 </div>
             </div>
 
-            <button id="scrollTopBtnFloat" class="absolute bottom-4 right-4 bg-gray-700 hover:bg-gray-800 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-10" title="先頭へ戻る">
+            <!-- ページネーションコントロール (1000件超過時に表示) -->
+            <div id="paginationControls" class="p-2.5 border-t border-gray-200 bg-gray-50 flex justify-between items-center text-xs shrink-0 hidden">
+                <button id="prevPageBtn" class="px-3 py-1.5 bg-white border border-gray-300 rounded text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:pointer-events-none transition font-medium shadow-sm">
+                    <i class="fas fa-chevron-left mr-1"></i>前へ
+                </button>
+                <span id="pageIndicator" class="font-bold text-gray-700">1 / 1 ページ</span>
+                <button id="nextPageBtn" class="px-3 py-1.5 bg-white border border-gray-300 rounded text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:pointer-events-none transition font-medium shadow-sm">
+                    次へ<i class="fas fa-chevron-right ml-1"></i>
+                </button>
+            </div>
+
+            <button id="scrollTopBtnFloat" class="absolute bottom-14 right-4 bg-gray-700 hover:bg-gray-800 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-10" title="先頭へ戻る">
                 <i class="fas fa-arrow-up"></i>
             </button>
         </div>
@@ -240,6 +251,8 @@
         const envAppId = typeof __app_id !== 'undefined' ? __app_id : 'youtube-playlist-app';
         
         let user = null, videoList = [], currentIndex = 0, currentSort = 'date-desc', isAuthenticated = false, player = null;
+        let currentPage = 1;
+        const ITEMS_PER_PAGE = 1000;
 
         const initAuth = async () => { try { await signInAnonymously(auth); } catch (e) { console.error("Auth Error:", e); } };
         onAuthStateChanged(auth, (u) => { user = u; });
@@ -301,6 +314,7 @@
         const renderPlaylist = () => {
             const container = document.getElementById('playlistContainer'); if (!container) return;
             const clearBtn = document.getElementById('clearSearchBtn');
+            const paginationEl = document.getElementById('paginationControls');
             const searchVal = document.getElementById('searchInput')?.value || '';
             
             if (searchVal.length > 0) clearBtn?.classList.remove('hidden');
@@ -309,23 +323,50 @@
             const norm = (t) => t?.toLowerCase().replace(/経産省/g, "経済産業省").replace(/国交省/g, "国土交通省").replace(/文科省/g, "文部科学省").replace(/厚労省/g, "厚生労働省").replace(/農水省/g, "農林水産省").replace(/エネ庁/g, "資源エネルギー庁") || "";
             const query = norm(searchVal).trim();
             const queries = query ? query.split(/[\s　]+/) : [];
-            let displayed = 0;
 
             container.innerHTML = '';
-            if (!videoList || videoList.length === 0) { container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">動画が見つかりません。</div>'; if (document.getElementById('playlistInfo')) document.getElementById('playlistInfo').textContent = '全 0 件'; return; }
+            if (!videoList || videoList.length === 0) { 
+                container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">動画が見つかりません。</div>'; 
+                if (document.getElementById('playlistInfo')) document.getElementById('playlistInfo').textContent = '全 0 件'; 
+                if (paginationEl) paginationEl.classList.add('hidden');
+                return; 
+            }
 
+            // 検索条件に一致する動画と元のインデックスを抽出
+            const filteredItems = [];
             videoList.forEach((v, index) => {
                 if (queries.length > 0) {
                     const text = norm(v.title + v.description);
                     if (!queries.every(q => text.includes(q))) return;
                 }
-                displayed++;
+                filteredItems.push({ v, index });
+            });
+
+            const totalFiltered = filteredItems.length;
+            if (totalFiltered === 0) {
+                container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">一致する動画がありません。</div>';
+                document.getElementById('playlistInfo').textContent = `全 ${videoList.length} 件 (表示中: 0)`;
+                if (paginationEl) paginationEl.classList.add('hidden');
+                return;
+            }
+
+            // ページネーション計算（1000件単位）
+            const totalPages = Math.ceil(totalFiltered / ITEMS_PER_PAGE);
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
+            const endIdx = Math.min(startIdx + ITEMS_PER_PAGE, totalFiltered);
+            const pageItems = filteredItems.slice(startIdx, endIdx);
+
+            pageItems.forEach(({ v, index }) => {
                 const isActive = index === currentIndex;
                 const item = document.createElement('div');
                 item.className = `flex items-start gap-3 p-3 border-b border-gray-100 cursor-pointer hover:bg-red-50 transition-colors ${isActive ? 'active-video' : ''}`;
                 item.onclick = () => { currentIndex = index; playCurrentVideo(); };
+                const thumbUrl = v.thumbnail || `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`;
                 item.innerHTML = `<div class="relative shrink-0 w-28 h-16 bg-black rounded overflow-hidden">
-                    <img src="${v.thumbnail}" class="w-full h-full object-cover opacity-90" onerror="this.src='https://via.placeholder.com/120x67?text=No+Image'">
+                    <img src="${thumbUrl}" class="w-full h-full object-cover opacity-90" onerror="this.src='https://placehold.co/120x67/111827/ffffff?text=No+Image'">
                     ${isActive ? '<div class="absolute inset-0 bg-black/40 flex items-center justify-center"><i class="fas fa-play text-white text-sm"></i></div>' : ''}
                 </div><div class="flex flex-col overflow-hidden justify-center h-full">
                     <span class="text-sm font-medium line-clamp-2 leading-tight ${isActive ? 'text-red-700 font-bold' : 'text-gray-800'}">${v.title}</span>
@@ -333,11 +374,34 @@
                 </div>`;
                 container.appendChild(item);
             });
-            if (displayed === 0) container.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">一致する動画がありません。</div>';
-            document.getElementById('playlistInfo').textContent = `全 ${videoList.length} 件 (表示中: ${displayed})`;
+
+            // 件数情報とページネーションバーの更新
+            if (totalPages > 1) {
+                document.getElementById('playlistInfo').textContent = `全 ${videoList.length} 件 (${startIdx + 1}〜${endIdx}件目を表示 / 該当 ${totalFiltered} 件)`;
+                if (paginationEl) {
+                    paginationEl.classList.remove('hidden');
+                    document.getElementById('pageIndicator').textContent = `${currentPage} / ${totalPages} ページ`;
+                    document.getElementById('prevPageBtn').disabled = (currentPage === 1);
+                    document.getElementById('nextPageBtn').disabled = (currentPage === totalPages);
+                }
+            } else {
+                document.getElementById('playlistInfo').textContent = `全 ${videoList.length} 件 (表示中: ${totalFiltered})`;
+                if (paginationEl) paginationEl.classList.add('hidden');
+            }
         };
 
-        const playCurrentVideo = () => { if (videoList.length > 0 && player) { player.loadVideoById(videoList[currentIndex].id); renderPlaylist(); updateCurrentVideoInfo(); } };
+        const playCurrentVideo = () => { 
+            if (videoList.length > 0 && player) { 
+                player.loadVideoById(videoList[currentIndex].id); 
+                // 検索中でなければ、再生中の動画が含まれるページへ自動移動
+                const searchVal = document.getElementById('searchInput')?.value || '';
+                if (!searchVal.trim()) {
+                    currentPage = Math.floor(currentIndex / ITEMS_PER_PAGE) + 1;
+                }
+                renderPlaylist(); 
+                updateCurrentVideoInfo(); 
+            } 
+        };
         
         const initPlayer = () => {
             if (player || typeof YT === 'undefined' || !YT.Player) return;
@@ -360,7 +424,11 @@
                 if (snap.exists()) {
                     const d = snap.data();
                     if (d && Array.isArray(d.videos)) {
-                        const v = d.videos.map(i => ({ ...i, pubDate: new Date(i.pubDate || Date.now()) }));
+                        const v = d.videos.map(i => ({ 
+                            ...i, 
+                            thumbnail: i.thumbnail || `https://i.ytimg.com/vi/${i.id}/mqdefault.jpg`,
+                            pubDate: new Date(i.pubDate || Date.now()) 
+                        }));
                         v.updatedAt = d.updatedAt;
                         try { localStorage.setItem(`yt_cache_${pid}`, JSON.stringify(d)); } catch(e){}
                         return v;
@@ -374,7 +442,11 @@
                 if (cached) {
                     const d = JSON.parse(cached);
                     if (d && Array.isArray(d.videos)) {
-                        const v = d.videos.map(i => ({ ...i, pubDate: new Date(i.pubDate || Date.now()) }));
+                        const v = d.videos.map(i => ({ 
+                            ...i, 
+                            thumbnail: i.thumbnail || `https://i.ytimg.com/vi/${i.id}/mqdefault.jpg`,
+                            pubDate: new Date(i.pubDate || Date.now()) 
+                        }));
                         v.updatedAt = d.updatedAt;
                         return v;
                     }
@@ -705,21 +777,12 @@
                 initAuth();
             }
 
+            // プレイリスト切り替え時のイベントリスナー
             document.querySelectorAll('input[name="playlistSelect"]').forEach(r => {
                 r.addEventListener('change', async (e) => {
                     const pid = e.target.value; localStorage.setItem('yt_auto_playlist_select', pid);
-                    document.getElementById('playlistContainer').innerHTML = '<div class="p-6 text-center text-gray-400 text-sm"><i class="fas fa-spinner fa-spin mr-1"></i>読み込み中...</div>';
-                    videoList = await loadFromFirebase(pid);
-                    
-                    // 切り替えた先のリストが空だった場合も自動取得を試みる
-                    if (!videoList || videoList.length === 0) {
-                        const key = document.getElementById('apiKey').value.trim();
-                        await silentFetchAndSave(pid, key);
-                        videoList = (await loadFromFirebase(pid)) || [];
-                        const v = await loadFromFirebase(pid); updateDateUI(pid, v);
-                    }
-
-                    sortVideoList(); currentIndex = 0; updateCurrentVideoInfo(); renderPlaylist();
+                    videoList = (await loadFromFirebase(pid)) || [];
+                    sortVideoList(); currentIndex = 0; currentPage = 1; updateCurrentVideoInfo(); renderPlaylist();
                     if (videoList.length > 0) {
                         if (player) playCurrentVideo(); else initPlayer();
                     }
@@ -736,12 +799,30 @@
                 }
             });
 
-            document.getElementById('searchInput').addEventListener('input', renderPlaylist);
+            document.getElementById('searchInput').addEventListener('input', () => {
+                currentPage = 1;
+                renderPlaylist();
+            });
             document.getElementById('clearSearchBtn').addEventListener('click', () => {
                 const input = document.getElementById('searchInput');
                 input.value = '';
+                currentPage = 1;
                 input.focus();
                 renderPlaylist();
+            });
+
+            // ページネーションボタンのイベント
+            document.getElementById('prevPageBtn').addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderPlaylist();
+                    document.getElementById('playlistContainer').scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+            document.getElementById('nextPageBtn').addEventListener('click', () => {
+                currentPage++;
+                renderPlaylist();
+                document.getElementById('playlistContainer').scrollTo({ top: 0, behavior: 'smooth' });
             });
 
             // API・データ設定のパスワード保護を復元
@@ -818,8 +899,8 @@
             document.getElementById('submitPasswordBtn').addEventListener('click', handleAdminAuth);
             document.getElementById('adminPasswordInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAdminAuth(); });
 
-            document.getElementById('sortSelect').addEventListener('change', e => { currentSort = e.target.value; sortVideoList(); renderPlaylist(); });
-            document.getElementById('refreshBtn').addEventListener('click', () => { currentSort = 'date-desc'; document.getElementById('sortSelect').value = 'date-desc'; sortVideoList(); renderPlaylist(); });
+            document.getElementById('sortSelect').addEventListener('change', e => { currentSort = e.target.value; currentPage = 1; sortVideoList(); renderPlaylist(); });
+            document.getElementById('refreshBtn').addEventListener('click', () => { currentSort = 'date-desc'; document.getElementById('sortSelect').value = 'date-desc'; currentPage = 1; sortVideoList(); renderPlaylist(); });
             document.getElementById('scrollTopBtnHeader').addEventListener('click', () => document.getElementById('playlistContainer').scrollTo({top:0, behavior:'smooth'}));
             document.getElementById('scrollTopBtnFloat').addEventListener('click', () => document.getElementById('playlistContainer').scrollTo({top:0, behavior:'smooth'}));
             document.getElementById('playlistContainer').addEventListener('scroll', e => {
@@ -844,7 +925,7 @@
                 const success = await silentFetchAndSave(pid, key, true);
                 if (success) {
                     videoList = (await loadFromFirebase(pid)) || [];
-                    sortVideoList(); currentIndex = 0; updateCurrentVideoInfo(); renderPlaylist();
+                    sortVideoList(); currentIndex = 0; currentPage = 1; updateCurrentVideoInfo(); renderPlaylist();
                     const v = await loadFromFirebase(pid); updateDateUI(pid, v);
                     showToast("現在のYouTubeの状態で上書き同期が完了しました。");
                 } else {
