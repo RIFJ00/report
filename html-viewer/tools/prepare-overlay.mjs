@@ -4,7 +4,7 @@
  * Never contacts Firebase, never deploys and never changes the baseline.
  * Usage: node html-viewer/tools/prepare-overlay.mjs BASELINE_DIR OUTPUT_DIR
  */
-import {cp,mkdir,readdir,lstat,readFile,writeFile,rm} from 'node:fs/promises';
+import {cp,mkdir,readdir,lstat,readFile,writeFile,access} from 'node:fs/promises';
 import {resolve,relative,join,dirname,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
@@ -33,7 +33,10 @@ export async function prepareOverlay(baseline,output,{sourceRoot=root}={}){
  const src=resolve(sourceRoot),base=resolve(baseline),out=resolve(output);
  must(base!==out && !under(base,out) && !under(out,base),'Baseline and output must not overlap');
  must(!under(src,out) && !under(src,base),'Preview directories must be outside the source repository');
+ let outputExists=false;try{await access(out);outputExists=true}catch{};
+ must(!outputExists,'Output directory already exists; choose a fresh destination');
  const baselineFiles=await files(base);
+ must(baselineFiles.includes('index.html'),'Baseline snapshot is missing root index.html');
  const baselineHashes=new Map();
  for(const p of baselineFiles)baselineHashes.set(p,await hash(join(base,p)));
  const priorFiles=baselineFiles.filter(p=>allowedFolders.some(folder=>p===folder||p.startsWith(folder+sep)));
@@ -53,7 +56,7 @@ export async function prepareOverlay(baseline,output,{sourceRoot=root}={}){
   }
  }
  // Only copy approved browser runtime files.
- await rm(out,{recursive:true,force:true});await mkdir(out,{recursive:true});
+ await mkdir(out,{recursive:true});
  for(const p of baselineFiles){const target=join(out,p);await mkdir(dirname(target),{recursive:true});await cp(join(base,p),target)}
  for(const [folder,names] of Object.entries(required)){
   for(const name of names){const target=join(out,folder,name);await mkdir(dirname(target),{recursive:true});await cp(join(src,folder,name),target)}
