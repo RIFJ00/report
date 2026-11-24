@@ -165,6 +165,15 @@ jobs:
             console.log('Verified '+report.baselineFiles+' original files; only '+report.addedFiles+' runtime files added');
           "
           test "$(cat "$RUNNER_TEMP/rifj-pages-candidate/CNAME")" = "report.rifj.jp"
+      - name: Install isolated browser-test dependencies
+        working-directory: html-viewer/tests
+        run: |
+          npm install --no-package-lock --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Browser check against REAL main snapshot (no publish)
+        env:
+          RIFJ_PAGES_CANDIDATE: ${{ runner.temp }}/rifj-pages-candidate
+        run: node --test html-viewer/tools/actual-main-browser.test.mjs
       - name: Keep audit information outside public candidate
         run: |
           cp "$RUNNER_TEMP/rifj-pages-candidate/overlay-audit.json" "$RUNNER_TEMP/rifj-pages-overlay-audit.json"
