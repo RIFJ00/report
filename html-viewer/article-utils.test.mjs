@@ -36,3 +36,14 @@ test('異常行があっても有効行を処理する',()=>{
  const {articles,stats}=mergeArticles([],[{...example},{title:'invalid'}],{uploadDate:'2026-11-24'});
  assert.equal(articles.length,1);assert.equal(stats.errors.length,1);
 });
+
+test('和暦の公表日を解釈する',()=>{
+ assert.equal(dateFrom('令和8年11月24日'),'2026-11-24');
+ assert.equal(dateFrom('令和元年5月1日'),'2019-05-01');
+ assert.equal(dateFrom('平成31年4月30日'),'2019-04-30');
+});
+test('日付区切り形式の違いを正規化する',()=>{
+ assert.equal(dateFrom('2026年11月24日'),'2026-11-24');
+ assert.equal(dateFrom('2026/11/24'),'2026-11-24');
+ assert.equal(dateFrom('2026-11-24T10:30:00+09:00'),'2026-11-24');
+});
