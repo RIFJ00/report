@@ -51,7 +51,7 @@ def normalized_source_files(data):
         entries[name]=hashlib.sha256(content).hexdigest()
     return entries
 
-def get_live_source(access_token):
+def download_archive_bytes(access_token):
     # Google's own API describes this as a signed URL to deployed function source.
     url=f"https://cloudfunctions.googleapis.com/v2/projects/{PROJECT}/locations/{REGION}/functions/{FUNCTION}:generateDownloadUrl"
     req=urllib.request.Request(url,data=b"{}",method="POST",
@@ -64,7 +64,10 @@ def get_live_source(access_token):
         raise ValueError("Google did not return an HTTPS source download URL")
     with urllib.request.urlopen(signed,timeout=60) as resp:
         blob=resp.read(ARCHIVE_LIMIT+1)
-    return normalized_source_files(blob)
+    return blob
+
+def get_live_source(access_token):
+    return normalized_source_files(download_archive_bytes(access_token))
 
 def audit(candidate, deployed):
     expected=candidate["files"]
