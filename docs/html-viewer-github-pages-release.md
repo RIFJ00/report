@@ -55,3 +55,9 @@ PRの `HTML Viewer Unit Tests` に `github-pages-release-candidate` を追加し
 `html-viewer/tools/actual-main-browser.test.mjs` では、PRベースの `main` から作った公開候補をローカルHTTPサーバーで配信し、実ブラウザ（Chromium）で `/`、`/blog/`、`/blogimport/`、`/xpost/`、`/sales_strategy/`、`/html-viewer/`、`/html-admin/` の全7経路を確認する。既存の5経路はHTTP 200、新規閲覧画面は公開データ0件、管理画面はFirebase未接続かつ書き込み禁止であることを確認する。
 
 この検証は**実サイトに通信・デプロイするものではない**。既存のmainブランチを利用した静的サイトの構成確認である。Firebase認証、実データ、GitHub Pagesのビルド設定、DNSは別途確認する。
+
+## 公開ドメインとmainの読み取り専用照合
+
+`hosting-origin-diagnostic` ジョブはGitHubの実際のPRベース `main/index.html` と `https://report.rifj.jp/` のレスポンス本文をSHA-256で照合し、HTTPステータス、DNSのCNAMEを記録する。アーティファクト `html-viewer-hosting-origin-report` をレビューに使用する。これは外部サイトへの**GETおよびDNS照会のみ**であり、DNS・Hosting・Firebase・GitHub Pagesの設定を変更しない。
+
+**判定上の限界：** HTMLが完全一致してもCDN・キャッシュ・別サーバーの複製の可能性が残り、GitHub Pagesを確証するものではない。HTTP不一致も、ビルド時の加工・キャッシュによる可能性がある。最終的にはGitHub Settings → PagesのSource/Branch/Folderとドメイン設定を確認する。
