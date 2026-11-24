@@ -19,8 +19,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef5fa;padding:12px;
 <div class="notice"><strong>開発版：</strong>通常はブラウザ内だけで記事を編集し、JSONを書き出します。Firebaseへの読み書きは接続設定が有効で、管理者認証を通過し、操作を明示的に実行した場合に限ります。未公開記事は検証環境にのみ登録してください。公開前に必ずデータを確認してください。</div>
 <section class="panel"><h2>Firebase連携（管理者限定・設定後のみ）</h2>
 <p>管理者認証に成功した場合のみFirestoreから省庁記事を読み書きできます。未設定では利用できません。</p>
-<div class="actions"><button type="button" class="secondary" id="firebaseLogin">Googleアカウントで管理者ログイン</button><button type="button" class="secondary" id="firebaseLoad" disabled>Firebaseの記事を読み込む</button><button type="button" id="firebaseSave" disabled>Firebaseへ記事を保存</button><button type="button" class="secondary" id="firebaseLogout" disabled>ログアウト</button></div>
-<small id="firebaseStatus">未接続（初期状態はFirebase連携無効）</small>
+<div class="actions"><button type="button" class="secondary" id="firebaseDiagnose">接続を診断（読み取り専用）</button><button type="button" class="secondary" id="firebaseLogin">Googleアカウントで管理者ログイン</button><button type="button" class="secondary" id="firebaseLoad" disabled>Firebaseの記事を読み込む</button><button type="button" id="firebaseSave" disabled>Firebaseへ記事を保存</button><button type="button" class="secondary" id="firebaseLogout" disabled>ログアウト</button></div>
+<small id="firebaseStatus">未接続（初期状態はFirebase連携無効）</small><p id="firebaseDiagnosis" role="status" aria-live="polite"></p>
 </section>
 <section class="panel"><h2>1. 既存データを読み込む</h2>
 <label>articles.json を選択<input id="file" type="file" accept=".json,application/json"></label>
@@ -50,9 +50,11 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef5fa;padding:12px;
 import {mergeArticles,validateFeed} from '../html-viewer/article-utils.mjs';
 import {extractArticleFromHTML} from '../html-viewer/html-import.mjs';
 import {signInMinistryAdmin,signOutMinistryAdmin,readMinistryAdminArticles,saveMinistryAdminArticles} from './firebase-admin.mjs';
+import {diagnosePublicFirebase} from './firebase-diagnostics.mjs';
 const $=id=>document.getElementById(id);let articles=[];let htmlContent='';
 const today=new Date();
 const fbState=(authenticated,msg)=>{for(const id of ['firebaseLoad','firebaseSave','firebaseLogout'])$(id).disabled=!authenticated;$('firebaseLogin').disabled=authenticated;$('firebaseStatus').textContent=msg};
+$('firebaseDiagnose').addEventListener('click',async()=>{const btn=$('firebaseDiagnose');btn.disabled=true;$('firebaseDiagnosis').textContent='接続診断を実行しています';try{const result=await diagnosePublicFirebase();$('firebaseDiagnosis').textContent=result.message+(result.projectId?' 接続先: '+result.projectId:'')+(result.ok?' 公開記事の取得: '+result.sampleCount+'件':'')}catch(error){$('firebaseDiagnosis').textContent='診断に失敗しました: '+error.message}finally{btn.disabled=false}});
 $('firebaseLogin').addEventListener('click',async()=>{try{const me=await signInMinistryAdmin();fbState(true,'管理者認証済み: '+me.email)}catch(e){fbState(false,'ログイン失敗: '+e.message)}});
 $('firebaseLogout').addEventListener('click',async()=>{try{await signOutMinistryAdmin();fbState(false,'ログアウトしました')}catch(e){status(e.message,true)}});
 $('firebaseLoad').addEventListener('click',async()=>{if(articles.length&&!confirm('編集中のローカルデータをFirebaseからのデータで置き換えます。続けますか？'))return;
