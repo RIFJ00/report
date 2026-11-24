@@ -1,0 +1,47 @@
+name: Verify deployed Python source against reconstructed candidate (read-only)
+on:
+  workflow_dispatch:
+  push:
+    branches: ['feature/map-original-html-three-routes']
+    paths:
+      - '.github/workflows/audit-deployed-python-source.yml'
+      - 'html-viewer/tools/audit-deployed-python-source.py'
+      - 'html-viewer/audit/recovered-python-sha256.json'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify existing workload identity settings without exposing them
+        env:
+          WIF: ${{ vars.GCP_WIF_PROVIDER }}
+          SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          if [[ -z "$WIF" || -z "$SA" ]]; then
+            echo "::error::Missing GCP_WIF_PROVIDER or GCP_DEPLOY_SERVICE_ACCOUNT. Configure repository/environment vars before source comparison."
+            exit 1
+          fi
+      - name: Authenticate for read-only source inspection
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          project_id: html-viewer-703b6
+          token_format: access_token
+      - name: Download deployed function source in memory and compare SHA-256 only
+        env:
+          GCP_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          python3 html-viewer/tools/audit-deployed-python-source.py --output "$RUNNER_TEMP/deployed-python-source-audit.json"
+      - name: Upload hashes and result only (never source, tokens or signed URLs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-python-source-sha256-audit
+          path: ${{ runner.temp }}/deployed-python-source-audit.json
+          retention-days: 7
+          if-no-files-found: ignore
