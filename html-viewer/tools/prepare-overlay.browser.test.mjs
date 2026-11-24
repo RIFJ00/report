@@ -30,7 +30,7 @@ test('追加統合後も既存サイトと省庁記事の2画面が同じ配信�
   }
   const audit=await prepareOverlay(baseline,merged);
   assert.equal(audit.baselineFiles,Object.keys(legacy).length);
-  assert.equal(audit.addedFiles,9);
+  assert.equal(audit.addedFiles,10);
   for(const [path,body] of Object.entries(legacy)){
     assert.equal(await readFile(join(merged,path),'utf8'),body);
   }
