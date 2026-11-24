@@ -51,6 +51,7 @@ import {mergeArticles,validateFeed} from '../html-viewer/article-utils.mjs';
 import {extractArticleFromHTML} from '../html-viewer/html-import.mjs';
 import {signInMinistryAdmin,signOutMinistryAdmin,readMinistryAdminArticles,saveMinistryAdminArticles} from './firebase-admin.mjs';
 import {diagnosePublicFirebase} from './firebase-diagnostics.mjs';
+import {buildSaveReview} from './save-review.mjs';
 const $=id=>document.getElementById(id);let articles=[];let htmlContent='';
 const today=new Date();
 const fbState=(authenticated,msg)=>{for(const id of ['firebaseLoad','firebaseSave','firebaseLogout'])$(id).disabled=!authenticated;$('firebaseLogin').disabled=authenticated;$('firebaseStatus').textContent=msg};
@@ -59,10 +60,26 @@ $('firebaseLogin').addEventListener('click',async()=>{try{const me=await signInM
 $('firebaseLogout').addEventListener('click',async()=>{try{await signOutMinistryAdmin();fbState(false,'ログアウトしました')}catch(e){status(e.message,true)}});
 $('firebaseLoad').addEventListener('click',async()=>{if(articles.length&&!confirm('編集中のローカルデータをFirebaseからのデータで置き換えます。続けますか？'))return;
 try{articles=await readMinistryAdminArticles();refresh();status('Firebaseから管理用記事データを読み込みました')}catch(e){status('Firebase取得失敗: '+e.message,true)}});
-$('firebaseSave').addEventListener('click',async()=>{if(!articles.length)return status('登録記事がありません',true);
-if(!confirm('現在のローカル記事 '+articles.length+'件をFirebaseへ保存します。既存の同じ出典URLの記事は上書きされます。続けますか？'))return;
-$('firebaseSave').disabled=true;
-try{const result=await saveMinistryAdminArticles(articles);status('Firebase保存完了: 新規'+result.added+'件、更新'+result.updated+'件')}catch(e){status('Firebase保存失敗: '+e.message,true)}finally{$('firebaseSave').disabled=false}});
+$('firebaseSave').addEventListener('click',async()=>{
+ if(!articles.length)return status('登録記事がありません',true);
+ const button=$('firebaseSave');button.disabled=true;
+ try{
+  const snapshot=structuredClone(articles);
+  // Only reads are performed until the user confirms the specific change summary.
+  const remote=await readMinistryAdminArticles();
+  const review=buildSaveReview(snapshot,remote);
+  if(!review.ok)throw Error('事前検証に失敗しました: '+review.issues.join(' / '));
+  const summary='Firebase保存前の確認\\n'+
+   '接続先: html-viewer-703b6 / ministryArticles\\n'+
+   '新規 '+review.added+'件、更新 '+review.updated+'件、変更なし '+review.unchanged+'件\\n'+
+   review.warnings.join('\\n')+'\\n\\n保存しますか？';
+  if(review.added+review.updated===0)return status('差分がありません。Firebaseへは書き込みませんでした。');
+  if(!confirm(summary))return status('保存を中止しました。Firebaseへの書き込みはありません。');
+  const result=await saveMinistryAdminArticles(snapshot);
+  status('Firebase保存完了: 新規'+result.added+'件、更新'+result.updated+'件');
+ }catch(e){status('Firebase保存失敗: '+e.message,true)}
+ finally{button.disabled=false}
+});
 
 $('uploaded').value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
 const status=(msg,error=false)=>{$('result').textContent=msg;$('result').style.color=error?'#b42318':'#206f45'};
