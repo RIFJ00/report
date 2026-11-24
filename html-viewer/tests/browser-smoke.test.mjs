@@ -141,3 +141,14 @@ test('公開JSONに下書き・非公開データが混入しない',async()=>{
   assert.equal(full.length,3);
  }finally{await context.close()}
 });
+
+test('Firebase接続診断は無効設定では通信もログインもしない',async()=>{
+ const {context,tab}=await page();
+ try{
+  await tab.goto(origin+'/html-admin/');
+  await tab.locator('#firebaseDiagnose').click();
+  await tab.waitForFunction(()=>document.querySelector('#firebaseDiagnosis').textContent.includes('Firebaseは初期設定で無効'));
+  assert.equal(await tab.locator('#firebaseSave').isDisabled(),true);
+  assert.equal(await tab.locator('#firebaseLoad').isDisabled(),true);
+ }finally{await context.close()}
+});
