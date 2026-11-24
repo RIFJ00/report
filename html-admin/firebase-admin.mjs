@@ -47,22 +47,32 @@ export async function saveMinistryAdminArticles(articles){
  const {getDocs,collection,doc,writeBatch}=await import(DB);
  const existing=await getDocs(collection(db,options.collection));
  const urls=new Map(existing.docs.map(d=>[canonicalUrl(d.data().sourceUrl),d.id]));
- let batch=writeBatch(db),pending=0,updated=0,added=0;
+ // Validate the full payload before making any write. Large HTML should never cause a partial import.
+ const pendingWrites=[]; let updated=0,added=0;
  for(const article of articles){
   const url=canonicalUrl(article.sourceUrl);
   let id=urls.get(url);
   if(!id){
-   const bytes=new TextEncoder().encode(url);const hash=await crypto.subtle.digest('SHA-256',bytes);
+   const bytes=new TextEncoder().encode(url);
+   const hash=await crypto.subtle.digest('SHA-256',bytes);
    id='src-'+Array.from(new Uint8Array(hash)).map(x=>x.toString(16).padStart(2,'0')).join('');
    urls.set(url,id);added++;
-  } else updated++;
+  }else updated++;
   const {id:_ignored,extraction:_ignoreExtraction,...data}=article;
-  // Firestore document limit is 1 MiB, leave room for indexes/metadata.
-  if(new TextEncoder().encode(JSON.stringify(data)).length>650000)throw Error('大きすぎる記事: '+data.title+'。本文を分割保存してください');
-  batch.set(doc(db,options.collection,id),{...data,sourceUrl:url},{merge:true});
-  pending++;
-  if(pending===350){await batch.commit();batch=writeBatch(db);pending=0}
+  if(new TextEncoder().encode(JSON.stringify(data)).length>650000)
+   throw Error('大きすぎる記事: '+data.title+'。本文を分割保存してください');
+  pendingWrites.push({id,data:{...data,sourceUrl:url}});
  }
- if(pending)await batch.commit();
+ // Single batch is atomic. Larger imports use separate batches and require a recovery plan on failure.
+ const BATCH_SIZE=350;
+ for(let offset=0;offset<pendingWrites.length;offset+=BATCH_SIZE){
+  const batch=writeBatch(db);
+  for(const item of pendingWrites.slice(offset,offset+BATCH_SIZE)){
+   batch.set(doc(db,options.collection,item.id),item.data,{merge:true});
+  }
+  try{await batch.commit()}catch(error){
+   throw Error('Firebase保存に失敗しました。'+offset+'件の処理を試行済みです。再読み込みして状態を確認してください: '+error.message);
+  }
+ }
  return {added,updated,total:articles.length};
 }
