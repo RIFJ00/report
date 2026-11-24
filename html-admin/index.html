@@ -1,125 +1,26 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>省庁記事データ編集（ローカル）</title>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>HTML管理画面へ移動 | 政策リサーチ</title>
+<meta http-equiv="refresh" content="0; url=https://html-viewer-703b6.web.app/admin.html">
 <style>
-*{box-sizing:border-box}body{margin:0;background:#f4f8fc;color:#19364c;font-family:-apple-system,"Noto Sans JP",sans-serif}
-header{background:#164d78;color:white;padding:24px max(20px,calc((100vw - 1100px)/2))}h1{font-size:25px;margin:0 0 9px}
-main{max-width:1100px;margin:25px auto;padding:0 20px}.panel{background:white;border:1px solid #dce9f2;border-radius:14px;padding:20px;margin-bottom:16px}
-label{display:block;font-weight:600;margin-bottom:10px}input,textarea,select{padding:11px;border:1px solid #bdd3e3;border-radius:8px;font:inherit;width:100%;margin-top:5px}
-textarea{min-height:160px;resize:vertical;font-family:ui-monospace,SFMono-Regular,monospace}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:15px}.actions{display:flex;gap:10px;flex-wrap:wrap}
-button{border:0;border-radius:8px;background:#1679b6;color:white;padding:11px 16px;font-weight:700;cursor:pointer}button.secondary{background:#eaf2f8;color:#235671}
-.notice{background:#fff5dc;border:1px solid #ead597;border-radius:9px;padding:13px;line-height:1.7}
-pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef5fa;padding:12px;border-radius:8px}
-#result{min-height:40px}small{color:#657b8b}.hidden{display:none}
-@media(max-width:680px){.row{grid-template-columns:1fr}main{padding:0 12px}}
-</style></head><body>
-<header><h1>省庁記事データ編集</h1><div>HTML Viewer — ローカル編集・JSON書き出し</div></header>
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#f1f6fb;color:#19324b;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif}
+main{max-width:650px;background:white;border-radius:14px;padding:32px;box-shadow:0 5px 22px #123d6717}
+a{color:#146db1}h1{font-size:24px}p{line-height:1.8}
+</style>
+</head>
+<body>
 <main>
-<div class="notice"><strong>開発版：</strong>通常はブラウザ内だけで記事を編集し、JSONを書き出します。Firebaseへの読み書きは接続設定が有効で、管理者認証を通過し、操作を明示的に実行した場合に限ります。未公開記事は検証環境にのみ登録してください。公開前に必ずデータを確認してください。</div>
-<section class="panel"><h2>Firebase連携（管理者限定・設定後のみ）</h2>
-<p>管理者認証に成功した場合のみFirestoreから省庁記事を読み書きできます。未設定では利用できません。</p>
-<div class="actions"><button type="button" class="secondary" id="firebaseDiagnose">接続を診断（読み取り専用）</button><button type="button" class="secondary" id="firebaseLogin">Googleアカウントで管理者ログイン</button><button type="button" class="secondary" id="firebaseLoad" disabled>Firebaseの記事を読み込む</button><button type="button" id="firebaseSave" disabled>Firebaseへ記事を保存</button><button type="button" class="secondary" id="firebaseLogout" disabled>ログアウト</button></div>
-<small id="firebaseStatus">未接続（初期状態はFirebase連携無効）</small><p id="firebaseDiagnosis" role="status" aria-live="polite"></p>
-</section>
-<section class="panel"><h2>1. 既存データを読み込む</h2>
-<label>articles.json を選択<input id="file" type="file" accept=".json,application/json"></label>
-<small>読み込まない場合は新規データとして開始します。現在の既存データは自動取得しません。</small>
-<div id="loaded">0件</div></section>
-<section class="panel"><h2>2. URL・記事情報を追加・更新</h2>
-<div class="row"><label>記事の元URL（必須）<input id="url" type="url" placeholder="https://www.mext.go.jp/..." required></label>
-<label>記事名（必須）<input id="title" placeholder="記事の正式なタイトル"></label></div>
-<div class="row"><label>省庁名<input id="ministry" placeholder="文部科学省"></label><label>分野<input id="category" placeholder="教育"></label></div>
-<div class="row"><label>元ページの公開日（最優先）<input id="published" type="date"></label>
-<label>登録日（公開日がない場合のみ使用）<input id="uploaded" type="date"></label></div>
-<div class="row"><label>代表画像URL<input id="image" type="url" placeholder="https://..."></label>
-<label>公開状態<select id="status"><option value="draft">下書き</option><option value="published">公開</option><option value="private">非公開</option></select></label></div>
-<label>概要<textarea id="summary" rows="3" placeholder="記事の概要"></textarea></label>
-<label>本文テキスト<textarea id="body" rows="5" placeholder="本文検索に使うテキスト"></textarea></label>
-<div class="row"><label>生成HTML URL<input id="htmlUrl" type="url" placeholder="https://..."></label>
-<label>手元のHTMLファイルを選択（本文を同梱）<input type="file" id="htmlFile" accept=".html,.htm,text/html"></label></div>
-<div class="actions"><button id="autoExtract" type="button" class="secondary">HTMLから情報を抽出</button><button id="add" type="button">記事を登録・上書き</button><button id="clear" type="button" class="secondary">入力欄をクリア</button></div>
-</section>
-<section class="panel"><h2>3. JSONの取り込み・書き出し</h2>
-<label>複数記事のJSON配列を貼り付け（任意）<textarea id="batch" placeholder='[{"title":"...","sourceUrl":"https://...","publishedAt":"2026-11-24"}]'></textarea></label>
-<div class="actions"><button id="import" type="button" class="secondary">JSONを一括取り込み</button>
-<button id="export" type="button">公開記事だけを書き出す（articles.json）</button><button id="exportBackup" type="button" class="secondary">全件バックアップ（下書き・非公開を含む）</button></div>
-<div id="result" role="status" aria-live="polite"></div><pre id="stats">0件</pre></section>
+<h1>日本みらい研｜政策リサーチ</h1>
+<p>開発当初のHTML管理画面を開いています。</p>
+<p>画面が自動で切り替わらない場合は、<a href="https://html-viewer-703b6.web.app/admin.html">元のHTML管理画面を開く</a>を選択してください。</p>
 </main>
-<script type="module">
-import {mergeArticles,validateFeed} from '../html-viewer/article-utils.mjs';
-import {extractArticleFromHTML} from '../html-viewer/html-import.mjs';
-import {signInMinistryAdmin,signOutMinistryAdmin,readMinistryAdminArticles,saveMinistryAdminArticles} from './firebase-admin.mjs';
-import {diagnosePublicFirebase} from './firebase-diagnostics.mjs';
-import {planSaveChanges} from './save-review.mjs';
-const $=id=>document.getElementById(id);let articles=[];let htmlContent='';
-const today=new Date();
-const fbState=(authenticated,msg)=>{for(const id of ['firebaseLoad','firebaseSave','firebaseLogout'])$(id).disabled=!authenticated;$('firebaseLogin').disabled=authenticated;$('firebaseStatus').textContent=msg};
-$('firebaseDiagnose').addEventListener('click',async()=>{const btn=$('firebaseDiagnose');btn.disabled=true;$('firebaseDiagnosis').textContent='接続診断を実行しています';try{const result=await diagnosePublicFirebase();$('firebaseDiagnosis').textContent=result.message+(result.projectId?' 接続先: '+result.projectId:'')+(result.ok?' 公開記事の取得: '+result.sampleCount+'件':'')}catch(error){$('firebaseDiagnosis').textContent='診断に失敗しました: '+error.message}finally{btn.disabled=false}});
-$('firebaseLogin').addEventListener('click',async()=>{try{const me=await signInMinistryAdmin();fbState(true,'管理者認証済み: '+me.email)}catch(e){fbState(false,'ログイン失敗: '+e.message)}});
-$('firebaseLogout').addEventListener('click',async()=>{try{await signOutMinistryAdmin();fbState(false,'ログアウトしました')}catch(e){status(e.message,true)}});
-$('firebaseLoad').addEventListener('click',async()=>{if(articles.length&&!confirm('編集中のローカルデータをFirebaseからのデータで置き換えます。続けますか？'))return;
-try{articles=await readMinistryAdminArticles();refresh();status('Firebaseから管理用記事データを読み込みました')}catch(e){status('Firebase取得失敗: '+e.message,true)}});
-$('firebaseSave').addEventListener('click',async()=>{
- if(!articles.length)return status('登録記事がありません',true);
- const button=$('firebaseSave');button.disabled=true;
- try{
-  const snapshot=structuredClone(articles);
-  // Only reads are performed until the user confirms the specific change summary.
-  const remote=await readMinistryAdminArticles();
-  const review=planSaveChanges(snapshot,remote);
-  if(!review.ok)throw Error('事前検証に失敗しました: '+review.issues.join(' / '));
-  const summary='Firebase保存前の確認\n'+
-   '接続先: html-viewer-703b6 / ministryArticles\n'+
-   '新規 '+review.added+'件、更新 '+review.updated+'件、変更なし '+review.unchanged+'件\n'+
-   review.warnings.join('\n')+'\n\n保存しますか？';
-  if(review.added+review.updated===0)return status('差分がありません。Firebaseへは書き込みませんでした。');
-  if(!confirm(summary))return status('保存を中止しました。Firebaseへの書き込みはありません。');
-  const result=await saveMinistryAdminArticles(review.changes);
-  status('Firebase保存完了: 新規'+result.added+'件、更新'+result.updated+'件');
- }catch(e){status('Firebase保存失敗: '+e.message,true)}
- finally{button.disabled=false}
-});
-
-$('uploaded').value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-const status=(msg,error=false)=>{$('result').textContent=msg;$('result').style.color=error?'#b42318':'#206f45'};
-const refresh=()=>{const draft=articles.filter(x=>x.status==='draft').length;const pub=articles.filter(x=>x.status==='published').length;
-$('stats').textContent='登録 '+articles.length+'件 / 公開 '+pub+'件 / 下書き '+draft+'件 / 非公開 '+(articles.length-pub-draft)+'件';
-$('loaded').textContent=articles.length+'件を編集中'};
-$('file').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());if(!Array.isArray(data))throw Error('JSON配列ではありません');const issues=validateFeed(data);if(issues.length)throw Error(issues.join('\n'));articles=data;refresh();status('既存データを読み込みました')}catch(err){status(err.message,true)}});
-$('htmlFile').addEventListener('change',async e=>{const file=e.target.files?.[0];htmlContent=file?await file.text():'';status(file?'HTMLファイルを読み込みました':'')});
-$('autoExtract').addEventListener('click',()=>{
- try{
-  if(!htmlContent)throw Error('先にHTMLファイルを選択してください');
-  const result=extractArticleFromHTML(htmlContent,{sourceUrl:$('url').value,uploadDate:$('uploaded').value,
-    title:$('title').value,ministry:$('ministry').value,category:$('category').value,status:$('status').value});
-  $('title').value=result.title;$('published').value=result.publishedAtSource==='source'?result.publishedAt:'';
-  $('image').value=result.imageUrl;$('summary').value=result.summary;$('body').value=result.text;
-  htmlContent=result.html;
-  status('HTML解析完了。公開日：'+result.publishedAt+(result.publishedAtSource==='upload'?'（元記事の公開日が見つからず登録日を使用）':'（元記事より取得）')+'。内容を確認して登録してください');
- }catch(err){status(err.message,true)}
-});
-$('add').addEventListener('click',()=>{try{const raw={sourceUrl:$('url').value,title:$('title').value,ministry:$('ministry').value,category:$('category').value,publishedAt:$('published').value,imageUrl:$('image').value,summary:$('summary').value,text:$('body').value,html:htmlContent,htmlUrl:$('htmlUrl').value,status:$('status').value};const res=mergeArticles(articles,[raw],{uploadDate:$('uploaded').value});if(res.stats.errors.length)throw Error(res.stats.errors[0].message);articles=res.articles;refresh();status(res.stats.added?'新規登録しました':'同じ出典URLの記事を上書き更新しました')}catch(err){status(err.message,true)}});
-$('import').addEventListener('click',()=>{try{const incoming=JSON.parse($('batch').value);if(!Array.isArray(incoming))throw Error('JSON配列ではありません');const res=mergeArticles(articles,incoming,{uploadDate:$('uploaded').value});articles=res.articles;refresh();status('追加 '+res.stats.added+'件、更新 '+res.stats.updated+'件、エラー '+res.stats.errors.length+'件'+(res.stats.errors.length?'\n'+JSON.stringify(res.stats.errors):''),!!res.stats.errors.length)}catch(err){status(err.message,true)}});
-function downloadArticles(data,filename){
- const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json;charset=utf-8'});
- const url=URL.createObjectURL(blob);const link=document.createElement('a');
- link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),3000);
-}
-$('export').addEventListener('click',()=>{
- const published=articles.filter(a=>a.status==='published');
- const issues=validateFeed(published);
- if(issues.length){status('公開用書き出し不可: '+issues.join(' / '),true);return}
- // The public feed must not contain even metadata for draft or private articles.
- downloadArticles(published,'articles.json');
- status('公開記事 '+published.length+'件のみを書き出しました。下書き・非公開は含まれません。');
-});
-$('exportBackup').addEventListener('click',()=>{
- const issues=validateFeed(articles);
- if(issues.length){status('全件バックアップ不可: '+issues.join(' / '),true);return}
- if(!confirm('下書き・非公開記事を含む全件バックアップです。公開サイトには配置しないでください。保存しますか？'))return;
- downloadArticles(articles,'ministry-articles-PRIVATE-backup.json');
- status('全件バックアップを書き出しました。公開用フォルダには配置しないでください。');
-});
-$('clear').addEventListener('click',()=>{['url','title','ministry','category','published','image','summary','body','htmlUrl'].forEach(id=>$(id).value='');$('status').value='draft';$('htmlFile').value='';htmlContent='';status('入力欄をクリアしました')});refresh();
-</script></body></html>
+<script>
+/* The original Firebase-hosted app owns its own Auth, database and URL import.
+   A redirect avoids duplicating or breaking those features on GitHub Pages. */
+window.location.replace('https://html-viewer-703b6.web.app/admin.html'+window.location.search+window.location.hash);
+</script>
+</body></html>
