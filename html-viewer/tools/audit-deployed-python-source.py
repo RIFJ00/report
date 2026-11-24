@@ -32,10 +32,9 @@ def normalized_source_files(data):
         p=PurePosixPath(item.filename)
         if p.is_absolute() or ".." in p.parts:
             raise ValueError("Unsafe archive path")
-        total_uncompressed+=item.file_size
-        if total_uncompressed>TOTAL_UNCOMPRESSED_LIMIT:raise ValueError("Oversized uncompressed archive")
-        if item.file_size>FILE_LIMIT:raise ValueError("Oversized source file")
-        # Deployed source archive can contain either files at root or functions/
+        # Inspect only first-party root source files. A deployed archive may
+        # include huge binaries, dependencies or media that we must never
+        # extract or hash. Check candidate path before applying file size cap.
         parts=list(p.parts)
         while parts and parts[0] in ("functions","source","."):
             parts=parts[1:]
@@ -44,6 +43,9 @@ def normalized_source_files(data):
         if name.startswith(".") or name in ("env","credentials.json","service-account.json"):
             continue
         if not name.endswith((".py",".txt",".css")):continue
+        if item.file_size>FILE_LIMIT:raise ValueError("Oversized first-party source file")
+        total_uncompressed+=item.file_size
+        if total_uncompressed>TOTAL_UNCOMPRESSED_LIMIT:raise ValueError("Oversized first-party uncompressed source")
         if name in entries:raise ValueError("Duplicate source basename")
         content=z.read(item)
         entries[name]=hashlib.sha256(content).hexdigest()
