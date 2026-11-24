@@ -53,3 +53,13 @@
 5. レビューとバックアップを経て本番に反映する。
 
 **本番Firebase Hostingへは未デプロイ。**
+
+## ローカル記事編集（2026-11-24追加）
+
+- `/html-admin/` は記事データをブラウザ内で整えるための**試験ツール**。Firebaseへの書込や公開処理は一切行わない。
+- 既存の `articles.json` をファイル選択で読み込み、記事を追加・更新し、JSONを書き出す。
+- `html-viewer/article-utils.mjs` が日付・出典URL正規化とURL重複排除を担当する。
+- ローカル確認用テスト: `node --test html-viewer/article-utils.test.mjs`（Node.js 20以降想定）。この環境では実行結果未確認。
+- 実運用の管理画面にする前に、Firebase Authentication、サーバー側の権限検査、Firestore/Storageルール、HTMLサニタイズ、監査ログを必ず実装する。
+- ブラウザの `file://` 直接起動では ES Modules が動かない環境があるため、ローカルHTTPサーバーかステージング環境で検証する。
+- 現時点では公開日と記事本文の自動抽出は**未実装**。省庁別の取得処理と接続後に対応する。
