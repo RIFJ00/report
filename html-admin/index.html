@@ -17,6 +17,11 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef5fa;padding:12px;
 <header><h1>省庁記事データ編集</h1><div>HTML Viewer — ローカル編集・JSON書き出し</div></header>
 <main>
 <div class="notice"><strong>注意：</strong>この画面は管理データをブラウザ内で編集する試験ツールです。Firebaseへの接続・認証・公開更新は行いません。出力したJSONをレビューしてから安全な配信経路に配置してください。機密情報や未公開記事は入力しないでください。</div>
+<section class="panel"><h2>Firebase連携（管理者限定・設定後のみ）</h2>
+<p>管理者認証に成功した場合のみFirestoreから省庁記事を読み書きできます。未設定では利用できません。</p>
+<div class="actions"><button type="button" class="secondary" id="firebaseLogin">Googleアカウントで管理者ログイン</button><button type="button" class="secondary" id="firebaseLoad" disabled>Firebaseの記事を読み込む</button><button type="button" id="firebaseSave" disabled>Firebaseへ記事を保存</button><button type="button" class="secondary" id="firebaseLogout" disabled>ログアウト</button></div>
+<small id="firebaseStatus">未接続（初期状態はFirebase連携無効）</small>
+</section>
 <section class="panel"><h2>1. 既存データを読み込む</h2>
 <label>articles.json を選択<input id="file" type="file" accept=".json,application/json"></label>
 <small>読み込まない場合は新規データとして開始します。現在の既存データは自動取得しません。</small>
@@ -44,8 +49,19 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef5fa;padding:12px;
 <script type="module">
 import {mergeArticles,validateFeed} from '../html-viewer/article-utils.mjs';
 import {extractArticleFromHTML} from '../html-viewer/html-import.mjs';
+import {signInMinistryAdmin,signOutMinistryAdmin,readMinistryAdminArticles,saveMinistryAdminArticles} from './firebase-admin.mjs';
 const $=id=>document.getElementById(id);let articles=[];let htmlContent='';
 const today=new Date();
+const fbState=(authenticated,msg)=>{for(const id of ['firebaseLoad','firebaseSave','firebaseLogout'])$(id).disabled=!authenticated;$('firebaseLogin').disabled=authenticated;$('firebaseStatus').textContent=msg};
+$('firebaseLogin').addEventListener('click',async()=>{try{const me=await signInMinistryAdmin();fbState(true,'管理者認証済み: '+me.email)}catch(e){fbState(false,'ログイン失敗: '+e.message)}});
+$('firebaseLogout').addEventListener('click',async()=>{try{await signOutMinistryAdmin();fbState(false,'ログアウトしました')}catch(e){status(e.message,true)}});
+$('firebaseLoad').addEventListener('click',async()=>{if(articles.length&&!confirm('編集中のローカルデータをFirebaseからのデータで置き換えます。続けますか？'))return;
+try{articles=await readMinistryAdminArticles();refresh();status('Firebaseから管理用記事データを読み込みました')}catch(e){status('Firebase取得失敗: '+e.message,true)}});
+$('firebaseSave').addEventListener('click',async()=>{if(!articles.length)return status('登録記事がありません',true);
+if(!confirm('現在のローカル記事 '+articles.length+'件をFirebaseへ保存します。既存の同じ出典URLの記事は上書きされます。続けますか？'))return;
+$('firebaseSave').disabled=true;
+try{const result=await saveMinistryAdminArticles(articles);status('Firebase保存完了: 新規'+result.added+'件、更新'+result.updated+'件')}catch(e){status('Firebase保存失敗: '+e.message,true)}finally{$('firebaseSave').disabled=false}});
+
 $('uploaded').value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
 const status=(msg,error=false)=>{$('result').textContent=msg;$('result').style.color=error?'#b42318':'#206f45'};
 const refresh=()=>{const draft=articles.filter(x=>x.status==='draft').length;const pub=articles.filter(x=>x.status==='published').length;
