@@ -1,0 +1,41 @@
+name: Original Admin HTML inspection (read only)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/original-admin-inspect.yml'
+permissions:
+  contents: read
+jobs:
+  inspect-original-admin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch original Firebase-hosted admin HTML (GET only)
+        run: |
+          python3 - <<'PY'
+          import urllib.request, hashlib, json
+          url='https://html-viewer-703b6.web.app/admin.html'
+          try:
+              req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
+              with urllib.request.urlopen(req,timeout=20) as r:
+                  body=r.read(4*1024*1024)
+                  print('STATUS',r.status)
+                  print('CONTENT_TYPE',r.headers.get('content-type'))
+                  print('FINAL_URL',r.url)
+                  print('BYTES',len(body),'SHA256',hashlib.sha256(body).hexdigest())
+              open('original-admin.html','wb').write(body)
+              text=body.decode('utf8','replace')
+              print('HTML_BEGIN')
+              print(text[:100000])
+              print('HTML_END')
+          except Exception as e:
+              print('FETCH_ERROR',type(e).__name__,str(e))
+              raise
+          PY
+      - name: Upload original source for review only
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-firebase-admin-html
+          path: original-admin.html
+          retention-days: 1
+          if-no-files-found: error
