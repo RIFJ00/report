@@ -33,7 +33,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef5fa;padding:12px;
 <label>本文テキスト<textarea id="body" rows="5" placeholder="本文検索に使うテキスト"></textarea></label>
 <div class="row"><label>生成HTML URL<input id="htmlUrl" type="url" placeholder="https://..."></label>
 <label>手元のHTMLファイルを選択（本文を同梱）<input type="file" id="htmlFile" accept=".html,.htm,text/html"></label></div>
-<div class="actions"><button id="add" type="button">記事を登録・上書き</button><button id="clear" type="button" class="secondary">入力欄をクリア</button></div>
+<div class="actions"><button id="autoExtract" type="button" class="secondary">HTMLから情報を抽出</button><button id="add" type="button">記事を登録・上書き</button><button id="clear" type="button" class="secondary">入力欄をクリア</button></div>
 </section>
 <section class="panel"><h2>3. JSONの取り込み・書き出し</h2>
 <label>複数記事のJSON配列を貼り付け（任意）<textarea id="batch" placeholder='[{"title":"...","sourceUrl":"https://...","publishedAt":"2026-11-24"}]'></textarea></label>
@@ -42,15 +42,28 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef5fa;padding:12px;
 <div id="result" role="status" aria-live="polite"></div><pre id="stats">0件</pre></section>
 </main>
 <script type="module">
-import {mergeArticles,validateFeed,dateFrom} from '../html-viewer/article-utils.mjs';
+import {mergeArticles,validateFeed} from '../html-viewer/article-utils.mjs';
+import {extractArticleFromHTML} from '../html-viewer/html-import.mjs';
 const $=id=>document.getElementById(id);let articles=[];let htmlContent='';
-const date=new Date();$('uploaded').value=date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+const today=new Date();
+$('uploaded').value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
 const status=(msg,error=false)=>{$('result').textContent=msg;$('result').style.color=error?'#b42318':'#206f45'};
 const refresh=()=>{const draft=articles.filter(x=>x.status==='draft').length;const pub=articles.filter(x=>x.status==='published').length;
 $('stats').textContent='登録 '+articles.length+'件 / 公開 '+pub+'件 / 下書き '+draft+'件 / 非公開 '+(articles.length-pub-draft)+'件';
 $('loaded').textContent=articles.length+'件を編集中'};
 $('file').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());if(!Array.isArray(data))throw Error('JSON配列ではありません');const issues=validateFeed(data);if(issues.length)throw Error(issues.join('\n'));articles=data;refresh();status('既存データを読み込みました')}catch(err){status(err.message,true)}});
 $('htmlFile').addEventListener('change',async e=>{const file=e.target.files?.[0];htmlContent=file?await file.text():'';status(file?'HTMLファイルを読み込みました':'')});
+$('autoExtract').addEventListener('click',()=>{
+ try{
+  if(!htmlContent)throw Error('先にHTMLファイルを選択してください');
+  const result=extractArticleFromHTML(htmlContent,{sourceUrl:$('url').value,uploadDate:$('uploaded').value,
+    title:$('title').value,ministry:$('ministry').value,category:$('category').value,status:$('status').value});
+  $('title').value=result.title;$('published').value=result.publishedAtSource==='source'?result.publishedAt:'';
+  $('image').value=result.imageUrl;$('summary').value=result.summary;$('body').value=result.text;
+  htmlContent=result.html;
+  status('HTML解析完了。公開日：'+result.publishedAt+(result.publishedAtSource==='upload'?'（元記事の公開日が見つからず登録日を使用）':'（元記事より取得）')+'。内容を確認して登録してください');
+ }catch(err){status(err.message,true)}
+});
 $('add').addEventListener('click',()=>{try{const raw={sourceUrl:$('url').value,title:$('title').value,ministry:$('ministry').value,category:$('category').value,publishedAt:$('published').value,imageUrl:$('image').value,summary:$('summary').value,text:$('body').value,html:htmlContent,htmlUrl:$('htmlUrl').value,status:$('status').value};const res=mergeArticles(articles,[raw],{uploadDate:$('uploaded').value});if(res.stats.errors.length)throw Error(res.stats.errors[0].message);articles=res.articles;refresh();status(res.stats.added?'新規登録しました':'同じ出典URLの記事を上書き更新しました')}catch(err){status(err.message,true)}});
 $('import').addEventListener('click',()=>{try{const incoming=JSON.parse($('batch').value);if(!Array.isArray(incoming))throw Error('JSON配列ではありません');const res=mergeArticles(articles,incoming,{uploadDate:$('uploaded').value});articles=res.articles;refresh();status('追加 '+res.stats.added+'件、更新 '+res.stats.updated+'件、エラー '+res.stats.errors.length+'件'+(res.stats.errors.length?'\n'+JSON.stringify(res.stats.errors):''),!!res.stats.errors.length)}catch(err){status(err.message,true)}});
 $('export').addEventListener('click',()=>{const issues=validateFeed(articles);if(issues.length){status('書き出し不可: '+issues.join(' / '),true);return}const blob=new Blob([JSON.stringify(articles,null,2)+'\n'],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='articles.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),3000);status('JSONを書き出しました。公開前に内容を確認してください')});
