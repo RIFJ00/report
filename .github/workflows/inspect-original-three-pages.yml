@@ -1,0 +1,36 @@
+name: Inspect legacy Firebase HTML app (read only)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/inspect-original-three-pages.yml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect page source and required assets without modification
+        run: |
+          python3 - <<'PY'
+          import urllib.request, re, json
+          base='https://html-viewer-703b6.web.app/'
+          for path in ['admin.html','viewer.html','columns.html','app.css','app.js']:
+              url=base+path
+              try:
+                  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
+                  with urllib.request.urlopen(req, timeout=25) as r:
+                      raw=r.read(4000000)
+                      data=raw.decode('utf-8','replace')
+                      print('ASSET',path,'STATUS',r.status,'BYTES',len(raw),'TYPE',r.headers.get('content-type'),'CSP',r.headers.get('content-security-policy'),'XFRAME',r.headers.get('x-frame-options'))
+                      if path.endswith('html'):
+                          print('TITLE',re.findall(r'<title[^>]*>(.*?)</title>',data,re.S|re.I)[:2])
+                          print('REFS',re.findall(r'(?:src|href)=[\\"\']([^\\"\']+)',data)[:35])
+                          print('TEXT',re.sub('<[^>]*>',' ',data)[:1500])
+                      elif path=='app.js':
+                          print('JS_HEAD',data[:300])
+                          print('JS_IMPORTS',re.findall(r'(?:import|from)\\s*[(]?\\s*[\\"\']([^\\"\']+)',data)[:45])
+                          print('API_PATHS',sorted(set(re.findall(r'[\\"\'](/api/[^\\"\']+)',data)))[:20])
+                          for needle in ['firebaseConfig','initializeApp','signInWithEmailAndPassword','cloudfunctions.net','firebaseapp.com','fetch(','/app.css','/viewer.html','/columns.html','/admin.html']:
+                              print('JS_TOKEN',needle,data.find(needle))
+              except Exception as e:print('ERROR',path,type(e).__name__,str(e))
+          PY
