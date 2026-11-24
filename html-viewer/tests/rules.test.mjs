@@ -53,3 +53,33 @@ test('other existing collections are not implicitly made public by isolated test
  const db=env.unauthenticatedContext().firestore();
  await assertFails(getDoc(doc(db,'posts','sensitive')));
 });
+
+test('article publication lifecycle: draft -> published -> private',async()=>{
+ const admin=env.authenticatedContext('lifecycle-admin',{rifjAdmin:true}).firestore();
+ const publicDb=env.unauthenticatedContext().firestore();
+ const item=doc(admin,'ministryArticles','lifecycle-1');
+ await assertSucceeds(setDoc(item,{...base,title:'公開状態の切替テスト',status:'draft'}));
+ await assertFails(getDoc(doc(publicDb,'ministryArticles','lifecycle-1')));
+ let listing=await assertSucceeds(getDocs(query(collection(publicDb,'ministryArticles'),where('status','==','published'))));
+ assert.ok(listing.docs.every(d=>d.id!=='lifecycle-1'));
+ await assertSucceeds(setDoc(item,{...base,title:'公開状態の切替テスト',status:'published'}));
+ const visible=await assertSucceeds(getDoc(doc(publicDb,'ministryArticles','lifecycle-1')));
+ assert.equal(visible.data().title,'公開状態の切替テスト');
+ listing=await assertSucceeds(getDocs(query(collection(publicDb,'ministryArticles'),where('status','==','published'))));
+ assert.ok(listing.docs.some(d=>d.id==='lifecycle-1'));
+ await assertSucceeds(setDoc(item,{...base,title:'公開状態の切替テスト',status:'private'}));
+ await assertFails(getDoc(doc(publicDb,'ministryArticles','lifecycle-1')));
+ listing=await assertSucceeds(getDocs(query(collection(publicDb,'ministryArticles'),where('status','==','published'))));
+ assert.ok(listing.docs.every(d=>d.id!=='lifecycle-1'));
+});
+test('admin updates article while preserving original source metadata',async()=>{
+ const admin=env.authenticatedContext('editor-update',{rifjAdmin:true}).firestore();
+ const item=doc(admin,'ministryArticles','update-1');
+ await assertSucceeds(setDoc(item,{...base,status:'draft',publishedAtSource:'source',text:'旧本文'}));
+ await assertSucceeds(setDoc(item,{...base,status:'published',publishedAtSource:'source',text:'新本文'}));
+ const visitor=env.unauthenticatedContext().firestore();
+ const snapshot=await assertSucceeds(getDoc(doc(visitor,'ministryArticles','update-1')));
+ assert.equal(snapshot.data().text,'新本文');
+ assert.equal(snapshot.data().publishedAtSource,'source');
+ assert.equal(snapshot.data().publishedAt,'2026-11-24');
+});
