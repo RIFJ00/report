@@ -15,14 +15,15 @@ const required={
   'html-admin':['index.html','firebase-admin.mjs']
 };
 function must(ok,message){if(!ok)throw Error(message)}
-async function files(base,prefix=''){
+async function files(base,prefix='',skipNonRuntime=false){
  const out=[];
  for(const item of await readdir(join(base,prefix),{withFileTypes:true})){
   const relativePath=join(prefix,item.name);
   const full=join(base,relativePath);
+  if(skipNonRuntime && item.isDirectory() && ['html-viewer/tests','html-viewer/tools'].includes(relativePath.replaceAll('\\','/')))continue;
   const stat=await lstat(full);
   must(!stat.isSymbolicLink(),'Symbolic link is not allowed: '+relativePath);
-  if(stat.isDirectory())out.push(...await files(base,relativePath));
+  if(stat.isDirectory())out.push(...await files(base,relativePath,skipNonRuntime));
   else {must(stat.isFile(),'Unsupported entry in baseline: '+relativePath);out.push(relativePath)}
  }
  return out;
@@ -49,7 +50,7 @@ export async function prepareOverlay(baseline,output,{sourceRoot=root}={}){
  const manifest=[];
  for(const folder of allowedFolders){
   for(const name of required[folder])must((await lstat(join(src,folder,name))).isFile(),'Required file missing: '+folder+'/'+name);
-  for(const file of await files(src,folder)){
+  for(const file of await files(src,folder,true)){
    // Exclude tests/tools, README, local backup, undeployed rules and staging-only content.
    if(file.startsWith(folder+sep+'tests'+sep)||file.startsWith(folder+sep+'tools'+sep))continue;
    if(file.includes('PRIVATE')||file.toLowerCase().includes('backup'))throw Error('Backup in public artifact: '+file);
