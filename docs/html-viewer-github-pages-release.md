@@ -49,3 +49,9 @@ PRの `HTML Viewer Unit Tests` に `github-pages-release-candidate` を追加し
 - これらは**ダウンロード用レビュー成果物**であり、GitHub Pagesへのデプロイや本番変更を行わない。
 
 現時点でGitHub Pagesの実際のSource/Branch/Folderの画面は未確認。GitHub Pages以外の配信形態であれば、mainのスナップショット一致だけでは本番配信経路を確定できない。設定確認と既存サイトの公開ルート検証後にマージ可否を判断する。
+
+## 本番mainを使用するChromiumブラウザ実機相当検証（追加）
+
+`html-viewer/tools/actual-main-browser.test.mjs` では、PRベースの `main` から作った公開候補をローカルHTTPサーバーで配信し、実ブラウザ（Chromium）で `/`、`/blog/`、`/blogimport/`、`/xpost/`、`/sales_strategy/`、`/html-viewer/`、`/html-admin/` の全7経路を確認する。既存の5経路はHTTP 200、新規閲覧画面は公開データ0件、管理画面はFirebase未接続かつ書き込み禁止であることを確認する。
+
+この検証は**実サイトに通信・デプロイするものではない**。既存のmainブランチを利用した静的サイトの構成確認である。Firebase認証、実データ、GitHub Pagesのビルド設定、DNSは別途確認する。
