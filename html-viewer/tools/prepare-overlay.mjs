@@ -11,7 +11,7 @@ import {createHash} from 'node:crypto';
 const root=resolve(fileURLToPath(new URL('../..',import.meta.url)));
 const allowedFolders=['html-viewer','html-admin'];
 const required={
-  'html-viewer':['index.html','articles.json','article-utils.mjs','html-import.mjs','firebase-data.mjs','firebase-config.json'],
+  'html-viewer':['index.html','articles.json','article-utils.mjs','html-import.mjs','firebase-data.mjs','firebase-options.mjs','firebase-config.json'],
   'html-admin':['index.html','firebase-admin.mjs']
 };
 function must(ok,message){if(!ok)throw Error(message)}
