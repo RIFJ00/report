@@ -1,78 +1,20 @@
 <!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>省庁記事ビューワー | 政策リサーチ</title>
-<meta name="description" content="省庁発表資料と政策関連の記事を検索・閲覧するビューワー">
-<style>
-:root{font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP","Hiragino Kaku Gothic ProN",sans-serif;color:#19324b;background:#f4f8fc}
-*{box-sizing:border-box}body{margin:0}a{color:#1268b4}button,select,input{font:inherit}button{cursor:pointer}
-header{background:linear-gradient(110deg,#123d67,#1b78b3);color:white;padding:24px max(20px,calc((100vw - 1380px)/2))}
-header a{color:#d8f4ff;text-decoration:none}header h1{margin:10px 0 4px;font-size:clamp(22px,3vw,30px)}header p{margin:0;color:#e7f3ff;font-size:14px}
-main{max-width:1400px;margin:auto;padding:20px} .toolbar{display:grid;grid-template-columns:minmax(160px,2fr) repeat(3,minmax(120px,1fr));gap:10px;margin-bottom:14px}
-input,select{width:100%;background:white;border:1px solid #ccdae6;border-radius:9px;padding:11px;color:#19324b;min-width:0}
-.split{display:grid;grid-template-columns:minmax(280px,420px) minmax(0,1fr);gap:16px;align-items:stretch}
-.panel{background:white;border:1px solid #dde8f0;border-radius:14px;overflow:hidden;box-shadow:0 5px 22px rgba(14,56,89,.05)}
-.listhead{padding:14px 16px;border-bottom:1px solid #e3ebf2;display:flex;justify-content:space-between;gap:12px}
-#list{overflow:auto;max-height:calc(100vh - 250px);min-height:300px}.item{display:flex;align-items:flex-start;gap:12px;width:100%;background:white;text-align:left;padding:14px 15px;border:0;border-bottom:1px solid #eef1f4;color:inherit}.item:hover,.item[aria-selected=true]{background:#eaf5fe}.item[aria-selected=true]{box-shadow:inset 4px 0 #1588cb}
-.thumb{width:76px;height:62px;flex:0 0 76px;object-fit:cover;background:#e2eff9;border-radius:7px}
-.fallback{width:76px;height:62px;flex:0 0 76px;display:flex;align-items:center;justify-content:center;text-align:center;background:#d8f0f5;border-radius:7px;color:#155171;font-weight:bold;font-size:13px;padding:5px;overflow:hidden}
-.item .title{font-size:14px;line-height:1.5;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.meta{font-size:12px;color:#5f7687;margin-top:5px}.preview{padding:20px;min-height:570px}
-.preview h2{font-size:22px;line-height:1.5;margin:4px 0 14px}.chips{display:flex;gap:7px;flex-wrap:wrap}.chip{background:#e6f4fc;border-radius:30px;padding:5px 10px;font-size:12px;color:#235679}
-.actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}.link{display:inline-block;text-decoration:none;background:#1879b5;color:white;padding:9px 15px;border-radius:8px;font-size:14px}
-.link.secondary{background:#ecf5fb;color:#176394}.description{line-height:1.85;white-space:pre-wrap;color:#384e5d}
-iframe{display:block;width:100%;min-height:510px;border:1px solid #dce6ec;border-radius:8px;background:white}
-.empty{padding:30px 20px;text-align:center;color:#647a8b;line-height:1.75}
-footer{padding:22px;text-align:center;font-size:12px;color:#6a8294}
-@media(max-width:850px){.toolbar{grid-template-columns:1fr 1fr}.toolbar input{grid-column:1/-1}.split{grid-template-columns:1fr}#list{max-height:360px;min-height:120px}.preview{min-height:360px}}
-@media(max-width:520px){.toolbar{grid-template-columns:1fr}.toolbar input{grid-column:auto}main{padding:12px}header{padding:21px 16px}}
-</style>
-</head>
-<body>
-<header><a href="/">政策リサーチ / トップへ</a><h1>省庁記事ビューワー</h1><p>公表日・省庁・分野で探し、元資料を確認する</p></header>
-<main>
-<div class="toolbar" role="search">
-<input id="search" type="search" placeholder="タイトル・本文・キーワードで検索" aria-label="記事検索">
-<select id="ministry" aria-label="省庁で絞り込み"><option value="">全省庁</option></select>
-<select id="category" aria-label="分野で絞り込み"><option value="">全分野</option></select>
-<select id="sort" aria-label="並び替え"><option value="date-desc">公開日・新しい順</option><option value="date-asc">公開日・古い順</option><option value="ministry">省庁名順</option><option value="input">登録順</option></select>
-</div>
-<div class="split">
-<section class="panel" aria-label="記事一覧"><div class="listhead"><strong>記事一覧</strong><span id="count" aria-live="polite">読込中</span></div><div id="list"><div class="empty">記事データを読み込んでいます。</div></div></section>
-<section class="panel preview" aria-label="記事プレビュー" id="preview"><div class="empty">記事を選択すると、ここに内容が表示されます。</div></section>
-</div>
-</main>
-<footer>一般社団法人日本みらい研｜掲載情報は出典元を確認してください。</footer>
-<script type="module">
-const $=id=>document.getElementById(id);
-let records=[],filtered=[],selected=null;
-const safeUrl=value=>{try{const u=new URL(value,location.href);return ['https:','http:'].includes(u.protocol)?u.href:''}catch{return ''}};
-const normalized=v=>String(v??'').normalize('NFKC').toLocaleLowerCase('ja-JP');
-const dateString=v=>{if(!v)return '日付未登録';const s=String(v);const match=s.match(/^\d{4}-\d{2}-\d{2}/);return match?match[0]:s.slice(0,10)};
-function add(tag,parent,content,className){const e=document.createElement(tag);if(content!==undefined)e.textContent=content;if(className)e.className=className;parent.append(e);return e}
-function options(id,key){let select=$(id),value=select.value;select.replaceChildren(new Option(id==='ministry'?'全省庁':'全分野',''));[...new Set(records.map(r=>r[key]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja')).forEach(v=>select.add(new Option(v,v)));select.value=value}
-function validArticle(r,i){return {id:String(r.id??'article-'+i),title:String(r.title??'無題'),ministry:String(r.ministry??''),category:String(r.category??''),publishedAt:r.publishedAt??'',publishedAtSource:String(r.publishedAtSource??''),sourceUrl:safeUrl(r.sourceUrl),imageUrl:safeUrl(r.imageUrl),summary:String(r.summary??''),text:String(r.text??''),html:String(r.html??''),htmlUrl:safeUrl(r.htmlUrl),order:i,status:String(r.status??'published')}}
-function renderList(){const list=$('list');list.replaceChildren();$('count').textContent=filtered.length+'件';if(!filtered.length){add('div',list,records.length?'条件に一致する記事はありません。':'公開記事はまだ登録されていません。','empty');return}
-filtered.forEach(r=>{const btn=add('button',list,undefined,'item');btn.type='button';btn.setAttribute('aria-selected',String(selected===r.id));btn.title=r.title;
-if(r.imageUrl){const img=add('img',btn,undefined,'thumb');img.src=r.imageUrl;img.alt='';img.loading='lazy';img.referrerPolicy='no-referrer';img.onerror=()=>{img.replaceWith(makeFallback(r))}}else btn.append(makeFallback(r));
-const block=add('div',btn);add('div',block,r.title,'title');add('div',block,[dateString(r.publishedAt),r.ministry,r.category].filter(Boolean).join(' / '),'meta');btn.addEventListener('click',()=>selectArticle(r.id,true))})}
-function makeFallback(r){const e=document.createElement('div');e.className='fallback';e.textContent=r.ministry||'政策記事';return e}
-function addExternal(parent,href,label,secondary=false){if(!href)return;let a=add('a',parent,label,'link'+(secondary?' secondary':''));a.href=href;a.target='_blank';a.rel='noopener noreferrer'}
-function selectArticle(id,changeHistory){selected=id;const r=records.find(x=>x.id===id);const p=$('preview');p.replaceChildren();if(!r){add('div',p,'記事を選択してください。','empty');renderList();return}
-const chips=add('div',p,undefined,'chips');[r.ministry,r.category,'公開日: '+dateString(r.publishedAt)].filter(Boolean).forEach(s=>add('span',chips,s,'chip'));
-add('h2',p,r.title);const actions=add('div',p,undefined,'actions');addExternal(actions,r.sourceUrl,'元記事を開く');addExternal(actions,r.htmlUrl,'生成HTMLを開く',true);
-if(r.publishedAtSource==='upload')add('p',p,'※公開日の記載がないため登録日を表示しています。','meta');
-if(r.html){const iframe=add('iframe',p);iframe.title=r.title+' 本文';iframe.setAttribute('sandbox','');iframe.referrerPolicy='no-referrer';iframe.srcdoc=r.html}
-else if(r.htmlUrl){add('p',p,'生成HTMLは上のボタンから開けます。','description')}
-else if(r.text||r.summary){add('div',p,r.text||r.summary,'description')}
-else add('div',p,'本文が登録されていません。元記事へのリンクから内容を確認してください。','empty');
-if(changeHistory){const u=new URL(location.href);u.searchParams.set('id',id);history.replaceState(null,'',u)}
-renderList()}
-function update(){const q=normalized($('search').value).trim().split(/\s+/).filter(Boolean);filtered=records.filter(r=>(!$('ministry').value||r.ministry===$('ministry').value)&&(!$('category').value||r.category===$('category').value)&&q.every(w=>normalized([r.title,r.ministry,r.category,r.summary,r.text].join(' ')).includes(w)));
-const sort=$('sort').value;filtered.sort((a,b)=>sort==='input'?a.order-b.order:sort==='ministry'?a.ministry.localeCompare(b.ministry,'ja'):((Date.parse(b.publishedAt)||0)-(Date.parse(a.publishedAt)||0))*(sort==='date-asc'?-1:1));renderList()}
-['search','ministry','category','sort'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',update));
-try{const {loadFirebaseOptions,fetchPublishedArticles}=await import('./firebase-data.mjs');const opts=await loadFirebaseOptions();let data;if(opts.enabled){data=await fetchPublishedArticles(opts)}else{const resp=await fetch('./articles.json',{cache:'no-store'});if(!resp.ok)throw new Error('HTTP '+resp.status);data=await resp.json()}if(!Array.isArray(data))throw new Error('article feed must be array');records=data.map(validArticle).filter(r=>r.status==='published');options('ministry','ministry');options('category','category');update();const chosen=new URLSearchParams(location.search).get('id');if(chosen&&records.some(r=>r.id===chosen))selectArticle(chosen,false);else if(records.length)selectArticle(filtered[0]?.id??records[0].id,false)}
-catch(e){$('count').textContent='取得エラー';$('list').replaceChildren();add('div',$('list'),'記事データを読み込めませんでした。articles.json の配置と形式を確認してください。','empty');console.error(e)}
-</script>
-</body></html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>日本みらい研｜政策リサーチ</title><link rel="stylesheet" href="../legacy-html-assets/app.css?v=1_8"><meta name="rifj-viewer-fix" content="v1.8.1"><link rel="stylesheet" href="../legacy-html-assets/bookmark-subtle.css?v=1_8_2"></head>
+<body data-mode="viewer"><header class="top"><div><h1>日本みらい研｜政策リサーチ</h1><small>政府・省庁公開記事一覧</small></div><div class="nav"><span class="public-tag">一般公開</span></div></header>
+<div id="workspace" class="wrap">
+<section class="panel" aria-label="記事検索と一覧"><div class="pad stack"><div class="row"><h2 style="margin:0">保存済み記事</h2><span class="soft" id="total"></span></div>
+<div class="search-input"><input type="search" id="query" placeholder="タイトル・本文のキーワード" aria-label="検索キーワード"><button id="clear" class="button secondary small" type="button">クリア</button></div>
+<div class="filtergrid">
+<div class="stack"><label for="kind">掲載元</label><select id="kind"><option value="">すべて</option><option value="kantei">首相官邸</option><option value="soumu">総務省</option><option value="mofa">外務省</option><option value="mof">財務省</option><option value="mext">文部科学省</option><option value="mhlw">厚生労働省</option><option value="maff">農林水産省</option><option value="meti">経済産業省</option><option value="mlit">国土交通省</option><option value="env">環境省</option></select></div>
+<div class="stack"><label for="scope">検索対象</label><select id="scope"><option value="all">タイトル・本文・URL</option><option value="title">タイトルのみ</option><option value="body">本文のみ</option></select></div>
+<div class="stack"><label for="sort">並べ替え</label><select id="sort"><option value="date">公表日（新しい順）</option><option value="ministry">掲載元順</option><option value="input">入力順</option></select></div>
+<div class="stack"><label for="pageSize">一覧表示件数</label><select id="pageSize"><option value="10">10件</option><option value="30">30件</option><option value="50">50件</option></select></div></div>
+<label class="rifj-bookmark-filter"><input id="bookmarksOnly" type="checkbox" aria-label="ブックマークのみ表示"><span>☆ ブックマークのみ</span><span class="rifj-bookmark-count" id="bookmarkCount">0</span></label>
+<button id="searchButton" class="button secondary" type="button">検索する</button><div id="status" class="status" role="status"></div>
+</div><div id="list" class="list" aria-label="記事一覧" tabindex="0"></div><div class="pad list-footer"><button id="more" class="button secondary small hide" type="button">続きを表示</button></div></section>
+<section class="panel viewer-panel" aria-label="記事全文"><iframe id="preview" class="preview hide" title="記事本文のプレビュー" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe><div id="previewEmpty" class="empty">左側の記事を選択してください。</div><div class="viewer-actions"><button id="bookmarkCurrent" class="button secondary small hide" type="button" aria-pressed="false">☆ ブックマーク</button><button id="export" class="button secondary small viewer-export hide" type="button"> <span aria-hidden="true">↓</span> HTMLを出力</button></div></section>
+</div><dialog id="rifjImageDialog" class="rifj-image-dialog" aria-label="代表画像の拡大表示">
+  <div class="rifj-image-toolbar"><span>画像を拡大表示</span><button class="button secondary small" data-close type="button" aria-label="拡大画像を閉じる">× 閉じる</button></div>
+  <div class="rifj-image-content"><img data-image alt="拡大画像" referrerpolicy="no-referrer"><p data-caption></p></div>
+</dialog>
+<script type="module" src="../legacy-html-assets/viewer-public.js?v=v1_10_3"></script></body></html>
