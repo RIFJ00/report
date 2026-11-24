@@ -60,6 +60,8 @@ jobs:
         run: node --test html-viewer/tools/prepare-overlay.test.mjs
       - name: Test Firebase Hosting configuration preflight (synthetic config only)
         run: node --test html-viewer/tools/hosting-config-check.test.mjs
+      - name: Test safe standalone Hosting preview packaging
+        run: node --test html-viewer/tools/build-hosting-preview.test.mjs
   firestore-emulator:
     runs-on: ubuntu-latest
     permissions:
@@ -100,6 +102,19 @@ jobs:
           if find preview -type f \( -iname '*backup*' -o -iname '*PRIVATE*' \) | grep .; then
             echo "::error::Private backup found in public preview"; exit 1
           fi
+      - name: Assemble standalone Hosting preview artifact (no deploy)
+        run: |
+          node html-viewer/tools/build-hosting-preview.mjs "$RUNNER_TEMP/rifj-hosting-preview"
+          test -f "$RUNNER_TEMP/rifj-hosting-preview/firebase.json"
+          test -f "$RUNNER_TEMP/rifj-hosting-preview/public/html-viewer/index.html"
+          test -f "$RUNNER_TEMP/rifj-hosting-preview/public/html-admin/index.html"
+      - name: Upload standalone Hosting preview package
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-viewer-hosting-preview
+          path: ${{ runner.temp }}/rifj-hosting-preview/
+          retention-days: 14
+          if-no-files-found: error
       - name: Upload downloadable preview package
         uses: actions/upload-artifact@v4
         with:
