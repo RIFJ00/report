@@ -37,7 +37,7 @@ export async function readMinistryAdminArticles(){
  const {db,options}=await requireAdmin();
  const {getDocs,collection}=await import(DB);
  const snapshot=await getDocs(collection(db,options.collection));
- return snapshot.docs.map(d=>({id:d.id,...d.data()}));
+ return snapshot.docs.map(d=>({...d.data(),id:d.id}));
 }
 export async function saveMinistryAdminArticles(articles){
  const {db,options}=await requireAdmin();
