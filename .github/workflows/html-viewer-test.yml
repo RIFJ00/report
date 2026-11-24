@@ -125,6 +125,64 @@ jobs:
           path: preview/
           retention-days: 14
           if-no-files-found: error
+  github-pages-release-candidate:
+    if: github.event_name == 'pull_request'
+    needs: [existing-routes-guard, unit-tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Snapshot EXACT current main revision without modifying it
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/rifj-main-snapshot"
+          git archive "$BASE_SHA" | tar -x -C "$RUNNER_TEMP/rifj-main-snapshot"
+          test "$(cat "$RUNNER_TEMP/rifj-main-snapshot/CNAME")" = "report.rifj.jp"
+          test -f "$RUNNER_TEMP/rifj-main-snapshot/index.html"
+          for route in blog blogimport xpost sales_strategy; do
+            test -f "$RUNNER_TEMP/rifj-main-snapshot/$route/index.html" || {
+              echo "::error::Expected existing route missing: /$route/"
+              exit 1
+            }
+          done
+      - name: Combine exact main snapshot with new routes, hash-check originals
+        run: |
+          node html-viewer/tools/prepare-overlay.mjs "$RUNNER_TEMP/rifj-main-snapshot" "$RUNNER_TEMP/rifj-pages-candidate"
+          node --input-type=module -e "
+            import {readFileSync} from 'node:fs';
+            const root=process.env.RUNNER_TEMP+'/rifj-pages-candidate';
+            const report=JSON.parse(readFileSync(root+'/overlay-audit.json'));
+            if(!report.existingSiteUnchanged||report.addedFiles!==11||report.firebaseEnabled!==false)throw Error('GitHub Pages release candidate rejected');
+            const feed=JSON.parse(readFileSync(root+'/html-viewer/articles.json'));
+            if(!Array.isArray(feed)||feed.some(x=>x.status!=='published'))throw Error('Public feed contains nonpublic data');
+            console.log('Verified '+report.baselineFiles+' original files; only '+report.addedFiles+' runtime files added');
+          "
+          test "$(cat "$RUNNER_TEMP/rifj-pages-candidate/CNAME")" = "report.rifj.jp"
+      - name: Keep audit information outside public candidate
+        run: |
+          cp "$RUNNER_TEMP/rifj-pages-candidate/overlay-audit.json" "$RUNNER_TEMP/rifj-pages-overlay-audit.json"
+          rm "$RUNNER_TEMP/rifj-pages-candidate/overlay-audit.json"
+      - name: Upload GitHub Pages candidate for REVIEW ONLY (no publish)
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-viewer-github-pages-candidate
+          path: ${{ runner.temp }}/rifj-pages-candidate/
+          retention-days: 7
+          if-no-files-found: error
+      - name: Upload hash audit for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-viewer-pages-audit
+          path: ${{ runner.temp }}/rifj-pages-overlay-audit.json
+          retention-days: 7
+          if-no-files-found: error
   browser-smoke:
     runs-on: ubuntu-latest
     permissions:
