@@ -117,3 +117,27 @@ test('管理画面でHTMLファイルを抽出しJSONへ登録できる',async()
   assert.match(await tab.locator('#stats').innerText(),/登録 1件/);
  }finally{await context.close()}
 });
+
+test('公開JSONに下書き・非公開データが混入しない',async()=>{
+ const {context,tab}=await page();
+ try{
+  await tab.goto(origin+'/html-admin/');
+  await tab.locator('#batch').fill(JSON.stringify([
+   {sourceUrl:'https://www.mext.go.jp/pub',title:'公開記事テスト',publishedAt:'2026-11-20',status:'published'},
+   {sourceUrl:'https://www.mext.go.jp/draft',title:'下書きの機密テスト',publishedAt:'2026-11-21',status:'draft',text:'DRAFT-SECRET'},
+   {sourceUrl:'https://www.mext.go.jp/private',title:'非公開の機密テスト',publishedAt:'2026-11-22',status:'private',text:'PRIVATE-SECRET'}
+  ]));
+  await tab.locator('#import').click();
+  assert.match(await tab.locator('#stats').innerText(),/登録 3件/);
+  const [download]=await Promise.all([tab.waitForEvent('download'),tab.locator('#export').click()]);
+  assert.equal(download.suggestedFilename(),'articles.json');
+  const output=JSON.parse(await readFile(await download.path(),'utf8'));
+  assert.deepEqual(output.map(a=>a.title),['公開記事テスト']);
+  assert.doesNotMatch(JSON.stringify(output),/DRAFT-SECRET|PRIVATE-SECRET/);
+  tab.once('dialog',dialog=>dialog.accept());
+  const [backup]=await Promise.all([tab.waitForEvent('download'),tab.locator('#exportBackup').click()]);
+  assert.equal(backup.suggestedFilename(),'ministry-articles-PRIVATE-backup.json');
+  const full=JSON.parse(await readFile(await backup.path(),'utf8'));
+  assert.equal(full.length,3);
+ }finally{await context.close()}
+});
