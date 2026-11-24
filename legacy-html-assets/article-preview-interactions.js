@@ -90,8 +90,11 @@ function addFragmentNavigation(document) {
       // contents against viewer.html instead of the article document.
       try {
         const u=new URL(raw,'https://html-viewer-703b6.web.app/viewer.html');
-        if(u.origin==='https://html-viewer-703b6.web.app' &&
-            /^\/(?:viewer|admin)\.html$/.test(u.pathname) && u.hash){
+        const isLegacyViewer=u.origin==='https://html-viewer-703b6.web.app' &&
+            /^\/(?:viewer|admin)\.html$/.test(u.pathname);
+        const isMigratedViewer=u.origin==='https://report.rifj.jp' &&
+            /^\/(?:html-viewer|html-admin|column)\/?$/.test(u.pathname);
+        if((isLegacyViewer||isMigratedViewer) && u.hash){
           const key=decodeURIComponent(u.hash.slice(1));
           if(ids.has(key))fragment=u.hash.slice(1);
         }
