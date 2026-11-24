@@ -52,6 +52,12 @@ def build(outdir):
  for name,body in [(name,collected[name]) for name in ASSETS]:
   dest=out/"legacy-html-assets"/name
   dest.parent.mkdir(parents=True,exist_ok=True)
+  if name in ("app.js","viewer-public.js"):
+   script=body.decode("utf-8")
+   original="fetch('/api'+path"
+   replacement="fetch('https://html-viewer-703b6.web.app/api'+path"
+   if original not in script:raise ValueError(f"Unexpected API client format: {name}")
+   body=script.replace(original,replacement).encode("utf-8")
   dest.write_bytes(body)
  for src,target in ROUTES.items():
   text=(out/target).read_text()
@@ -61,8 +67,8 @@ def build(outdir):
  report={
   "source":BASE,"routes":ROUTES,"assetCount":len(ASSETS),
   "assets":{name:{"bytes":len(blob),"sha256":hashlib.sha256(blob).hexdigest()} for name,blob in collected.items()},
-  "backendStatus":"BLOCKED: original /api requires same-origin backend; CORS check Origin report.rifj.jp returned no allow-origin and OPTIONS 405",
-  "requiresReverseProxy":True,"firebaseAuthDomainToVerify":"report.rifj.jp",
+  "backendStatus":"BLOCKED: client API points to original Firebase origin, but backend currently lacks Access-Control-Allow-Origin and OPTIONS returns 405; restricted CORS required before release",
+  "requiresBackendCors":True,"apiBase":"https://html-viewer-703b6.web.app/api","firebaseAuthDomainToVerify":"report.rifj.jp",
   "notProductionReady":True
  }
  (out/"MIGRATION_AUDIT.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
