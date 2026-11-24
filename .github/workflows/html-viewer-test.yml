@@ -125,6 +125,35 @@ jobs:
           path: preview/
           retention-days: 14
           if-no-files-found: error
+  hosting-origin-diagnostic:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Compare live homepage and exact main revision (read only)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/rifj-main-check"
+          git show "$BASE_SHA:index.html" > "$RUNNER_TEMP/rifj-main-check/index.html"
+          (
+            cd "$RUNNER_TEMP/rifj-main-check"
+            node "$GITHUB_WORKSPACE/html-viewer/tools/hosting-origin-probe.mjs" "$RUNNER_TEMP/hosting-origin-report.json"
+          )
+      - name: Upload read-only public origin findings
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-viewer-hosting-origin-report
+          path: ${{ runner.temp }}/hosting-origin-report.json
+          retention-days: 7
+          if-no-files-found: error
   github-pages-release-candidate:
     if: github.event_name == 'pull_request'
     needs: [existing-routes-guard, unit-tests]
