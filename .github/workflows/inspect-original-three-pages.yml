@@ -5,6 +5,8 @@ on:
       - '.github/workflows/inspect-original-three-pages.yml'
       - 'html-viewer/tools/prepare-firebase-ui-mirror.py'
       - 'html-viewer/tools/test-original-mirror.py'
+      - 'html-viewer/tools/check-original-api-cors.py'
+      - 'html-viewer/tools/test-original-api-cors.py'
       - 'legacy-html-assets/**'
       - 'html-admin/index.html'
       - 'html-viewer/index.html'
@@ -98,6 +100,17 @@ jobs:
           PY
       - name: Validate mirrored UI bundle source dependencies (read-only)
         run: python3 -m unittest discover -s html-viewer/tools -p 'test-original-mirror.py'
+      - name: Check API CORS preflight logic (offline)
+        run: python3 -m unittest discover -s html-viewer/tools -p 'test-original-api-cors.py'
+      - name: Inspect actual Firebase API CORS without credentials or writes
+        run: python3 html-viewer/tools/check-original-api-cors.py "$RUNNER_TEMP/api-cors-report.json"
+      - name: Upload CORS diagnostic report
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-api-cors-readonly-diagnosis
+          path: ${{ runner.temp }}/api-cors-report.json
+          retention-days: 7
+          if-no-files-found: error
       - name: Upload original UI migration source (review only; NOT deployed)
         uses: actions/upload-artifact@v4
         with:
