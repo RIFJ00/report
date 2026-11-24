@@ -40,9 +40,10 @@ jobs:
           for name in ['app.js','viewer-public.js','article-preview-interactions.js','bookmark-subtle.css','app.css']:
               src=urllib.request.urlopen(base+name,timeout=20).read().decode('utf8','replace')
               print('===',name,'size',len(src),'===')
-              print('IMPORTS',re.findall(r'(?:import\\s+[^;]*?\\s+from\\s*|import\\s*\\()\\s*[\\"\\\']([^\\"\\\']+)',src,re.S)[:30])
-              print('RELATIVE',sorted(set(re.findall(r'[\\"\\\']((?:\\./|/)[a-zA-Z0-9_./?=-]+)[\\"\\\']',src)))[:90])
+              print('IMPORT_LINES',[x.strip()[:200] for x in src.splitlines() if x.lstrip().startswith('import ')][:30])
+              print('URL_TOKENS',sorted(set(re.findall(r'[a-zA-Z0-9_.-]+\\.(?:html|js|css|json)(?:\\?[^\\s\\\x27\\\x22]*)?',src)))[:65])
               print('HOSTNAMES',sorted(set(re.findall(r'https?://[a-z0-9.-]+',src)))[:25])
-              print('FIREBASE_AUTH',src.find('authDomain'),'FUNCTIONS',src.find('getFunctions'),'STORAGE',src.find('getStorage'))
-              print('BEGIN',src[:1400])
+              for needle in ['firebaseConfig','authDomain','getFunctions','getStorage','fetch(','/api/','/app/','functions','new URL','location.pathname','location.origin','location.hostname']:
+                  print('TOKEN',needle,src.find(needle))
+              print('HEAD',src[:1200])
           PY
