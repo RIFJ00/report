@@ -21,7 +21,7 @@ async function fixture(fn){
  await writeFile(join(baseline,'xpost','index.html'),'<h1>Existing X</h1>');
  const required={
   'html-viewer':['index.html','articles.json','article-utils.mjs','html-import.mjs','firebase-data.mjs','firebase-options.mjs','firebase-config.json'],
-  'html-admin':['index.html','firebase-admin.mjs']
+  'html-admin':['index.html','firebase-admin.mjs','firebase-diagnostics.mjs']
  };
  for(const [folder,names] of Object.entries(required)){
   for(const name of names){
@@ -38,14 +38,14 @@ test('overlay preserves every existing route and adds only approved runtime file
   const report=await prepareOverlay(baseline,output,{sourceRoot});
   assert.equal(report.existingSiteUnchanged,true);
   assert.equal(report.baselineFiles,3);
-  assert.equal(report.addedFiles,9);
+  assert.equal(report.addedFiles,10);
   assert.equal(await readFile(join(output,'index.html'),'utf8'),'<h1>Existing RIFJ home</h1>');
   assert.equal(await readFile(join(output,'blog','index.html'),'utf8'),'<h1>Existing blog</h1>');
   assert.equal(await readFile(join(output,'xpost','index.html'),'utf8'),'<h1>Existing X</h1>');
   assert.equal((await lstat(join(output,'html-viewer','index.html'))).isFile(),true);
   const audit=JSON.parse(await readFile(join(output,'overlay-audit.json'),'utf8'));
   assert.equal(audit.existingSiteUnchanged,true);
-  assert.equal(audit.files.length,12);
+  assert.equal(audit.files.length,13);
  });
 });
 test('rejects baseline when viewer path already exists',async()=>{
