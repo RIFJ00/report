@@ -29,3 +29,10 @@ node html-viewer/tools/prepare-overlay.mjs /absolute/path/to/BASELINE /absolute/
 
 - GitHubの作業ブランチのみを変更。Firebase本番のサイト・データ・ルールは未変更。
 - 上記の入力スナップショットはまだ取得できていないため、ステージング・本番へのデプロイは行わない。
+
+## 合成ベースラインによる統合ブラウザテスト
+
+- `html-viewer/tools/prepare-overlay.browser.test.mjs` で、架空の既存サイト（`/`、`/blog/`、`/blogimport/`、`/xpost/`、`/sales_strategy/`）を組み立て、追加統合してからChromiumで各URLのレスポンスと見出しを検証する。
+- 新しい `/html-viewer/`、`/html-admin/` の画面が同じ配信元で動作すること、Firebase接続が初期無効であることを確認する。
+- このテストは**合成データだけ**を用いる。実際の `report.rifj.jp` 配信物やFirebase Hostingのリライト設定を検証したものではない。
+- 実配信ファイル一式とHostingサイトIDが特定できない限り、本番デプロイはしない。
