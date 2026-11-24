@@ -20,6 +20,13 @@ class MigrationTests(unittest.TestCase):
    for dep in re.findall(r"""from\s+['"](\./[^'"]+)""",script):
     location=dep.split('?',1)[0].removeprefix("./")
     self.assertTrue((assets/location).is_file(),dep)
+ def test_legacy_and_new_article_fragment_links_stay_local(self):
+  script=(ROOT/"legacy-html-assets"/"article-preview-interactions.js").read_text(encoding="utf-8")
+  self.assertIn("const isLegacyViewer=",script)
+  self.assertIn("const isMigratedViewer=",script)
+  self.assertIn("https://report.rifj.jp",script)
+  self.assertIn("html-viewer|html-admin|column",script)
+  self.assertIn("isLegacyViewer||isMigratedViewer",script)
  def test_api_blocker_is_not_silently_masked(self):
   # Prevent shipping a broken UI as fully functional until the backend is
   # back-end CORS permissions are explicitly configured for report.rifj.jp.
