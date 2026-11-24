@@ -1,0 +1,44 @@
+name: Attest CORS-only patch against DEPLOYED Python API (read-only)
+on:
+  workflow_dispatch:
+  push:
+    branches: ['feature/map-original-html-three-routes']
+    paths:
+      - '.github/workflows/attest-live-python-cors-patch.yml'
+      - 'html-viewer/tools/attest-live-python-cors-patch.py'
+      - 'html-viewer/tools/patch-original-python-api.py'
+      - 'html-viewer/tools/audit-deployed-python-source.py'
+      - 'html-viewer/audit/recovered-python-sha256.json'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate test fixtures and deny any code replacement outside main
+        run: |
+          python3 html-viewer/tools/test-live-python-cors-attestation.py
+          python3 html-viewer/tools/test-deployed-source-audit.py
+          python3 html-viewer/tools/test-python-api-patch.py
+      - name: Authenticate read-only with OIDC
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          project_id: html-viewer-703b6
+          token_format: access_token
+      - name: Attest in-memory CORS change using exact deployed source
+        env:
+          GCP_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: python3 html-viewer/tools/attest-live-python-cors-patch.py --output "$RUNNER_TEMP/live-cors-attestation.json"
+      - name: Upload SAFE attestation (only hashes, no source)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-cors-only-attestation
+          path: ${{ runner.temp }}/live-cors-attestation.json
+          retention-days: 7
+          if-no-files-found: ignore
