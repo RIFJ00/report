@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/inspect-original-three-pages.yml'
+      - 'html-viewer/tools/prepare-firebase-ui-mirror.py'
 permissions:
   contents: read
 jobs:
@@ -66,3 +67,34 @@ jobs:
                       for pos in positions[:5]:print('CONTEXT',token,repr(src[max(0,pos-130):pos+220]))
 
           PY
+
+  build-review-mirror:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and rewrite original HTML, CSS and JS into review package
+        run: python3 html-viewer/tools/prepare-firebase-ui-mirror.py "$RUNNER_TEMP/original-ui-mirror"
+      - name: Verify all three paths contain original UI and no redirect
+        run: |
+          for route in html-admin html-viewer column; do
+            test -f "$RUNNER_TEMP/original-ui-mirror/$route/index.html"
+            if grep -Eiq 'location\\.(replace|assign)\\(' "$RUNNER_TEMP/original-ui-mirror/$route/index.html"; then
+              echo "::error::Unexpected redirect in $route"; exit 1
+            fi
+          done
+          python3 - <<'PY'
+          import os,json
+          p=os.environ['RUNNER_TEMP']+'/original-ui-mirror'
+          data=json.load(open(p+'/MIGRATION_AUDIT.json'))
+          assert data['notProductionReady'] and data['requiresReverseProxy']
+          assert len(data['routes'])==3 and data['assetCount']==6
+          PY
+      - name: Upload original UI migration source (review only; NOT deployed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-ui-three-routes-review-only
+          path: ${{ runner.temp }}/original-ui-mirror/
+          retention-days: 7
+          if-no-files-found: error
