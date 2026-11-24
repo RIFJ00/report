@@ -61,3 +61,16 @@ PRの `HTML Viewer Unit Tests` に `github-pages-release-candidate` を追加し
 `hosting-origin-diagnostic` ジョブはGitHubの実際のPRベース `main/index.html` と `https://report.rifj.jp/` のレスポンス本文をSHA-256で照合し、HTTPステータス、DNSのCNAMEを記録する。アーティファクト `html-viewer-hosting-origin-report` をレビューに使用する。これは外部サイトへの**GETおよびDNS照会のみ**であり、DNS・Hosting・Firebase・GitHub Pagesの設定を変更しない。
 
 **判定上の限界：** HTMLが完全一致してもCDN・キャッシュ・別サーバーの複製の可能性が残り、GitHub Pagesを確証するものではない。HTTP不一致も、ビルド時の加工・キャッシュによる可能性がある。最終的にはGitHub Settings → PagesのSource/Branch/Folderとドメイン設定を確認する。
+
+## 公開サイトの実測結果（GitHub Actions 45347069021）
+
+2026-11-24（JST）、GitHub Actions上から `https://report.rifj.jp/` に対して**読み取り専用**で調査を実施。
+
+- HTTPステータス：200
+- DNS CNAME：`rifj00.github.io.`
+- 公開HTMLとPRベース `main/index.html` のSHA-256：**完全一致**（58,256 bytes）
+- GitHub Pagesへの配信を支持する確かな根拠がそろった。
+
+**公開方針：** `report.rifj.jp` の独立Firebase Hostingへの移管は行わず、現行GitHub Pagesへ `html-viewer/` と `html-admin/` を追加する方針を優先する。依然としてSettings → Pagesに記載される正式なSource/Branch/Folderは未確認。Firebase `html-viewer-703b6` はデータベースと認証の接続先として別途用いる。
+
+この検証は公開サイトの読み取りしか行っていないため、本番ファイル・DNS・Firebaseデータには変更がない。
