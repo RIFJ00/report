@@ -16,6 +16,17 @@ jobs:
         with:
           ref: feature/map-original-html-three-routes
           persist-credentials: true
+      - name: Verify CORS preflight parser rejects permissive or incomplete headers
+        run: python3 -m unittest discover -s html-viewer/tools -p 'test-original-api-cors.py'
+      - name: Check original API current CORS headers (GET/OPTIONS only)
+        run: python3 html-viewer/tools/check-original-api-cors.py "$RUNNER_TEMP/original-api-cors.json"
+      - name: Upload read-only API CORS findings
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-api-cors-current-state
+          path: ${{ runner.temp }}/original-api-cors.json
+          retention-days: 7
+          if-no-files-found: error
       - name: Mirror exact Firebase UI assets to temporary directory
         run: python3 html-viewer/tools/prepare-firebase-ui-mirror.py "$RUNNER_TEMP/original-ui-mirror"
       - name: Copy reviewed runtime files into feature branch only
