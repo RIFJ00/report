@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""Inspect DEPLOYED Firebase Function source without writing/deploying it.
+
+Designed to run only inside GitHub Actions with temporary Google OIDC credentials.
+Never outputs signed URL, bearer token, or source bytes. Upload only JSON hashes.
+"""
+import argparse
+import hashlib
+import io
+import json
+import os
+from pathlib import PurePosixPath, Path
+import sys
+import urllib.request
+import urllib.error
+import zipfile
+
+PROJECT="html-viewer-703b6"
+REGION="asia-northeast1"
+FUNCTION="api"
+LIMIT=35_000_000
+
+def normalized_source_files(data):
+    if len(data)>LIMIT:raise ValueError("Function source archive too large")
+    z=zipfile.ZipFile(io.BytesIO(data))
+    entries={}
+    for item in z.infolist():
+        if item.is_dir():continue
+        p=PurePosixPath(item.filename)
+        if p.is_absolute() or ".." in p.parts:
+            raise ValueError("Unsafe archive path")
+        if item.file_size>LIMIT:
+            raise ValueError("Oversized source file")
+        # Deployed source archive can contain either files at root or functions/
+        parts=list(p.parts)
+        while parts and parts[0] in ("functions","source","."):
+            parts=parts[1:]
+        if len(parts)!=1:continue
+        name=parts[0]
+        if name.startswith(".") or name in ("env","credentials.json","service-account.json"):
+            continue
+        if not name.endswith((".py",".txt",".css")):continue
+        if name in entries:raise ValueError("Duplicate source basename")
+        content=z.read(item)
+        entries[name]=hashlib.sha256(content).hexdigest()
+    return entries
+
+def get_live_source(access_token):
+    # Google's own API describes this as a signed URL to deployed function source.
+    url=f"https://cloudfunctions.googleapis.com/v2/projects/{PROJECT}/locations/{REGION}/functions/{FUNCTION}:generateDownloadUrl"
+    req=urllib.request.Request(url,data=b"{}",method="POST",
+                               headers={"Authorization":"Bearer "+access_token,
+                                        "Content-Type":"application/json"})
+    with urllib.request.urlopen(req,timeout=45) as resp:
+        info=json.load(resp)
+    signed=info.get("downloadUrl")
+    if not signed or not signed.startswith("https://"):
+        raise ValueError("Google did not return an HTTPS source download URL")
+    with urllib.request.urlopen(signed,timeout=60) as resp:
+        blob=resp.read(LIMIT+1)
+    return normalized_source_files(blob)
+
+def audit(candidate, deployed):
+    expected=candidate["files"]
+    checks=[]
+    for name,h in sorted(expected.items()):
+        other=deployed.get(name)
+        checks.append({"name":name,"candidate_sha256":h,
+                       "deployed_sha256":other,"match":h==other})
+    extras=sorted(set(deployed)-set(expected))
+    return {"project":PROJECT,"region":REGION,"function":FUNCTION,
+            "source_download_succeeded":True,
+            "candidate_fingerprint_match":all(x["match"] for x in checks) and not extras,
+            "compared_files":checks,"deployed_extra_file_names":extras,
+            "deployed_file_count":len(deployed),
+            "note":"SHA-256 equality only. Do not deploy without runtime permissions, origin, auth and functional checks.",
+            "release_approved":False}
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--baseline",default="html-viewer/audit/recovered-python-sha256.json")
+    parser.add_argument("--output",required=True)
+    args=parser.parse_args()
+    report={"project":PROJECT,"function":FUNCTION,"source_download_succeeded":False,
+            "release_approved":False}
+    try:
+        token=os.environ.get("GCP_ACCESS_TOKEN","")
+        if not token:raise ValueError("Missing temporary Google OIDC access token")
+        baseline=json.loads(Path(args.baseline).read_text())
+        actual=get_live_source(token)
+        report=audit(baseline,actual)
+    except Exception as exc:
+        # No auth secrets or URLs in failure reports. Underlying exceptions are not logged.
+        if isinstance(exc,urllib.error.HTTPError):
+            report["error"]="Google source download API responded HTTP "+str(exc.code)+". Check WIF and IAM read permissions."
+        elif isinstance(exc,urllib.error.URLError):
+            report["error"]="Google source download API network error"
+        elif isinstance(exc,ValueError):
+            report["error"]=str(exc)
+        else:
+            report["error"]="Source retrieval or archive inspection failed; review auth/format without logging secrets"
+    Path(args.output).parent.mkdir(parents=True,exist_ok=True)
+    Path(args.output).write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")
+    print("Source download successful:",report.get("source_download_succeeded",False))
+    if report.get("source_download_succeeded"):
+        print("Candidate source fingerprint fully matches:",report.get("candidate_fingerprint_match"))
+        print("Files compared:",len(report.get("compared_files",[])))
+    else:
+        print("Blocked:",report.get("error","unknown"))
+    return 0 if report.get("source_download_succeeded") else 2
+
+if __name__=="__main__":sys.exit(main())
