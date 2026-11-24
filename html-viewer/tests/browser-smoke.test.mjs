@@ -45,7 +45,8 @@ test('公開記事のみ一覧表示され、下書きと非公開記事は表�
  const {context,tab}=await page();
  try{
   await tab.goto(origin+'/html-viewer/');
-  await assert.equal(await tab.locator('.item').count(),2);
+  await tab.locator('.item').first().waitFor();
+  assert.equal(await tab.locator('.item').count(),2);
   assert.equal(await tab.locator('#count').innerText(),'2件');
   assert.equal(await tab.getByText('未公開の政策案').count(),0);
   assert.equal(await tab.getByText('非公開の資料').count(),0);
@@ -55,7 +56,8 @@ test('検索と省庁・分野の絞り込み、公開日並べ替え',async()=>
  const {context,tab}=await page();
  try{
   await tab.goto(origin+'/html-viewer/');
-  await assert.equal(await tab.locator('.item').count(),2);
+  await tab.locator('.item').first().waitFor();
+  assert.equal(await tab.locator('.item').count(),2);
   assert.match(await tab.locator('.item').first().innerText(),/環境省/);
   await tab.locator('#sort').selectOption('date-asc');
   assert.match(await tab.locator('.item').first().innerText(),/文部科学省/);
