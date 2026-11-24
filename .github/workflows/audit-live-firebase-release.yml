@@ -1,0 +1,34 @@
+name: Audit Firebase live parity and API release gates (read-only)
+on:
+  workflow_dispatch:
+  push:
+    branches: ['feature/map-original-html-three-routes']
+    paths:
+      - '.github/workflows/audit-live-firebase-release.yml'
+      - 'html-viewer/tools/audit-live-firebase-release.py'
+      - 'html-viewer/tools/prepare-firebase-ui-mirror.py'
+      - 'html-admin/index.html'
+      - 'html-viewer/index.html'
+      - 'column/index.html'
+      - 'legacy-html-assets/**'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect live Firebase pages and HTTP CORS without writes
+        run: |
+          set +e
+          python3 html-viewer/tools/audit-live-firebase-release.py "$RUNNER_TEMP/firebase-release-audit.json"
+          code=$?
+          echo "Release audit exit code: $code (expected nonzero while server-side source is unverified)"
+          exit 0
+      - name: Publish audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebase-live-parity-release-audit
+          path: ${{ runner.temp }}/firebase-release-audit.json
+          retention-days: 14
+          if-no-files-found: error
