@@ -11,7 +11,8 @@ ORIGIN="https://report.rifj.jp"
 TESTS=[
  ("GET","/list?kind=kantei&limit=1",None),
  ("OPTIONS","/search?query=test","GET"),
- ("OPTIONS","/import","POST"),
+ ("OPTIONS","/import-url","POST"),
+ ("OPTIONS","/import-html","POST"),
 ]
 def evaluate(origin,allow_methods,allow_headers,request_method=None):
  if origin!=ORIGIN:return False,"Access-Control-Allow-Origin must exactly equal https://report.rifj.jp"
