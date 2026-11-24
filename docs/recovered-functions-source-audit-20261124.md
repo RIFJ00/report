@@ -32,3 +32,32 @@
 先に行うのは、Google Cloudのデプロイ済みFunctionsソース一式（Cloud Build/Artifact経由で取得できれば）を既存の本番構成として確定すること。その実ソースの `main.py` に、 `docs/firebase-python-api-cors-exact-patch.md` の2箇所だけ適用する。ユーザー側のFirebase Authの承認済みドメインに `report.rifj.jp` が追加されたかも確認する。
 
 本作業は元の公開サイトとPR #12を変更しない。PR #12をマージする前にCORSプリフライト、公開GET、認証付きPOST、3画面を動作検証する。
+
+## v1.10.3までのオフライン再構成に成功（2026-11-24追記）
+
+ユーザーが添付した元ZIPをローカルの別フォルダへ展開し、**v1.8のconverter.pyを基準に以下の更新プログラムをバージョン順に全て実行**した。
+
+1. `apply_v19.py`（v1.9）— dry-run成功・apply成功
+2. `apply_v191.py`（v1.9.1）— dry-run成功・apply成功
+3. `apply_v110.py`（v1.10）— dry-run成功・apply成功
+4. `apply_v1101.py`（v1.10.1）— dry-run成功・apply成功
+5. `apply_v1102.py`（v1.10.2）— apply成功（dry-runなし）
+6. `apply_v1103.py`（v1.10.3）— dry-run成功・apply成功
+
+元のsecure v1.1の補助ライブラリ、v1.3の実API `main.py` と `store.py` を合わせ、すでに作成済みのCORS修正版 `main.py` を適用した。Python `compileall` 成功。元プロジェクトの12テスト中11成功、1失敗。
+
+**旧テストの失敗は現行UIの自動更新機能との仕様差異**： `test_no_client_firestore_data_access` は `public/app.js` に `getFirestore(` が存在しないことを要求する。しかしv1.9→v1.10.3で構築したapp.jsには記事変更検知用 `onSnapshot(doc(firestore,"system","article_revision"))` がある。元secure v1.1の `firestore.rules` は全ドキュメント読み書きを拒否するため、このルールをデプロイした場合リアルタイム更新通知が失敗する可能性がある。**現在の本番Firestoreルールが同じとは限らない**ため、先に本番ルール確認が必要。
+
+成果物：`RIFJ_Firebase_v1_10_3_オフライン再構成_要検証_20261124.zip`。39ファイル、SHA256マニフェスト、適用ログ、明示した「本番投入禁止」説明書を含む。秘密の `.env` は含めていない。ZIP整合性検査に成功。
+
+公開Firebaseサイトの元ソースを取得した別スナップショット `original-ui-three-routes.zip` と比較し、`app.js` / `viewer-public.js` が**バイト単位一致**。 `article-preview-interactions.js` は一致せず（再構成側が一部追加機能を含み得る）。これだけで本番Functionsと完全一致したとは主張できない。
+
+### 本番切替へのゲート
+- デプロイ済みFunctionsソースの復元／現行converter/store/requirements差分の確認
+- Firebase Authenticationの承認済みドメイン `report.rifj.jp` の確認
+- Firebase CORS GETとOPTIONSの本番反映確認
+- 既存Firebaseサイトの管理者認証・書込み機能に後退がないことの実機確認
+- Github Pagesの3画面についてURL保持・プレビュー・検索・更新の確認
+- Firestoreの既存本番ルールを取得し、更新通知購読の整合性を確認
+
+上記が終わるまでGitHub PR #12はドラフトとし、Firebase本番への変更は行わない。
