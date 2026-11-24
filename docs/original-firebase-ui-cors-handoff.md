@@ -55,3 +55,20 @@ APIサーバーのソースにアクセスできる開発担当者が、**既存
 - Firebaseの設定変更・トークン発行・ユーザーデータ操作は一切行わない
 
 API側の変更が実環境に適用された後、読み取り専用ツール `html-viewer/tools/check-original-api-cors.py` を再実行し `ready: true` を確認する。そのうえで実ブラウザで公開記事表示・管理者ログイン・保存・再読込・編集・削除を検証してからPR #12をマージする。
+
+## Firebaseコンソール画面で判明した実バックエンド（2026-11-24）
+
+ユーザー提供のFirebaseコンソール画面から、既存APIの実体が判明した：
+
+- Firebaseプロジェクト：`html-viewer-703b6`
+- Functionsの関数名：`api`
+- 第2世代（v2）、地域：`asia-northeast1`
+- FunctionsのHTTPトリガーが指すCloud Run URL：`https://api-qkdr5zitea-an.a.run.app`
+- Firebase Hostingの現行標準ドメイン：`html-viewer-703b6.web.app` および `html-viewer-703b6.firebaseapp.com`
+- Firebase Hostingには `report.rifj.jp` のカスタムドメイン登録なし。このドメインはGitHub Pagesのまま維持する。
+
+**次に必要な作業：** Google Cloud ConsoleのCloud Run／Cloud Functionsの該当 `api` のソースコード（あるいはローカル開発元の `functions/index.js`、`functions/src/index.ts`、`main.py` など）を確認し、実装言語・CORSミドルウェア・既存Firebase Auth検証の順序を把握する。Functions v2の実装・デプロイ元が不明なまま、仮のExpressコードを本番に適用しない。
+
+公開GitHub Pagesの各画面が呼び出すAPIは、既存Firebase Hostingの `/api` エンドポイントを明示している。Cloud Run直接URLを使うかはFunctionsの認証/IAM設定とHTTPルーティング、許可Originを確認した後に判断する。Cloud RunのIAMで未認証呼び出しを無制限に公開する変更は行わない。CORSとFirebaseの管理者権限検証は別の層であり、既存のサーバー側認証を残す。
+
+提供されたスクリーンショットには関数の一覧およびHostingリリース・ドメインが写っているが、ソースコードやFirebase Authenticationの許可ドメイン設定は写っていないため、対応済みと判断しない。
