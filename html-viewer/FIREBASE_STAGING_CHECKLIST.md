@@ -34,3 +34,11 @@
 `firestore-rules-parity.test.mjs` で本番導入用ルール断片とEmulator用ルールの一致をテストする。Firestore Emulatorの権限テストと合わせて差異を検知する。これは実Firebaseプロジェクトの適用ルールを検査するものではない。
 
 **本番未変更：** Firebase Authentication、Firestore、Storage、Hosting、DNS、GitHub `main`。
+
+## 5. 読み取り専用の接続診断（2026-11-24追加）
+
+管理画面 `/html-admin/` に「接続を診断（読み取り専用）」を追加した。初期状態（`enabled: false`）では「接続は無効」と表示し、Firebaseへ通信しない。
+
+ステージング用設定を有効にした場合だけ、認証なしで `ministryArticles` の `status == published` を最大1件取得する。診断によって管理者ログイン・ルール変更・記事書き込みは行わない。
+
+診断が失敗した場合は、権限拒否、インデックス設定、ネットワーク接続等を区別して案内する。**公開記事の読み取りに成功しても、Google管理者認証や管理用書き込み権限が確認できたことにはならない。**
