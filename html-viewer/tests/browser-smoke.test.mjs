@@ -94,3 +94,26 @@ test('Firebase未設定時、管理ページは書き込み不可',async()=>{
   assert.equal(await tab.locator('#firebaseSave').isDisabled(),true);
  }finally{await context.close()}
 });
+
+test('管理画面でHTMLファイルを抽出しJSONへ登録できる',async()=>{
+ const {context,tab}=await page();
+ try{
+  await tab.goto(origin+'/html-admin/');
+  await tab.locator('#url').fill('https://www.mext.go.jp/a_menu/sample/index.html');
+  await tab.locator('#ministry').fill('文部科学省');
+  await tab.locator('#htmlFile').setInputFiles({
+    name:'ministry.html',
+    mimeType:'text/html',
+    buffer:Buffer.from('<html><head><meta property="og:title" content="学校教育の指針"><meta property="article:published_time" content="2026-11-21"><meta property="article:modified_time" content="2026-11-24"></head><body><article><h1>学校教育の指針</h1><p>教育に関する新方針</p></article></body></html>')
+  });
+  await tab.locator('#autoExtract').click();
+  assert.equal(await tab.locator('#title').inputValue(),'学校教育の指針');
+  assert.equal(await tab.locator('#published').inputValue(),'2026-11-21');
+  assert.match(await tab.locator('#body').inputValue(),/教育に関する新方針/);
+  await tab.locator('#status').selectOption('published');
+  await tab.locator('#add').click();
+  assert.match(await tab.locator('#stats').innerText(),/公開 1件/);
+  await tab.locator('#add').click();
+  assert.match(await tab.locator('#stats').innerText(),/登録 1件/);
+ }finally{await context.close()}
+});
