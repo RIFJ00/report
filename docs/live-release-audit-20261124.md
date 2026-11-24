@@ -56,3 +56,20 @@
 - JSON監査成果物: https://github.com/RIFJ00/report/actions/runs/45373745244/artifacts/14910462158
 - 移植開発PR: https://github.com/RIFJ00/report/pull/12
 - 元Python APIのCORS修正: `docs/firebase-python-api-cors-exact-patch.md`
+
+## 稼働中Functionsソースの取得方法が公式APIで判明（2026-11-24追記）
+
+Google Cloud Functions v2の公式 `projects.locations.functions.generateDownloadUrl` は、配備済みソースのダウンロード用一時署名URLを発行する。ユーザー本人のGoogle Cloud Shell内で認証した状態で実行できれば、ローカルの古いZIPの推測を介さず、**デプロイ済み実物のコードを取得できる可能性がある**。
+
+対象関数: `projects/html-viewer-703b6/locations/asia-northeast1/functions/api`
+
+参照: https://docs.cloud.google.com/functions/docs/reference/rest/v2/projects.locations.functions/generateDownloadUrl
+
+本人がCloud Shellで使える読み取り専用スクリプトと、再構成v1.10.3とのSHA-256比較プログラムをダウンロード用ZIP `RIFJ_Firebase_本番ソース取得・完全一致照合ツール_20261124.zip` として用意済み。
+
+### 安全上の留意点
+- Google Cloud署名付きダウンロードURL、アクセストークンを公開GitHubへ貼らない。
+- 資格情報らしいファイル名は除外してソースZIPを作成するが、**Pythonコード内にハードコードされた秘密情報の可能性は別途検査する**。
+- 取得元デプロイソースに読取権限がない、期限切れ、Google側で削除されている場合は取得に失敗しうる。
+- 取得できても、Firestoreルールや現在のHostingデプロイと同一の成果物とは限らない。別途リリース検証が必要。
+- この調査ではFirebase本番への変更やPRのマージは行わない。
