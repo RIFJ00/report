@@ -82,7 +82,7 @@ const setStatus=(message,error=false)=>{if(!$('status'))return;$('status').textC
 const doAPI=async (path,options={})=>{
   if(!auth.currentUser) throw new Error('ログインが必要です');
   const token=await auth.currentUser.getIdToken();
-  const r=await fetch('/api'+path,{...options,headers:{Authorization:'Bearer '+token,...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}});
+  const r=await fetch('https://html-viewer-703b6.web.app/api'+path,{...options,headers:{Authorization:'Bearer '+token,...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}});
   if(options.raw){if(!r.ok){const x=await r.json().catch(()=>({}));throw new Error(x.error||'取得エラー '+r.status)}return r}
   const data=await r.json().catch(()=>({error:'サーバーから正常な応答がありません'}));
   if(!r.ok)throw new Error(data.error||'エラー '+r.status);

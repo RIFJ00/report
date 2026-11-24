@@ -81,7 +81,7 @@ function toggleBookmark(item){
 
 async function api(path,{raw=false,signal}={}){
   // Public endpoints intentionally do NOT attach Firebase ID tokens.
-  const response=await fetch('/api'+path,{method:'GET',credentials:'omit',cache:'no-store',signal});
+  const response=await fetch('https://html-viewer-703b6.web.app/api'+path,{method:'GET',credentials:'omit',cache:'no-store',signal});
   if(!response.ok){
     const data=await response.json().catch(()=>({}));
     throw new Error(data.error||`サーバーエラー: ${response.status}`);
