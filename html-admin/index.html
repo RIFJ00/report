@@ -51,7 +51,7 @@ import {mergeArticles,validateFeed} from '../html-viewer/article-utils.mjs';
 import {extractArticleFromHTML} from '../html-viewer/html-import.mjs';
 import {signInMinistryAdmin,signOutMinistryAdmin,readMinistryAdminArticles,saveMinistryAdminArticles} from './firebase-admin.mjs';
 import {diagnosePublicFirebase} from './firebase-diagnostics.mjs';
-import {buildSaveReview} from './save-review.mjs';
+import {planSaveChanges} from './save-review.mjs';
 const $=id=>document.getElementById(id);let articles=[];let htmlContent='';
 const today=new Date();
 const fbState=(authenticated,msg)=>{for(const id of ['firebaseLoad','firebaseSave','firebaseLogout'])$(id).disabled=!authenticated;$('firebaseLogin').disabled=authenticated;$('firebaseStatus').textContent=msg};
@@ -67,7 +67,7 @@ $('firebaseSave').addEventListener('click',async()=>{
   const snapshot=structuredClone(articles);
   // Only reads are performed until the user confirms the specific change summary.
   const remote=await readMinistryAdminArticles();
-  const review=buildSaveReview(snapshot,remote);
+  const review=planSaveChanges(snapshot,remote);
   if(!review.ok)throw Error('事前検証に失敗しました: '+review.issues.join(' / '));
   const summary='Firebase保存前の確認\n'+
    '接続先: html-viewer-703b6 / ministryArticles\n'+
@@ -75,7 +75,7 @@ $('firebaseSave').addEventListener('click',async()=>{
    review.warnings.join('\n')+'\n\n保存しますか？';
   if(review.added+review.updated===0)return status('差分がありません。Firebaseへは書き込みませんでした。');
   if(!confirm(summary))return status('保存を中止しました。Firebaseへの書き込みはありません。');
-  const result=await saveMinistryAdminArticles(snapshot);
+  const result=await saveMinistryAdminArticles(review.changes);
   status('Firebase保存完了: 新規'+result.added+'件、更新'+result.updated+'件');
  }catch(e){status('Firebase保存失敗: '+e.message,true)}
  finally{button.disabled=false}
