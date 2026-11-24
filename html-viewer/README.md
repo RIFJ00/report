@@ -74,3 +74,15 @@
 - プレビュー用HTMLはスクリプト・iframe・フォーム等を取り除き、表示側の sandbox iframe でもJavaScriptを無効化している。ただしこれは厳密なサニタイズ保証ではなく、本番の不特定HTMLを扱う場合は、十分なHTMLサニタイザー、CSP、別オリジン配信等を検討する。
 - `html-viewer/article-utils.test.mjs` のユニットテストはGitHub Actionsの `html-viewer-test.yml` でPR時に実行する設定を追加した（成功結果は別途確認が必要）。
 - 各省庁のURLを入力するだけで自動クロールする機能はまだ接続していない。HTMLファイルの取り込みとフィードへの書き出しを行う中間実装である。
+
+## Firebase統合の試験実装（2026-11-24）
+
+- `html-viewer/firebase-config.json` は **enabled: false** / **firebaseConfig: null** が初期値。運用環境とルールの安全確認が完了するまで変更しないこと。
+- Firebase有効時、閲覧側は専用の `ministryArticles` コレクションに `status == published` のクエリだけを実行する。無効時は従来通り静的 `articles.json` を読む。
+- `html-admin/firebase-admin.mjs` はGoogleログイン後、Firebase Authのサーバー発行カスタムクレーム `rifjAdmin: true` を再確認する。**クレームをブラウザから設定する機能は存在しない。**
+- 管理画面からの読み込み・保存はユーザー操作で明示的に実行し、Firebase自動保存は行わない。既存記事の読み込みと保存は別々の操作。
+- ログイン用Google認証プロバイダー・承認ドメイン、FirebaseのプロジェクトIDとFirestoreの設定は実環境での検証が必要。
+- `firestore.rules.example` は専用コレクションへのルール断片であり、**既存プロジェクトのルール全体と置き換えてはいけない**。管理者用カスタムクレームは信頼できる管理側環境で付与する。
+- 管理画面 `/html-admin/` はブラウザでアクセスできる構成だが、Firestoreへの書き込みはルールで制限される。本番では別途管理ページ自体の配信制御、CSP、監査ログ、誤操作防止、レビューを検討する。
+- Firestore 1ドキュメントのサイズ制限に備え、書き込み前に記事データが大きすぎないかチェックしている。長文記事の分割保存は今後の課題。
+- **今回の作業は作業ブランチのみ。Firebaseプロジェクト設定、認証設定、Firestoreルール、本番データ、Hostingデプロイは変更していない。**
