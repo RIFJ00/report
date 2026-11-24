@@ -38,3 +38,14 @@ Firebaseバックエンドは別プロジェクト `html-viewer-703b6` を使う
 ## Firebase Hosting独立プレビューとの関係
 
 Firebase Hosting独立プレビューはGitHub Pagesの正式配信とは別の**任意の検証経路**として保持する。GitHub Pagesが実際の配信元と確認されれば、本番反映にFirebase Hostingのプロジェクト・ドメイン移行は不要。
+
+## GitHub Actionsでの実際のmainベース検証（2026-11-24追加）
+
+PRの `HTML Viewer Unit Tests` に `github-pages-release-candidate` を追加した。このジョブは、PRの `base.sha` に相当する**実際の既存mainのスナップショット**を `git archive` で取得して、現行 `CNAME` と代表的な既存パスを検証し、`prepare-overlay.mjs` で既存資産のSHA-256値が変わらないことを確認する。
+
+- `html-viewer-pages-audit`：既存資産のファイル名・SHA-256と追加ファイルの監査レポート（レビュー専用）
+- `html-viewer-github-pages-additions`：**新規閲覧・管理フォルダのみ**を含む検証用ZIP。既存のサイトのソース全体をアーティファクトへ再アップロードしない
+- 新規のランタイムファイルは11件で、Firebase接続は無効のまま。
+- これらは**ダウンロード用レビュー成果物**であり、GitHub Pagesへのデプロイや本番変更を行わない。
+
+現時点でGitHub Pagesの実際のSource/Branch/Folderの画面は未確認。GitHub Pages以外の配信形態であれば、mainのスナップショット一致だけでは本番配信経路を確定できない。設定確認と既存サイトの公開ルート検証後にマージ可否を判断する。
