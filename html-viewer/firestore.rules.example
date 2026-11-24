@@ -1,0 +1,19 @@
+// REVIEW ONLY — do not deploy this as the whole project's rules file.
+// Merge this match block into the *existing* firestore.rules, inside:
+// rules_version = '2'; service cloud.firestore { match /databases/{database}/documents { ... } }
+// Existing rules for blog, posts, contentChunks and other services must remain intact.
+match /ministryArticles/{articleId} {
+  function isEditor() {
+    return request.auth != null && request.auth.token.rifjAdmin == true;
+  }
+  allow get, list: if isEditor() || resource.data.status == 'published';
+  // For list requests from public readers, require a query with
+  // where('status', '==', 'published'), otherwise Firestore rejects the query.
+  allow create: if isEditor() &&
+    request.resource.data.status in ['draft','private','published'] &&
+    request.resource.data.keys().hasAll(['title','sourceUrl','publishedAt','status']);
+  allow update: if isEditor() &&
+    request.resource.data.status in ['draft','private','published'] &&
+    request.resource.data.keys().hasAll(['title','sourceUrl','publishedAt','status']);
+  allow delete: if isEditor();
+}
