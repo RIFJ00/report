@@ -7,6 +7,33 @@ on:
       - '.github/workflows/html-viewer-test.yml'
   workflow_dispatch:
 jobs:
+  existing-routes-guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Block edits outside the isolated viewer and admin paths
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git diff --name-only --diff-filter=ACMRT "$BASE_SHA" HEAD > /tmp/rifj-changed.txt
+          echo "Files changed in this PR:"
+          cat /tmp/rifj-changed.txt
+          while IFS= read -r file; do
+            case "$file" in
+              html-viewer/*|html-admin/*|docs/html-viewer-integration-plan.md|.github/workflows/html-viewer-test.yml) ;;
+              *) echo "::error::Protected existing route or repository file changed: $file"; exit 1 ;;
+            esac
+          done < /tmp/rifj-changed.txt
+      - name: Ensure no deployment config or workflow was introduced
+        run: |
+          for path in firebase.json .firebaserc .github/workflows/firebase-hosting-merge.yml .github/workflows/firebase-hosting-pull-request.yml; do
+            if [ -e "$path" ]; then echo "::error::Unexpected production deployment file: $path"; exit 1; fi
+          done
   unit-tests:
     runs-on: ubuntu-latest
     permissions:
