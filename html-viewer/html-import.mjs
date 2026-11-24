@@ -47,9 +47,9 @@ export function extractArticleFromHTML(html,{sourceUrl,uploadDate,ministry='',ca
  const content=doc.querySelector('article')||doc.querySelector('main')||doc.body;
  if(!content)throw Error('本文を抽出できません');
  const root=content.cloneNode(true);
- root.querySelectorAll('script,style,iframe,form,object,embed,noscript,svg,button,input,textarea,select').forEach(n=>n.remove());
+ root.querySelectorAll('script,style,iframe,form,object,embed,noscript,svg,button,input,textarea,select,template,base,link').forEach(n=>n.remove());
  root.querySelectorAll('*').forEach(el=>{
-  [...el.attributes].forEach(a=>{if(/^on/i.test(a.name)||a.name==='srcdoc'||a.name==='integrity')el.removeAttribute(a.name)});
+  [...el.attributes].forEach(a=>{if(/^on/i.test(a.name)||['srcdoc','integrity','style','srcset','formaction','xlink:href'].includes(a.name.toLowerCase()))el.removeAttribute(a.name)});
   for(const a of ['src','href','poster']){
    const v=el.getAttribute(a);if(v){const safe=resolveHttp(v,sourceUrl);if(safe)el.setAttribute(a,safe);else el.removeAttribute(a)}
   }
