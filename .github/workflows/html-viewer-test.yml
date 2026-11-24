@@ -48,3 +48,22 @@ jobs:
       - name: Test security rules in Firestore Emulator
         working-directory: html-viewer/tests
         run: npx firebase emulators:exec --only firestore --project demo-rifj-html --config firebase.json "npm run test:rules"
+  preview-bundle:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble isolated preview bundle (no deploy)
+        run: |
+          mkdir -p preview/html-viewer preview/html-admin
+          cp html-viewer/index.html html-viewer/articles.json html-viewer/article-utils.mjs html-viewer/html-import.mjs html-viewer/firebase-data.mjs html-viewer/firebase-config.json preview/html-viewer/
+          cp html-admin/index.html html-admin/firebase-admin.mjs preview/html-admin/
+          node --input-type=module -e "import fs from 'node:fs'; const c=JSON.parse(fs.readFileSync('preview/html-viewer/firebase-config.json','utf8')); if(c.enabled!==false || c.firebaseConfig!==null)throw Error('Unsafe preview Firebase configuration')"
+      - name: Upload downloadable preview package
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-viewer-preview
+          path: preview/
+          retention-days: 14
+          if-no-files-found: error
