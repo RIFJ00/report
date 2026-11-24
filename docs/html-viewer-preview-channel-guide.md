@@ -49,3 +49,13 @@ firebase hosting:channel:deploy rifj-html-test \
 ステージング上でFirestoreを有効化する場合は、まずFirebase ConsoleでAuthenticationのGoogleログイン、許可ドメイン、Firestore本番適用ルール、サーバー側で付与する `rifjAdmin:true` の実管理者権限を確認する。今回の無効なプレビューパッケージからは自動的に有効化しない。
 
 `report.rifj.jp` への正式公開は、配信元Firebase Hostingサイトと現行全ファイル・リライトルール・ロールバック方法を確認した後に、別工程で行う。
+
+## 5. GitHub Actionsでの手動プレビュー（オプション）
+
+開発ブランチには `.github/workflows/html-viewer-manual-preview.yml` を追加した。**workflow_dispatch（手動実行）専用**であり、push・PR・mainへのマージによる自動公開はしない。対象はFirebaseプロジェクトおよびHostingサイト `html-viewer-703b6`、チャンネル `rifj-html-test`、有効期限7日間で固定する。ライブチャネルへのデプロイコマンドは含まない。
+
+実行にあたっては、GitHubの保護されたEnvironment `html-viewer-preview` の承認ルールを設定し、Firebase対象プロジェクトに必要最小限の権限を持つサービスアカウントJSONをGitHub Actions Secret `FIREBASE_SERVICE_ACCOUNT_HTML_VIEWER_PREVIEW` として登録する。**サービスアカウントJSONをHTMLやリポジトリ内のファイルに貼り付けない。** 秘密情報が未設定または対象プロジェクトが違う場合、デプロイは中止する。
+
+GitHubのActions画面にワークフローが表示されるには、通常そのワークフローがデフォルトブランチに存在する必要がある。したがって現時点の機能ブランチだけでは、手動実行ボタンが表示されない場合がある。メインブランチへの反映は、既存ファイル保護とレビュー後に行う。アカウント権限・Secretの登録・実際のデプロイはまだ実施していない。
+
+手動実行時の確認文字列は `PREVIEW_HTML_VIEWER_703B6`。作業ディレクトリは公開アセット専用の一時ディレクトリであり、リポジトリ全体の `firebase deploy` は使用しない。
