@@ -12,7 +12,7 @@ const root=resolve(fileURLToPath(new URL('../..',import.meta.url)));
 const allowedFolders=['html-viewer','html-admin'];
 const required={
   'html-viewer':['index.html','articles.json','article-utils.mjs','html-import.mjs','firebase-data.mjs','firebase-options.mjs','firebase-config.json'],
-  'html-admin':['index.html','firebase-admin.mjs','firebase-diagnostics.mjs']
+  'html-admin':['index.html','firebase-admin.mjs','firebase-diagnostics.mjs','save-review.mjs']
 };
 function must(ok,message){if(!ok)throw Error(message)}
 async function files(base,prefix='',skipNonRuntime=false){
