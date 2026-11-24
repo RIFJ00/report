@@ -35,6 +35,20 @@ jobs:
               except Exception as e:print('ERROR',path,type(e).__name__,str(e))
           PY
           python3 - <<'PY'
+          import urllib.request,urllib.error
+          base='https://html-viewer-703b6.web.app'
+          for method,path in [('GET','/api/articles'),('GET','/api/articles?limit=1'),('OPTIONS','/api/articles')]:
+              headers={'Origin':'https://report.rifj.jp','User-Agent':'Mozilla/5.0'}
+              if method=='OPTIONS':headers.update({'Access-Control-Request-Method':'GET','Access-Control-Request-Headers':'authorization,content-type'})
+              request=urllib.request.Request(base+path,headers=headers,method=method)
+              try:
+                  with urllib.request.urlopen(request,timeout=20) as response:
+                      print('API',method,path,'STATUS',response.status,'CORS_ORIGIN',response.headers.get('Access-Control-Allow-Origin'),'CORS_HEADERS',response.headers.get('Access-Control-Allow-Headers'),'TYPE',response.headers.get('Content-Type'),'SAMPLE',response.read(200)[:100])
+              except urllib.error.HTTPError as err:
+                  print('API',method,path,'STATUS',err.code,'CORS_ORIGIN',err.headers.get('Access-Control-Allow-Origin'),'CORS_HEADERS',err.headers.get('Access-Control-Allow-Headers'),'TYPE',err.headers.get('Content-Type'),'SAMPLE',err.read(100)[:80])
+              except Exception as e:print('API_ERROR',method,path,str(e))
+          PY
+          python3 - <<'PY'
           import urllib.request,re
           base='https://html-viewer-703b6.web.app/'
           for name in ['app.js','viewer-public.js','article-preview-interactions.js','bookmark-subtle.css','app.css']:
