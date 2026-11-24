@@ -1,0 +1,74 @@
+name: HTML Viewer — Manual Firebase Preview Only
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type PREVIEW_HTML_VIEWER_703B6 to confirm preview-only deployment'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: rifj-html-viewer-preview-only
+  cancel-in-progress: false
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    environment: html-viewer-preview
+    steps:
+      - name: Reject unexpected manual confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [ "$CONFIRMATION" != "PREVIEW_HTML_VIEWER_703B6" ]; then
+            echo "::error::Explicit preview-only confirmation required"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Ensure Firebase credential is configured
+        env:
+          FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HTML_VIEWER_PREVIEW }}
+        run: |
+          if [ -z "$FIREBASE_SA" ]; then
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT_HTML_VIEWER_PREVIEW is missing; no deployment attempted"
+            exit 1
+          fi
+          echo "$FIREBASE_SA" > "$RUNNER_TEMP/firebase-html-viewer-sa.json"
+          chmod 600 "$RUNNER_TEMP/firebase-html-viewer-sa.json"
+          node -e "const j=require(process.argv[1]);if(j.project_id!=='html-viewer-703b6')throw Error('Unexpected service account project')" "$RUNNER_TEMP/firebase-html-viewer-sa.json"
+      - name: Generate isolated disabled-Firebase preview
+        run: |
+          node html-viewer/tools/build-hosting-preview.mjs "$RUNNER_TEMP/rifj-html-viewer-preview"
+          node --input-type=module -e "
+            import {readFileSync} from 'node:fs';
+            const p=process.env.RUNNER_TEMP+'/rifj-html-viewer-preview';
+            const c=JSON.parse(readFileSync(p+'/firebase.json','utf8'));
+            const f=JSON.parse(readFileSync(p+'/public/html-viewer/firebase-config.json','utf8'));
+            if(c.hosting.site!=='html-viewer-703b6'||c.hosting.public!=='public'||f.enabled!==false||f.firebaseConfig!==null)throw Error('Unsafe preview configuration');
+            if(c.hosting.rewrites)throw Error('Unexpected Hosting rewrites');
+          "
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14
+      - name: Validate target site exists in designated Firebase project
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-html-viewer-sa.json
+        working-directory: ${{ runner.temp }}/rifj-html-viewer-preview
+        run: |
+          firebase hosting:sites:list --project html-viewer-703b6 --json > "$RUNNER_TEMP/hosting-sites.json"
+          node -e "
+            const r=require(process.argv[1]);
+            const list=r.result?.sites??r.sites??r.result??[];
+            if(!Array.isArray(list)||!list.some(x=>x.name?.endsWith('/sites/html-viewer-703b6')||x.siteId==='html-viewer-703b6'))throw Error('Expected Hosting site missing');
+          " "$RUNNER_TEMP/hosting-sites.json"
+      - name: Deploy ONLY to temporary preview channel
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-html-viewer-sa.json
+        working-directory: ${{ runner.temp }}/rifj-html-viewer-preview
+        run: |
+          firebase hosting:channel:deploy rifj-html-test --project html-viewer-703b6 --expires 7d
+      - name: Delete temporary credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-html-viewer-sa.json"
