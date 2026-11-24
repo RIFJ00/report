@@ -26,3 +26,22 @@ jobs:
         run: node --input-type=module -e "import fs from 'node:fs'; const c=JSON.parse(fs.readFileSync('html-viewer/firebase-config.json')); if(c.enabled!==false || c.firebaseConfig!==null)process.exit(1)"
       - name: Unit tests (no production secrets)
         run: node --test html-viewer/article-utils.test.mjs
+  firestore-emulator:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install isolated Firestore test dependencies
+        working-directory: html-viewer/tests
+        run: npm install --no-package-lock --no-audit --no-fund
+      - name: Test security rules in Firestore Emulator
+        working-directory: html-viewer/tests
+        run: npx firebase emulators:exec --only firestore --project demo-rifj-html --config firebase.json "npm run test:rules"
