@@ -111,6 +111,9 @@ def main():
     if report.get("source_download_succeeded"):
         print("Candidate source fingerprint fully matches:",report.get("candidate_fingerprint_match"))
         print("Files compared:",len(report.get("compared_files",[])))
+        print("Matching files:",[x["name"] for x in report["compared_files"] if x["match"]])
+        print("Different or missing files:",[x["name"] for x in report["compared_files"] if not x["match"]])
+        print("Extra deployed root source files:",report.get("deployed_extra_file_names",[]))
     else:
         print("Blocked:",report.get("error","unknown"))
     return 0 if report.get("source_download_succeeded") else 2
