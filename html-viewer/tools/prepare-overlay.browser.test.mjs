@@ -4,7 +4,9 @@ import {createServer} from 'node:http';
 import {mkdtemp,mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve,extname,sep} from 'node:path';
-import {chromium} from 'playwright';
+import {createRequire} from 'node:module';
+const require=createRequire(new URL('../tests/package.json',import.meta.url));
+const {chromium}=require('playwright');
 import {prepareOverlay} from './prepare-overlay.mjs';
 
 test('追加統合後も既存サイトと省庁記事の2画面が同じ配信元で動く',async()=>{
