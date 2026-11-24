@@ -72,3 +72,18 @@ API側の変更が実環境に適用された後、読み取り専用ツール `
 公開GitHub Pagesの各画面が呼び出すAPIは、既存Firebase Hostingの `/api` エンドポイントを明示している。Cloud Run直接URLを使うかはFunctionsの認証/IAM設定とHTTPルーティング、許可Originを確認した後に判断する。Cloud RunのIAMで未認証呼び出しを無制限に公開する変更は行わない。CORSとFirebaseの管理者権限検証は別の層であり、既存のサーバー側認証を残す。
 
 提供されたスクリーンショットには関数の一覧およびHostingリリース・ドメインが写っているが、ソースコードやFirebase Authenticationの許可ドメイン設定は写っていないため、対応済みと判断しない。
+
+## 実APIのPythonソースが判明（2026-11-24）
+
+ユーザー提示の本番Python関数 `api` の全文から確認：
+
+- `from firebase_functions import https_fn,options` と Flask Response/requestを使用。
+- `get_identity` でBearer Firebase ID tokenを検証。
+- 実管理者権限は **`role == "admin"`**、匿名ログイン禁止。旧開発版の `rifjAdmin` ではない。
+- `GET /list`、`GET /search`、一部記事GETは公開。
+- URL取得・HTML取込・編集・削除はadminだけに許可。
+- 現状の `if request.method=="OPTIONS":return send(...,405)` はCORSプリフライトを拒否している。
+- 最小修正は既存デコレーターに `cors=options.CorsOptions(cors_origins=["https://report.rifj.jp"],cors_methods=["get","post"])` を追加し、明示OPTIONS応答を204に変更すること。Firebase公式Python Functionsでサポートされている。
+- 詳細な現行ソースへのdiffは `docs/firebase-python-api-cors-exact-patch.md` に保存。
+
+**本番関数の変更はまだ行っていない。** 元の `main.py` だけでなく、`converter.py`、`store.py`、`requirements.txt`、`firebase.json` 等のデプロイ可能なソース一式とバックアップが必要。これまでのコードを実APIの代わりに上書きしてはならない。
