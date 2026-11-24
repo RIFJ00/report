@@ -22,7 +22,7 @@ class MigrationTests(unittest.TestCase):
     self.assertTrue((assets/location).is_file(),dep)
  def test_api_blocker_is_not_silently_masked(self):
   # Prevent shipping a broken UI as fully functional until the backend is
-  # explicitly reverse-proxied or replaced with supported CORS API.
+  # back-end CORS permissions are explicitly configured for report.rifj.jp.
   scripts=[(ROOT/"legacy-html-assets"/p).read_text(encoding="utf-8") for p in ("app.js","viewer-public.js")]
   for script in scripts:self.assertIn("fetch('https://html-viewer-703b6.web.app/api'+path",script)
   # The test is a safety check only, not an end-to-end production readiness declaration.
