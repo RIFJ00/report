@@ -36,3 +36,19 @@ node html-viewer/tools/prepare-overlay.mjs /absolute/path/to/BASELINE /absolute/
 - 新しい `/html-viewer/`、`/html-admin/` の画面が同じ配信元で動作すること、Firebase接続が初期無効であることを確認する。
 - このテストは**合成データだけ**を用いる。実際の `report.rifj.jp` 配信物やFirebase Hostingのリライト設定を検証したものではない。
 - 実配信ファイル一式とHostingサイトIDが特定できない限り、本番デプロイはしない。
+
+## Firebase Hosting 設定検査（追加）
+
+`html-viewer/tools/hosting-config-check.mjs` は、**既存のFirebase Hosting設定ファイルと検証用配信フォルダをオフラインで読み取る検査**であり、デプロイはしない。
+
+```sh
+node html-viewer/tools/hosting-config-check.mjs \
+  /absolute/path/to/REAL/firebase.json \
+  VERIFIED_HOSTING_SITE_ID \
+  /absolute/path/to/REVIEWED-MERGED-DIR
+```
+
+検査はHostingサイトID（または確認済みのターゲット名）に対応する設定を一意に選択し、`public` の実パスと統合出力先の一致、既存主要URLと新URLの `index.html` の存在を確認する。全面的なリライト指定は手動確認事項として報告する。
+
+**重要な限界**：対象の `firebase.json` と配信フォルダは利用者側が現行配信の正本だと確認する必要がある。既存の設定ファイルがGitHubに存在しない以上、仮の設定を正本と見なしてはならない。この検査だけでDNS・カスタムドメイン・Firebase側の実際のデプロイ履歴・Firestore権限・rewriteの振る舞いを保証しない。未確認の状態で本番へデプロイしない。
+
