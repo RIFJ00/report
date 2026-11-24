@@ -87,6 +87,12 @@ jobs:
           cp html-viewer/index.html html-viewer/articles.json html-viewer/article-utils.mjs html-viewer/html-import.mjs html-viewer/firebase-data.mjs html-viewer/firebase-config.json preview/html-viewer/
           cp html-admin/index.html html-admin/firebase-admin.mjs preview/html-admin/
           node --input-type=module -e "import fs from 'node:fs'; const c=JSON.parse(fs.readFileSync('preview/html-viewer/firebase-config.json','utf8')); if(c.enabled!==false || c.firebaseConfig!==null)throw Error('Unsafe preview Firebase configuration')"
+      - name: Reject private articles and backups in public preview
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const f=JSON.parse(fs.readFileSync('preview/html-viewer/articles.json','utf8')); if(!Array.isArray(f)||f.some(a=>a.status!=='published'))throw Error('Non-public article in static feed')"
+          if find preview -type f \( -iname '*backup*' -o -iname '*PRIVATE*' \) | grep .; then
+            echo "::error::Private backup found in public preview"; exit 1
+          fi
       - name: Upload downloadable preview package
         uses: actions/upload-artifact@v4
         with:
