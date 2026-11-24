@@ -67,3 +67,21 @@ curl -i -X OPTIONS 'https://html-viewer-703b6.web.app/api/import-url' \
 - これらは修正**指示書**であり、Firebaseの実APIは**未変更**。
 - 元のソースとrequirements、デプロイ元のバックアップが揃うまで、本番の関数を再デプロイしない。
 - GitHub Pagesに元のHTMLを反映するPR #12は、APIの実接続・認証・記事保存のテストが完了するまでドラフトのままにする。
+
+## 元ソースに対する安全なパッチ生成ツール（2026-11-24追加）
+
+`html-viewer/tools/patch-original-python-api.py` は、ユーザーから提示された `main.py` の正確なデコレーターとOPTIONS分岐を検査して、その2箇所だけを修正する。既存の管理者クレーム `role=admin` とFirebase IDトークン検証が異なっている場合は停止する。
+
+元のFunctionsソースが `/path/to/original-functions/main.py` にある場合：
+
+```bash
+python3 html-viewer/tools/patch-original-python-api.py \
+  /path/to/original-functions/main.py \
+  /path/to/patched-functions/main.py
+```
+
+`patched-functions` は**新しい作業フォルダ**であり、元の `main.py` は変更されない。生成した修正版を既存ソース一式のバックアップコピーへ入れる際は、同じディレクトリに `converter.py`、`store.py`、`requirements.txt` 等が必要。関数の変更と同時にHostingへデプロイしない。
+
+`python3 html-viewer/tools/test-python-api-patch.py` のオフラインテストでは、二重適用拒否、元コード不一致の検出、管理者認可の保持、元ファイルの不変更を検査する。GitHub Actionsの `Stage original Firebase UI source on feature branch` で自動実行している。
+
+注意：実際の `firebase_functions` SDKバージョン、既存のCloud Functionsランタイムでの実動作、Firebase Authの許可ドメインは、元ソースの `requirements.txt` の確認後に必ずテストすること。
