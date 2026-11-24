@@ -1,0 +1,251 @@
+name: HTML Viewer Unit Tests
+on:
+  pull_request:
+    paths:
+      - 'html-viewer/**'
+      - 'html-admin/**'
+      - '.github/workflows/html-viewer-test.yml'
+      - '.github/workflows/html-viewer-manual-preview.yml'
+  workflow_dispatch:
+jobs:
+  existing-routes-guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Block edits outside the isolated viewer and admin paths
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git diff --name-only --diff-filter=ACDMRT "$BASE_SHA" HEAD > /tmp/rifj-changed.txt
+          echo "Files changed in this PR:"
+          cat /tmp/rifj-changed.txt
+          while IFS= read -r file; do
+            case "$file" in
+              html-viewer/*|html-admin/*|docs/html-viewer-integration-plan.md|docs/html-viewer-hosting-preflight.md|docs/html-viewer-preview-channel-guide.md|docs/html-viewer-github-pages-release.md|.github/workflows/html-viewer-test.yml|.github/workflows/html-viewer-manual-preview.yml) ;;
+              *) echo "::error::Protected existing route or repository file changed: $file"; exit 1 ;;
+            esac
+          done < /tmp/rifj-changed.txt
+      - name: Ensure no deployment config or workflow was introduced
+        run: |
+          for path in firebase.json .firebaserc .github/workflows/firebase-hosting-merge.yml .github/workflows/firebase-hosting-pull-request.yml; do
+            if [ -e "$path" ]; then echo "::error::Unexpected production deployment file: $path"; exit 1; fi
+          done
+  unit-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax validation
+        run: |
+          node --check html-viewer/article-utils.mjs
+          node --check html-viewer/html-import.mjs
+          node --check html-viewer/firebase-data.mjs
+          node --check html-viewer/firebase-options.mjs
+          node --check html-admin/firebase-admin.mjs
+          node --check html-admin/firebase-diagnostics.mjs
+          node --check html-admin/save-review.mjs
+      - name: Validate Firebase configuration is disabled by default
+        run: node --input-type=module -e "import fs from 'node:fs'; const c=JSON.parse(fs.readFileSync('html-viewer/firebase-config.json')); if(c.enabled!==false || c.firebaseConfig!==null)process.exit(1)"
+      - name: Unit tests (no production secrets)
+        run: node --test html-viewer/article-utils.test.mjs html-viewer/firebase-options.test.mjs html-viewer/firestore-rules-parity.test.mjs html-admin/firebase-diagnostics.test.mjs html-admin/save-review.test.mjs
+      - name: Verify additive overlay keeps existing site files untouched
+        run: node --test html-viewer/tools/prepare-overlay.test.mjs
+      - name: Test Firebase Hosting configuration preflight (synthetic config only)
+        run: node --test html-viewer/tools/hosting-config-check.test.mjs
+      - name: Test safe standalone Hosting preview packaging
+        run: node --test html-viewer/tools/build-hosting-preview.test.mjs
+      - name: Check preview-only manual deployment safety
+        run: node --test html-viewer/tools/manual-preview-guard.test.mjs
+      - name: Validate admin-claim bootstrap safety (mocked only)
+        run: node --test html-viewer/tools/admin-claim.test.mjs
+  firestore-emulator:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install isolated Firestore test dependencies
+        working-directory: html-viewer/tests
+        run: npm install --no-package-lock --no-audit --no-fund
+      - name: Test HTML import with simulated browser DOM
+        working-directory: html-viewer/tests
+        run: npm run test:html
+      - name: Test security rules in Firestore Emulator
+        working-directory: html-viewer/tests
+        run: npx firebase emulators:exec --only firestore --project demo-rifj-html --config firebase.json "npm run test:rules"
+  preview-bundle:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble isolated preview bundle (no deploy)
+        run: |
+          mkdir -p preview/html-viewer preview/html-admin
+          cp html-viewer/index.html html-viewer/articles.json html-viewer/article-utils.mjs html-viewer/html-import.mjs html-viewer/firebase-data.mjs html-viewer/firebase-options.mjs html-viewer/firebase-config.json preview/html-viewer/
+          cp html-admin/index.html html-admin/firebase-admin.mjs html-admin/firebase-diagnostics.mjs html-admin/save-review.mjs preview/html-admin/
+          node --input-type=module -e "import fs from 'node:fs'; const c=JSON.parse(fs.readFileSync('preview/html-viewer/firebase-config.json','utf8')); if(c.enabled!==false || c.firebaseConfig!==null)throw Error('Unsafe preview Firebase configuration')"
+      - name: Reject private articles and backups in public preview
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const f=JSON.parse(fs.readFileSync('preview/html-viewer/articles.json','utf8')); if(!Array.isArray(f)||f.some(a=>a.status!=='published'))throw Error('Non-public article in static feed')"
+          if find preview -type f \( -iname '*backup*' -o -iname '*PRIVATE*' \) | grep .; then
+            echo "::error::Private backup found in public preview"; exit 1
+          fi
+      - name: Assemble standalone Hosting preview artifact (no deploy)
+        run: |
+          node html-viewer/tools/build-hosting-preview.mjs "$RUNNER_TEMP/rifj-hosting-preview"
+          test -f "$RUNNER_TEMP/rifj-hosting-preview/firebase.json"
+          test -f "$RUNNER_TEMP/rifj-hosting-preview/public/html-viewer/index.html"
+          test -f "$RUNNER_TEMP/rifj-hosting-preview/public/html-admin/index.html"
+      - name: Upload standalone Hosting preview package
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-viewer-hosting-preview
+          path: ${{ runner.temp }}/rifj-hosting-preview/
+          retention-days: 14
+          if-no-files-found: error
+      - name: Upload downloadable preview package
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-viewer-preview
+          path: preview/
+          retention-days: 14
+          if-no-files-found: error
+  hosting-origin-diagnostic:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Compare live homepage and exact main revision (read only)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/rifj-main-check"
+          git show "$BASE_SHA:index.html" > "$RUNNER_TEMP/rifj-main-check/index.html"
+          (
+            cd "$RUNNER_TEMP/rifj-main-check"
+            node "$GITHUB_WORKSPACE/html-viewer/tools/hosting-origin-probe.mjs" "$RUNNER_TEMP/hosting-origin-report.json"
+          )
+      - name: Upload read-only public origin findings
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-viewer-hosting-origin-report
+          path: ${{ runner.temp }}/hosting-origin-report.json
+          retention-days: 7
+          if-no-files-found: error
+  github-pages-release-candidate:
+    if: github.event_name == 'pull_request'
+    needs: [existing-routes-guard, unit-tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Snapshot EXACT current main revision without modifying it
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/rifj-main-snapshot"
+          git archive "$BASE_SHA" | tar -x -C "$RUNNER_TEMP/rifj-main-snapshot"
+          test "$(cat "$RUNNER_TEMP/rifj-main-snapshot/CNAME")" = "report.rifj.jp"
+          test -f "$RUNNER_TEMP/rifj-main-snapshot/index.html"
+          for route in blog blogimport xpost sales_strategy; do
+            test -f "$RUNNER_TEMP/rifj-main-snapshot/$route/index.html" || {
+              echo "::error::Expected existing route missing: /$route/"
+              exit 1
+            }
+          done
+      - name: Combine exact main snapshot with new routes, hash-check originals
+        run: |
+          node html-viewer/tools/prepare-overlay.mjs "$RUNNER_TEMP/rifj-main-snapshot" "$RUNNER_TEMP/rifj-pages-candidate"
+          node --input-type=module -e "
+            import {readFileSync} from 'node:fs';
+            const root=process.env.RUNNER_TEMP+'/rifj-pages-candidate';
+            const report=JSON.parse(readFileSync(root+'/overlay-audit.json'));
+            if(!report.existingSiteUnchanged||report.addedFiles!==11||report.firebaseEnabled!==false)throw Error('GitHub Pages release candidate rejected');
+            const feed=JSON.parse(readFileSync(root+'/html-viewer/articles.json'));
+            if(!Array.isArray(feed)||feed.some(x=>x.status!=='published'))throw Error('Public feed contains nonpublic data');
+            console.log('Verified '+report.baselineFiles+' original files; only '+report.addedFiles+' runtime files added');
+          "
+          test "$(cat "$RUNNER_TEMP/rifj-pages-candidate/CNAME")" = "report.rifj.jp"
+      - name: Install isolated browser-test dependencies
+        working-directory: html-viewer/tests
+        run: |
+          npm install --no-package-lock --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Browser check against REAL main snapshot (no publish)
+        env:
+          RIFJ_PAGES_CANDIDATE: ${{ runner.temp }}/rifj-pages-candidate
+        run: node --test html-viewer/tools/actual-main-browser.test.mjs
+      - name: Keep audit information outside public candidate
+        run: |
+          cp "$RUNNER_TEMP/rifj-pages-candidate/overlay-audit.json" "$RUNNER_TEMP/rifj-pages-overlay-audit.json"
+          rm "$RUNNER_TEMP/rifj-pages-candidate/overlay-audit.json"
+      - name: Stage ONLY new runtime directories for review
+        run: |
+          mkdir -p "$RUNNER_TEMP/rifj-pages-additions"
+          cp -a "$RUNNER_TEMP/rifj-pages-candidate/html-viewer" "$RUNNER_TEMP/rifj-pages-additions/"
+          cp -a "$RUNNER_TEMP/rifj-pages-candidate/html-admin" "$RUNNER_TEMP/rifj-pages-additions/"
+      - name: Upload ONLY additions for REVIEW (no publish)
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-viewer-github-pages-additions
+          path: ${{ runner.temp }}/rifj-pages-additions/
+          retention-days: 7
+          if-no-files-found: error
+      - name: Upload hash audit for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-viewer-pages-audit
+          path: ${{ runner.temp }}/rifj-pages-overlay-audit.json
+          retention-days: 7
+          if-no-files-found: error
+  browser-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install test dependencies
+        working-directory: html-viewer/tests
+        run: npm install --no-package-lock --no-audit --no-fund
+      - name: Install Chromium for Playwright
+        working-directory: html-viewer/tests
+        run: npx playwright install --with-deps chromium
+      - name: Test viewer and admin in real browser without Firebase
+        working-directory: html-viewer/tests
+        run: npm run test:browser
+      - name: Test merged baseline and new routes in Chromium
+        working-directory: html-viewer/tests
+        run: node --test ../tools/prepare-overlay.browser.test.mjs

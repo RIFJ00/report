@@ -1,0 +1,76 @@
+# report.rifj.jp の公開方式再評価（2026-11-24）
+
+## 実際に確認できた証拠
+
+- GitHubリポジトリ `RIFJ00/report` のメタデータ：`has_pages: true`、デフォルトブランチ `main`。
+- 同リポジトリの `main/CNAME` には `report.rifj.jp` と記載されている。
+- 同リポジトリの `main/index.html` と `https://report.rifj.jp/` のタイトルおよび主要本文が一致する。
+- リポジトリには既存の `/blog/`、`/blogimport/`、`/xpost/` 等がある。
+- 現段階でGitHub Pagesの「Settings → Pages」の実際のソース設定（branch/folder）およびDNSは直接確認できていない。
+
+**結論：** `report.rifj.jp` は `RIFJ00/report` のGitHub Pagesから配信されている可能性が高い。Firebase ConfigをHTML内に記載することは、Firebaseをデータバックエンドとして使用するだけで、Firebase Hostingを公開元にする必要はない。
+
+## 推奨配信方式
+
+GitHub Pagesの配信元が `main` のルートであると確認できた場合、現行サイトを維持したまま、すでに開発した `html-viewer/` と `html-admin/` の静的な公開用ファイルを `main` へ追加するだけで、以下のURLが有効になる想定である。
+
+- `https://report.rifj.jp/html-viewer/`
+- `https://report.rifj.jp/html-admin/`
+
+Firebaseバックエンドは別プロジェクト `html-viewer-703b6` を使う。その接続はまだ無効（`firebase-config.json enabled:false`）であり、Firestoreの認証・ルールを確認してから有効化する。
+
+## 正式反映前の禁止事項
+
+- **GitHub Pagesの配信元を確認する前にPR #9をmainにマージしない。** `main` を自動公開している場合、マージ操作そのものが公開となる可能性がある。
+- Firebase Hostingへ `report.rifj.jp` のDNS・カスタムドメインを移さない。
+- `main/CNAME`、ルート `index.html`、既存 `/blog/` 等を変更しない。
+- FirebaseのサービスアカウントをGitHubに平文で置かない。
+- Firebase接続無効の状態で公開されても「記事保存が機能する」と説明しない。
+
+## 公開前に確認する手順
+
+1. GitHub → `RIFJ00/report` → Settings → Pages を開き、実際の公開URL、配信ソース（branch + folder）を確認する。
+2. `main` ルートが配信元なら、GitHub Pages経由で公開する方針を採用する。もしActions配信やサブフォルダなら、そのワークフロー／ソースの配置を先に確認する。
+3. PR #9の変更ファイル一覧を確認し、既存ルートファイルと`CNAME`が変更されていないことを確認する。
+4. Firebase `html-viewer-703b6` のAuthentication／Firestoreルール／管理者クレームを確認する。
+5. リリース後に公開閲覧と管理者保存の実機検証を行う。想定外の挙動ではGitHubの以前のコミットへ戻して静的サイトを復旧する。
+
+## Firebase Hosting独立プレビューとの関係
+
+Firebase Hosting独立プレビューはGitHub Pagesの正式配信とは別の**任意の検証経路**として保持する。GitHub Pagesが実際の配信元と確認されれば、本番反映にFirebase Hostingのプロジェクト・ドメイン移行は不要。
+
+## GitHub Actionsでの実際のmainベース検証（2026-11-24追加）
+
+PRの `HTML Viewer Unit Tests` に `github-pages-release-candidate` を追加した。このジョブは、PRの `base.sha` に相当する**実際の既存mainのスナップショット**を `git archive` で取得して、現行 `CNAME` と代表的な既存パスを検証し、`prepare-overlay.mjs` で既存資産のSHA-256値が変わらないことを確認する。
+
+- `html-viewer-pages-audit`：既存資産のファイル名・SHA-256と追加ファイルの監査レポート（レビュー専用）
+- `html-viewer-github-pages-additions`：**新規閲覧・管理フォルダのみ**を含む検証用ZIP。既存のサイトのソース全体をアーティファクトへ再アップロードしない
+- 新規のランタイムファイルは11件で、Firebase接続は無効のまま。
+- これらは**ダウンロード用レビュー成果物**であり、GitHub Pagesへのデプロイや本番変更を行わない。
+
+現時点でGitHub Pagesの実際のSource/Branch/Folderの画面は未確認。GitHub Pages以外の配信形態であれば、mainのスナップショット一致だけでは本番配信経路を確定できない。設定確認と既存サイトの公開ルート検証後にマージ可否を判断する。
+
+## 本番mainを使用するChromiumブラウザ実機相当検証（追加）
+
+`html-viewer/tools/actual-main-browser.test.mjs` では、PRベースの `main` から作った公開候補をローカルHTTPサーバーで配信し、実ブラウザ（Chromium）で `/`、`/blog/`、`/blogimport/`、`/xpost/`、`/sales_strategy/`、`/html-viewer/`、`/html-admin/` の全7経路を確認する。既存の5経路はHTTP 200、新規閲覧画面は公開データ0件、管理画面はFirebase未接続かつ書き込み禁止であることを確認する。
+
+この検証は**実サイトに通信・デプロイするものではない**。既存のmainブランチを利用した静的サイトの構成確認である。Firebase認証、実データ、GitHub Pagesのビルド設定、DNSは別途確認する。
+
+## 公開ドメインとmainの読み取り専用照合
+
+`hosting-origin-diagnostic` ジョブはGitHubの実際のPRベース `main/index.html` と `https://report.rifj.jp/` のレスポンス本文をSHA-256で照合し、HTTPステータス、DNSのCNAMEを記録する。アーティファクト `html-viewer-hosting-origin-report` をレビューに使用する。これは外部サイトへの**GETおよびDNS照会のみ**であり、DNS・Hosting・Firebase・GitHub Pagesの設定を変更しない。
+
+**判定上の限界：** HTMLが完全一致してもCDN・キャッシュ・別サーバーの複製の可能性が残り、GitHub Pagesを確証するものではない。HTTP不一致も、ビルド時の加工・キャッシュによる可能性がある。最終的にはGitHub Settings → PagesのSource/Branch/Folderとドメイン設定を確認する。
+
+## 公開サイトの実測結果（GitHub Actions 45347069021）
+
+2026-11-24（JST）、GitHub Actions上から `https://report.rifj.jp/` に対して**読み取り専用**で調査を実施。
+
+- HTTPステータス：200
+- DNS CNAME：`rifj00.github.io.`
+- 公開HTMLとPRベース `main/index.html` のSHA-256：**完全一致**（58,256 bytes）
+- GitHub Pagesへの配信を支持する確かな根拠がそろった。
+
+**公開方針：** `report.rifj.jp` の独立Firebase Hostingへの移管は行わず、現行GitHub Pagesへ `html-viewer/` と `html-admin/` を追加する方針を優先する。依然としてSettings → Pagesに記載される正式なSource/Branch/Folderは未確認。Firebase `html-viewer-703b6` はデータベースと認証の接続先として別途用いる。
+
+この検証は公開サイトの読み取りしか行っていないため、本番ファイル・DNS・Firebaseデータには変更がない。

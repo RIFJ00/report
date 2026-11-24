@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // TEST ONLY. Production rules must be merged with existing rules.
+    match /ministryArticles/{articleId} {
+      function isEditor() {
+        return request.auth != null && request.auth.token.rifjAdmin == true;
+      }
+      function validArticle() {
+        return request.resource.data.keys().hasAll(['title','sourceUrl','publishedAt','status'])
+          && request.resource.data.title is string
+          && request.resource.data.title.size() > 0
+          && request.resource.data.sourceUrl is string
+          && request.resource.data.sourceUrl.matches('https?://.+')
+          && request.resource.data.publishedAt is string
+          && request.resource.data.publishedAt.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          && request.resource.data.status in ['draft','private','published'];
+      }
+      allow get, list: if isEditor() || resource.data.status == 'published';
+      allow create, update: if isEditor() && validArticle();
+      allow delete: if isEditor();
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
