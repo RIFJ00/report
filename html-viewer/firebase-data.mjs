@@ -19,5 +19,5 @@ export async function fetchPublishedArticles(options){
  const db=getFirestore(app);
  // A query filter is essential: rules must not treat a collection read as an all-access scan.
  const snapshot=await getDocs(query(collection(db,options.collection),where('status','==','published')));
- return snapshot.docs.map(d=>({id:d.id,...d.data()}));
+ return snapshot.docs.map(d=>({...d.data(),id:d.id}));
 }
