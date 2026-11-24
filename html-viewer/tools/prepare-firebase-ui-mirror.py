@@ -52,6 +52,17 @@ def build(outdir):
  for name,body in [(name,collected[name]) for name in ASSETS]:
   dest=out/"legacy-html-assets"/name
   dest.parent.mkdir(parents=True,exist_ok=True)
+  if name=="article-preview-interactions.js":
+   script=body.decode("utf-8")
+   old="""        if(u.origin==='https://html-viewer-703b6.web.app' &&
+            /^\\/(?:viewer|admin)\\.html$/.test(u.pathname) && u.hash){"""
+   new="""        const isLegacyViewer=u.origin==='https://html-viewer-703b6.web.app' &&
+            /^\\/(?:viewer|admin)\\.html$/.test(u.pathname);
+        const isMigratedViewer=u.origin==='https://report.rifj.jp' &&
+            /^\\/(?:html-viewer|html-admin|column)\\/?$/.test(u.pathname);
+        if((isLegacyViewer||isMigratedViewer) && u.hash){"""
+   if old not in script:raise ValueError("Upstream fragment-link logic changed; review before mirroring")
+   body=script.replace(old,new).encode("utf-8")
   if name in ("app.js","viewer-public.js"):
    script=body.decode("utf-8")
    original="fetch('/api'+path"
