@@ -50,3 +50,34 @@
 - 変更がない場合は書き込まない。変更のある記事だけをFirestoreへ送る（2026-11-24更新）。保存中の二重クリックも防ぐ。
 - **注意**：この事前確認は操作ミス防止機能であり、複数管理者が同時編集した際の競合を原子的に防ぐものではない。実運用では、更新日時・版番号を伴う競合検知、ロールバック、監査ログを追加すること。
 - 本番Firebaseの読み書きは今回実施していない。
+
+## 7. 管理者権限（rifjAdmin）の初回付与
+
+`html-admin/` はFirebase AuthenticationでGoogleログインしただけでは保存できない。実管理者のFirebase Auth UIDにカスタムクレーム `rifjAdmin: true` が必要となる。このクレームは**ブラウザではなく信頼できるローカル環境**から付与する。
+
+開発版に `html-viewer/tools/admin-claim.mjs` を追加した。デフォルトは**読み取り専用**で、ユーザーのUIDと管理者権限の有無を確認するだけである。
+
+```sh
+# 管理者のMacで実行（Node.js、Firebase Admin SDKとGoogle Cloud ADCを準備）
+npm install --no-save firebase-admin
+gcloud auth application-default login
+
+# まず権限と接続対象を確認（変更なし）
+node html-viewer/tools/admin-claim.mjs --uid <Firebase-Auth-UID>
+
+# 管理者権限を付与するときだけ、明示的な確認文字列を指定
+node html-viewer/tools/admin-claim.mjs --uid <Firebase-Auth-UID> --grant \
+  --confirm GRANT_RIFJ_ADMIN_HTML_VIEWER_703B6
+
+# 権限を取り消す場合
+node html-viewer/tools/admin-claim.mjs --uid <Firebase-Auth-UID> --revoke \
+  --confirm REVOKE_RIFJ_ADMIN_HTML_VIEWER_703B6
+```
+
+- **指定プロジェクト `html-viewer-703b6` 以外は拒否**する。Firebase Consoleで実際のGoogleログインユーザーのUIDを照合してから実行する。
+- Google Cloud ADCを扱う端末・Firebase Admin SDKの実行者には、必要最小限のFirebase Authentication管理権限が必要となる。
+- `--grant`、`--revoke` は実Firebase上の認証ユーザーを書き換える。確認コマンドとは違うため、事前に対象UIDと実行者を確認すること。
+- その他のカスタムクレームを保持する。新しいクレームが反映されるまでログインし直すかIDトークンを更新する。
+- このリポジトリにサービスアカウントの秘密鍵、アクセストークン、ADC設定ファイルをコミットしない。
+- **現時点では実Authユーザーの照会・クレーム付与・Firestoreへの実接続はいずれも未実施。**
+
