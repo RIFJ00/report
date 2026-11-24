@@ -132,3 +132,12 @@
 - ブラウザテストで、公開用ダウンロードに下書き・非公開記事のタイトルや本文が混入しないことを確認する。
 - 検証用パッケージ生成のCIで、公開フィードに非公開状態の記事が含まれていないことと、バックアップ名のファイルが紛れていないことをチェックする。
 - **注意：** クライアント側の一覧表示から非公開記事を隠すだけでは秘密は守れない。静的JSONは直接ダウンロードできるため、公開用ファイルに秘密のメタデータ・本文を絶対に含めない。
+
+## HTML Viewerプロジェクトへの接続先固定（2026-11-24）
+
+- ユーザーがFirebaseコンソールで確認した**省庁記事用プロジェクト**は `html-viewer-703b6`。コラム用 `blog-viewer-f83bc`、その他の `mirai-850a5` と区別する。
+- 初期設定 `firebase-config.json` は `enabled: false` のまま維持する。既存の静的閲覧とCI検証を止めない。
+- `firebase-staging-config.example.json` は**無効状態のひな形**。Firebase Consoleの「SDKの設定と構成」にあるAPIキーを、手元の**ステージング用コピー**に設定して利用する。APIキーを含めWeb SDK設定はアクセス権限ではないため、Firestore・Storageルールと管理者クレームを別途設定・検証する必要がある。
+- `firebase-options.mjs` は接続有効化時に、プロジェクトID、Auth Domain、Storage Bucket、Messaging Sender ID、Web App ID、使用可能なコレクションを照合し、MiraiやBlog Viewerなど異なるFirebaseへの誤接続を拒否する。
+- これは**クライアント側の誤設定防止**であり、サーバー側のセキュリティ境界ではない。権限は必ずFirestore/StorageルールとAuthenticationで保護する。
+- 本番 `report.rifj.jp` のHostingのプロジェクト・サイトID、配信設定は引き続き確認待ち。管理者クレーム・実際のAuth・Firestore読書テストは未実施。
