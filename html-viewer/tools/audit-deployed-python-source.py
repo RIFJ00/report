@@ -18,19 +18,23 @@ import zipfile
 PROJECT="html-viewer-703b6"
 REGION="asia-northeast1"
 FUNCTION="api"
-LIMIT=35_000_000
+ARCHIVE_LIMIT=250_000_000
+FILE_LIMIT=30_000_000
+TOTAL_UNCOMPRESSED_LIMIT=400_000_000
 
 def normalized_source_files(data):
-    if len(data)>LIMIT:raise ValueError("Function source archive too large")
+    if len(data)>ARCHIVE_LIMIT:raise ValueError("Function source archive exceeds audited 250 MB limit")
     z=zipfile.ZipFile(io.BytesIO(data))
     entries={}
+    total_uncompressed=0
     for item in z.infolist():
         if item.is_dir():continue
         p=PurePosixPath(item.filename)
         if p.is_absolute() or ".." in p.parts:
             raise ValueError("Unsafe archive path")
-        if item.file_size>LIMIT:
-            raise ValueError("Oversized source file")
+        total_uncompressed+=item.file_size
+        if total_uncompressed>TOTAL_UNCOMPRESSED_LIMIT:raise ValueError("Oversized uncompressed archive")
+        if item.file_size>FILE_LIMIT:raise ValueError("Oversized source file")
         # Deployed source archive can contain either files at root or functions/
         parts=list(p.parts)
         while parts and parts[0] in ("functions","source","."):
@@ -57,7 +61,7 @@ def get_live_source(access_token):
     if not signed or not signed.startswith("https://"):
         raise ValueError("Google did not return an HTTPS source download URL")
     with urllib.request.urlopen(signed,timeout=60) as resp:
-        blob=resp.read(LIMIT+1)
+        blob=resp.read(ARCHIVE_LIMIT+1)
     return normalized_source_files(blob)
 
 def audit(candidate, deployed):
