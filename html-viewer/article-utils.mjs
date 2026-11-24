@@ -6,7 +6,7 @@ export function dateFrom(value) {
  if (!value) return '';
  const s = typeof value === 'string' ? value.trim() : String(value);
  const eraNormalized=s.replace(/^(令和|平成)(\d{1,2}|元)年/,(_,era,n)=>String((era==='令和'?2018:1988)+(n==='元'?1:Number(n)))+'年');
- const m=eraNormalized.match(/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})(?=日|$|[T\s])/);
+ const m=eraNormalized.match(/^(\d{4})[-.年\\/](\d{1,2})[-.月\\/](\d{1,2})(?=日|$|[T\s])/);
  const d=m?m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'):'';
  if (!ymd.test(d)) return '';
  const [y,m,day] = d.split('-').map(Number);
