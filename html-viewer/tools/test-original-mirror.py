@@ -24,6 +24,6 @@ class MigrationTests(unittest.TestCase):
   # Prevent shipping a broken UI as fully functional until the backend is
   # explicitly reverse-proxied or replaced with supported CORS API.
   scripts=[(ROOT/"legacy-html-assets"/p).read_text(encoding="utf-8") for p in ("app.js","viewer-public.js")]
-  for script in scripts:self.assertIn("fetch('/api'+path",script)
+  for script in scripts:self.assertIn("fetch('https://html-viewer-703b6.web.app/api'+path",script)
   # The test is a safety check only, not an end-to-end production readiness declaration.
 if __name__=="__main__":unittest.main()
