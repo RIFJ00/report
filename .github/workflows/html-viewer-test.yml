@@ -48,11 +48,12 @@ jobs:
           node --check html-viewer/article-utils.mjs
           node --check html-viewer/html-import.mjs
           node --check html-viewer/firebase-data.mjs
+          node --check html-viewer/firebase-options.mjs
           node --check html-admin/firebase-admin.mjs
       - name: Validate Firebase configuration is disabled by default
         run: node --input-type=module -e "import fs from 'node:fs'; const c=JSON.parse(fs.readFileSync('html-viewer/firebase-config.json')); if(c.enabled!==false || c.firebaseConfig!==null)process.exit(1)"
       - name: Unit tests (no production secrets)
-        run: node --test html-viewer/article-utils.test.mjs
+        run: node --test html-viewer/article-utils.test.mjs html-viewer/firebase-options.test.mjs
       - name: Verify additive overlay keeps existing site files untouched
         run: node --test html-viewer/tools/prepare-overlay.test.mjs
       - name: Test Firebase Hosting configuration preflight (synthetic config only)
@@ -88,7 +89,7 @@ jobs:
       - name: Assemble isolated preview bundle (no deploy)
         run: |
           mkdir -p preview/html-viewer preview/html-admin
-          cp html-viewer/index.html html-viewer/articles.json html-viewer/article-utils.mjs html-viewer/html-import.mjs html-viewer/firebase-data.mjs html-viewer/firebase-config.json preview/html-viewer/
+          cp html-viewer/index.html html-viewer/articles.json html-viewer/article-utils.mjs html-viewer/html-import.mjs html-viewer/firebase-data.mjs html-viewer/firebase-options.mjs html-viewer/firebase-config.json preview/html-viewer/
           cp html-admin/index.html html-admin/firebase-admin.mjs preview/html-admin/
           node --input-type=module -e "import fs from 'node:fs'; const c=JSON.parse(fs.readFileSync('preview/html-viewer/firebase-config.json','utf8')); if(c.enabled!==false || c.firebaseConfig!==null)throw Error('Unsafe preview Firebase configuration')"
       - name: Reject private articles and backups in public preview
