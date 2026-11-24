@@ -32,3 +32,26 @@ APIサーバーのソースにアクセスできる開発担当者が、**既存
 ## 現時点の公開状態
 
 移植版は `feature/map-original-html-three-routes` / PR #12 内のみ。**mainには未反映**。現在の本番3URLは、元Firebaseアプリへ転送して機能を維持する状態である。Firebaseバックエンドには変更を加えていない。
+
+## 2026-11-24 CORS実測・修正案
+
+読み取り専用テスト（GitHub Actions `45357017572`）では、元APIの公開一覧 `GET /api/list?kind=kantei&limit=1` は **HTTP 200** であったが、`Access-Control-Allow-Origin` が欠けていた。`OPTIONS /api/search?query=test` は **HTTP 405**、管理用のプリフライトも同様に許可ヘッダーがなかった。そのため、元のUIを直接GitHub Pagesで表示しても記事データを取得できない。
+
+管理画面の元JavaScriptで確認した変更系APIはすべて **POST**：
+- `/api/import-url` — URLからHTML生成・保存
+- `/api/import-html` — HTMLファイル内容の登録
+- `/api/article/{id}/edit` — 編集
+- `/api/article/{id}/delete` — 削除
+
+閲覧系は **GET**。`GET, POST, OPTIONS` とヘッダー `Authorization, Content-Type` を最小許可セットとして扱う。管理者の権限チェックは**必ず元サーバーで継続する**。
+
+元APIの実装コードは現在接続中のGitHubリポジトリにはなく、Cloud FunctionsかCloud Run等の実サーバー構成も未確認である。このため、`html-viewer/tools/original-api-cors-express.example.mjs` は**既存APIサーバーがNode/Express系だった場合のコード例**に限定した。自動デプロイも実APIの変更も行わない。FastAPI/Flask等であれば同じ制限をそちらのフレームワークに合わせて適用すること。
+
+テスト用コードでは次を確認する：
+- `https://report.rifj.jp` のみを許可（ワイルドカード `*` を使わない）
+- OPTIONSのみ認証前に正常応答し、実際のGET/POSTは必ず元の認証・認可へ渡す
+- 元Firebaseサイトの同一オリジンアクセスを維持する
+- 未許可オリジンのブラウザにCORS許可を与えない
+- Firebaseの設定変更・トークン発行・ユーザーデータ操作は一切行わない
+
+API側の変更が実環境に適用された後、読み取り専用ツール `html-viewer/tools/check-original-api-cors.py` を再実行し `ready: true` を確認する。そのうえで実ブラウザで公開記事表示・管理者ログイン・保存・再読込・編集・削除を検証してからPR #12をマージする。
