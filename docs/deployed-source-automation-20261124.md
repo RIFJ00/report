@@ -30,3 +30,12 @@ GitHub Actionsの既存設計に合わせ、`GCP_WIF_PROVIDER` と `GCP_DEPLOY_S
 - 公開本番への切替：**保留（PR #12ドラフト）**。
 
 GitHub Actionsは `https://github.com/RIFJ00/report/actions` から確認。既存のワークフローは `main` へのpushでFirebase全体をデプロイする危険があるため、こちらの構成を本番デプロイ系と混同しないこと。
+
+## 実行結果（2026-11-24 19時台）
+
+- ソース自動照合の初回GitHub Actions実行： https://github.com/RIFJ00/report/actions/runs/45376330088
+- **失敗理由：GitHub Actionsのリポジトリ変数 `GCP_WIF_PROVIDER` と `GCP_DEPLOY_SERVICE_ACCOUNT` が両方未設定。** 外部Google Cloudへの認証処理は実行されていない。Cloud Functionsソース取得・比較も未実施。
+- ハッシュ照合ツールのオフラインテストは https://github.com/RIFJ00/report/actions/runs/45376592257 で成功。
+- 過去の `RIFJ_GitHub_Firebase_AutoDeploy_Setup_v1` のCloud Shell設定スクリプトは **`RIFJ00/rifj-firebase-html` の `main` ブランチ向け**であり、現在作業している **`RIFJ00/report` の `feature/map-original-html-three-routes` ブランチには適合しない**。そのまま実行しない。
+- Google Cloud Functions v2ソース取得に必要な権限は `cloudfunctions.functions.sourceCodeGet`。本作業にはこの権限のみ（必要に応じて表示権限）を持つ、GitHubの開発ブランチに制限した専用の読み取り用OIDC接続を設定するのが最小権限原則に適う。`roles/cloudfunctions.admin` やデプロイ系IAM権限はこの監査には不要。
+- ユーザー管理者のGoogle CloudとGitHub両方のIAMを設定しない限り、完全なクラウド側自動化は進められない。現時点で本番を上書きする選択はしない。
