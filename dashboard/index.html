@@ -136,7 +136,7 @@
                 <div class="mb-6 text-5xl">
                     📝
                 </div>
-                <button onclick="openUrlWithPassword('https://report.rifj.jp/blog/', 'blog')" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-red-300">
+                <button onclick="window.open('https://html-viewer-703b6.web.app/columns.html', '_blank', 'noopener')" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-2 rounded-full shadow-md transition-colors mb-4 focus:outline-none focus:ring-4 focus:ring-red-300">
                     開発者のコラム
                 </button>
                 <p id="blog-status" class="text-xs text-red-800 font-medium status-loading">読込中...</p>
@@ -531,16 +531,50 @@
             }
         }
 
-        const initBlog = async () => {
-            await safeAuth(appBlog);
-            onSnapshot(collection(dbBlog, "posts"), (snapshot) => {
-                let latest = null;
-                snapshot.docs.forEach(d => {
-                    const date = toDateSafely(d.data().createdAt);
-                    if (date && (!latest || date > latest)) latest = date;
-                });
-                updateStatusDisplay('blog-status', latest);
-            }, (err) => console.warn("Blog snapshot error", err));
+        // コラム・ブログの更新日時は、HTMLビューワー側の公開記事一覧から取得する。
+        const initBlog = () => {
+            const status = document.getElementById('blog-status');
+            if (!status) return;
+            const bridgeUrl = 'https://html-viewer-703b6.web.app/blog-update-bridge.html';
+            const bridge = document.createElement('iframe');
+            bridge.title = 'コラム・ブログ最終更新日時の確認';
+            bridge.setAttribute('aria-hidden', 'true');
+            bridge.tabIndex = -1;
+            bridge.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;border:0';
+            document.body.appendChild(bridge);
+
+            const trustedOrigins = new Set([
+                'https://html-viewer-703b6.web.app',
+                'https://html-viewer-703b6.firebaseapp.com'
+            ]);
+            window.addEventListener('message', (event) => {
+                if (!trustedOrigins.has(event.origin) || event.source !== bridge.contentWindow) return;
+                const data = event.data;
+                if (!data || data.type !== 'rifj:blog-last-updated:v1') return;
+                if (!data.ok) {
+                    console.warn('コラム更新日時の取得に失敗:', data.error);
+                    status.textContent = '更新日: 取得できません';
+                    status.classList.remove('status-loading');
+                    return;
+                }
+                if (!data.lastUpdated) {
+                    status.textContent = '更新日: 登録記事なし';
+                    status.classList.remove('status-loading');
+                    return;
+                }
+                const when = new Date(data.lastUpdated);
+                if (Number.isNaN(when.getTime())) {
+                    status.textContent = '更新日: 日時形式エラー';
+                    status.classList.remove('status-loading');
+                    return;
+                }
+                updateStatusDisplay('blog-status', when);
+            });
+            const refresh = () => {
+                bridge.src = bridgeUrl + '?v=' + Date.now();
+            };
+            refresh();
+            setInterval(refresh, 10 * 60 * 1000);
         };
 
         const initDiet = async () => {
