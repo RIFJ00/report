@@ -531,47 +531,33 @@
             }
         }
 
-        // コラム・ブログの更新日時は、HTMLビューワー側の公開記事一覧から取得する。
+        // HTMLビューワーの専用公開APIから最終更新日時だけを取得する。
         const initBlog = () => {
             const status = document.getElementById('blog-status');
             if (!status) return;
-            const bridgeUrl = 'https://html-viewer-703b6.web.app/blog-update-bridge.html';
-            const bridge = document.createElement('iframe');
-            bridge.title = 'コラム・ブログ最終更新日時の確認';
-            bridge.setAttribute('aria-hidden', 'true');
-            bridge.tabIndex = -1;
-            bridge.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;border:0';
-            document.body.appendChild(bridge);
-
-            const trustedOrigins = new Set([
-                'https://html-viewer-703b6.web.app',
-                'https://html-viewer-703b6.firebaseapp.com'
-            ]);
-            window.addEventListener('message', (event) => {
-                if (!trustedOrigins.has(event.origin) || event.source !== bridge.contentWindow) return;
-                const data = event.data;
-                if (!data || data.type !== 'rifj:blog-last-updated:v1') return;
-                if (!data.ok) {
-                    console.warn('コラム更新日時の取得に失敗:', data.error);
-                    status.textContent = '更新日: 取得できません';
+            const apiUrl = 'https://html-viewer-703b6.web.app/api/latest-column-update';
+            const refresh = async () => {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'no-store'
+                    });
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    const result = await response.json();
+                    if (!result.lastUpdated) {
+                        status.textContent = '最終更新：登録記事なし';
+                        status.classList.remove('status-loading');
+                        return;
+                    }
+                    const date = new Date(result.lastUpdated);
+                    if (Number.isNaN(date.getTime())) throw new Error('更新日時の形式が不正');
+                    updateStatusDisplay('blog-status', date);
+                } catch (error) {
+                    console.warn('コラム・ブログ更新日時の取得エラー:', error);
+                    status.textContent = '最終更新：取得できません';
                     status.classList.remove('status-loading');
-                    return;
                 }
-                if (!data.lastUpdated) {
-                    status.textContent = '更新日: 登録記事なし';
-                    status.classList.remove('status-loading');
-                    return;
-                }
-                const when = new Date(data.lastUpdated);
-                if (Number.isNaN(when.getTime())) {
-                    status.textContent = '更新日: 日時形式エラー';
-                    status.classList.remove('status-loading');
-                    return;
-                }
-                updateStatusDisplay('blog-status', when);
-            });
-            const refresh = () => {
-                bridge.src = bridgeUrl + '?v=' + Date.now();
             };
             refresh();
             setInterval(refresh, 10 * 60 * 1000);
